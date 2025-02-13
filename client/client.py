@@ -13,50 +13,77 @@ import time
 import numpy as np
 import pandas as pd
 import argparse
+import asyncio
 
 
-def send_message(
+async def send_message(
     client: OpenAI,
     model_name: str,
     input_options: datasets.DatasetDict,
     df: pd.DataFrame,
     poisson_arrival_rate: float,
     reasoning: bool = False,
-) -> pd.DataFrame:
+) -> dict:
 
+    chosen_input = random.choice(input_options)
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": random.choice(input_options)},
+        {"role": "user", "content": chosen_input},
     ]
     start_time = time.time()
-    response = client.chat.completions.create(model=model_name, messages=messages)
-    end_time = time.time() - start_time
+    loop = asyncio.get_event_loop()
+    response_raw = await loop.run_in_executor(
+        None,
+        lambda: client.chat.completions.create(model=model_name, messages=messages),
+    )
+    e2e_time = time.time() - start_time
 
-    response = response.choices[0]
+    response = response_raw.choices[0]
     reasoning_content = response.reasoning_content if reasoning else ""
     content = response.message.content
     print(response)
-    pd.concat(
-        [
-            df,
-            pd.DataFrame(
-                [
-                    {
-                        "Request Time": start_time,
-                        "Model": model_name,
-                        "Input": messages[1]["content"],
-                        "Poisson Arrival Rate": poisson_arrival_rate,
-                        "Input Tokens": len(tokenizers.encode(messages[1]["content"])),
-                        "Output Tokens (Response)": len(tokenizers.encode(content)),
-                        "Reasoning Tokens": len(tokenizers.encode(reasoning_content)),
-                        "E2E Latency": end_time,
-                    }
-                ]
-            ),
-        ],
-        ignore_index=True,
-    )
-    return df
+
+    record = {
+        "Request Time": start_time,
+        "Model": model_name,
+        "Input": chosen_input,
+        "Poisson Arrival Rate": poisson_arrival_rate,
+        "Input Tokens": len(tokenizers.encode(chosen_input)),
+        "Output Tokens (Response)": len(tokenizers.encode(content)),
+        "Reasoning Tokens": len(tokenizers.encode(reasoning_content)),
+        "E2E Latency": e2e_time,
+    }
+
+    return record
+
+
+async def schedule_messages(
+    client: OpenAI,
+    model_name: str,
+    input_options: datasets.DatasetDict,
+    df: pd.DataFrame,
+    poisson_arrival_rate: float,
+    reasoning: bool = False,
+    T: int = 600,
+):
+    tasks = []
+    start_time = time.time()
+    while time.time() < start_time + T:
+        tasks.append(
+            asyncio.create_task(
+                send_message(
+                    client=client,
+                    model_name=model_name,
+                    input_options=input_options,
+                    df=df,
+                    poisson_arrival_rate=poisson_arrival_rate,
+                    reasoning=reasoning,
+                )
+            )
+        )
+        await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
+    results = await asyncio.gather(*tasks)
+    return results
 
 
 if __name__ == "__main__":
@@ -87,17 +114,17 @@ if __name__ == "__main__":
 
     T = 600  # seconds our experiment will run
     poisson_arrival_rate = args.poisson_arrival_rate
-    start_time = time.time()
-    end_time = start_time + (T)  # Run for T seconds
-    while time.time() < end_time:
-        df = send_message(
+    reasoning = args.reasoning
+    records = asyncio.run(
+        schedule_messages(
             client=client,
             model_name=model_name,
             input_options=input_options,
             df=df,
             poisson_arrival_rate=poisson_arrival_rate,
-            reasoning=args.reasoning,
+            reasoning=reasoning,
+            T=T,
         )
-        df.to_csv(f"{model_name}_{poisson_arrival_rate}.csv", index=False)
-        interarrival_time = np.random.exponential(scale=1.0 / poisson_arrival_rate)
-        time.sleep(interarrival_time)
+    )
+    df = pd.DataFrame(records)
+    df.to_csv(f"results_{model_name}_{poisson_arrival_rate}.csv", index=False)
