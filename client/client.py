@@ -41,7 +41,8 @@ async def send_message(
     response = response_raw.choices[0]
     reasoning_content = response.reasoning_content if reasoning else ""
     content = response.message.content
-    print(response)
+    print(reasoning_content)
+    print(content)
 
     record = {
         "Request Time": start_time,
@@ -91,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--reasoning", type=bool, default=False)
     parser.add_argument("--poisson_arrival_rate", type=float, default=1.0)
     parser.add_argument(
-        "--model_name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct"
+        "--model_name", type=str, default="meta-llama/Llama-3.1-8B-Instruct"
     )
     parser.add_argument("--base_url", type=str, default="http://localhost:8000/v1")
     parser.add_argument("--api_key", type=str, default="EMPTY")
@@ -106,7 +107,8 @@ if __name__ == "__main__":
     tokenizers = transformers.AutoTokenizer.from_pretrained(model_name)
     df = pd.DataFrame()
     assert client.chat is not None
-    assert model_name in client.models.list()
+    print(client.models.list())
+    #assert model_name in client.models.list()
 
     input_options = datasets.load_dataset("garage-bAInd/Open-Platypus", "default")[
         "train"
