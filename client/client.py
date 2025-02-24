@@ -27,7 +27,11 @@ async def send_message(
 
     chosen_input = random.choice(input_options)
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        (
+            {"role": "system", "content": "You are a helpful assistant."}
+            if not reasoning
+            else {}
+        ),
         {"role": "user", "content": chosen_input},
     ]
     start_time = time.time()
