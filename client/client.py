@@ -1,39 +1,37 @@
-"""
-```bash
-vllm serve deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
-     --enable-reasoning --reasoning-parser deepseek_r1
-```
-"""
-
-from openai import OpenAI
-import datasets
-import random
-import transformers
+import os
 import time
-import numpy as np
-import pandas as pd
+import random
 import argparse
 import asyncio
+import numpy as np
+import pandas as pd
+import datasets
+import transformers
+from openai import OpenAI
 
 
 async def send_message(
     client: OpenAI,
     model_name: str,
-    input_options: datasets.DatasetDict,
-    df: pd.DataFrame,
+    input_options: datasets.arrow_dataset.Dataset,
     poisson_arrival_rate: float,
+    tokenizers,
     reasoning: bool = False,
 ) -> dict:
-
+    """Sends a message to the OpenAI API and records performance metrics."""
     chosen_input = random.choice(input_options)
+    instruction_text = chosen_input["instruction"]
+    data_source = chosen_input["data_source"]
+
     messages = [
         (
             {"role": "system", "content": "You are a helpful assistant."}
             if not reasoning
             else {}
         ),
-        {"role": "user", "content": chosen_input},
+        {"role": "user", "content": instruction_text},
     ]
+
     start_time = time.time()
     loop = asyncio.get_event_loop()
     response_raw = await loop.run_in_executor(
@@ -43,19 +41,17 @@ async def send_message(
     e2e_time = time.time() - start_time
 
     response = response_raw.choices[0]
-    reasoning_content = response.reasoning_content if reasoning else ""
     content = response.message.content
-    print(reasoning_content)
-    print(content)
 
+    # Build the record
     record = {
         "Request Time": start_time,
         "Model": model_name,
-        "Input": chosen_input,
+        "Input": instruction_text,
+        "Data Source": data_source,
         "Poisson Arrival Rate": poisson_arrival_rate,
-        "Input Tokens": len(tokenizers.encode(chosen_input)),
+        "Input Tokens": len(tokenizers.encode(instruction_text)),
         "Output Tokens (Response)": len(tokenizers.encode(content)),
-        "Reasoning Tokens": len(tokenizers.encode(reasoning_content)),
         "E2E Latency": e2e_time,
     }
 
@@ -65,14 +61,20 @@ async def send_message(
 async def schedule_messages(
     client: OpenAI,
     model_name: str,
-    input_options: datasets.DatasetDict,
-    df: pd.DataFrame,
+    input_options: datasets.arrow_dataset.Dataset,
     poisson_arrival_rate: float,
+    tokenizers,
     reasoning: bool = False,
     T: int = 600,
-):
+) -> list:
+    """
+    Schedule requests (tasks) over a time window T using a Poisson process.
+    Save each task result to disk as soon as it completes.
+    Return all results at the end.
+    """
     tasks = []
     start_time = time.time()
+
     while time.time() < start_time + T:
         tasks.append(
             asyncio.create_task(
@@ -80,14 +82,33 @@ async def schedule_messages(
                     client=client,
                     model_name=model_name,
                     input_options=input_options,
-                    df=df,
                     poisson_arrival_rate=poisson_arrival_rate,
+                    tokenizers=tokenizers,
                     reasoning=reasoning,
                 )
             )
         )
         await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
-    results = await asyncio.gather(*tasks)
+
+    results = []
+    outfile = f"results_{model_name}_{poisson_arrival_rate}.csv"
+    file_exists = os.path.exists(outfile)
+
+    for finished_task in asyncio.as_completed(tasks):
+        try:
+            result = await finished_task
+            results.append(result)
+            df_temp = pd.DataFrame([result])
+            df_temp.to_csv(
+                outfile,
+                mode="a",
+                header=not file_exists,
+                index=False,
+            )
+            file_exists = True
+        except Exception as e:
+            print(f"Task failed with exception: {e}")
+
     return results
 
 
@@ -101,36 +122,38 @@ if __name__ == "__main__":
     parser.add_argument("--base_url", type=str, default="http://localhost:8000/v1")
     parser.add_argument("--api_key", type=str, default="EMPTY")
     args = parser.parse_args()
+
     model_name = args.model_name
     openai_api_key = args.api_key
     openai_api_base = args.base_url
+    poisson_arrival_rate = args.poisson_arrival_rate
+    reasoning = args.reasoning
+    T = 600
+
     client = OpenAI(
         api_key=openai_api_key,
         base_url=openai_api_base,
     )
     tokenizers = transformers.AutoTokenizer.from_pretrained(model_name)
-    df = pd.DataFrame()
-    assert client.chat is not None
-    print(client.models.list())
-    #assert model_name in client.models.list()
 
+    # Load a dataset to sample from
     input_options = datasets.load_dataset("garage-bAInd/Open-Platypus", "default")[
         "train"
-    ]["instruction"]
+    ]
 
-    T = 600  # seconds our experiment will run
-    poisson_arrival_rate = args.poisson_arrival_rate
-    reasoning = args.reasoning
     records = asyncio.run(
         schedule_messages(
             client=client,
             model_name=model_name,
             input_options=input_options,
-            df=df,
             poisson_arrival_rate=poisson_arrival_rate,
+            tokenizers=tokenizers,
             reasoning=reasoning,
             T=T,
         )
     )
+
     df = pd.DataFrame(records)
-    df.to_csv(f"results_{model_name}_{poisson_arrival_rate}.csv", index=False)
+    final_csv = f"results_{model_name}_{poisson_arrival_rate}_final.csv"
+    df.to_csv(final_csv, index=False)
+    print(f"Final results saved to {final_csv}")
