@@ -17,6 +17,7 @@ async def send_message(
     poisson_arrival_rate: float,
     tokenizers,
     reasoning: bool = False,
+    tensor_parallel_size: int = 1,
 ) -> dict:
     """Sends a message to the OpenAI API and records performance metrics."""
     chosen_input = random.choice(input_options)
@@ -50,6 +51,7 @@ async def send_message(
         "Input": instruction_text,
         "Data Source": data_source,
         "Poisson Arrival Rate": poisson_arrival_rate,
+        "Tensor Parallel Size": tensor_parallel_size,
         "Input Tokens": len(tokenizers.encode(instruction_text)),
         "Output Tokens (Response)": len(tokenizers.encode(content)),
         "E2E Latency": e2e_time,
@@ -66,6 +68,7 @@ async def schedule_messages(
     tokenizers,
     reasoning: bool = False,
     T: int = 600,
+    tensor_parallel_size: int = 1,
 ) -> list:
     """
     Schedule requests (tasks) over a time window T using a Poisson process.
@@ -85,13 +88,14 @@ async def schedule_messages(
                     poisson_arrival_rate=poisson_arrival_rate,
                     tokenizers=tokenizers,
                     reasoning=reasoning,
+                    tensor_parallel_size=tensor_parallel_size,
                 )
             )
         )
         await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
 
     results = []
-    outfile = f"results_{model_name}_{poisson_arrival_rate}.csv"
+    outfile = f"results_{model_name}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
     file_exists = os.path.exists(outfile)
 
     for finished_task in asyncio.as_completed(tasks):
@@ -115,12 +119,13 @@ async def schedule_messages(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--reasoning", type=bool, default=False)
-    parser.add_argument("--poisson_arrival_rate", type=float, default=1.0)
+    parser.add_argument("--poisson-arrival-rate", type=float, default=1.0)
     parser.add_argument(
-        "--model_name", type=str, default="meta-llama/Llama-3.1-8B-Instruct"
+        "--model-name", type=str, default="meta-llama/Llama-3.1-8B-Instruct"
     )
-    parser.add_argument("--base_url", type=str, default="http://localhost:8000/v1")
-    parser.add_argument("--api_key", type=str, default="EMPTY")
+    parser.add_argument("--base-url", type=str, default="http://localhost:8000/v1")
+    parser.add_argument("--api-key", type=str, default="EMPTY")
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
     args = parser.parse_args()
 
     model_name = args.model_name
@@ -128,6 +133,7 @@ if __name__ == "__main__":
     openai_api_base = args.base_url
     poisson_arrival_rate = args.poisson_arrival_rate
     reasoning = args.reasoning
+    tensor_parallel_size = args.tensor_parallel_size
     T = 600
 
     client = OpenAI(
@@ -150,6 +156,7 @@ if __name__ == "__main__":
             tokenizers=tokenizers,
             reasoning=reasoning,
             T=T,
+            tensor_parallel_size=tensor_parallel_size,
         )
     )
 
