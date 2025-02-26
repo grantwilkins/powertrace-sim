@@ -83,11 +83,20 @@ async def schedule_messages(
 
     while time.time() < start_time + T:
         # Create a new task
-        task = asyncio.create_task(send_message(...))
+        task = asyncio.create_task(
+            send_message(
+                client=client,
+                model_name=model_name,
+                input_options=input_options,
+                poisson_arrival_rate=poisson_arrival_rate,
+                tokenizers=tokenizers,
+                reasoning=reasoning,
+                tensor_parallel_size=tensor_parallel_size,
+            )
+        )
         pending_tasks.add(task)
         task.add_done_callback(pending_tasks.discard)
 
-        # Check for completed tasks
         done_tasks = set()
         for task in pending_tasks:
             if task.done():
@@ -103,13 +112,10 @@ async def schedule_messages(
                     print(f"Task failed with exception: {e}")
                 done_tasks.add(task)
 
-        # Remove completed tasks
         pending_tasks -= done_tasks
 
-        # Wait for next task creation time
         await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
 
-    # Process any remaining tasks
     while pending_tasks:
         done, pending_tasks = await asyncio.wait(
             pending_tasks, return_when=asyncio.FIRST_COMPLETED
