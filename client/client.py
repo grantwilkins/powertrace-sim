@@ -75,43 +75,54 @@ async def schedule_messages(
     Save each task result to disk as soon as it completes.
     Return all results at the end.
     """
-    tasks = []
-    start_time = time.time()
-
-    while time.time() < start_time + T:
-        tasks.append(
-            asyncio.create_task(
-                send_message(
-                    client=client,
-                    model_name=model_name,
-                    input_options=input_options,
-                    poisson_arrival_rate=poisson_arrival_rate,
-                    tokenizers=tokenizers,
-                    reasoning=reasoning,
-                    tensor_parallel_size=tensor_parallel_size,
-                )
-            )
-        )
-        await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
-
+    pending_tasks = set()
     results = []
+    start_time = time.time()
     outfile = f"results_{model_name}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
     file_exists = os.path.exists(outfile)
 
-    for finished_task in asyncio.as_completed(tasks):
-        try:
-            result = await finished_task
-            results.append(result)
-            df_temp = pd.DataFrame([result])
-            df_temp.to_csv(
-                outfile,
-                mode="a",
-                header=not file_exists,
-                index=False,
-            )
-            file_exists = True
-        except Exception as e:
-            print(f"Task failed with exception: {e}")
+    while time.time() < start_time + T:
+        # Create a new task
+        task = asyncio.create_task(send_message(...))
+        pending_tasks.add(task)
+        task.add_done_callback(pending_tasks.discard)
+
+        # Check for completed tasks
+        done_tasks = set()
+        for task in pending_tasks:
+            if task.done():
+                try:
+                    result = task.result()
+                    results.append(result)
+                    df_temp = pd.DataFrame([result])
+                    df_temp.to_csv(
+                        outfile, mode="a", header=not file_exists, index=False
+                    )
+                    file_exists = True
+                except Exception as e:
+                    print(f"Task failed with exception: {e}")
+                done_tasks.add(task)
+
+        # Remove completed tasks
+        pending_tasks -= done_tasks
+
+        # Wait for next task creation time
+        await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
+
+    # Process any remaining tasks
+    while pending_tasks:
+        done, pending_tasks = await asyncio.wait(
+            pending_tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in done:
+            try:
+                result = task.result()
+                results.append(result)
+                df_temp = pd.DataFrame([result])
+                df_temp.to_csv(outfile, mode="a", header=not file_exists, index=False)
+                file_exists = True
+            except Exception as e:
+                print(f"Task failed with exception: {e}")
 
     return results
 
