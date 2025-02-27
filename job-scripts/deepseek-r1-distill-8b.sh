@@ -10,8 +10,9 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     cd ~/powertrace-sim/client
     POISSON_ARRIVAL_RATES=(1 2 4 8 16 32 64)
     for POISSON_ARRIVAL_RATE in ${POISSON_ARRIVAL_RATES[@]}; do
-        touch deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}.csv
-        nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -l 1 >> deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}.csv &
+        DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
+        touch deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
+        nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -l 0.5 >> deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
         NVIDIA_SMI_PID=$!   
         python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-8B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --reasoning True
         kill -9 ${NVIDIA_SMI_PID}

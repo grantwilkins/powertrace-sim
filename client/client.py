@@ -78,7 +78,9 @@ async def schedule_messages(
     pending_tasks = set()
     results = []
     start_time = time.time()
-    outfile = f"results_{model_name}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
+    specific_model_name = model_name.split("/")[-1]
+
+    outfile = f"results_{specific_model_name}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
     file_exists = os.path.exists(outfile)
 
     while time.time() < start_time + T:
