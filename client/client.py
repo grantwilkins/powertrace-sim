@@ -44,7 +44,6 @@ async def send_message(
     response = response_raw.choices[0]
     content = response.message.content
 
-    # Build the record
     record = {
         "Request Time": start_time,
         "Model": model_name,
@@ -57,6 +56,11 @@ async def send_message(
         "E2E Latency": e2e_time,
     }
 
+    outfile = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
+    file_exists = os.path.exists(outfile)
+    df_temp = pd.DataFrame([record])
+    df_temp.to_csv(outfile, mode="a", header=not file_exists, index=False)
+
     return record
 
 
@@ -67,7 +71,7 @@ async def schedule_messages(
     poisson_arrival_rate: float,
     tokenizers,
     reasoning: bool = False,
-    T: int = 600,
+    T: float = 600.0,
     tensor_parallel_size: int = 1,
 ) -> list:
     """
@@ -75,62 +79,34 @@ async def schedule_messages(
     Save each task result to disk as soon as it completes.
     Return all results at the end.
     """
-    pending_tasks = set()
-    results = []
     start_time = time.time()
-    specific_model_name = model_name.split("/")[-1]
-
-    outfile = f"results_{specific_model_name}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
-    file_exists = os.path.exists(outfile)
+    tasks = []
 
     while time.time() < start_time + T:
         # Create a new task
-        task = asyncio.create_task(
-            send_message(
-                client=client,
-                model_name=model_name,
-                input_options=input_options,
-                poisson_arrival_rate=poisson_arrival_rate,
-                tokenizers=tokenizers,
-                reasoning=reasoning,
-                tensor_parallel_size=tensor_parallel_size,
+        tasks.append(
+            asyncio.create_task(
+                send_message(
+                    client=client,
+                    model_name=model_name,
+                    input_options=input_options,
+                    poisson_arrival_rate=poisson_arrival_rate,
+                    tokenizers=tokenizers,
+                    reasoning=reasoning,
+                    tensor_parallel_size=tensor_parallel_size,
+                )
             )
         )
-        pending_tasks.add(task)
-        task.add_done_callback(pending_tasks.discard)
-
-        done_tasks = set()
-        for task in pending_tasks:
-            if task.done():
-                try:
-                    result = task.result()
-                    results.append(result)
-                    df_temp = pd.DataFrame([result])
-                    df_temp.to_csv(
-                        outfile, mode="a", header=not file_exists, index=False
-                    )
-                    file_exists = True
-                except Exception as e:
-                    print(f"Task failed with exception: {e}")
-                done_tasks.add(task)
-
-        pending_tasks -= done_tasks
-
         await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
 
-    while pending_tasks:
-        done, pending_tasks = await asyncio.wait(
-            pending_tasks, return_when=asyncio.FIRST_COMPLETED
-        )
-        for task in done:
-            try:
-                result = task.result()
-                results.append(result)
-                df_temp = pd.DataFrame([result])
-                df_temp.to_csv(outfile, mode="a", header=not file_exists, index=False)
-                file_exists = True
-            except Exception as e:
-                print(f"Task failed with exception: {e}")
+    # Wait for all tasks to complete and collect any exceptions
+    results = []
+    for finished_task in asyncio.as_completed(tasks):
+        try:
+            result = await finished_task
+            results.append(result)
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     return results
 
@@ -153,7 +129,7 @@ if __name__ == "__main__":
     poisson_arrival_rate = args.poisson_arrival_rate
     reasoning = args.reasoning
     tensor_parallel_size = args.tensor_parallel_size
-    T = 600
+    T = 600.0
 
     client = OpenAI(
         api_key=openai_api_key,
@@ -180,6 +156,8 @@ if __name__ == "__main__":
     )
 
     df = pd.DataFrame(records)
-    final_csv = f"results_{model_name}_{poisson_arrival_rate}_final.csv"
+    final_csv = (
+        f"results_{model_name}_{poisson_arrival_rate}_{tensor_parallel_size}_final.csv"
+    )
     df.to_csv(final_csv, index=False)
     print(f"Final results saved to {final_csv}")
