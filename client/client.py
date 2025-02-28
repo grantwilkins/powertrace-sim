@@ -47,12 +47,11 @@ async def send_message(
     record = {
         "Request Time": start_time,
         "Model": model_name,
-        "Input": instruction_text,
         "Data Source": data_source,
         "Poisson Arrival Rate": poisson_arrival_rate,
         "Tensor Parallel Size": tensor_parallel_size,
         "Input Tokens": len(tokenizers.encode(instruction_text)),
-        "Output Tokens (Response)": len(tokenizers.encode(content)),
+        "Output Tokens": len(tokenizers.encode(content)),
         "E2E Latency": e2e_time,
     }
 
@@ -76,8 +75,7 @@ async def schedule_messages(
 ) -> list:
     """
     Schedule requests (tasks) over a time window T using a Poisson process.
-    Save each task result to disk as soon as it completes.
-    Return all results at the end.
+    Save each task result to disk as soon as it completes inside of the send_message function.
     """
     start_time = time.time()
     tasks = []
