@@ -63,6 +63,36 @@ async def send_message(
     return record
 
 
+async def schedule_task_at_time(
+    target_time: float,
+    client: OpenAI,
+    model_name: str,
+    input_options: datasets.arrow_dataset.Dataset,
+    poisson_arrival_rate: float,
+    tokenizers,
+    reasoning: bool = False,
+    tensor_parallel_size: int = 1,
+) -> dict:
+    """Schedule a task to run at a specific time."""
+    # Calculate how long to wait until target_time
+    now = time.time()
+    wait_time = max(0, target_time - now)
+
+    if wait_time > 0:
+        await asyncio.sleep(wait_time)
+
+    # Send the message after waiting
+    return await send_message(
+        client=client,
+        model_name=model_name,
+        input_options=input_options,
+        poisson_arrival_rate=poisson_arrival_rate,
+        tokenizers=tokenizers,
+        reasoning=reasoning,
+        tensor_parallel_size=tensor_parallel_size,
+    )
+
+
 async def schedule_messages(
     client: OpenAI,
     model_name: str,
@@ -75,67 +105,52 @@ async def schedule_messages(
 ) -> list:
     """
     Schedule requests (tasks) over a time window T using a Poisson process.
-    Strictly enforces the time window T.
-    Save each task result to disk as soon as it completes inside of the send_message function.
+    Total number of tasks is determined by the poisson_arrival_rate * T.
     """
+    expected_num_tasks = int(poisson_arrival_rate * T)
+    interarrival_times = np.random.exponential(
+        scale=1.0 / poisson_arrival_rate, size=expected_num_tasks
+    )
+    arrival_times = np.cumsum(interarrival_times)
+    arrival_times = arrival_times[arrival_times <= T]
+    print(f"Expected number of tasks: {expected_num_tasks}")
+    print(f"Actual number of tasks: {len(arrival_times)}")
+    print("Arrival times:", arrival_times)
+    print(
+        f"Scheduling {len(arrival_times)} tasks over {T} seconds (rate: {poisson_arrival_rate}/sec)"
+    )
+
     start_time = time.time()
-    end_time = start_time + T
     tasks = []
 
-    arrival_times = []
-    current_time = 0
-    while current_time < T:
-        interarrival_time = np.random.exponential(scale=1.0 / poisson_arrival_rate)
-        current_time += interarrival_time
-        if current_time < T:
-            arrival_times.append(current_time)
-
-    async def process_arrivals():
-        for arrival_time in arrival_times:
-            current_real_time = time.time()
-            if current_real_time >= end_time:
-                print(
-                    f"Time window of {T} seconds reached. Stopping new task creation."
-                )
-                break
-            wait_time = start_time + arrival_time - current_real_time
-            if wait_time > 0:
-                await asyncio.sleep(wait_time)
-            if time.time() >= end_time:
-                continue
-
-            task = asyncio.create_task(
-                send_message(
-                    client=client,
-                    model_name=model_name,
-                    input_options=input_options,
-                    poisson_arrival_rate=poisson_arrival_rate,
-                    tokenizers=tokenizers,
-                    reasoning=reasoning,
-                    tensor_parallel_size=tensor_parallel_size,
-                )
+    # Create all tasks without waiting
+    for arrival_time in arrival_times:
+        # Schedule the task to run after the relative arrival time
+        task = asyncio.create_task(
+            schedule_task_at_time(
+                start_time + arrival_time,
+                client,
+                model_name,
+                input_options,
+                poisson_arrival_rate,
+                tokenizers,
+                reasoning,
+                tensor_parallel_size,
             )
-            tasks.append(task)
+        )
+        tasks.append(task)
 
-    try:
-        await asyncio.wait_for(process_arrivals(), timeout=T)
-    except asyncio.TimeoutError:
-        print(f"Reached maximum time window of {T} seconds")
-
-    print(f"Waiting for {len(tasks)} already-started tasks to complete...")
+    # Wait for all tasks to complete
     results = []
-    if tasks:
-        completed_tasks = await asyncio.gather(*tasks, return_exceptions=True)
-        for result in completed_tasks:
-            if isinstance(result, Exception):
-                print(f"Task error: {result}")
-            else:
-                results.append(result)
+    for finished_task in asyncio.as_completed(tasks):
+        try:
+            result = await finished_task
+            results.append(result)
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     run_time = time.time() - start_time
-    print(
-        f"Scheduled {len(tasks)} tasks over {run_time:.2f} seconds (target: {T} seconds)"
-    )
+    print(f"Completed {len(results)} tasks in {run_time:.2f} seconds")
 
     return results
 
@@ -150,6 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--base-url", type=str, default="http://localhost:8000/v1")
     parser.add_argument("--api-key", type=str, default="EMPTY")
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
+    parser.add_argument("--time-window", type=float, default=600.0)
     args = parser.parse_args()
 
     model_name = args.model_name
@@ -158,7 +174,7 @@ if __name__ == "__main__":
     poisson_arrival_rate = args.poisson_arrival_rate
     reasoning = args.reasoning
     tensor_parallel_size = args.tensor_parallel_size
-    T = 600.0
+    T = args.time_window
 
     client = OpenAI(
         api_key=openai_api_key,
@@ -185,8 +201,6 @@ if __name__ == "__main__":
     )
 
     df = pd.DataFrame(records)
-    final_csv = (
-        f"results_{model_name}_{poisson_arrival_rate}_{tensor_parallel_size}_final.csv"
-    )
+    final_csv = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}_final.csv"
     df.to_csv(final_csv, index=False)
     print(f"Final results saved to {final_csv}")
