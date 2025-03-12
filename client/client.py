@@ -80,8 +80,19 @@ async def schedule_messages(
     start_time = time.time()
     tasks = []
 
-    while time.time() < start_time + T:
-        # Create a new task
+    arrival_times = []
+    current_time = 0
+    while current_time < T:
+        interarrival_time = np.random.exponential(scale=1.0 / poisson_arrival_rate)
+        current_time += interarrival_time
+        if current_time < T:
+            arrival_times.append(current_time)
+
+    for arrival_time in arrival_times:
+        wait_time = start_time + arrival_time - time.time()
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
+
         tasks.append(
             asyncio.create_task(
                 send_message(
@@ -95,7 +106,6 @@ async def schedule_messages(
                 )
             )
         )
-        await asyncio.sleep(np.random.exponential(scale=1.0 / poisson_arrival_rate))
 
     # Wait for all tasks to complete and collect any exceptions
     results = []
@@ -105,6 +115,11 @@ async def schedule_messages(
             results.append(result)
         except Exception as e:
             print(f"An error occurred: {e}")
+
+    run_time = time.time() - start_time
+    print(
+        f"Scheduled {len(tasks)} tasks over {run_time:.2f} seconds (target: {T} seconds)"
+    )
 
     return results
 
