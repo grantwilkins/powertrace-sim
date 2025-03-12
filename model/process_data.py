@@ -18,21 +18,9 @@ class GPUPowerDataProcessor:
     """
 
     def __init__(self, data_root_dir: str):
-        """
-        Initialize the data processor.
-
-        Args:
-            data_root_dir: Root directory containing experiment data folders
-        """
         self.data_root_dir = data_root_dir
 
     def discover_experiment_folders(self) -> List[str]:
-        """
-        Discover all experiment folders in the data root directory.
-
-        Returns:
-            List of paths to experiment folders
-        """
         experiment_folders = []
 
         for folder in glob.glob(os.path.join(self.data_root_dir, "*/")):
@@ -46,34 +34,15 @@ class GPUPowerDataProcessor:
         return experiment_folders
 
     def extract_model_size_in_billions(self, model_name: str) -> float:
-        """
-        Extract model size in billions from model name.
-
-        Args:
-            model_name: Name of the model (e.g., "llama-7b", "claude-3-70b", etc.)
-
-        Returns:
-            Model size in billions of parameters
-        """
         match = re.search(r"(\d+)[bB]", model_name)
         if match:
             return float(match.group(1))
-
         print(
             f"Warning: Unable to extract model size from {model_name}, using default value of 13B"
         )
         return 13.0
 
     def parse_json_config(self, json_path: str) -> Dict:
-        """
-        Parse JSON configuration file.
-
-        Args:
-            json_path: Path to the JSON config file
-
-        Returns:
-            Dictionary with configuration parameters
-        """
         with open(json_path, "r") as f:
             config = json.load(f)
 
@@ -100,15 +69,6 @@ class GPUPowerDataProcessor:
         }
 
     def parse_request_csv(self, csv_path: str) -> pd.DataFrame:
-        """
-        Parse request CSV file.
-
-        Args:
-            csv_path: Path to the request CSV file
-
-        Returns:
-            DataFrame with request data
-        """
         try:
             requests_df = pd.read_csv(csv_path)
             if "Request Time" in requests_df.columns and isinstance(
@@ -124,15 +84,6 @@ class GPUPowerDataProcessor:
             return pd.DataFrame()
 
     def parse_power_csv(self, csv_path: str) -> pd.DataFrame:
-        """
-        Parse NVIDIA power consumption CSV file.
-
-        Args:
-            csv_path: Path to the power CSV file
-
-        Returns:
-            DataFrame with power measurements
-        """
         try:
             power_df = pd.read_csv(csv_path, skipinitialspace=True)
             if "timestamp" not in power_df.columns[0].lower():
@@ -167,16 +118,7 @@ class GPUPowerDataProcessor:
     def align_timestamps(
         self, power_df: pd.DataFrame, requests_df: pd.DataFrame
     ) -> pd.DataFrame:
-        """
-        Align power measurements with request timestamps.
 
-        Args:
-            power_df: DataFrame with power measurements
-            requests_df: DataFrame with request data
-
-        Returns:
-            DataFrame with power measurements aligned with requests
-        """
         if power_df.empty or requests_df.empty:
             return pd.DataFrame()
 
@@ -209,7 +151,7 @@ class GPUPowerDataProcessor:
         self,
         power_df: pd.DataFrame,
         duration_seconds: int = 600,
-        sampling_rate_hz: int = 1,
+        sampling_rate_hz: int = 4,
     ) -> np.ndarray:
         """
         Extract uniform power trace from power measurements.
@@ -237,20 +179,16 @@ class GPUPowerDataProcessor:
 
         power_col = power_cols[0]
 
-        # Create uniform time grid
         uniform_time = np.linspace(
             0,
             min(duration_seconds, power_df["experiment_duration"]),
             num=duration_seconds * sampling_rate_hz,
         )
 
-        # Get original time and power values
         time_values = power_df["relative_time"].values
         power_values = power_df[power_col].values
 
-        # Handle multi-GPU tensor parallelism by averaging if multiple power columns
         if len(power_cols) > 1:
-            # Take the average across all GPUs
             power_values = power_df[power_cols].mean(axis=1).values
 
         uniform_power = np.interp(
