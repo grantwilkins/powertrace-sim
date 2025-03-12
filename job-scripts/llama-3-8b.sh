@@ -1,12 +1,12 @@
 TENSOR_PARALLEL_SIZES=(1 2 4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
-    if TENSOR_PARALLEL_SIZE == 1; then
+    if [${TENSOR_PARALLEL_SIZE} -eq 1]; then
         export CUDA_VISIBLE_DEVICES=0
-    elif TENSOR_PARALLEL_SIZE == 2; then
+    elif [${TENSOR_PARALLEL_SIZE} -eq 2]; then
         export CUDA_VISIBLE_DEVICES=0,1
-    elif TENSOR_PARALLEL_SIZE == 4; then
+    elif [${TENSOR_PARALLEL_SIZE} -eq 4]; then
         export CUDA_VISIBLE_DEVICES=0,1,2,3
-    elif TENSOR_PARALLEL_SIZE == 8; then
+    elif [${TENSOR_PARALLEL_SIZE} -eq 8]; then
         export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
     fi
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
