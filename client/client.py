@@ -75,9 +75,11 @@ async def schedule_messages(
 ) -> list:
     """
     Schedule requests (tasks) over a time window T using a Poisson process.
+    Strictly enforces the time window T.
     Save each task result to disk as soon as it completes inside of the send_message function.
     """
     start_time = time.time()
+    end_time = start_time + T
     tasks = []
 
     arrival_times = []
@@ -88,13 +90,21 @@ async def schedule_messages(
         if current_time < T:
             arrival_times.append(current_time)
 
-    for arrival_time in arrival_times:
-        wait_time = start_time + arrival_time - time.time()
-        if wait_time > 0:
-            await asyncio.sleep(wait_time)
+    async def process_arrivals():
+        for arrival_time in arrival_times:
+            current_real_time = time.time()
+            if current_real_time >= end_time:
+                print(
+                    f"Time window of {T} seconds reached. Stopping new task creation."
+                )
+                break
+            wait_time = start_time + arrival_time - current_real_time
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
+            if time.time() >= end_time:
+                continue
 
-        tasks.append(
-            asyncio.create_task(
+            task = asyncio.create_task(
                 send_message(
                     client=client,
                     model_name=model_name,
@@ -105,16 +115,22 @@ async def schedule_messages(
                     tensor_parallel_size=tensor_parallel_size,
                 )
             )
-        )
+            tasks.append(task)
 
-    # Wait for all tasks to complete and collect any exceptions
+    try:
+        await asyncio.wait_for(process_arrivals(), timeout=T)
+    except asyncio.TimeoutError:
+        print(f"Reached maximum time window of {T} seconds")
+
+    print(f"Waiting for {len(tasks)} already-started tasks to complete...")
     results = []
-    for finished_task in asyncio.as_completed(tasks):
-        try:
-            result = await finished_task
-            results.append(result)
-        except Exception as e:
-            print(f"An error occurred: {e}")
+    if tasks:
+        completed_tasks = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in completed_tasks:
+            if isinstance(result, Exception):
+                print(f"Task error: {result}")
+            else:
+                results.append(result)
 
     run_time = time.time() - start_time
     print(
