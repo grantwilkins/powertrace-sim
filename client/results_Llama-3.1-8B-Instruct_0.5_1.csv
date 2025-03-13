@@ -1,0 +1,5 @@
+Request Time,Model,Data Source,Poisson Arrival Rate,Tensor Parallel Size,Input Tokens,Output Tokens,E2E Latency
+1741890495.8032024,meta-llama/Llama-3.1-8B-Instruct,scibench,0.5,1,48,349,4.225958347320557
+1741890496.737711,meta-llama/Llama-3.1-8B-Instruct,MATH/PRM-800K,0.5,1,92,599,7.2502007484436035
+1741890503.7146535,meta-llama/Llama-3.1-8B-Instruct,reclor,0.5,1,220,127,1.545393943786621
+1741890500.1908302,meta-llama/Llama-3.1-8B-Instruct,airoboros,0.5,1,85,745,8.967981338500977
