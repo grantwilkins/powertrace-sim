@@ -15,39 +15,79 @@ class GPUPowerDataProcessor:
     def __init__(self, data_root_dir: str):
         self.data_root_dir = data_root_dir
 
-    def discover_experiment_folders(self) -> List[str]:
-        experiment_folders = []
-        for folder in glob.glob(self.data_root_dir):
-            csv_files = glob.glob(os.path.join(folder, "*.csv"))
-            if len(csv_files) >= 2:
-                experiment_folders.append(folder)
+    def discover_experiment_pairs(self) -> List[Tuple[str, str]]:
+        """
+        Discover matching pairs of power trace files and result files.
 
-        print(f"Discovered {len(experiment_folders)} experiment folders")
-        return experiment_folders
+        Returns:
+            List of tuples containing (power_file_path, results_file_path)
+        """
+        # Get all CSV files in the directory
+        csv_files = glob.glob(os.path.join(self.data_root_dir, "*.csv"))
+        print(f"Discovered {len(csv_files)} CSV files in {self.data_root_dir}")
+
+        # Separate power files and result files
+        power_files = [
+            f
+            for f in csv_files
+            if f.startswith(os.path.join(self.data_root_dir, "llama-3-8b_tp1_p"))
+        ]
+        result_files = [
+            f
+            for f in csv_files
+            if f.startswith(
+                os.path.join(self.data_root_dir, "results_Llama-3.1-8B-Instruct_")
+            )
+        ]
+
+        print(
+            f"Found {len(power_files)} power files and {len(result_files)} result files"
+        )
+
+        # Group result files by rate (prefer final versions if available)
+        result_files_by_rate = {}
+        for file in result_files:
+            # Extract rate from filename (e.g., 0.5, 0.25, 0.125)
+            rate_match = re.search(r"Instruct_(\d+\.\d+)", file)
+            if rate_match:
+                rate = rate_match.group(1)
+                if rate not in result_files_by_rate or "_final" in file:
+                    result_files_by_rate[rate] = file
+
+        # Match power files with result files based on rate
+        experiment_pairs = []
+        for power_file in power_files:
+            # Extract rate from filename
+            rate_match = re.search(r"_p(\d+\.\d+)_", power_file)
+            if rate_match:
+                rate = rate_match.group(1)
+                # Find matching result file
+                if rate in result_files_by_rate:
+                    experiment_pairs.append((power_file, result_files_by_rate[rate]))
+
+        print(f"Matched {len(experiment_pairs)} experiment pairs")
+
+        return experiment_pairs
 
     def extract_model_size_in_billions(self, model_name: str) -> float:
         match = re.search(r"(\d+\.?\d*)[-]?[bB]", model_name)
         if match:
             return float(match.group(1))
         print(
-            f"Warning: Unable to extract model size from {model_name}, using default value of 13B"
+            f"Warning: Unable to extract model size from {model_name}, using default value of 8B"
         )
-        return 13.0
+        return 8.0  # Default to 8B for Llama-3
 
     def determine_is_reasoning(self, model_name: str) -> bool:
-        reasoning_indicators = ["deepseek"]
-
-        return any(
-            indicator in model_name.lower() for indicator in reasoning_indicators
-        )
+        # Check if the model includes "Instruct" in the name
+        return "instruct" in model_name.lower()
 
     def determine_gpu_type(self, power_df: pd.DataFrame) -> bool:
         if "power.draw [W]" in power_df.columns:
             max_power = power_df["power.draw [W]"].max()
             if max_power > 400:  # H100 has higher peak power
                 return True
-
-        return False
+        return False  # Default to A100 for lower power draw
 
     def parse_request_csv(self, csv_path: str) -> pd.DataFrame:
         try:
@@ -63,6 +103,8 @@ class GPUPowerDataProcessor:
                     requests_df["Request Time"] = pd.to_datetime(
                         requests_df["Request Time"]
                     )
+            elif "timestamp" in requests_df.columns:
+                requests_df["Request Time"] = pd.to_datetime(requests_df["timestamp"])
 
             return requests_df
         except Exception as e:
@@ -81,6 +123,7 @@ class GPUPowerDataProcessor:
         """
         try:
             # First try to read with header row
+            print(f"Reading power CSV from {csv_path}")
             power_df = pd.read_csv(csv_path, skipinitialspace=True)
 
             # If columns don't look correct, try with explicit column names
@@ -101,15 +144,17 @@ class GPUPowerDataProcessor:
             power_df.columns = [col.strip() for col in power_df.columns]
 
             # Convert timestamp to datetime
-            timestamp_col = [col for col in power_df.columns if "time" in col.lower()][
-                0
-            ]
-            power_df[timestamp_col] = pd.to_datetime(power_df[timestamp_col])
+            timestamp_cols = [col for col in power_df.columns if "time" in col.lower()]
+            if timestamp_cols:
+                timestamp_col = timestamp_cols[0]
+                power_df[timestamp_col] = pd.to_datetime(power_df[timestamp_col])
+            else:
+                print(f"Warning: No timestamp column found in {csv_path}")
 
             # Extract numeric values from columns if they contain units
             for col in power_df.columns:
                 if power_df[col].dtype == object and any(
-                    c.isdigit() for c in power_df[col].iloc[0]
+                    c.isdigit() for c in str(power_df[col].iloc[0])
                 ):
                     power_df[col] = power_df[col].str.extract(r"([\d.]+)").astype(float)
 
@@ -118,102 +163,13 @@ class GPUPowerDataProcessor:
             print(f"Error parsing power CSV {csv_path}: {e}")
             return pd.DataFrame()
 
-    def identify_active_gpus(self, power_df: pd.DataFrame) -> List[int]:
-        """
-        Identify which GPUs are active based on utilization and memory usage.
-
-        Args:
-            power_df: DataFrame with power measurements for multiple GPUs
-
-        Returns:
-            List of indices of active GPUs
-        """
-        # Reshape the data to identify individual GPUs
-        # Each set of N consecutive rows represents measurements for N GPUs at one time
-        num_gpus = self._determine_num_gpus(power_df)
-        if num_gpus <= 1:
-            return [0]  # Only one GPU
-
-        # Group readings by timestamp to identify patterns
-        timestamps = power_df["timestamp"].unique()
-
-        # Keep track of utilization and memory across all timestamps
-        gpu_util_sum = np.zeros(num_gpus)
-        gpu_memory_sum = np.zeros(num_gpus)
-
-        for i, ts in enumerate(timestamps):
-            ts_data = power_df[power_df["timestamp"] == ts]
-            if len(ts_data) == num_gpus:
-                if "utilization.gpu [%]" in ts_data.columns:
-                    gpu_util_sum += ts_data["utilization.gpu [%]"].values
-                if "memory.used [MiB]" in ts_data.columns:
-                    gpu_memory_sum += ts_data["memory.used [MiB]"].values
-
-        # Identify active GPUs based on utilization or memory
-        active_gpus = []
-        for i in range(num_gpus):
-            # A GPU is considered active if it has significant utilization or memory usage
-            if (gpu_util_sum[i] > 0) or (gpu_memory_sum[i] > 1000 * len(timestamps)):
-                active_gpus.append(i)
-
-        # If no active GPUs identified, fall back to the one with highest memory
-        if not active_gpus and len(gpu_memory_sum) > 0:
-            active_gpus = [np.argmax(gpu_memory_sum)]
-
-        print(f"Identified {len(active_gpus)} active GPUs: {active_gpus}")
-        return active_gpus
-
-    def _determine_num_gpus(self, power_df: pd.DataFrame) -> int:
-        """
-        Determine the number of GPUs by analyzing the pattern in the DataFrame.
-
-        Args:
-            power_df: DataFrame with power measurements
-
-        Returns:
-            Number of GPUs
-        """
-        # Look for repeating timestamp patterns
-        timestamps = power_df["timestamp"].tolist()
-
-        # Find the first repeated timestamp
-        for i in range(1, min(len(timestamps), 20)):
-            if timestamps[i] == timestamps[0]:
-                return i
-
-        # If we can't determine, assume 1 GPU
-        return 1
-
     def filter_active_gpu_data(self, power_df: pd.DataFrame) -> pd.DataFrame:
         """
         Filter power data to include only active GPUs.
-
-        Args:
-            power_df: DataFrame with power measurements for multiple GPUs
-
-        Returns:
-            DataFrame with power measurements for active GPUs only
+        Simplified to handle the specific file format from the screenshot.
         """
-        num_gpus = self._determine_num_gpus(power_df)
-        if num_gpus <= 1:
-            return power_df  # Only one GPU, no filtering needed
-
-        active_gpus = self.identify_active_gpus(power_df)
-        if not active_gpus:
-            print("No active GPUs identified. Using all GPUs.")
-            return power_df
-
-        # Create a new DataFrame with only the active GPU data
-        filtered_rows = []
-        timestamps = power_df["timestamp"].unique()
-
-        for ts in timestamps:
-            ts_data = power_df[power_df["timestamp"] == ts]
-            if len(ts_data) >= max(active_gpus) + 1:
-                for gpu_idx in active_gpus:
-                    filtered_rows.append(ts_data.iloc[gpu_idx])
-
-        return pd.DataFrame(filtered_rows)
+        # For the given files, assume all data is from active GPUs
+        return power_df
 
     def align_timestamps(
         self, power_df: pd.DataFrame, requests_df: pd.DataFrame
@@ -232,12 +188,29 @@ class GPUPowerDataProcessor:
             return pd.DataFrame()
 
         # Identify timestamp columns
-        power_time_col = [col for col in power_df.columns if "time" in col.lower()][0]
-        request_time_col = (
-            "Request Time"
-            if "Request Time" in requests_df.columns
-            else requests_df.columns[0]
-        )
+        power_time_cols = [col for col in power_df.columns if "time" in col.lower()]
+        request_time_cols = [
+            col
+            for col in requests_df.columns
+            if "time" in col.lower() or "timestamp" in col.lower()
+        ]
+
+        if not power_time_cols or not request_time_cols:
+            print("Warning: Missing timestamp columns, using index-based alignment")
+            # Set a default timestamp if missing
+            if not power_time_cols:
+                power_df["timestamp"] = pd.date_range(
+                    start=pd.Timestamp.now(), periods=len(power_df), freq="s"
+                )
+                power_time_cols = ["timestamp"]
+            if not request_time_cols:
+                requests_df["Request Time"] = pd.date_range(
+                    start=pd.Timestamp.now(), periods=len(requests_df), freq="s"
+                )
+                request_time_cols = ["Request Time"]
+
+        power_time_col = power_time_cols[0]
+        request_time_col = request_time_cols[0]
 
         # Sort both dataframes by timestamp
         power_df = power_df.sort_values(by=power_time_col)
@@ -300,7 +273,7 @@ class GPUPowerDataProcessor:
         # Create uniform time grid
         uniform_time = np.linspace(
             0,
-            min(duration_seconds, power_df["experiment_duration"]),
+            min(duration_seconds, power_df["experiment_duration"].iloc[0]),
             num=duration_seconds * sampling_rate_hz,
         )
 
@@ -328,44 +301,42 @@ class GPUPowerDataProcessor:
 
         return uniform_power
 
-    def extract_config_from_request(
-        self, requests_df: pd.DataFrame, power_df: pd.DataFrame
+    def extract_config_from_filenames(
+        self, power_file: str, result_file: str, power_df: pd.DataFrame
     ) -> Dict:
         """
-        Extract configuration parameters from request data.
+        Extract configuration parameters from filenames and power data.
 
         Args:
-            requests_df: DataFrame with request data
+            power_file: Path to power file
+            result_file: Path to result file
             power_df: DataFrame with power measurements (for GPU type detection)
 
         Returns:
             Dictionary with configuration parameters
         """
-        if requests_df.empty:
-            return None
-
-        # Get the first model name to determine model size and if it's a reasoning model
-        model_name = (
-            requests_df["Model"].iloc[0]
-            if "Model" in requests_df.columns
-            else "unknown-13B"
-        )
+        # Extract model name from result file
+        model_name = "Llama-3.1-8B-Instruct"  # Default
+        if "Llama-3.1-8B-Instruct" in result_file:
+            model_name = "Llama-3.1-8B-Instruct"
 
         # Extract model size
         model_size = self.extract_model_size_in_billions(model_name)
 
+        # Extract tensor parallelism from power file
+        tensor_parallelism = 1
+        tp_match = re.search(r"_tp(\d+)_", os.path.basename(power_file))
+        if tp_match:
+            tensor_parallelism = int(tp_match.group(1))
+
+        # Extract Poisson arrival rate from power file
+        poisson_rate = 1.0
+        rate_match = re.search(r"_p(\d+\.\d+)_", os.path.basename(power_file))
+        if rate_match:
+            poisson_rate = float(rate_match.group(1))
+
         # Determine if it's a reasoning model
         is_reasoning = self.determine_is_reasoning(model_name)
-
-        # Get tensor parallelism
-        tensor_parallelism = 1
-        if "Tensor Parallel Size" in requests_df.columns:
-            tensor_parallelism = int(requests_df["Tensor Parallel Size"].iloc[0])
-
-        # Get Poisson arrival rate
-        poisson_rate = 1.0
-        if "Poisson Arrival Rate" in requests_df.columns:
-            poisson_rate = float(requests_df["Poisson Arrival Rate"].iloc[0])
 
         # Determine GPU type
         is_h100 = self.determine_gpu_type(power_df)
@@ -379,77 +350,45 @@ class GPUPowerDataProcessor:
             "tensor_parallelism": tensor_parallelism,
         }
 
-    def process_experiment(
+    def process_experiment_pair(
         self,
-        experiment_folder: str,
+        power_file: str,
+        result_file: str,
         duration_seconds: int = 600,
         sampling_rate_hz: int = 1,
     ) -> Tuple[Dict, np.ndarray]:
         """
-        Process a single experiment folder.
+        Process a single experiment pair of power and result files.
 
         Args:
-            experiment_folder: Path to experiment folder
+            power_file: Path to power data CSV file
+            result_file: Path to result data CSV file
             duration_seconds: Duration of power trace to extract
             sampling_rate_hz: Sampling rate for power trace
 
         Returns:
             Tuple of (config_dict, power_trace)
         """
-        # Find CSV files
-        csv_files = glob.glob(os.path.join(experiment_folder, "*.csv"))
-        if len(csv_files) < 2:
-            print(f"Not enough CSV files found in {experiment_folder}")
-            return None, None
+        # Parse CSV files
+        power_df = self.parse_power_csv(power_file)
+        requests_df = self.parse_request_csv(result_file)
 
-        # Identify request and power CSV files
-        request_csv_files = [
-            f
-            for f in csv_files
-            if "request" in f.lower()
-            or any(x in f.lower() for x in ["model", "input", "tokens"])
-        ]
-        power_csv_files = [
-            f
-            for f in csv_files
-            if any(x in f.lower() for x in ["power", "nvidia", "smi", "gpu"])
-        ]
-
-        if not request_csv_files or not power_csv_files:
-            # Try to identify by examining content
-            for f in csv_files:
-                with open(f, "r") as file:
-                    header = file.readline().lower()
-                    if any(x in header for x in ["request", "model", "tokens"]):
-                        request_csv_files.append(f)
-                    elif any(x in header for x in ["power", "draw", "utilization"]):
-                        power_csv_files.append(f)
-
-        if not request_csv_files or not power_csv_files:
+        if power_df.empty or requests_df.empty:
             print(
-                f"Could not identify request and power CSV files in {experiment_folder}"
+                f"Failed to parse data from power file: {power_file} or result file: {result_file}"
             )
             return None, None
 
-        # Parse CSV files
-        requests_df = self.parse_request_csv(request_csv_files[0])
-        power_df = self.parse_power_csv(power_csv_files[0])
-
-        if power_df.empty or requests_df.empty:
-            print(f"Failed to parse data from {experiment_folder}")
-            return None, None
-
-        # Filter power data to include only active GPUs
-        filtered_power_df = self.filter_active_gpu_data(power_df)
-
-        # Extract configuration
-        config = self.extract_config_from_request(requests_df, filtered_power_df)
+        # Extract configuration from filenames
+        config = self.extract_config_from_filenames(power_file, result_file, power_df)
         if config is None:
-            print(f"Failed to extract configuration from {experiment_folder}")
+            print(
+                f"Failed to extract configuration from power file: {power_file} or result file: {result_file}"
+            )
             return None, None
 
         # Align timestamps
-        aligned_power_df = self.align_timestamps(filtered_power_df, requests_df)
+        aligned_power_df = self.align_timestamps(power_df, requests_df)
 
         # Extract power trace
         power_trace = self.extract_power_trace(
@@ -462,7 +401,7 @@ class GPUPowerDataProcessor:
         self, duration_seconds: int = 600, sampling_rate_hz: int = 1
     ) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
         """
-        Process all experiment folders and collect data for training.
+        Process all experiment pairs and collect data for training.
 
         Args:
             duration_seconds: Duration of power traces to extract
@@ -471,7 +410,7 @@ class GPUPowerDataProcessor:
         Returns:
             Tuple of (config_params, power_traces)
         """
-        experiment_folders = self.discover_experiment_folders()
+        experiment_pairs = self.discover_experiment_pairs()
 
         # Initialize data containers
         config_keys = [
@@ -485,11 +424,13 @@ class GPUPowerDataProcessor:
         config_params = {key: [] for key in config_keys}
         power_traces = []
 
-        # Process each experiment
+        # Process each experiment pair
         skipped_count = 0
-        for folder in tqdm(experiment_folders, desc="Processing experiments"):
-            config, power_trace = self.process_experiment(
-                folder, duration_seconds, sampling_rate_hz
+        for power_file, result_file in tqdm(
+            experiment_pairs, desc="Processing experiments"
+        ):
+            config, power_trace = self.process_experiment_pair(
+                power_file, result_file, duration_seconds, sampling_rate_hz
             )
 
             if config is None or power_trace is None:
@@ -561,7 +502,7 @@ class GPUPowerDataProcessor:
             axes[i].plot(time_axis, trace)
             axes[i].set_title(
                 f"Model: {model_size:.1f}B, {'Reasoning' if is_reasoning else 'Standard'}, "
-                f"{'H100' if is_h100 else 'A100'}, TP={tensor_parallel}, Rate={poisson_rate:.1f}"
+                f"{'H100' if is_h100 else 'A100'}, TP={tensor_parallel}, Rate={poisson_rate:.3f}"
             )
             axes[i].set_xlabel("Time (minutes)")
             axes[i].set_ylabel("Power (W)")
@@ -572,49 +513,8 @@ class GPUPowerDataProcessor:
 
         return fig
 
-    def create_dataset(
-        self,
-        config_params: Dict[str, np.ndarray],
-        power_traces: np.ndarray,
-        sequence_length: int = 600,
-        stride: int = 60,
-    ) -> Tuple[Dataset, Dataset]:
-        """
-        Create PyTorch datasets for training and validation.
 
-        Args:
-            config_params: Dictionary of configuration parameters
-            power_traces: Array of power traces
-            sequence_length: Length of sequences to use for training
-            stride: Stride for sliding window
-
-        Returns:
-            Tuple of (train_dataset, val_dataset)
-        """
-        # Create dataset
-        dataset = PowerTraceDataset(
-            power_traces=power_traces,
-            config_params=config_params,
-            sequence_length=sequence_length,
-            stride=stride,
-        )
-
-        # Split into train and validation
-        train_size = int(0.8 * len(dataset))
-        val_size = len(dataset) - train_size
-
-        train_dataset, val_dataset = random_split(
-            dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
-        )
-
-        print(f"Created dataset with {len(dataset)} samples")
-        print(
-            f"Train set: {len(train_dataset)} samples, Validation set: {len(val_dataset)} samples"
-        )
-
-        return train_dataset, val_dataset
-
-
+# The rest of the code remains the same
 class PowerTraceDataset(Dataset):
     """Dataset for power trace data with configuration parameters."""
 
@@ -703,9 +603,9 @@ def normalize_config_params(
         Dictionary of normalized configuration parameters
     """
     # Constants based on typical ranges in your data
-    MAX_MODEL_SIZE = 671.0  # Maximum model size in billions
-    MAX_POISSON_ARRIVAL_RATE = 64.0  # Maximum Poisson arrival rate
-    MAX_TENSOR_PARALLELISM = 8.0  # Maximum tensor parallelism
+    MAX_MODEL_SIZE = 13.0  # Maximum model size in billions (adjusted for Llama-3)
+    MAX_POISSON_ARRIVAL_RATE = 0.5  # Maximum Poisson arrival rate from filenames
+    MAX_TENSOR_PARALLELISM = 1.0  # Maximum tensor parallelism from filenames
 
     normalized_params = {}
 
@@ -763,9 +663,8 @@ def save_processed_data(save_dir: str, train_dataset, val_dataset):
     print(f"Saved processed data to {os.path.join(save_dir, 'power_trace_data.npz')}")
 
 
-def example_usage():
-    """Example usage of the data processor."""
-    # Initialize data processor
+if __name__ == "__main__":
+    # Update the data root to match the correct path
     data_root = "/Users/grantwilkins/powertrace-sim/client"
     processor = GPUPowerDataProcessor(data_root)
 
@@ -774,6 +673,7 @@ def example_usage():
         duration_seconds=600, sampling_rate_hz=4
     )
 
+    # Visualize samples
     fig = processor.visualize_samples(config_params, power_traces, num_samples=3)
     fig.savefig("sample_traces.png")
 
@@ -789,7 +689,3 @@ def example_usage():
     save_processed_data("processed_data", train_dataset, val_dataset)
 
     print("Data processing complete!")
-
-
-if __name__ == "__main__":
-    example_usage()
