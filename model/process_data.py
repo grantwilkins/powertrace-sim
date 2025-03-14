@@ -1,522 +1,347 @@
 import os
 import glob
+import re
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, random_split
-from typing import Dict, List, Tuple, Optional
-from tqdm import tqdm
 import matplotlib.pyplot as plt
-import re
-from datetime import datetime
+from typing import Dict, List, Tuple, Optional
 
 
 class GPUPowerDataProcessor:
+    """
+    A simplified processor class to:
+      1) match power traces and results CSVs,
+      2) parse and sum multi-GPU power logs,
+      3) align them in time,
+      4) extract uniform, fixed-duration power traces,
+      5) gather config metadata from filenames.
+    """
+
     def __init__(self, data_root_dir: str):
+        """
+        Args:
+            data_root_dir: Root directory containing all CSV files.
+                           e.g. /powertrace_sim/client
+        """
         self.data_root_dir = data_root_dir
 
     def discover_experiment_pairs(self) -> List[Tuple[str, str]]:
         """
-        Discover matching pairs of power trace files and result files.
+        Finds matching pairs of power CSVs and results CSVs based on
+        {MODEL_NAME}_tp{TP}_p{RATE}_d{DATE}.csv and
+        results_{MODEL_NAME}_{RATE}_{TP}_final.csv.
 
         Returns:
-            List of tuples containing (power_file_path, results_file_path)
+            A list of (power_csv_path, results_csv_path).
         """
-        # Get all CSV files in the directory
-        csv_files = glob.glob(os.path.join(self.data_root_dir, "*.csv"))
-        print(f"Discovered {len(csv_files)} CSV files in {self.data_root_dir}")
+        all_csvs = glob.glob(
+            os.path.join(self.data_root_dir, "**", "*.csv"), recursive=True
+        )
+        print(f"Found {len(all_csvs)} CSV files in {self.data_root_dir}")
 
-        # Separate power files and result files
-        power_files = [
-            f
-            for f in csv_files
-            if f.startswith(os.path.join(self.data_root_dir, "llama-3-8b_tp1_p"))
-        ]
-        result_files = [
-            f
-            for f in csv_files
-            if f.startswith(
-                os.path.join(self.data_root_dir, "results_Llama-3.1-8B-Instruct_")
-            )
-        ]
+        # Separate into "power" files vs "results" files
+        power_files = []
+        results_files = []
+
+        for csv_path in all_csvs:
+            base = os.path.basename(csv_path)
+            if base.startswith("results_"):
+                results_files.append(csv_path)
+            else:
+                # Likely a power file if it has _tp and _p in the name
+                if "_tp" in base and "_p" in base:
+                    power_files.append(csv_path)
+
+        # Attempt to match them by extracting model_name, tp, rate
+        def extract_power_info(filename: str):
+            # Example:  llama-3-8b_tp2_p2.0_d2025-03-14-07-32-35.csv
+            base = os.path.basename(filename)
+            model_match = re.match(r"(.*)_tp(\d+)_p([\d\.]+)_d", base)
+            if not model_match:
+                return None
+            model_name = model_match.group(1)
+            tp = model_match.group(2)
+            rate = model_match.group(3)
+            return model_name, tp, rate
+
+        def extract_results_info(filename: str):
+            # Example: results_Llama-3.1-8B-Instruct_0.5_2_final.csv
+            base = os.path.basename(filename)
+            result_match = re.match(r"results_(.*)_(\d+\.\d+)_(\d+)_final", base)
+            if not result_match:
+                return None
+            model_name = result_match.group(1)
+            rate = result_match.group(2)
+            tp = result_match.group(3)
+            return model_name, tp, rate
+
+        matched_pairs = []
+        for pfile in power_files:
+            pinfo = extract_power_info(pfile)
+            if not pinfo:
+                continue
+            p_model, p_tp, p_rate = pinfo
+
+            # Look for a results file that matches
+            for rfile in results_files:
+                rinfo = extract_results_info(rfile)
+                if not rinfo:
+                    continue
+                r_model, r_tp, r_rate = rinfo
+
+                # Check if they match
+                if p_model == r_model and p_tp == r_tp and p_rate == r_rate:
+                    matched_pairs.append((pfile, rfile))
+                    break  # Found our match, no need to look further
 
         print(
-            f"Found {len(power_files)} power files and {len(result_files)} result files"
+            f"Found {len(power_files)} power files, {len(results_files)} results files, "
+            f"matched {len(matched_pairs)} pairs."
         )
+        return matched_pairs
 
-        # Group result files by rate (prefer final versions if available)
-        result_files_by_rate = {}
-        for file in result_files:
-            # Extract rate from filename (e.g., 0.5, 0.25, 0.125)
-            rate_match = re.search(r"Instruct_(\d+\.\d+)", file)
-            if rate_match:
-                rate = rate_match.group(1)
-                if rate not in result_files_by_rate or "_final" in file:
-                    result_files_by_rate[rate] = file
+    def parse_results_csv(self, csv_path: str) -> pd.DataFrame:
+        """
+        Parse the results CSV (e.g. results_{MODEL_NAME}_{RATE}_{TP}_final.csv).
 
-        # Match power files with result files based on rate
-        experiment_pairs = []
-        for power_file in power_files:
-            # Extract rate from filename
-            rate_match = re.search(r"_p(\d+\.\d+)_", power_file)
-            if rate_match:
-                rate = rate_match.group(1)
-                # Find matching result file
-                if rate in result_files_by_rate:
-                    experiment_pairs.append((power_file, result_files_by_rate[rate]))
+        Expects columns:
+        [Request Time, Model, Data Source, Poisson Arrival Rate, Tensor Parallel Size,
+         Input Tokens, Output Tokens, E2E Latency]
 
-        print(f"Matched {len(experiment_pairs)} experiment pairs")
-
-        return experiment_pairs
-
-    def extract_model_size_in_billions(self, model_name: str) -> float:
-        match = re.search(r"(\d+\.?\d*)[-]?[bB]", model_name)
-        if match:
-            return float(match.group(1))
-        print(
-            f"Warning: Unable to extract model size from {model_name}, using default value of 8B"
-        )
-        return 8.0  # Default to 8B for Llama-3
-
-    def determine_is_reasoning(self, model_name: str) -> bool:
-        # Check if the model includes "Instruct" in the name
-        return "instruct" in model_name.lower()
-
-    def determine_gpu_type(self, power_df: pd.DataFrame) -> bool:
-        if "power.draw [W]" in power_df.columns:
-            max_power = power_df["power.draw [W]"].max()
-            if max_power > 400:  # H100 has higher peak power
-                return True
-        return False  # Default to A100 for lower power draw
-
-    def parse_request_csv(self, csv_path: str) -> pd.DataFrame:
+        Returns:
+            Pandas DataFrame with a 'request_time' column (datetime64).
+        """
         try:
-            requests_df = pd.read_csv(csv_path)
-
-            # Convert Unix timestamp to datetime if needed
-            if "Request Time" in requests_df.columns:
-                if pd.api.types.is_numeric_dtype(requests_df["Request Time"]):
-                    requests_df["Request Time"] = pd.to_datetime(
-                        requests_df["Request Time"], unit="s"
-                    )
+            df = pd.read_csv(csv_path)
+            if "Request Time" in df.columns:
+                # Convert to datetime (the example data uses numeric timestamps in seconds)
+                if pd.api.types.is_numeric_dtype(df["Request Time"]):
+                    df["request_time"] = pd.to_datetime(df["Request Time"], unit="s")
                 else:
-                    requests_df["Request Time"] = pd.to_datetime(
-                        requests_df["Request Time"]
-                    )
-            elif "timestamp" in requests_df.columns:
-                requests_df["Request Time"] = pd.to_datetime(requests_df["timestamp"])
-
-            return requests_df
+                    df["request_time"] = pd.to_datetime(df["Request Time"])
+            else:
+                # Fallback if column not found
+                df["request_time"] = pd.date_range(
+                    start=pd.Timestamp.now(), periods=len(df), freq="s"
+                )
+            return df
         except Exception as e:
-            print(f"Error parsing request CSV {csv_path}: {e}")
+            print(f"Error reading results file {csv_path}: {e}")
             return pd.DataFrame()
 
     def parse_power_csv(self, csv_path: str) -> pd.DataFrame:
         """
-        Parse NVIDIA power consumption CSV file.
+        Parse the GPU power trace CSV and sum up the multi-GPU rows
+        so that each timestamp has a single total power value.
 
-        Args:
-            csv_path: Path to the power CSV file
+        Expects columns (for each GPU row):
+            timestamp, power.draw [W], utilization.gpu [%], memory.used [MiB]
 
-        Returns:
-            DataFrame with power measurements
+        Because the example data has repeated timestamps for each GPU,
+        we group by timestamp and sum the power.
         """
         try:
-            # First try to read with header row
-            print(f"Reading power CSV from {csv_path}")
-            power_df = pd.read_csv(csv_path, skipinitialspace=True)
+            df = pd.read_csv(csv_path, skipinitialspace=True)
 
-            # If columns don't look correct, try with explicit column names
-            if not any("power" in col.lower() for col in power_df.columns):
-                power_df = pd.read_csv(
-                    csv_path,
-                    names=[
-                        "timestamp",
-                        "power.draw [W]",
-                        "utilization.gpu [%]",
-                        "memory.used [MiB]",
-                    ],
-                    skiprows=1,
-                    skipinitialspace=True,
-                )
+            # Standardize column names
+            df.columns = [col.strip().lower() for col in df.columns]
 
-            # Clean up column names
-            power_df.columns = [col.strip() for col in power_df.columns]
+            # Rename known columns if needed
+            # e.g. "power.draw [w]" -> "power"
+            if "power.draw [w]" in df.columns:
+                df.rename(columns={"power.draw [w]": "power"}, inplace=True)
 
-            # Convert timestamp to datetime
-            timestamp_cols = [col for col in power_df.columns if "time" in col.lower()]
-            if timestamp_cols:
-                timestamp_col = timestamp_cols[0]
-                power_df[timestamp_col] = pd.to_datetime(power_df[timestamp_col])
-            else:
-                print(f"Warning: No timestamp column found in {csv_path}")
+            # Some logs might have "83.06 W", so strip out non-numerics
+            if df["power"].dtype == object:
+                df["power"] = df["power"].replace(r"[^\d.]", "", regex=True)
+                df["power"] = pd.to_numeric(df["power"])
 
-            # Extract numeric values from columns if they contain units
-            for col in power_df.columns:
-                if power_df[col].dtype == object and any(
-                    c.isdigit() for c in str(power_df[col].iloc[0])
-                ):
-                    power_df[col] = power_df[col].str.extract(r"([\d.]+)").astype(float)
+            # Parse timestamp column
+            # The example data might have "2025/03/13 20:25:44.374"
+            # We convert that to datetime
+            time_col = None
+            for c in df.columns:
+                if "time" in c:
+                    time_col = c
+                    break
+            if not time_col:
+                raise ValueError("No timestamp column found in power CSV")
 
-            return power_df
+            df[time_col] = pd.to_datetime(df[time_col])
+
+            # Now group by the exact timestamp to sum GPU rows
+            grouped = df.groupby(time_col, as_index=False)["power"].sum()
+            grouped.rename(columns={time_col: "timestamp"}, inplace=True)
+
+            return grouped.sort_values(by="timestamp").reset_index(drop=True)
+
         except Exception as e:
-            print(f"Error parsing power CSV {csv_path}: {e}")
+            print(f"Error reading power file {csv_path}: {e}")
             return pd.DataFrame()
 
-    def filter_active_gpu_data(self, power_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Filter power data to include only active GPUs.
-        Simplified to handle the specific file format from the screenshot.
-        """
-        # For the given files, assume all data is from active GPUs
-        return power_df
-
-    def align_timestamps(
-        self, power_df: pd.DataFrame, requests_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        """
-        Align power measurements with request timestamps.
-
-        Args:
-            power_df: DataFrame with power measurements
-            requests_df: DataFrame with request data
-
-        Returns:
-            DataFrame with power measurements aligned with requests
-        """
-        if power_df.empty or requests_df.empty:
-            return pd.DataFrame()
-
-        # Identify timestamp columns
-        power_time_cols = [col for col in power_df.columns if "time" in col.lower()]
-        request_time_cols = [
-            col
-            for col in requests_df.columns
-            if "time" in col.lower() or "timestamp" in col.lower()
-        ]
-
-        if not power_time_cols or not request_time_cols:
-            print("Warning: Missing timestamp columns, using index-based alignment")
-            # Set a default timestamp if missing
-            if not power_time_cols:
-                power_df["timestamp"] = pd.date_range(
-                    start=pd.Timestamp.now(), periods=len(power_df), freq="s"
-                )
-                power_time_cols = ["timestamp"]
-            if not request_time_cols:
-                requests_df["Request Time"] = pd.date_range(
-                    start=pd.Timestamp.now(), periods=len(requests_df), freq="s"
-                )
-                request_time_cols = ["Request Time"]
-
-        power_time_col = power_time_cols[0]
-        request_time_col = request_time_cols[0]
-
-        # Sort both dataframes by timestamp
-        power_df = power_df.sort_values(by=power_time_col)
-        requests_df = requests_df.sort_values(by=request_time_col)
-
-        # Align timestamps - find the start time of the experiment
-        start_time = min(
-            requests_df[request_time_col].min(), power_df[power_time_col].min()
-        )
-
-        # Reset timestamps relative to start time
-        power_df["relative_time"] = (
-            power_df[power_time_col] - start_time
-        ).dt.total_seconds()
-
-        # Add experiment duration (in seconds)
-        end_time = max(
-            requests_df[request_time_col].max(), power_df[power_time_col].max()
-        )
-        experiment_duration = (end_time - start_time).total_seconds()
-
-        power_df["experiment_duration"] = experiment_duration
-
-        return power_df
-
-    def extract_power_trace(
+    def align_and_interpolate(
         self,
         power_df: pd.DataFrame,
-        duration_seconds: int = 600,
-        sampling_rate_hz: int = 1,
+        results_df: pd.DataFrame,
+        duration_seconds: int,
+        sampling_rate_hz: int,
     ) -> np.ndarray:
         """
-        Extract uniform power trace from power measurements.
+        Align the power measurements with the request timeline and
+        extract a uniform power trace of length (duration_seconds * sampling_rate_hz).
 
-        Args:
-            power_df: DataFrame with power measurements
-            duration_seconds: Duration of the trace to extract (in seconds)
-            sampling_rate_hz: Sampling rate for the uniform trace
+        1) Determine start_time = min(power_df.timestamp, results_df.request_time)
+        2) Determine end_time   = max(power_df.timestamp, results_df.request_time)
+        3) Create a uniform time axis from 0..duration_seconds at sampling_rate_hz.
+        4) np.interp the power values onto that axis.
 
-        Returns:
-            Numpy array with uniform power trace
+        If there's no data or something is empty, return zeros.
         """
-        if power_df.empty:
-            # Return zero trace if no data
+        if power_df.empty or results_df.empty:
             return np.zeros(duration_seconds * sampling_rate_hz)
 
-        # Get power column
-        power_cols = [
-            col
-            for col in power_df.columns
-            if "power" in col.lower() or "draw" in col.lower()
-        ]
+        start_time = min(power_df["timestamp"].min(), results_df["request_time"].min())
+        end_time = max(power_df["timestamp"].max(), results_df["request_time"].max())
+        total_expt_duration = (end_time - start_time).total_seconds()
 
-        if not power_cols:
-            print("No power column found in DataFrame")
-            return np.zeros(duration_seconds * sampling_rate_hz)
+        # We'll only consider up to duration_seconds (clamped to the experiment's length)
+        effective_duration = min(duration_seconds, int(np.ceil(total_expt_duration)))
 
-        power_col = power_cols[0]
-
-        # Create uniform time grid
+        # Build the uniform time axis in *seconds* from 0..effective_duration
         uniform_time = np.linspace(
-            0,
-            min(duration_seconds, power_df["experiment_duration"].iloc[0]),
-            num=duration_seconds * sampling_rate_hz,
+            0, effective_duration, num=effective_duration * sampling_rate_hz
         )
 
-        # Get original time and power values
-        time_values = power_df["relative_time"].values
-        power_values = power_df[power_col].values
+        # Convert actual power timestamps to "seconds since start_time"
+        power_seconds = (power_df["timestamp"] - start_time).dt.total_seconds().values
+        power_values = power_df["power"].values
 
-        # Perform interpolation to create uniform trace
+        # Interpolate
         uniform_power = np.interp(
             uniform_time,
-            time_values,
+            power_seconds,
             power_values,
-            left=power_values[0] if len(power_values) > 0 else 0,
-            right=power_values[-1] if len(power_values) > 0 else 0,
+            left=power_values[0],
+            right=power_values[-1],
         )
 
-        # Ensure the trace is exactly the right length
-        if len(uniform_power) < duration_seconds * sampling_rate_hz:
-            # Pad with the last value if too short
-            pad_length = duration_seconds * sampling_rate_hz - len(uniform_power)
-            uniform_power = np.pad(uniform_power, (0, pad_length), "edge")
-        elif len(uniform_power) > duration_seconds * sampling_rate_hz:
-            # Truncate if too long
-            uniform_power = uniform_power[: duration_seconds * sampling_rate_hz]
+        # If we need exactly duration_seconds * sampling_rate_hz points, pad or truncate
+        desired_len = duration_seconds * sampling_rate_hz
+        if len(uniform_power) < desired_len:
+            # pad with the last value
+            padding = np.full(desired_len - len(uniform_power), uniform_power[-1])
+            uniform_power = np.concatenate([uniform_power, padding])
+        elif len(uniform_power) > desired_len:
+            uniform_power = uniform_power[:desired_len]
 
         return uniform_power
 
-    def extract_config_from_filenames(
-        self, power_file: str, result_file: str, power_df: pd.DataFrame
-    ) -> Dict:
-        """
-        Extract configuration parameters from filenames and power data.
-
-        Args:
-            power_file: Path to power file
-            result_file: Path to result file
-            power_df: DataFrame with power measurements (for GPU type detection)
-
-        Returns:
-            Dictionary with configuration parameters
-        """
-        # Extract model name from result file
-        model_name = "Llama-3.1-8B-Instruct"  # Default
-        if "Llama-3.1-8B-Instruct" in result_file:
-            model_name = "Llama-3.1-8B-Instruct"
-
-        # Extract model size
-        model_size = self.extract_model_size_in_billions(model_name)
-
-        # Extract tensor parallelism from power file
-        tensor_parallelism = 1
-        tp_match = re.search(r"_tp(\d+)_", os.path.basename(power_file))
-        if tp_match:
-            tensor_parallelism = int(tp_match.group(1))
-
-        # Extract Poisson arrival rate from power file
-        poisson_rate = 1.0
-        rate_match = re.search(r"_p(\d+\.\d+)_", os.path.basename(power_file))
-        if rate_match:
-            poisson_rate = float(rate_match.group(1))
-
-        # Determine if it's a reasoning model
-        is_reasoning = self.determine_is_reasoning(model_name)
-
-        # Determine GPU type
-        is_h100 = self.determine_gpu_type(power_df)
-
-        return {
-            "model_name": model_name,
-            "model_size": model_size,
-            "is_reasoning": is_reasoning,
-            "is_h100": is_h100,
-            "poisson_rate": poisson_rate,
-            "tensor_parallelism": tensor_parallelism,
-        }
-
-    def process_experiment_pair(
-        self,
-        power_file: str,
-        result_file: str,
-        duration_seconds: int = 600,
-        sampling_rate_hz: int = 1,
-    ) -> Tuple[Dict, np.ndarray]:
-        """
-        Process a single experiment pair of power and result files.
-
-        Args:
-            power_file: Path to power data CSV file
-            result_file: Path to result data CSV file
-            duration_seconds: Duration of power trace to extract
-            sampling_rate_hz: Sampling rate for power trace
-
-        Returns:
-            Tuple of (config_dict, power_trace)
-        """
-        # Parse CSV files
-        power_df = self.parse_power_csv(power_file)
-        requests_df = self.parse_request_csv(result_file)
-
-        if power_df.empty or requests_df.empty:
-            print(
-                f"Failed to parse data from power file: {power_file} or result file: {result_file}"
-            )
-            return None, None
-
-        # Extract configuration from filenames
-        config = self.extract_config_from_filenames(power_file, result_file, power_df)
-        if config is None:
-            print(
-                f"Failed to extract configuration from power file: {power_file} or result file: {result_file}"
-            )
-            return None, None
-
-        # Align timestamps
-        aligned_power_df = self.align_timestamps(power_df, requests_df)
-
-        # Extract power trace
-        power_trace = self.extract_power_trace(
-            aligned_power_df, duration_seconds, sampling_rate_hz
-        )
-
-        return config, power_trace
-
     def process_all_experiments(
-        self, duration_seconds: int = 600, sampling_rate_hz: int = 1
-    ) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+        self, duration_seconds: int = 600, sampling_rate_hz: int = 4
+    ) -> Tuple[Dict[str, List[float]], np.ndarray]:
         """
-        Process all experiment pairs and collect data for training.
-
-        Args:
-            duration_seconds: Duration of power traces to extract
-            sampling_rate_hz: Sampling rate for power traces
+        1) Finds all matching power/results pairs
+        2) Parses and aligns them
+        3) Extracts a fixed-size power trace
+        4) Builds up lists of config parameters, and an array of power traces.
 
         Returns:
-            Tuple of (config_params, power_traces)
+            (config_params, power_traces)
+            where:
+               config_params is a dict of lists, e.g. {
+                 "model_name": [...],
+                 "tensor_parallelism": [...],
+                 "poisson_rate": [...]
+               }
+               power_traces is shape [N, duration_seconds * sampling_rate_hz]
         """
-        experiment_pairs = self.discover_experiment_pairs()
+        pairs = self.discover_experiment_pairs()
+        if not pairs:
+            print("No experiment pairs found. Returning empty data.")
+            return {}, np.array([])
 
-        # Initialize data containers
-        config_keys = [
-            "poisson_rate",
-            "tensor_parallelism",
-            "model_size",
-            "is_reasoning",
-            "is_h100",
-        ]
+        # Prepare containers
+        config_params = {
+            "model_name": [],
+            "tensor_parallelism": [],
+            "poisson_rate": [],
+        }
+        all_traces = []
 
-        config_params = {key: [] for key in config_keys}
-        power_traces = []
-
-        # Process each experiment pair
-        skipped_count = 0
-        for power_file, result_file in tqdm(
-            experiment_pairs, desc="Processing experiments"
-        ):
-            config, power_trace = self.process_experiment_pair(
-                power_file, result_file, duration_seconds, sampling_rate_hz
-            )
-
-            if config is None or power_trace is None:
-                skipped_count += 1
+        for pfile, rfile in pairs:
+            power_df = self.parse_power_csv(pfile)
+            results_df = self.parse_results_csv(rfile)
+            if power_df.empty or results_df.empty:
+                print(f"Skipping pair: {pfile}, {rfile} (empty data).")
                 continue
 
-            # Collect configuration parameters
-            config_params["poisson_rate"].append(config["poisson_rate"])
-            config_params["tensor_parallelism"].append(config["tensor_parallelism"])
-            config_params["model_size"].append(config["model_size"])
-            config_params["is_reasoning"].append(1.0 if config["is_reasoning"] else 0.0)
-            config_params["is_h100"].append(1.0 if config["is_h100"] else 0.0)
+            # 2) extract config from filenames
+            # power file example: {MODEL_NAME}_tp{TP}_p{RATE}_d...
+            base_p = os.path.basename(pfile)
+            match = re.match(r"(.*)_tp(\d+)_p([\d\.]+)_d", base_p)
+            if not match:
+                print(f"Could not parse power filename {base_p}")
+                continue
+            model_name, tp_str, rate_str = match.groups()
 
-            # Collect power trace
-            power_traces.append(power_trace)
+            # 3) align & interpolate
+            power_trace = self.align_and_interpolate(
+                power_df, results_df, duration_seconds, sampling_rate_hz
+            )
 
-        # Convert lists to arrays
-        for key in config_keys:
-            config_params[key] = np.array(config_params[key])
+            # 4) accumulate results
+            config_params["model_name"].append(model_name)
+            config_params["tensor_parallelism"].append(float(tp_str))
+            config_params["poisson_rate"].append(float(rate_str))
+            all_traces.append(power_trace)
 
-        power_traces = np.array(power_traces)
+        if len(all_traces) == 0:
+            print("All experiment pairs were invalid or empty.")
+            return {}, np.array([])
 
-        print(
-            f"Processed {len(power_traces)} experiments, skipped {skipped_count} due to missing or invalid data"
-        )
-
+        # Stack into a single array of shape [N, T]
+        power_traces = np.stack(all_traces, axis=0)
         return config_params, power_traces
 
     def visualize_samples(
         self,
-        config_params: Dict[str, np.ndarray],
+        config_params: Dict[str, List[float]],
         power_traces: np.ndarray,
-        num_samples: int = 5,
+        num_samples: int = 3,
     ):
         """
-        Visualize a few sample power traces from the dataset.
-
-        Args:
-            config_params: Dictionary of configuration parameters
-            power_traces: Array of power traces
-            num_samples: Number of samples to visualize
+        Visualize random samples from the dataset
         """
         if len(power_traces) == 0:
-            print("No data to visualize")
+            print("No power traces to visualize.")
             return
 
-        # Select a subset of samples
         indices = np.random.choice(
             len(power_traces), min(num_samples, len(power_traces)), replace=False
         )
-
-        # Create figure
-        fig, axes = plt.subplots(num_samples, 1, figsize=(12, 4 * num_samples))
-        if num_samples == 1:
-            axes = [axes]
-
         for i, idx in enumerate(indices):
+            plt.figure(figsize=(10, 3))
             trace = power_traces[idx]
-            time_axis = np.arange(len(trace)) / 60  # Convert to minutes
-
-            # Get configuration for this trace
-            model_size = config_params["model_size"][idx]
-            poisson_rate = config_params["poisson_rate"][idx]
-            tensor_parallel = config_params["tensor_parallelism"][idx]
-            is_reasoning = config_params["is_reasoning"][idx] > 0.5
-            is_h100 = config_params["is_h100"][idx] > 0.5
-
-            # Plot trace
-            axes[i].plot(time_axis, trace)
-            axes[i].set_title(
-                f"Model: {model_size:.1f}B, {'Reasoning' if is_reasoning else 'Standard'}, "
-                f"{'H100' if is_h100 else 'A100'}, TP={tensor_parallel}, Rate={poisson_rate:.3f}"
+            time_axis = np.arange(len(trace)) / 60.0  # show in minutes, for example
+            plt.plot(time_axis, trace)
+            plt.title(
+                f"Sample {idx} | Model={config_params['model_name'][idx]}, "
+                f"TP={config_params['tensor_parallelism'][idx]}, "
+                f"Rate={config_params['poisson_rate'][idx]}"
             )
-            axes[i].set_xlabel("Time (minutes)")
-            axes[i].set_ylabel("Power (W)")
-            axes[i].grid(True, alpha=0.3)
-
-        plt.tight_layout()
-        plt.show()
-
-        return fig
+            plt.xlabel("Time (minutes)")
+            plt.ylabel("Power (W)")
+            plt.grid(True)
+            plt.show()
 
 
-# The rest of the code remains the same
 class PowerTraceDataset(Dataset):
-    """Dataset for power trace data with configuration parameters."""
+    """
+    A simple PyTorch Dataset to create (config, power_trace) pairs
+    from the processed data. Demonstrates a sliding-window approach.
+    """
 
     def __init__(
         self,
@@ -527,165 +352,121 @@ class PowerTraceDataset(Dataset):
     ):
         """
         Args:
-            power_traces: Array of power measurements
-            config_params: Dictionary of configuration parameters
-                - poisson_rate: Poisson arrival rate of queries
-                - tensor_parallelism: Degree of tensor parallelism
-                - model_size: Model size in parameter count (in billions)
-                - is_reasoning: Boolean indicating if reasoning model (1) or not (0)
-                - is_h100: Boolean indicating if H100 (1) or A100 (0)
-            sequence_length: Length of output sequences
-            stride: Stride for sliding window
+            power_traces: shape [N, T], each row is a power time series
+            config_params: dictionary with keys like
+               ["model_name", "tensor_parallelism", "poisson_rate"]
+               you'll want numeric or one-hot versions for training
+               This example just converts them to float for demonstration.
+            sequence_length: number of points in each returned sequence
+            stride: how many steps to move the window for the next sample
         """
         self.power_traces = power_traces
         self.config_params = config_params
         self.sequence_length = sequence_length
         self.stride = stride
+        self.tp_array = np.array(config_params["tensor_parallelism"], dtype=np.float32)
+        self.rate_array = np.array(config_params["poisson_rate"], dtype=np.float32)
 
-        # Calculate valid starting indices
         self.valid_indices = []
-        for i in range(len(power_traces)):
-            for j in range(0, len(power_traces[i]) - sequence_length + 1, stride):
-                self.valid_indices.append((i, j))
+        for i in range(len(self.power_traces)):
+            T = len(self.power_traces[i])
+            for start_idx in range(0, T - sequence_length + 1, stride):
+                self.valid_indices.append((i, start_idx))
 
     def __len__(self):
         return len(self.valid_indices)
 
     def __getitem__(self, idx):
-        sample_idx, start_idx = self.valid_indices[idx]
+        sample_i, start_i = self.valid_indices[idx]
+        seq = self.power_traces[sample_i][start_i : start_i + self.sequence_length]
 
-        # Get sequence of power values
-        sequence = self.power_traces[sample_idx][
-            start_idx : start_idx + self.sequence_length
-        ]
-
-        # Get configuration parameters for this sample
-        config = {
-            "poisson_rate": self.config_params["poisson_rate"][sample_idx],
-            "tensor_parallelism": self.config_params["tensor_parallelism"][sample_idx],
-            "model_size": self.config_params["model_size"][sample_idx],
-            "is_reasoning": self.config_params["is_reasoning"][sample_idx],
-            "is_h100": self.config_params["is_h100"][sample_idx],
-        }
-
-        # Convert to tensors
-        sequence_tensor = torch.FloatTensor(sequence)
-
-        # Create config tensor
-        config_tensor = torch.FloatTensor(
+        config_tensor = torch.tensor(
             [
-                config["poisson_rate"],
-                config["tensor_parallelism"],
-                config["model_size"],
-                config["is_reasoning"],
-                config["is_h100"],
-            ]
+                self.tp_array[sample_i],
+                self.rate_array[sample_i],
+            ],
+            dtype=torch.float32,
         )
 
+        seq_tensor = torch.tensor(seq, dtype=torch.float32)
+        input_tensor = torch.cat([torch.zeros(1), seq_tensor[:-1]])  # shift by 1
+
         return {
-            "config": config_tensor,
-            "power_trace": sequence_tensor,
-            # During training, input = target shifted by one step for autoregressive training
-            "input_trace": torch.cat([torch.zeros(1), sequence_tensor[:-1]]),
+            "config": config_tensor,  # [2]
+            "power_trace": seq_tensor,  # [sequence_length]
+            "input_trace": input_tensor,  # [sequence_length]
         }
 
 
 def normalize_config_params(
-    config_params: Dict[str, np.ndarray]
+    config_params: Dict[str, List[float]]
 ) -> Dict[str, np.ndarray]:
     """
-    Normalize configuration parameters to have similar ranges.
-
-    Args:
-        config_params: Dictionary of configuration parameters
-
-    Returns:
-        Dictionary of normalized configuration parameters
+    Example normalization. Adjust as needed for your actual data ranges.
+    We'll ignore 'model_name' in numeric normalization.
     """
-    # Constants based on typical ranges in your data
-    MAX_MODEL_SIZE = 13.0  # Maximum model size in billions (adjusted for Llama-3)
-    MAX_POISSON_ARRIVAL_RATE = 0.5  # Maximum Poisson arrival rate from filenames
-    MAX_TENSOR_PARALLELISM = 1.0  # Maximum tensor parallelism from filenames
+    print(config_params)
+    tp = np.array(config_params["tensor_parallelism"], dtype=np.float32)
+    rate = np.array(config_params["poisson_rate"], dtype=np.float32)
+    tp_max = 8.0
+    rate_max = 4.0
 
-    normalized_params = {}
-
-    # Normalize poisson_rate
-    normalized_params["poisson_rate"] = (
-        config_params["poisson_rate"] / MAX_POISSON_ARRIVAL_RATE
-    )
-
-    # Normalize tensor_parallelism
-    normalized_params["tensor_parallelism"] = (
-        config_params["tensor_parallelism"] / MAX_TENSOR_PARALLELISM
-    )
-
-    # Normalize model_size
-    normalized_params["model_size"] = config_params["model_size"] / MAX_MODEL_SIZE
-
-    # is_reasoning and is_h100 are already 0 or 1
-    normalized_params["is_reasoning"] = config_params["is_reasoning"]
-    normalized_params["is_h100"] = config_params["is_h100"]
-
-    return normalized_params
+    return {
+        "model_name": np.array(config_params["model_name"]),  # keep as-is
+        "tensor_parallelism": tp / tp_max,
+        "poisson_rate": rate / rate_max,
+    }
 
 
-def save_processed_data(save_dir: str, train_dataset, val_dataset):
+def save_processed_data(save_dir: str, dataset_train: Dataset, dataset_val: Dataset):
     """
-    Save processed datasets to disk.
+    Save final data to disk in a single .npz file. This includes the original
+    power traces and the train/val split indices.
 
-    Args:
-        save_dir: Directory to save datasets
-        train_dataset: Training dataset
-        val_dataset: Validation dataset
+    Adjust as needed based on how you want to load data in the future.
     """
     os.makedirs(save_dir, exist_ok=True)
+    full_dataset = dataset_train.dataset
+    train_indices = dataset_train.valid_indices
+    val_indices = dataset_val.valid_indices
 
-    # Get indices from the random split
-    train_indices = train_dataset.indices
-    val_indices = val_dataset.indices
-
-    # Get the original dataset
-    original_dataset = train_dataset.dataset
-
-    # Save data
     np.savez(
         os.path.join(save_dir, "power_trace_data.npz"),
-        power_traces=original_dataset.power_traces,
-        poisson_rate=original_dataset.config_params["poisson_rate"],
-        tensor_parallelism=original_dataset.config_params["tensor_parallelism"],
-        model_size=original_dataset.config_params["model_size"],
-        is_reasoning=original_dataset.config_params["is_reasoning"],
-        is_h100=original_dataset.config_params["is_h100"],
+        power_traces=full_dataset.power_traces,
+        model_name=full_dataset.config_params["model_name"],
+        tensor_parallelism=full_dataset.config_params["tensor_parallelism"],
+        poisson_rate=full_dataset.config_params["poisson_rate"],
         train_indices=train_indices,
         val_indices=val_indices,
     )
-
-    print(f"Saved processed data to {os.path.join(save_dir, 'power_trace_data.npz')}")
+    print(
+        f"Saved processed dataset to: {os.path.join(save_dir, 'power_trace_data.npz')}"
+    )
 
 
 if __name__ == "__main__":
-    # Update the data root to match the correct path
-    data_root = "/Users/grantwilkins/powertrace-sim/client"
-    processor = GPUPowerDataProcessor(data_root)
-
-    # Process all experiments
+    data_root = "../client/llama-3-8b"
+    processor = GPUPowerDataProcessor(data_root_dir=data_root)
     config_params, power_traces = processor.process_all_experiments(
         duration_seconds=600, sampling_rate_hz=4
     )
-
-    # Visualize samples
-    fig = processor.visualize_samples(config_params, power_traces, num_samples=3)
-    fig.savefig("sample_traces.png")
-
-    # Normalize configuration parameters
-    normalized_params = normalize_config_params(config_params)
-
-    # Create datasets
-    train_dataset, val_dataset = processor.create_dataset(
-        normalized_params, power_traces, sequence_length=600, stride=60
+    print("Done processing, final shapes:")
+    for k, v in config_params.items():
+        print(f"  {k}: {len(v)} entries")
+    print("  power_traces:", power_traces.shape)
+    processor.visualize_samples(config_params, power_traces, num_samples=3)
+    norm_params = normalize_config_params(config_params)
+    full_dataset = PowerTraceDataset(
+        power_traces=power_traces,
+        config_params=norm_params,
+        sequence_length=600,
+        stride=60,
     )
 
-    # Save processed data
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+
     save_processed_data("processed_data", train_dataset, val_dataset)
 
-    print("Data processing complete!")
+    print("All done!")
