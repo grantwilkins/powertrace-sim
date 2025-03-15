@@ -1,4 +1,4 @@
-TENSOR_PARALLEL_SIZES=(1 2 4 8)
+TENSOR_PARALLEL_SIZES=(2 4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     if [ ${TENSOR_PARALLEL_SIZE} -eq 1 ]; then
         export CUDA_VISIBLE_DEVICES=0
@@ -12,6 +12,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
     bash serve-deepseek-r1-distill-8b.sh &
+    export SERVING_PID=$!
     while ! curl -s http://localhost:8000/v1/completions > /dev/null; do
         echo "Waiting for server to start..."
         sleep 10
@@ -26,5 +27,5 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-8B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE}
         kill -9 ${NVIDIA_SMI_PID}
     done
-    pkill -9 -f "vllm serve"
+    pkill -9 ${SERVING_PID}
 done
