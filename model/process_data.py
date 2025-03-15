@@ -59,6 +59,7 @@ class GPUPowerDataProcessor:
             # Example:  llama-3-8b_tp2_p2.0_d2025-03-14-07-32-35.csv
             base = os.path.basename(filename)
             model_match = re.match(r"(.*)_tp(\d+)_p([\d\.]+)_d", base)
+            print(model_match.groups())
             if not model_match:
                 return None
             model_name = model_match.group(1)
@@ -144,16 +145,9 @@ class GPUPowerDataProcessor:
         """
         try:
             df = pd.read_csv(csv_path, skipinitialspace=True)
-
-            # Standardize column names
             df.columns = [col.strip().lower() for col in df.columns]
-
-            # Rename known columns if needed
-            # e.g. "power.draw [w]" -> "power"
             if "power.draw [w]" in df.columns:
                 df.rename(columns={"power.draw [w]": "power"}, inplace=True)
-
-            # Some logs might have "83.06 W", so strip out non-numerics
             if df["power"].dtype == object:
                 df["power"] = df["power"].replace(r"[^\d.]", "", regex=True)
                 df["power"] = pd.to_numeric(df["power"])
@@ -445,7 +439,7 @@ def save_processed_data(save_dir: str, dataset_train: Dataset, dataset_val: Data
 
 
 if __name__ == "__main__":
-    data_root = "../client/llama-3-8b"
+    data_root = "../client"
     processor = GPUPowerDataProcessor(data_root_dir=data_root)
     config_params, power_traces = processor.process_all_experiments(
         duration_seconds=600, sampling_rate_hz=4
