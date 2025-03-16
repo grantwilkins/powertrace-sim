@@ -432,104 +432,26 @@ def plot_power_traces(
     return plt
 
 
-# Example usage
-def example_workflow():
+if __name__ == "__main__":
+    # Run example workflow
     """Example workflow to demonstrate the full pipeline."""
-
-    # 1. Create synthetic data for demonstration
-    def generate_synthetic_data(num_samples=50, seq_length=600):
-        # Configuration parameters
-        poisson_rates = np.random.uniform(1.0, 10.0, num_samples)
-        tensor_parallelism = np.random.choice([1, 2, 4, 8], num_samples)
-        model_sizes = np.random.uniform(7.0, 70.0, num_samples)  # 7B to 70B
-        is_reasoning = np.random.choice([0, 1], num_samples)
-        is_h100 = np.random.choice([0, 1], num_samples)
-
-        config_params = {
-            "poisson_rate": poisson_rates,
-            "tensor_parallelism": tensor_parallelism,
-            "model_size": model_sizes,
-            "is_reasoning": is_reasoning,
-            "is_h100": is_h100,
-        }
-
-        # Generate synthetic power traces
-        power_traces = []
-        for i in range(num_samples):
-            # Base power depends on GPU type
-            base_power = 100 if is_h100[i] == 0 else 200  # A100 vs H100
-
-            # Model size impact
-            model_factor = model_sizes[i] / 10.0
-
-            # Tensor parallelism efficiency
-            tp_factor = 0.7 + 0.3 * (1.0 / tensor_parallelism[i])
-
-            # Reasoning impact
-            reasoning_factor = 1.0 + 0.5 * is_reasoning[i]
-
-            # Generate time series with query patterns
-            trace = np.zeros(seq_length)
-
-            # Add base load
-            trace += base_power * model_factor * tp_factor
-
-            # Add query patterns based on Poisson rate
-            query_times = np.random.poisson(
-                lam=60.0 / poisson_rates[i], size=int(seq_length / 10)
-            )
-            query_times = np.cumsum(query_times)
-            query_times = query_times[query_times < seq_length]
-
-            # Add power spike for each query
-            for t in query_times:
-                # Query duration depends on model size and reasoning
-                query_duration = int(5 + model_sizes[i] / 10.0 * reasoning_factor)
-                power_spike = 50 * model_factor * reasoning_factor
-
-                # Add power spike with decay
-                for j in range(min(query_duration, seq_length - t)):
-                    decay = 1.0 - (j / query_duration)
-                    if t + j < seq_length:
-                        trace[t + j] += power_spike * decay
-
-            # Add noise
-            trace += np.random.normal(0, 5, seq_length)
-
-            # Ensure power is positive
-            trace = np.maximum(trace, 0)
-
-            power_traces.append(trace)
-
-        return np.array(power_traces), config_params
-
-    # Generate synthetic data
-    power_traces, config_params = generate_synthetic_data(num_samples=100)
-
-    # 2. Create dataset and dataloaders
-    dataset = PowerTraceDataset(power_traces, config_params)
-
-    # Split into train and validation
+    dataset = np.load("./processed_data/power_trace_data.npz")
+    print(dataset["power_traces"])
+    # dataset = PowerTraceDataset(power_traces, config_params)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(
         dataset, [train_size, val_size]
     )
-
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
-
-    # 3. Create and train model
     model = PowerTraceTransformer(
         config_dim=5, d_model=128, nhead=8, num_encoder_layers=3, num_decoder_layers=3
     )
-
     train_losses, val_losses = train_model(
         model=model, train_loader=train_loader, val_loader=val_loader, num_epochs=20
     )
 
-    # 4. Generate traces for different configurations
-    # Generate traces for A100 vs H100 comparison
     a100_traces = generate_power_traces(
         model=model,
         poisson_rate=5.0,
@@ -549,8 +471,6 @@ def example_workflow():
         is_h100=True,
         num_samples=3,
     )
-
-    # Compare reasoning vs non-reasoning
     reasoning_traces = generate_power_traces(
         model=model,
         poisson_rate=5.0,
@@ -561,15 +481,6 @@ def example_workflow():
         num_samples=3,
     )
 
-    # Plot results
     plot_power_traces(a100_traces, title="A100 GPU Power Traces")
     plot_power_traces(h100_traces, title="H100 GPU Power Traces")
     plot_power_traces(reasoning_traces, title="Reasoning Model Power Traces")
-
-    # Return model for further use
-    return model
-
-
-if __name__ == "__main__":
-    # Run example workflow
-    model = example_workflow()
