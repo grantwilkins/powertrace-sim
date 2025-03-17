@@ -199,6 +199,7 @@ class GPUPowerDataProcessor:
         start_time = min(power_df["timestamp"].min(), results_df["request_time"].min())
         end_time = max(power_df["timestamp"].max(), results_df["request_time"].max())
         total_expt_duration = (end_time - start_time).total_seconds()
+        print(f"Experiment duration: {total_expt_duration:.2f} seconds")
 
         # We'll only consider up to duration_seconds (clamped to the experiment's length)
         effective_duration = min(duration_seconds, int(np.ceil(total_expt_duration)))
@@ -412,26 +413,22 @@ def normalize_config_params(
     }
 
 
-def save_processed_data(save_dir: str, dataset_train: Dataset, dataset_val: Dataset):
+def save_processed_data(save_dir: str, dataset: Dataset):
     """
     Save final data to disk in a single .npz file. This includes the original
-    power traces and the train/val split indices.
+    power traces and valid indices.
 
     Adjust as needed based on how you want to load data in the future.
     """
     os.makedirs(save_dir, exist_ok=True)
-    full_dataset = dataset_train.dataset
-    train_indices = dataset_train.valid_indices
-    val_indices = dataset_val.valid_indices
 
     np.savez(
         os.path.join(save_dir, "power_trace_data.npz"),
-        power_traces=full_dataset.power_traces,
-        model_name=full_dataset.config_params["model_name"],
-        tensor_parallelism=full_dataset.config_params["tensor_parallelism"],
-        poisson_rate=full_dataset.config_params["poisson_rate"],
-        train_indices=train_indices,
-        val_indices=val_indices,
+        power_traces=dataset.power_traces,
+        model_name=dataset.config_params["model_name"],
+        tensor_parallelism=dataset.config_params["tensor_parallelism"],
+        poisson_rate=dataset.config_params["poisson_rate"],
+        valid_indices=dataset.valid_indices,
     )
     print(
         f"Saved processed dataset to: {os.path.join(save_dir, 'power_trace_data.npz')}"
@@ -450,17 +447,10 @@ if __name__ == "__main__":
     print("  power_traces:", power_traces.shape)
     processor.visualize_samples(config_params, power_traces, num_samples=3)
     norm_params = normalize_config_params(config_params)
-    full_dataset = PowerTraceDataset(
+    dataset = PowerTraceDataset(
         power_traces=power_traces,
         config_params=norm_params,
         sequence_length=600,
         stride=60,
     )
-
-    train_size = int(0.8 * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-
-    save_processed_data("processed_data", train_dataset, val_dataset)
-
-    print("All done!")
+    save_processed_data("processed_data", dataset)
