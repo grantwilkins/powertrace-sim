@@ -200,7 +200,6 @@ class GPUPowerDataProcessor:
         end_time = max(power_df["timestamp"].max(), results_df["request_time"].max())
         total_expt_duration = (end_time - start_time).total_seconds()
         print(f"Experiment duration: {total_expt_duration:.2f} seconds")
-
         # We'll only consider up to duration_seconds (clamped to the experiment's length)
         effective_duration = min(duration_seconds, int(np.ceil(total_expt_duration)))
 
@@ -414,8 +413,10 @@ def normalize_config_params(
 
 
 def save_processed_data(save_dir: str, dataset: Dataset):
+def save_processed_data(save_dir: str, dataset: Dataset):
     """
     Save final data to disk in a single .npz file. This includes the original
+    power traces and valid indices.
     power traces and valid indices.
 
     Adjust as needed based on how you want to load data in the future.
@@ -424,6 +425,11 @@ def save_processed_data(save_dir: str, dataset: Dataset):
 
     np.savez(
         os.path.join(save_dir, "power_trace_data.npz"),
+        power_traces=dataset.power_traces,
+        model_name=dataset.config_params["model_name"],
+        tensor_parallelism=dataset.config_params["tensor_parallelism"],
+        poisson_rate=dataset.config_params["poisson_rate"],
+        valid_indices=dataset.valid_indices,
         power_traces=dataset.power_traces,
         model_name=dataset.config_params["model_name"],
         tensor_parallelism=dataset.config_params["tensor_parallelism"],
@@ -448,9 +454,11 @@ if __name__ == "__main__":
     processor.visualize_samples(config_params, power_traces, num_samples=3)
     norm_params = normalize_config_params(config_params)
     dataset = PowerTraceDataset(
+    dataset = PowerTraceDataset(
         power_traces=power_traces,
         config_params=norm_params,
         sequence_length=600,
         stride=60,
     )
+    save_processed_data("processed_data", dataset)
     save_processed_data("processed_data", dataset)
