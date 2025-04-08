@@ -553,9 +553,6 @@ def predict_power_trace(
         # If shape was [config_dim], make it [1, config_dim]
         config = config.unsqueeze(0)
 
-    # If input_tokens/output_tokens exist, ensure they're [B, seed_len]
-    # (already done above, but double-check dimension logic as needed)
-
     # 2) Set up the seed portion
     current_sequence = seed_sequence.clone()  # shape [B, seed_len]
     B, seed_len = current_sequence.shape
@@ -614,11 +611,8 @@ def predict_power_trace(
                 real_idx = seed_len + t
                 if real_idx < all_input_tokens.shape[1]:
                     new_in_token = all_input_tokens[:, real_idx].unsqueeze(1)  # [B, 1]
-                else:
-                    # Out of range -> pad with zeros or your chosen fallback
-                    new_in_token = torch.zeros_like(in_tok_clone[:, -1:], device=device)
-                # Shift
-                in_tok_clone = torch.cat([in_tok_clone[:, 1:], new_in_token], dim=1)
+                    # Shift while maintaining the same sequence length
+                    in_tok_clone = torch.cat([in_tok_clone[:, 1:], new_in_token], dim=1)
 
             if out_tok_clone is not None and all_output_tokens is not None:
                 real_idx = seed_len + t
@@ -626,12 +620,10 @@ def predict_power_trace(
                     new_out_token = all_output_tokens[:, real_idx].unsqueeze(
                         1
                     )  # [B, 1]
-                else:
-                    new_out_token = torch.zeros_like(
-                        out_tok_clone[:, -1:], device=device
+                    # Shift while maintaining the same sequence length
+                    out_tok_clone = torch.cat(
+                        [out_tok_clone[:, 1:], new_out_token], dim=1
                     )
-                # Shift
-                out_tok_clone = torch.cat([out_tok_clone[:, 1:], new_out_token], dim=1)
 
         # End steps loop
         all_trajectories.append(pred_sequence)  # shape [B, steps]
@@ -691,6 +683,14 @@ def visualize_prediction(
     if "output_tokens" in seed_tokens:
         seed_tokens["output_tokens"] = seed_tokens["output_tokens"][:, :seed_len]
 
+    all_in = batch.get("input_tokens", None)
+    if all_in is not None:
+        # shape is [32, seq_len], so select the same single row [0]
+        all_in = all_in[0].unsqueeze(0).to(device)  # [1, seq_len]
+    all_out = batch.get("output_tokens", None)
+    if all_out is not None:
+        all_out = all_out[0].unsqueeze(0).to(device)  # [1, seq_len]
+
     # Generate predictions
     predictions = predict_power_trace(
         model,
@@ -701,8 +701,8 @@ def visualize_prediction(
         sample=True,
         seed_tokens=seed_tokens,
         n_samples=n_samples,
-        all_input_tokens=batch.get("input_tokens", None),
-        all_output_tokens=batch.get("output_tokens", None),
+        all_input_tokens=all_in,
+        all_output_tokens=all_out,
     )
 
     # Convert to numpy for plotting
@@ -819,7 +819,7 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
     print(f"Validation set size: {len(val_loader.dataset)}")
 
     # Define device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps")
     print(f"Using device: {device}")
 
     # Create model
@@ -828,7 +828,7 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
         hidden_dim=128,
         num_layers=3,
         dropout=0.1,
-        bidirectional=False,
+        bidirectional=True,
         use_tokens=(input_tokens is not None and output_tokens is not None),
     )
 
@@ -841,11 +841,11 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        num_epochs=10,
-        lr=1e-2,
+        num_epochs=30,
+        lr=3e-2,
         weight_decay=1e-5,
         device=device,
-        patience=5,
+        patience=30,
     )
 
     # Save model
@@ -868,7 +868,7 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
         val_loader=val_loader,
         device=device,
         steps=300,
-        n_samples=5,
+        n_samples=1,
         save_path="prediction_visualization.png",
     )
 
