@@ -462,3 +462,155 @@ if __name__ == "__main__":
     )
     save_processed_data("processed_data", dataset)
     save_processed_data("processed_data", dataset)
+
+def train_hybrid_model(
+    model,
+    train_loader,
+    val_loader=None,
+    num_epochs=10,
+    lr=1e-3,
+    device="cuda" if torch.cuda.is_available() else "mps",
+    state_weight=0.2,
+):
+    """
+    Training function for the hybrid HSMM-Transformer model.
+    
+    Args:
+        model: The hybrid model
+        train_loader: DataLoader for training data
+        val_loader: Optional DataLoader for validation
+        num_epochs: Number of training epochs
+        lr: Learning rate
+        device: Device to train on
+        state_weight: Weight for the state prediction loss
+    """
+    from tqdm.auto import tqdm
+    
+    model = model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    power_criterion = nn.MSELoss()
+    state_criterion = nn.CrossEntropyLoss()
+    
+    train_losses = []
+    val_losses = []
+    
+    for epoch in range(num_epochs):
+        # Training
+        model.train()
+        epoch_train_loss = 0.0
+        epoch_train_power_loss = 0.0
+        epoch_train_state_loss = 0.0
+        
+        train_pbar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Train]')
+        for batch in train_pbar:
+            config = batch["config"].to(device)  # [batch_size, config_dim]
+            input_seq = batch["input_seq"].to(device)  # [batch_size, seq_len]
+            target_seq = batch["target_seq"].to(device)  # [batch_size, seq_len]
+            
+            # Get state sequences if available
+            if "state_seq" in batch:
+                state_seq = batch["state_seq"].to(device)
+            else:
+                state_seq = None
+                
+            # Forward pass
+            power_pred, state_logits = model(config, input_seq, state_seq)
+            
+            # Power prediction loss
+            power_loss = power_criterion(power_pred, target_seq)
+            
+            # State prediction loss (if states are available)
+            if state_seq is not None:
+                # Get the last state for simplicity
+                state_loss = state_criterion(state_logits, state_seq[:, -1])
+                total_loss = power_loss + state_weight * state_loss
+                epoch_train_state_loss += state_loss.item()
+            else:
+                total_loss = power_loss
+                
+            # Backpropagation
+            optimizer.zero_grad()
+            total_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            
+            epoch_train_loss += total_loss.item()
+            epoch_train_power_loss += power_loss.item()
+            
+            # Update progress bar
+            train_pbar.set_postfix({'loss': f'{total_loss.item():.4f}'})
+            
+        # Average losses
+        epoch_train_loss /= len(train_loader)
+        epoch_train_power_loss /= len(train_loader)
+        if state_seq is not None:
+            epoch_train_state_loss /= len(train_loader)
+            
+        train_losses.append(epoch_train_loss)
+        
+        # Validation
+        if val_loader is not None:
+            model.eval()
+            epoch_val_loss = 0.0
+            epoch_val_power_loss = 0.0
+            epoch_val_state_loss = 0.0
+            
+            val_pbar = tqdm(val_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Val]')
+            with torch.no_grad():
+                for batch in val_pbar:
+                    config = batch["config"].to(device)
+                    input_seq = batch["input_seq"].to(device)
+                    target_seq = batch["target_seq"].to(device)
+                    
+                    if "state_seq" in batch:
+                        state_seq = batch["state_seq"].to(device)
+                    else:
+                        state_seq = None
+                        
+                    power_pred, state_logits = model(config, input_seq, state_seq)
+                    
+                    power_loss = power_criterion(power_pred, target_seq)
+                    
+                    if state_seq is not None:
+                        state_loss = state_criterion(state_logits, state_seq[:, -1])
+                        total_loss = power_loss + state_weight * state_loss
+                        epoch_val_state_loss += state_loss.item()
+                    else:
+                        total_loss = power_loss
+                        
+                    epoch_val_loss += total_loss.item()
+                    epoch_val_power_loss += power_loss.item()
+                    
+                    # Update progress bar
+                    val_pbar.set_postfix({'loss': f'{total_loss.item():.4f}'})
+                
+            # Average validation losses
+            epoch_val_loss /= len(val_loader)
+            epoch_val_power_loss /= len(val_loader)
+            if state_seq is not None:
+                epoch_val_state_loss /= len(val_loader)
+                
+            val_losses.append(epoch_val_loss)
+            
+            # Print progress
+            if state_seq is not None:
+                print(f"Epoch {epoch+1}/{num_epochs} | "
+                      f"Train Loss: {epoch_train_loss:.4f} (Power: {epoch_train_power_loss:.4f}, State: {epoch_train_state_loss:.4f}) | "
+                      f"Val Loss: {epoch_val_loss:.4f} (Power: {epoch_val_power_loss:.4f}, State: {epoch_val_state_loss:.4f})")
+            else:
+                print(f"Epoch {epoch+1}/{num_epochs} | "
+                      f"Train Loss: {epoch_train_loss:.4f} | "
+                      f"Val Loss: {epoch_val_loss:.4f}")
+        else:
+            # Print progress without validation
+            if state_seq is not None:
+                print(f"Epoch {epoch+1}/{num_epochs} | "
+                      f"Train Loss: {epoch_train_loss:.4f} (Power: {epoch_train_power_loss:.4f}, State: {epoch_train_state_loss:.4f})")
+            else:
+                print(f"Epoch {epoch+1}/{num_epochs} | "
+                      f"Train Loss: {epoch_train_loss:.4f}")
+    
+    return train_losses, val_losses
+
+model = HybridHSMMTransformer(n_states=6, config_dim=3, d_model=64, nhead=4, num_layers=2)
+train_losses, val_losses = train_hybrid_model(model, train_loader, val_loader, num_epochs=10, lr=1e-3, device="mps")
