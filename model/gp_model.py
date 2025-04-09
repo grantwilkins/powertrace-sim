@@ -9,16 +9,20 @@ import math
 
 class PowerTraceGP:
     """
-    A Gaussian Process approach for power trace modeling.
+    A Gaussian Process approach for power trace modeling with less memory usage.
 
-    This class trains GP models based on tensor parallelism and model size only,
-    with poisson arrival rate as a parameter at inference time.
+    Main changes:
+    1. Only one RBF kernel for time dimension * RBF kernel for Poisson rate.
+    2. Subsampling of training points to avoid huge N x N kernel matrices.
     """
 
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", max_points_per_trace=2000):
         self.device = device
-        self.models = {}  # Dictionary to store trained GP models by config
-        self.likelihoods = {}  # Dictionary to store likelihoods by config
+        self.models = {}
+        self.likelihoods = {}
+        self.data = {}
+        # Control how many points we keep per trace to avoid big kernel matrices
+        self.max_points_per_trace = max_points_per_trace
 
     def prepare_data(
         self,
@@ -31,37 +35,20 @@ class PowerTraceGP:
         scale_power=True,
     ):
         """
-        Prepare data for GP modeling.
-
-        Args:
-            power_traces: [N, T] array of power traces
-            tensor_parallelism: [N] array of tensor parallelism values
-            poisson_rate: [N] array of poisson rates
-            model_size: [N] array of model sizes
-            input_tokens: [N, T] array of input tokens (optional)
-            output_tokens: [N, T] array of output tokens (optional)
-            scale_power: Whether to normalize power by tensor parallelism
-
-        Returns:
-            Processed data as a dictionary
+        Prepare data for GP modeling, grouping by (tp, ms) only.
         """
         # Convert to numpy if needed
         if isinstance(power_traces, torch.Tensor):
             power_traces = power_traces.cpu().numpy()
 
-        # Number of traces
         N = len(power_traces)
-
-        # Create a dictionary to store data by configuration (tp, ms only)
         data_by_config = {}
 
-        # Process each trace
         for i in range(N):
-            # Get configuration - now using only TP and model size
             tp = tensor_parallelism[i]
             pr = poisson_rate[i]
-            ms = model_size[i]
-            config_key = f"tp{tp}_ms{ms}"  # Removed poisson rate from config key
+            ms = model_size[i] if model_size is not None else 0
+            config_key = f"tp{tp}_ms{ms}"
 
             # Normalize power by tensor parallelism if requested
             if scale_power:
@@ -69,490 +56,231 @@ class PowerTraceGP:
             else:
                 power = power_traces[i]
 
-            # Create data entry
             if config_key not in data_by_config:
                 data_by_config[config_key] = {
-                    "config": (tp, ms),  # Config now only has tp and ms
+                    "config": (tp, ms),
                     "traces": [],
-                    "poisson_rates": [],  # Store poisson rates separately
+                    "poisson_rates": [],
                     "input_tokens": [],
                     "output_tokens": [],
                 }
 
-            # Add trace and its associated poisson rate
             data_by_config[config_key]["traces"].append(power)
             data_by_config[config_key]["poisson_rates"].append(pr)
 
-            # Add tokens if available
             if input_tokens is not None:
                 data_by_config[config_key]["input_tokens"].append(input_tokens[i])
 
             if output_tokens is not None:
                 data_by_config[config_key]["output_tokens"].append(output_tokens[i])
 
-        # Return processed data
         self.data = data_by_config
-        print(f"Processed {N} traces into {len(data_by_config)} unique configurations")
+        print(f"Processed {N} traces into {len(data_by_config)} unique configs.")
         return data_by_config
 
     def train_gp_for_config(
-        self, config_key, train_percentage=0.8, training_iterations=100
+        self,
+        config_key,
+        train_percentage=0.8,
+        training_iterations=100,
+        lr=0.1,
     ):
         """
-        Train a GP model for a specific configuration with poisson rate as a feature.
-
-        Args:
-            config_key: Configuration key (tp_ms)
-            train_percentage: Percentage of data to use for training
-            training_iterations: Number of training iterations
-
-        Returns:
-            Trained model and likelihood
+        Train a GP model for one config, with Poisson rate as a feature.
+        Downsamples each trace to avoid large memory usage.
         """
-        # Set a consistent dtype (double precision is more stable for GPs)
         dtype = torch.float64
-
-        # Get data for this configuration
         data = self.data[config_key]
         traces = data["traces"]
         poisson_rates = data["poisson_rates"]
-        config = data["config"]  # Now (tp, ms)
 
-        # Split traces into train and test
         n_traces = len(traces)
         n_train = max(1, int(n_traces * train_percentage))
 
-        # Prepare training data (now including poisson rate as a feature)
+        # Separate train/test splits
+        if n_traces > 1:
+            # Use different traces for train/test
+            indices = np.arange(n_traces)
+            np.random.shuffle(indices)
+            train_indices = indices[:n_train]
+            test_indices = indices[n_train:]
+        else:
+            # Single trace, we'll do time-based split
+            train_indices = [0]
+            test_indices = []
+
+        # We'll gather all train points in these lists
         train_x_list = []
         train_y_list = []
-        test_x_list = []
-        test_y_list = []
 
-        # Handle different cases based on number of traces
-        if n_traces == 1:
-            # Single trace, split it into train/test
-            trace = traces[0]
-            pr = poisson_rates[0]
-            train_len = int(len(trace) * train_percentage)
+        # Subsampling logic to avoid huge data
+        def subsample_trace(x, y, max_points):
+            # If the trace is too large, choose a random subset
+            if len(x) > max_points:
+                idx = np.random.choice(len(x), size=max_points, replace=False)
+                idx = np.sort(idx)
+                return x[idx], y[idx]
+            return x, y
 
-            # Training data: time and poisson rate as features
-            times = torch.linspace(
-                0, train_len - 1, train_len, dtype=dtype, device=self.device
-            )
+        # Build train data
+        for idx in train_indices:
+            trace = traces[idx]
+            pr = poisson_rates[idx]
+
+            # Build time indices
+            times = torch.linspace(0, len(trace) - 1, len(trace), dtype=dtype)
             pr_tensor = torch.full_like(times, pr)
-            train_x = torch.stack(
-                [times, pr_tensor], dim=1
-            )  # 2D inputs: [time, poisson_rate]
-            train_y = torch.tensor(trace[:train_len], dtype=dtype, device=self.device)
 
-            # Test data
-            test_times = torch.linspace(
-                train_len,
-                len(trace) - 1,
-                len(trace) - train_len,
-                dtype=dtype,
-                device=self.device,
+            trace_x = torch.stack([times, pr_tensor], dim=1)
+            trace_y = torch.tensor(trace, dtype=dtype)
+
+            # Subsample to reduce memory usage
+            trace_x, trace_y = subsample_trace(
+                trace_x, trace_y, self.max_points_per_trace
             )
-            test_pr_tensor = torch.full_like(test_times, pr)
-            test_x = torch.stack([test_times, test_pr_tensor], dim=1)
-            test_y = torch.tensor(trace[train_len:], dtype=dtype, device=self.device)
+
+            train_x_list.append(trace_x)
+            train_y_list.append(trace_y)
+
+        # Concatenate
+        train_x = torch.cat(train_x_list, dim=0).to(self.device)
+        train_y = torch.cat(train_y_list, dim=0).to(self.device)
+
+        # Build test data from the first test trace if available
+        if len(test_indices) > 0:
+            idx = test_indices[0]
+            test_trace = traces[idx]
+            pr = poisson_rates[idx]
+            times = torch.linspace(0, len(test_trace) - 1, len(test_trace), dtype=dtype)
+            pr_tensor = torch.full_like(times, pr)
+            test_x = torch.stack([times, pr_tensor], dim=1).to(self.device)
+            test_y = torch.tensor(test_trace, dtype=dtype).to(self.device)
         else:
-            # Multiple traces available - use different traces for train/test
-            train_indices = np.random.choice(n_traces, n_train, replace=False)
-            test_indices = np.array(
-                [i for i in range(n_traces) if i not in train_indices]
-            )
+            # If no separate test trace, just hold out last chunk of train data
+            cutoff = int(len(train_x) * 0.2)  # 20% for test
+            test_x = train_x[-cutoff:]
+            test_y = train_y[-cutoff:]
+            train_x = train_x[:-cutoff]
+            train_y = train_y[:-cutoff]
 
-            # Collect training data from all training traces
-            for idx in train_indices:
-                trace = traces[idx]
-                pr = poisson_rates[idx]
-                times = torch.linspace(
-                    0, len(trace) - 1, len(trace), dtype=dtype, device=self.device
-                )
-                pr_tensor = torch.full_like(times, pr)
-                trace_x = torch.stack([times, pr_tensor], dim=1)
-                trace_y = torch.tensor(trace, dtype=dtype, device=self.device)
-
-                train_x_list.append(trace_x)
-                train_y_list.append(trace_y)
-
-            # Concatenate all training data
-            if train_x_list:
-                train_x = torch.cat(train_x_list, dim=0)
-                train_y = torch.cat(train_y_list, dim=0)
-            else:
-                # Fallback - shouldn't happen with proper train_indices
-                train_x = torch.zeros((0, 2), dtype=dtype, device=self.device)
-                train_y = torch.zeros(0, dtype=dtype, device=self.device)
-
-            # Collect test data if available
-            if len(test_indices) > 0:
-                for idx in test_indices:
-                    test_trace = traces[idx]
-                    test_pr = poisson_rates[idx]
-                    test_times = torch.linspace(
-                        0,
-                        len(test_trace) - 1,
-                        len(test_trace),
-                        dtype=dtype,
-                        device=self.device,
-                    )
-                    test_pr_tensor = torch.full_like(test_times, test_pr)
-                    test_trace_x = torch.stack([test_times, test_pr_tensor], dim=1)
-                    test_trace_y = torch.tensor(
-                        test_trace, dtype=dtype, device=self.device
-                    )
-
-                    test_x_list.append(test_trace_x)
-                    test_y_list.append(test_trace_y)
-
-                # Use first test trace for evaluation
-                test_x = test_x_list[0]
-                test_y = test_y_list[0]
-            else:
-                # If no test traces, use a portion of the training data
-                test_len = min(300, len(train_y) // 3)
-                test_x = train_x[-test_len:]
-                test_y = train_y[-test_len:]
-
-        # Create the modified GP model for 2D inputs
+        # --- Define a simpler kernel to reduce memory usage ---
         class ExactGPModel(gpytorch.models.ExactGP):
             def __init__(self, train_x, train_y, likelihood):
-                super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+                super().__init__(train_x, train_y, likelihood)
                 self.mean_module = gpytorch.means.ConstantMean()
-
-                # Create separate kernels for each input dimension
-                # Dimension 0: Time kernel (RBF + Periodic + Matern)
+                # We just do RBF for time * RBF for Poisson rate
                 self.time_kernel = gpytorch.kernels.ScaleKernel(
-                    gpytorch.kernels.RBFKernel(active_dims=0)
-                    + gpytorch.kernels.PeriodicKernel(active_dims=0)
-                    + gpytorch.kernels.MaternKernel(nu=1.5, active_dims=0)
+                    gpytorch.kernels.RBFKernel(active_dims=[0])
                 )
-
-                # Dimension 1: Poisson rate kernel (RBF)
-                self.poisson_kernel = gpytorch.kernels.ScaleKernel(
-                    gpytorch.kernels.RBFKernel(active_dims=1)
+                self.pr_kernel = gpytorch.kernels.ScaleKernel(
+                    gpytorch.kernels.RBFKernel(active_dims=[1])
                 )
-
-                # Product kernel combines both dimensions
-                self.covar_module = self.time_kernel * self.poisson_kernel
+                self.covar_module = self.time_kernel * self.pr_kernel
 
             def forward(self, x):
                 mean_x = self.mean_module(x)
                 covar_x = self.covar_module(x)
                 return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-        # Initialize likelihood and model
-        likelihood = (
-            gpytorch.likelihoods.GaussianLikelihood().to(dtype=dtype).to(self.device)
+        likelihood = gpytorch.likelihoods.GaussianLikelihood().to(
+            dtype=dtype, device=self.device
         )
-        model = (
-            ExactGPModel(train_x, train_y, likelihood).to(dtype=dtype).to(self.device)
-        )
-
-        # Use the Adam optimizer
-        optimizer = torch.optim.Adam(
-            [
-                {"params": model.parameters()},
-            ],
-            lr=0.1,
+        model = ExactGPModel(train_x, train_y, likelihood).to(
+            dtype=dtype, device=self.device
         )
 
-        # "Loss" for GPs - the marginal log likelihood
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
         # Training loop
         model.train()
         likelihood.train()
-
-        # Progress bar
-        pbar = tqdm(range(training_iterations), desc=f"Training GP for {config_key}")
-        train_losses = []
-
+        pbar = tqdm(range(training_iterations), desc=f"Training {config_key}")
         for i in pbar:
-            # Zero gradients
             optimizer.zero_grad()
-
-            # Output from model
             output = model(train_x)
-
-            # Calculate loss and backprop
             loss = -mll(output, train_y)
             loss.backward()
-
-            # Update progress
-            pbar.set_postfix({"loss": f"{loss.item():.3f}"})
-            train_losses.append(loss.item())
-
-            # Take a step
             optimizer.step()
-
-            # Reduce learning rate
+            pbar.set_postfix({"loss": f"{loss.item():.3f}"})
+            # Reduce LR occasionally
             if (i + 1) % 30 == 0:
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = param_group["lr"] * 0.8
+                for g in optimizer.param_groups:
+                    g["lr"] *= 0.8
 
-        # Switch to eval mode
+        # Evaluate
         model.eval()
         likelihood.eval()
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            preds = model(test_x)
+            rmse = torch.sqrt(torch.mean((preds.mean - test_y) ** 2)).item()
+            print(f"[{config_key}] Test RMSE: {rmse:.4f}")
 
-        # Store the trained model
         self.models[config_key] = model
         self.likelihoods[config_key] = likelihood
 
-        # Evaluate on test data
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            observed_pred = likelihood(model(test_x))
-            test_rmse = torch.sqrt(
-                torch.mean((observed_pred.mean - test_y) ** 2)
-            ).item()
-            print(f"Test RMSE for {config_key}: {test_rmse:.4f}")
-
-        # Return model and likelihood
-        return model, likelihood, train_losses
-
-    def train_all_configs(self, max_configs=5, training_iterations=100):
+    def train_all_configs(self, max_configs=None, training_iterations=100):
         """
-        Train GP models for all configurations (or a subset).
-
-        Args:
-            max_configs: Maximum number of configurations to train
-            training_iterations: Number of training iterations per config
-
-        Returns:
-            Dictionary of trained models
+        Train GPs for all configs, up to max_configs.
         """
-        # Get all configuration keys
         config_keys = list(self.data.keys())
-
-        # Limit to max_configs
-        if max_configs is not None and max_configs < len(config_keys):
+        if max_configs is not None:
             config_keys = config_keys[:max_configs]
 
-        # Train a model for each configuration
         for key in config_keys:
-            print(f"\nTraining GP for configuration: {key}")
             self.train_gp_for_config(key, training_iterations=training_iterations)
-
-        return self.models
 
     def predict(
         self,
         config_key,
         seed_sequence,
         poisson_rate,
-        steps=300,
+        steps=50,
         sample=True,
-        n_samples=5,
+        n_samples=1,
     ):
         """
-        Predict future power values with specified poisson rate.
-
-        Args:
-            config_key: Configuration key (tp_ms)
-            seed_sequence: Seed power sequence
-            poisson_rate: Poisson arrival rate to use for prediction
-            steps: Number of steps to predict
-            sample: Whether to sample or use mean
-            n_samples: Number of sample trajectories
-
-        Returns:
-            Predicted power values
+        Predict future steps, given a seed sequence, with a chosen Poisson rate.
         """
-        # Set consistent dtype
-        dtype = torch.float64
-
-        # Ensure seed_sequence is a numpy array
-        if isinstance(seed_sequence, torch.Tensor):
-            seed_sequence = seed_sequence.cpu().numpy()
-
-        # Check if model exists
         if config_key not in self.models:
-            raise ValueError(f"No trained model for configuration {config_key}")
+            raise ValueError(f"No trained model for {config_key}")
 
-        # Get model and likelihood
         model = self.models[config_key]
         likelihood = self.likelihoods[config_key]
-
-        # Set to evaluation mode
         model.eval()
         likelihood.eval()
 
-        # Create predictions array
+        dtype = torch.float64
+        seed_length = len(seed_sequence)
         predictions = np.zeros((n_samples, steps))
 
-        # Starting point is the last value in seed sequence
-        last_idx = len(seed_sequence) - 1
-
-        # For each sample
-        for s in range(n_samples):
-            # Current sequence starts with the seed
-            current_seq = seed_sequence.copy()
-
-            # Predict step by step
-            for t in range(steps):
-                # Next time point (with poisson rate)
-                next_time = last_idx + t + 1
-                next_x = torch.tensor(
-                    [[next_time, poisson_rate]], dtype=dtype, device=self.device
-                )
-
-                # Predict
-                with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                    # Get distribution
-                    pred_dist = likelihood(model(next_x))
-
-                    # Sample or mean
+        # We'll simply predict at t = seed_length, seed_length+1, ...
+        # ignoring the seed beyond the final point in time
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            for s in range(n_samples):
+                for t in range(steps):
+                    time_val = seed_length + t
+                    x = torch.tensor(
+                        [[time_val, poisson_rate]], dtype=dtype, device=self.device
+                    )
+                    dist = likelihood(model(x))
                     if sample:
-                        # Sample from the predicted distribution
-                        next_y = pred_dist.sample().cpu().numpy()[0]
+                        predictions[s, t] = dist.sample().cpu().item()
                     else:
-                        # Use mean prediction
-                        next_y = pred_dist.mean.cpu().numpy()[0]
-
-                # Store prediction
-                predictions[s, t] = next_y
-
-                # Update sequence
-                current_seq = np.append(current_seq[1:], next_y)
-
+                        predictions[s, t] = dist.mean.cpu().item()
         return predictions
 
-    def visualize_prediction(
-        self,
-        config_key,
-        seed_sequence,
-        poisson_rate,
-        steps=300,
-        n_samples=5,
-        actual_future=None,
-        input_tokens=None,
-        output_tokens=None,
-        save_path=None,
-    ):
-        """
-        Visualize a prediction.
 
-        Args:
-            config_key: Configuration key (tp_ms)
-            seed_sequence: Seed power sequence
-            poisson_rate: Poisson arrival rate to use for prediction
-            steps: Number of steps to predict
-            n_samples: Number of sample trajectories
-            actual_future: Actual future values (optional)
-            input_tokens: Input token sequence (optional)
-            output_tokens: Output token sequence (optional)
-            save_path: Path to save the visualization
-        """
-        # Make predictions with the specified poisson rate
-        predictions = self.predict(
-            config_key,
-            seed_sequence,
-            poisson_rate,
-            steps,
-            sample=True,
-            n_samples=n_samples,
-        )
-
-        # Get configuration (now just tp and ms)
-        tp, ms = self.data[config_key]["config"]
-
-        # Set up the figure
-        plt.figure(figsize=(14, 8))
-
-        # Plot the seed sequence
-        plt.plot(
-            range(len(seed_sequence)),
-            seed_sequence,
-            "b-",
-            linewidth=2,
-            label="Seed Sequence",
-        )
-
-        # Plot the actual future if available
-        if actual_future is not None:
-            future_start = len(seed_sequence)
-            future_end = future_start + len(actual_future)
-            plt.plot(
-                range(future_start, future_end),
-                actual_future,
-                "g-",
-                linewidth=2,
-                label="Actual Future",
-            )
-
-        # Plot the predicted trajectories
-        future_start = len(seed_sequence)
-        for i in range(n_samples):
-            plt.plot(
-                range(future_start, future_start + steps),
-                predictions[i],
-                "r-",
-                alpha=0.3,
-            )
-
-        # Add a legend entry for predictions
-        plt.plot([], [], "r-", alpha=0.7, label=f"{n_samples} Sampled Predictions")
-
-        # Plot tokens if available
-        if input_tokens is not None:
-            token_len = min(len(input_tokens), future_start + steps)
-            plt.plot(
-                range(token_len),
-                input_tokens[:token_len],
-                "c-",
-                alpha=0.5,
-                label="Input Tokens",
-            )
-
-        if output_tokens is not None:
-            token_len = min(len(output_tokens), future_start + steps)
-            plt.plot(
-                range(token_len),
-                output_tokens[:token_len],
-                "m-",
-                alpha=0.5,
-                label="Output Tokens",
-            )
-
-        # Add vertical line
-        plt.axvline(x=future_start - 1, color="k", linestyle="--")
-
-        # Add title and labels with poisson rate included
-        plt.title(
-            f"Power Prediction with GP (TP={tp}, Model Size={ms}, Poisson Rate={poisson_rate:.1f})",
-            fontsize=14,
-        )
-        plt.xlabel("Time Step", fontsize=12)
-        plt.ylabel("Normalized Power", fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=11)
-        plt.tight_layout()
-
-        # Save if requested
-        if save_path:
-            plt.savefig(save_path)
-            print(f"Figure saved to {save_path}")
-
-        plt.show()
-
-
-def run_gp_pipeline(data_path, output_dir="gp_results"):
+def run_small_memory_example(
+    data_path="./processed_data/power_trace_data.npz", output_dir="gp_results"
+):
     """
-    Run the GP power prediction pipeline.
-
-    Args:
-        data_path: Path to data file
-        output_dir: Directory to save results
+    Example driver that uses PowerTraceGP with simpler kernel and downsampling.
     """
-    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load data
-    print(f"Loading data from {data_path}")
+    # Load NPZ data (example)
     data = np.load(data_path)
-
     power_traces = data["power_traces"]
     tensor_parallelism = data["tensor_parallelism"]
     poisson_rate = data["poisson_rate"]
@@ -560,14 +288,16 @@ def run_gp_pipeline(data_path, output_dir="gp_results"):
     input_tokens = data.get("input_tokens", None)
     output_tokens = data.get("output_tokens", None)
 
-    print(f"Loaded {len(power_traces)} power traces with shape {power_traces[0].shape}")
+    print("Data loaded:")
+    print(f"  Number of traces: {len(power_traces)}")
+    print(f"  Example trace shape: {power_traces[0].shape}")
 
-    # Create GP model
+    # Create GP object with a limit on points per trace
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    power_gp = PowerTraceGP(device=device)
+    gp_model = PowerTraceGP(device=device, max_points_per_trace=2500)
 
-    # Prepare data - now grouping by tp and ms only
-    data_by_config = power_gp.prepare_data(
+    # Prepare data
+    gp_model.prepare_data(
         power_traces=power_traces,
         tensor_parallelism=tensor_parallelism,
         poisson_rate=poisson_rate,
@@ -577,86 +307,133 @@ def run_gp_pipeline(data_path, output_dir="gp_results"):
         scale_power=True,
     )
 
-    # Train models (limited to first 3 configs for demonstration)
-    models = power_gp.train_all_configs(max_configs=1, training_iterations=100)
+    # Train only the first 2 configurations for demonstration
+    gp_model.train_all_configs(max_configs=2, training_iterations=100)
 
-    # Visualize a prediction for each configuration with different poisson rates
-    for config_key in models.keys():
-        # Get first trace for this config
-        traces = data_by_config[config_key]["traces"]
-        poisson_rates = data_by_config[config_key]["poisson_rates"]
+    # Example prediction
+    config_key = list(gp_model.data.keys())[0]  # pick first config
+    print(f"Predicting on config {config_key}")
 
-        # Use first 1/3 as seed, middle 1/3 as actual future
-        seed_len = len(traces[0]) // 3
-        seed_sequence = traces[0][:seed_len]
-        actual_future = traces[0][seed_len : 2 * seed_len]
+    # Use half of the first trace as "seed"
+    seed_sequence = power_traces[0][:100]  # just 100 points as seed
+    pr = poisson_rate[0]
 
-        # Use the poisson rate from the first trace for prediction
-        first_poisson_rate = poisson_rates[0]
+    preds = gp_model.predict(
+        config_key=config_key,
+        seed_sequence=seed_sequence,
+        poisson_rate=pr,
+        steps=30,
+        sample=True,
+        n_samples=3,
+    )
 
-        # Get tokens if available
-        input_tok = None
-        if (
-            "input_tokens" in data_by_config[config_key]
-            and len(data_by_config[config_key]["input_tokens"]) > 0
-        ):
-            input_tok = data_by_config[config_key]["input_tokens"][0]
-
-        output_tok = None
-        if (
-            "output_tokens" in data_by_config[config_key]
-            and len(data_by_config[config_key]["output_tokens"]) > 0
-        ):
-            output_tok = data_by_config[config_key]["output_tokens"][0]
-
-        # Visualize with original poisson rate
-        save_path = os.path.join(
-            output_dir, f"prediction_{config_key}_pr{first_poisson_rate:.1f}.png"
+    # Visualize
+    plt.figure()
+    plt.plot(range(len(seed_sequence)), seed_sequence, label="Seed Power")
+    for i in range(preds.shape[0]):
+        start = len(seed_sequence)
+        plt.plot(
+            range(start, start + preds.shape[1]),
+            preds[i, :],
+            alpha=0.5,
+            label=f"Prediction {i+1}",
         )
-        power_gp.visualize_prediction(
-            config_key=config_key,
-            seed_sequence=seed_sequence,
-            poisson_rate=first_poisson_rate,
-            steps=seed_len,
-            n_samples=5,
-            actual_future=actual_future,
-            input_tokens=input_tok,
-            output_tokens=output_tok,
-            save_path=save_path,
-        )
+    plt.axvline(x=len(seed_sequence) - 1, color="k", linestyle="--")
+    plt.title(f"Predictions for {config_key} (Poisson Rate={pr:.2f})")
+    plt.xlabel("Time step")
+    plt.ylabel("Power (normalized)")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f"{config_key}_prediction_example.png"))
+    plt.show()
 
-        # Try a different poisson rate to demonstrate parameter flexibility
-        different_poisson_rate = first_poisson_rate * 1.5  # 50% higher rate
-        save_path = os.path.join(
-            output_dir, f"prediction_{config_key}_pr{different_poisson_rate:.1f}.png"
-        )
-        power_gp.visualize_prediction(
-            config_key=config_key,
-            seed_sequence=seed_sequence,
-            poisson_rate=different_poisson_rate,
-            steps=seed_len,
-            n_samples=1,
-            actual_future=None,  # No ground truth for different rate
-            input_tokens=input_tok,
-            output_tokens=output_tok,
-            save_path=save_path,
-        )
+    # Save your models
+    torch.save(
+        {
+            key: {
+                "model_state": gp_model.models[key].state_dict(),
+                "likelihood_state": gp_model.likelihoods[key].state_dict(),
+            }
+            for key in gp_model.models
+        },
+        os.path.join(output_dir, "models_downsampled.pt"),
+    )
 
-    # Save trained models
-    model_path = os.path.join(output_dir, "power_gp_models.pt")
-    model_dict = {
-        key: {
-            "model": power_gp.models[key].state_dict(),
-            "likelihood": power_gp.likelihoods[key].state_dict(),
-            "config": power_gp.data[key]["config"],  # Now just (tp, ms)
-        }
-        for key in power_gp.models.keys()
-    }
-    torch.save(model_dict, model_path)
-    print(f"Models saved to {model_path}")
-
-    return power_gp
+    print("Done training and prediction with lower memory usage.")
 
 
 if __name__ == "__main__":
-    power_gp = run_gp_pipeline(data_path="./processed_data/power_trace_data.npz")
+    run_small_memory_example()
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # gp_model = PowerTraceGP(device=device, max_points_per_trace=2000)
+
+    # # 2. Load the checkpoint dictionary from disk.
+    # #    This dictionary maps config_key -> {"model_state", "likelihood_state"}.
+    # checkpoint = torch.load("gp_results/models_downsampled.pt", map_location=device)
+
+    # # 3. For each config_key in the checkpoint, re-create the same model architecture
+    # #    and load the saved state dicts.
+    # for config_key, state_dicts in checkpoint.items():
+    #     model_state = state_dicts["model_state"]
+    #     likelihood_state = state_dicts["likelihood_state"]
+
+    #     # --- Re-create the same GP architecture used in train_gp_for_config ---
+    #     class ExactGPModel(gpytorch.models.ExactGP):
+    #         def __init__(self, train_x, train_y, likelihood):
+    #             super().__init__(train_x, train_y, likelihood)
+    #             self.mean_module = gpytorch.means.ConstantMean()
+
+    #             self.time_kernel = gpytorch.kernels.ScaleKernel(
+    #                 gpytorch.kernels.RBFKernel(active_dims=[0])
+    #             )
+    #             self.pr_kernel = gpytorch.kernels.ScaleKernel(
+    #                 gpytorch.kernels.RBFKernel(active_dims=[1])
+    #             )
+    #             self.covar_module = self.time_kernel * self.pr_kernel
+
+    #         def forward(self, x):
+    #             mean_x = self.mean_module(x)
+    #             covar_x = self.covar_module(x)
+    #             return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+    #     likelihood = gpytorch.likelihoods.GaussianLikelihood().to(
+    #         device=device, dtype=torch.float64
+    #     )
+
+    #     # We create a "dummy" training set just so the ExactGPModel constructor
+    #     # has something to initialize with.  The real parameters will come from state_dict.
+    #     dummy_x = torch.zeros(1, 2, dtype=torch.float64, device=device)
+    #     dummy_y = torch.zeros(1, dtype=torch.float64, device=device)
+
+    #     model_obj = ExactGPModel(dummy_x, dummy_y, likelihood).to(
+    #         device=device, dtype=torch.float64
+    #     )
+
+    #     # Load the weights
+    #     model_obj.load_state_dict(model_state)
+    #     likelihood.load_state_dict(likelihood_state)
+
+    #     # Put in eval mode
+    #     model_obj.eval()
+    #     likelihood.eval()
+
+    #     # Store in gp_model so we can call gp_model.predict(...)
+    #     gp_model.models[config_key] = model_obj
+    #     gp_model.likelihoods[config_key] = likelihood
+
+    # # 4. Now do inference/prediction using the existing PowerTraceGP code.
+    # #    Suppose we want to predict for config_key="tp1_ms0"
+    # #    with a seed sequence of 5 points and poisson_rate=0.5
+    # config_key = "tp2_ms0"
+    # poisson_rate = 2.0
+
+    # predictions = gp_model.predict(
+    #     config_key=config_key,
+    #     poisson_rate=poisson_rate,
+    #     seed_sequence=np.array([100, 200, 250, 240, 250]),
+    #     steps=10,
+    #     sample=True,
+    #     n_samples=1,
+    # )
+
+    # print(f"Predictions for {config_key}:", predictions)
