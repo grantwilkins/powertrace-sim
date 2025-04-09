@@ -64,7 +64,7 @@ class PowerTraceDataset(Dataset):
             # Scale the power traces by tensor parallelism to normalize
             self.normalized_power = []
             for i, trace in enumerate(power_traces):
-                self.normalized_power.append(trace / tensor_parallelism[i])
+                self.normalized_power.append(trace / (tensor_parallelism[i]))
         else:
             self.normalized_power = power_traces
 
@@ -826,7 +826,7 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
     model = PowerTraceLSTM(
         config_dim=3,  # tensor_parallelism, poisson_rate, model_size
         hidden_dim=128,
-        num_layers=3,
+        num_layers=5,
         dropout=0.1,
         bidirectional=True,
         use_tokens=(input_tokens is not None and output_tokens is not None),
@@ -841,8 +841,8 @@ def full_training_pipeline(data_path, output_dir="lstm_model_output"):
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        num_epochs=30,
-        lr=3e-2,
+        num_epochs=50,
+        lr=5e-2,
         weight_decay=1e-5,
         device=device,
         patience=30,
