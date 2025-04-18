@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import datasets
 import transformers
+import json
+import requests
 from openai import OpenAI
 
 
@@ -16,11 +18,14 @@ async def send_message(
     input_options: datasets.arrow_dataset.Dataset,
     poisson_arrival_rate: float,
     tokenizers,
+    date: str,
     reasoning: bool = False,
     tensor_parallel_size: int = 1,
+    base_url: str = "http://localhost:8000/v1",
 ) -> dict:
     """
     Sends a message to the OpenAI API and records performance metrics.
+    Also retrieves vLLM-specific metrics via the /metrics endpoint.
     """
     chosen_input = random.choice(input_options)
     instruction_text = chosen_input["instruction"]
@@ -36,15 +41,120 @@ async def send_message(
     ]
 
     start_time = time.time()
+
+    # Get metrics before request to establish baseline
+    metrics_url = f"{base_url.split('/v1')[0]}/metrics"
+    pre_metrics = {}
+    try:
+        metrics_response = requests.get(metrics_url)
+        if metrics_response.status_code == 200:
+            pre_metrics = metrics_response.json()
+    except Exception as e:
+        print(f"Failed to get pre-request metrics: {e}")
+
+    # Create unique request ID to track this specific request
+    request_id = f"req_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
+
+    # Send the actual completion request
     loop = asyncio.get_event_loop()
     response_raw = await loop.run_in_executor(
         None,
-        lambda: client.chat.completions.create(model=model_name, messages=messages),
+        lambda: client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            user=request_id,  # Use user field to track the request
+        ),
     )
     e2e_time = time.time() - start_time
 
+    # Get metrics after request
+    post_metrics = {}
+    try:
+        metrics_response = requests.get(metrics_url)
+        if metrics_response.status_code == 200:
+            post_metrics = metrics_response.json()
+    except Exception as e:
+        print(f"Failed to get post-request metrics: {e}")
+
+    # Extract the relevant metrics
+    # Note: These field names may need adjustment based on actual vLLM metrics endpoint
+    prefill_tokens = 0
+    decode_tokens = 0
+    batch_size = 0
+    prefill_throughput = 0
+    decode_throughput = 0
+
+    # Calculate differences in metrics before and after request
+    if pre_metrics and post_metrics:
+        try:
+            # Extract batch size (may need to be adapted based on vLLM's metrics naming)
+            if "vllm_batch_size" in post_metrics:
+                batch_size = post_metrics["vllm_batch_size"]
+
+            # Extract prefill and decode stats
+            if (
+                "vllm_prefill_tokens_total" in pre_metrics
+                and "vllm_prefill_tokens_total" in post_metrics
+            ):
+                prefill_tokens = (
+                    post_metrics["vllm_prefill_tokens_total"]
+                    - pre_metrics["vllm_prefill_tokens_total"]
+                )
+
+            if (
+                "vllm_decode_tokens_total" in pre_metrics
+                and "vllm_decode_tokens_total" in post_metrics
+            ):
+                decode_tokens = (
+                    post_metrics["vllm_decode_tokens_total"]
+                    - pre_metrics["vllm_decode_tokens_total"]
+                )
+
+            # Calculate throughput (tokens per second)
+            if (
+                "vllm_prefill_time_seconds" in pre_metrics
+                and "vllm_prefill_time_seconds" in post_metrics
+            ):
+                prefill_time = (
+                    post_metrics["vllm_prefill_time_seconds"]
+                    - pre_metrics["vllm_prefill_time_seconds"]
+                )
+                if prefill_time > 0:
+                    prefill_throughput = prefill_tokens / prefill_time
+
+            if (
+                "vllm_decode_time_seconds" in pre_metrics
+                and "vllm_decode_time_seconds" in post_metrics
+            ):
+                decode_time = (
+                    post_metrics["vllm_decode_time_seconds"]
+                    - pre_metrics["vllm_decode_time_seconds"]
+                )
+                if decode_time > 0:
+                    decode_throughput = decode_tokens / decode_time
+        except Exception as e:
+            print(f"Error processing metrics: {e}")
+
+    # Alternative method: Query vLLM engine stats directly if /metrics endpoint is not available
+    # This endpoint might be different depending on your vLLM setup
+    try:
+        engine_stats_url = f"{base_url.split('/v1')[0]}/engine_stats"
+        stats_response = requests.get(engine_stats_url)
+        if stats_response.status_code == 200:
+            engine_stats = stats_response.json()
+            # Extract metrics from engine stats (adjust field names as needed)
+            if "active_requests" in engine_stats:
+                batch_size = engine_stats["active_requests"]
+            # Add other metrics as available in your vLLM setup
+    except Exception as e:
+        print(f"Failed to get engine stats: {e}")
+
     response = response_raw.choices[0]
     content = response.message.content
+
+    # Calculate input and output tokens
+    input_tokens = len(tokenizers.encode(instruction_text))
+    output_tokens = len(tokenizers.encode(content))
 
     record = {
         "Request Time": start_time,
@@ -52,12 +162,17 @@ async def send_message(
         "Data Source": data_source,
         "Poisson Arrival Rate": poisson_arrival_rate,
         "Tensor Parallel Size": tensor_parallel_size,
-        "Input Tokens": len(tokenizers.encode(instruction_text)),
-        "Output Tokens": len(tokenizers.encode(content)),
+        "Input Tokens": input_tokens,
+        "Output Tokens": output_tokens,
         "E2E Latency": e2e_time,
+        "Batch Size": batch_size,
+        "Prefill Tokens": prefill_tokens,
+        "Decode Tokens": decode_tokens,
+        "Prefill Throughput": prefill_throughput,  # tokens per second
+        "Decode Throughput": decode_throughput,  # tokens per second
     }
 
-    outfile = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}.csv"
+    outfile = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}_d{date}.csv"
     file_exists = os.path.exists(outfile)
     df_temp = pd.DataFrame([record])
     df_temp.to_csv(outfile, mode="a", header=not file_exists, index=False)
@@ -77,6 +192,8 @@ async def schedule_one(
     tokenizers,
     reasoning: bool,
     tensor_parallel_size: int,
+    base_url: str,
+    date: str,
 ):
     """
     Sleeps until its scheduled arrival_time, then sends a request if still within the time window.
@@ -100,8 +217,10 @@ async def schedule_one(
         input_options=input_options,
         poisson_arrival_rate=poisson_arrival_rate,
         tokenizers=tokenizers,
+        date=date,
         reasoning=reasoning,
         tensor_parallel_size=tensor_parallel_size,
+        base_url=base_url,
     )
 
 
@@ -111,9 +230,11 @@ async def schedule_messages(
     input_options: datasets.arrow_dataset.Dataset,
     poisson_arrival_rate: float,
     tokenizers,
+    date: str,
     reasoning: bool = False,
     T: float = 600.0,
     tensor_parallel_size: int = 1,
+    base_url: str = "http://localhost:8000/v1",
 ) -> list:
     """
     Generates arrival times via an exponential distribution (Poisson process),
@@ -154,6 +275,8 @@ async def schedule_messages(
                 tokenizers=tokenizers,
                 reasoning=reasoning,
                 tensor_parallel_size=tensor_parallel_size,
+                base_url=base_url,
+                date=date,
             )
         )
         tasks.append(task)
@@ -193,11 +316,67 @@ async def schedule_messages(
     total_time = time.time() - start_time
     print(f"Completed {len(results)} tasks in {total_time:.2f} seconds.")
 
+    # Add batch statistics
+    if results:
+        df = pd.DataFrame(results)
+        avg_batch_size = df["Batch Size"].mean()
+        max_batch_size = df["Batch Size"].max()
+        avg_prefill_throughput = df["Prefill Throughput"].mean()
+        avg_decode_throughput = df["Decode Throughput"].mean()
+
+        print(f"Average batch size: {avg_batch_size:.2f}")
+        print(f"Maximum batch size: {max_batch_size}")
+        print(f"Average prefill throughput: {avg_prefill_throughput:.2f} tokens/s")
+        print(f"Average decode throughput: {avg_decode_throughput:.2f} tokens/s")
+
     return results
+
+
+async def get_vllm_server_info(base_url: str) -> dict:
+    """
+    Get information about the vLLM server configuration.
+    """
+    info = {}
+    try:
+        # Try to get vLLM server info
+        response = requests.get(f"{base_url.split('/v1')[0]}/info")
+        if response.status_code == 200:
+            info = response.json()
+            print("vLLM Server Info:")
+            print(json.dumps(info, indent=2))
+        else:
+            print(f"Failed to get vLLM server info: {response.status_code}")
+
+        # Also try to get metrics to understand exactly what's available
+        metrics_url = f"{base_url.split('/v1')[0]}/metrics"
+        metrics_response = requests.get(metrics_url)
+        if metrics_response.status_code == 200:
+            metrics_raw = metrics_response.text
+
+            # Parse Prometheus format metrics to extract metric names
+            metric_names = set()
+            for line in metrics_raw.split("\n"):
+                if line.startswith("# TYPE"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        metric_name = parts[2]
+                        metric_names.add(metric_name)
+
+            # Print available metrics for debugging
+            print("\nAvailable vLLM Metrics:")
+            for metric in sorted(list(metric_names)):
+                if metric.startswith("vllm:"):
+                    print(f"- {metric}")
+        else:
+            print(f"Failed to get vLLM metrics: {metrics_response.status_code}")
+    except Exception as e:
+        print(f"Error retrieving vLLM server info: {e}")
+    return info
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--date", type=str, required=True)
     parser.add_argument("--reasoning", action="store_true", default=False)
     parser.add_argument("--poisson-arrival-rate", type=float, default=1.0)
     parser.add_argument(
@@ -214,6 +393,7 @@ if __name__ == "__main__":
     openai_api_base = args.base_url
     poisson_arrival_rate = args.poisson_arrival_rate
     reasoning = args.reasoning
+    date = args.date
     tensor_parallel_size = args.tensor_parallel_size
     T = args.time_window
 
@@ -222,6 +402,9 @@ if __name__ == "__main__":
         base_url=openai_api_base,
     )
     tokenizers = transformers.AutoTokenizer.from_pretrained(model_name)
+
+    # Get vLLM server info before starting the test
+    asyncio.run(get_vllm_server_info(openai_api_base))
 
     # Load a dataset to sample from (adjust as needed)
     input_options = datasets.load_dataset("garage-bAInd/Open-Platypus", "default")[
@@ -236,14 +419,167 @@ if __name__ == "__main__":
             input_options=input_options,
             poisson_arrival_rate=poisson_arrival_rate,
             tokenizers=tokenizers,
+            date=date,
             reasoning=reasoning,
             T=T,
             tensor_parallel_size=tensor_parallel_size,
+            base_url=openai_api_base,
         )
     )
 
     # Save final results to disk
     df = pd.DataFrame(records)
-    final_csv = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}_final.csv"
+    final_csv = f"results_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}_d{date}_final.csv"
     df.to_csv(final_csv, index=False)
     print(f"Final results saved to {final_csv}")
+
+    # Generate additional statistics
+    if not df.empty:
+        print("\nPerformance Statistics:")
+        print(f"Total requests processed: {len(df)}")
+        print(f"Average E2E latency: {df['E2E Latency'].mean():.2f}s")
+        print(f"Average batch size: {df['Batch Size'].mean():.2f}")
+        print(f"Max batch size: {df['Batch Size'].max()}")
+        print(
+            f"Average prefill throughput: {df['Prefill Throughput'].mean():.2f} tokens/s"
+        )
+        print(
+            f"Average decode throughput: {df['Decode Throughput'].mean():.2f} tokens/s"
+        )
+
+        # Add throughput calculations at batch level
+        input_tokens_sum = df["Input Tokens"].sum()
+        output_tokens_sum = df["Output Tokens"].sum()
+        prefill_time_total = (
+            df["Prefill Time"].sum()
+            if "Prefill Time" in df.columns and df["Prefill Time"].sum() > 0
+            else (
+                input_tokens_sum / df["Prefill Throughput"].mean()
+                if df["Prefill Throughput"].mean() > 0
+                else 0
+            )
+        )
+        decode_time_total = (
+            df["Decode Time"].sum()
+            if "Decode Time" in df.columns and df["Decode Time"].sum() > 0
+            else (
+                output_tokens_sum / df["Decode Throughput"].mean()
+                if df["Decode Throughput"].mean() > 0
+                else 0
+            )
+        )
+
+        print(f"\nAggregate Throughput Metrics:")
+        print(f"Total input tokens processed: {input_tokens_sum}")
+        print(f"Total output tokens processed: {output_tokens_sum}")
+        print(f"Total prefill time (measured): {prefill_time_total:.2f}s")
+        print(f"Total decode time (measured): {decode_time_total:.2f}s")
+
+        # Calculate aggregate throughput
+        aggregate_prefill_throughput = (
+            input_tokens_sum / prefill_time_total if prefill_time_total > 0 else 0
+        )
+        aggregate_decode_throughput = (
+            output_tokens_sum / decode_time_total if decode_time_total > 0 else 0
+        )
+
+        if aggregate_prefill_throughput > 0:
+            print(
+                f"Aggregate prefill throughput: {aggregate_prefill_throughput:.2f} tokens/s"
+            )
+        else:
+            print("Aggregate prefill throughput: N/A")
+
+        if aggregate_decode_throughput > 0:
+            print(
+                f"Aggregate decode throughput: {aggregate_decode_throughput:.2f} tokens/s"
+            )
+        else:
+            print("Aggregate decode throughput: N/A")
+
+        # Generate a more detailed performance report
+        report_file = f"perf_report_{model_name.split('/')[-1]}_{poisson_arrival_rate}_{tensor_parallel_size}.txt"
+        with open(report_file, "w") as f:
+            f.write(f"Performance Report for {model_name}\n")
+            f.write(f"================================\n\n")
+            f.write(f"Test Parameters:\n")
+            f.write(f"- Poisson arrival rate: {poisson_arrival_rate}\n")
+            f.write(f"- Tensor parallel size: {tensor_parallel_size}\n")
+            f.write(f"- Time window: {T}s\n\n")
+
+            f.write(f"Test Summary:\n")
+            f.write(f"- Total requests: {len(df)}\n")
+            f.write(f"- Total input tokens: {input_tokens_sum}\n")
+            f.write(f"- Total output tokens: {output_tokens_sum}\n")
+            f.write(
+                f"- Avg tokens per request: {(input_tokens_sum + output_tokens_sum) / len(df):.2f}\n\n"
+            )
+
+            f.write(f"Latency Metrics:\n")
+            f.write(f"- Average E2E latency: {df['E2E Latency'].mean():.2f}s\n")
+            f.write(f"- P50 latency: {df['E2E Latency'].quantile(0.5):.2f}s\n")
+            f.write(f"- P90 latency: {df['E2E Latency'].quantile(0.9):.2f}s\n")
+            f.write(f"- P99 latency: {df['E2E Latency'].quantile(0.99):.2f}s\n\n")
+
+            f.write(f"Throughput Metrics:\n")
+            f.write(
+                f"- Average prefill throughput: {df['Prefill Throughput'].mean():.2f} tokens/s\n"
+            )
+            f.write(
+                f"- Average decode throughput: {df['Decode Throughput'].mean():.2f} tokens/s\n"
+            )
+            f.write(
+                f"- Max prefill throughput: {df['Prefill Throughput'].max():.2f} tokens/s\n"
+            )
+            f.write(
+                f"- Max decode throughput: {df['Decode Throughput'].max():.2f} tokens/s\n"
+            )
+
+            # Add aggregate throughput metrics
+            if aggregate_prefill_throughput > 0:
+                f.write(
+                    f"- Aggregate prefill throughput: {aggregate_prefill_throughput:.2f} tokens/s\n"
+                )
+            else:
+                f.write("- Aggregate prefill throughput: N/A\n")
+
+            if aggregate_decode_throughput > 0:
+                f.write(
+                    f"- Aggregate decode throughput: {aggregate_decode_throughput:.2f} tokens/s\n\n"
+                )
+            else:
+                f.write("- Aggregate decode throughput: N/A\n\n")
+
+            f.write(f"Batch Metrics:\n")
+            f.write(f"- Average batch size: {df['Batch Size'].mean():.2f}\n")
+            f.write(f"- Max batch size: {df['Batch Size'].max()}\n")
+            f.write(f"- Batch size P50: {df['Batch Size'].quantile(0.5):.2f}\n")
+            f.write(f"- Batch size P90: {df['Batch Size'].quantile(0.9):.2f}\n\n")
+
+            # Add section about throughput by batch size if we have enough data
+            if len(df) > 10 and df["Batch Size"].max() > 1:
+                f.write(f"Throughput Analysis by Batch Size:\n")
+                batch_groups = df.groupby(
+                    pd.cut(
+                        df["Batch Size"],
+                        bins=[0, 1, 2, 4, 8, 16, 32, 64, 128, float("inf")],
+                    )
+                )
+                for batch_range, group in batch_groups:
+                    if len(group) > 0:
+                        f.write(
+                            f"- Batch size {batch_range}: Prefill={group['Prefill Throughput'].mean():.2f} tokens/s, "
+                        )
+                        f.write(
+                            f"Decode={group['Decode Throughput'].mean():.2f} tokens/s, "
+                        )
+                        f.write(f"Requests={len(group)}\n")
+                f.write("\n")
+
+            f.write(f"Token Distribution:\n")
+            f.write(f"- Average input tokens: {df['Input Tokens'].mean():.2f}\n")
+            f.write(f"- Average output tokens: {df['Output Tokens'].mean():.2f}\n")
+            f.write(f"- Max input tokens: {df['Input Tokens'].max()}\n")
+            f.write(f"- Max output tokens: {df['Output Tokens'].max()}\n")
+
+        print(f"Performance report saved to {report_file}")
