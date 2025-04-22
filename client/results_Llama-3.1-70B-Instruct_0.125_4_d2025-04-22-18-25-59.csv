@@ -1,0 +1,10 @@
+Request Time,Model,Data Source,Poisson Arrival Rate,Tensor Parallel Size,Input Tokens,Output Tokens,E2E Latency,Batch Size,Prefill Tokens,Decode Tokens,Prefill Throughput,Decode Throughput
+1745346366.3189733,meta-llama/Llama-3.1-70B-Instruct,reclor,0.125,4,152,108,4.446009159088135,0,0,0,0,0
+1745346372.6954627,meta-llama/Llama-3.1-70B-Instruct,MATH/PRM-800K,0.125,4,53,316,9.401718854904175,0,0,0,0,0
+1745346381.3813236,meta-llama/Llama-3.1-70B-Instruct,reclor,0.125,4,178,229,6.8538854122161865,0,0,0,0,0
+1745346389.4497364,meta-llama/Llama-3.1-70B-Instruct,MATH/PRM-800K,0.125,4,55,386,11.793027400970459,0,0,0,0,0
+1745346397.0969362,meta-llama/Llama-3.1-70B-Instruct,airoboros,0.125,4,22,366,11.397054195404053,0,0,0,0,0
+1745346413.205634,meta-llama/Llama-3.1-70B-Instruct,airoboros,0.125,4,10,9,0.33595776557922363,0,0,0,0,0
+1745346393.1521664,meta-llama/Llama-3.1-70B-Instruct,airoboros,0.125,4,37,1214,36.5080931186676,0,0,0,0,0
+1745346439.6811314,meta-llama/Llama-3.1-70B-Instruct,reclor,0.125,4,158,56,1.7289760112762451,0,0,0,0,0
+1745346449.2794266,meta-llama/Llama-3.1-70B-Instruct,MATH/PRM-800K,0.125,4,35,89,2.611159563064575,0,0,0,0,0

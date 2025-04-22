@@ -1,0 +1,2 @@
+timestamp, power.draw [W], utilization.gpu [%], memory.used [MiB]
+2025/04/22 01:39:56.155, 67.61 W, 0 %, 74432 MiB
