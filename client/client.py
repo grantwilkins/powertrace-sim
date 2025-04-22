@@ -12,6 +12,31 @@ import requests
 from openai import OpenAI
 
 
+def parse_prometheus_metrics(metrics_text):
+    """Parse Prometheus format metrics into a dictionary."""
+    parsed_metrics = {}
+    for line in metrics_text.split("\n"):
+        # Skip comments and empty lines
+        if line.startswith("#") or not line.strip():
+            continue
+
+        try:
+            # Extract metric name and value
+            # Format is typically: metric_name{labels...} value
+            parts = line.split(" ")
+            if len(parts) >= 2:
+                metric_full = parts[0]
+                value = float(parts[1])
+
+                # Extract the metric name from metric{labels}
+                metric_name = metric_full.split("{")[0]
+                parsed_metrics[metric_name] = value
+        except Exception as e:
+            print(f"Error parsing metric line: {line}, Error: {e}")
+
+    return parsed_metrics
+
+
 async def send_message(
     client: OpenAI,
     model_name: str,
@@ -72,7 +97,10 @@ async def send_message(
     try:
         metrics_response = requests.get(metrics_url)
         if metrics_response.status_code == 200:
-            post_metrics = metrics_response.json()
+            # Store raw text instead of parsing as JSON
+            post_metrics_raw = metrics_response.text
+            # Parse Prometheus format metrics
+            post_metrics = parse_prometheus_metrics(post_metrics_raw)
     except Exception as e:
         print(f"Failed to get post-request metrics: {e}")
 
@@ -87,48 +115,49 @@ async def send_message(
     # Calculate differences in metrics before and after request
     if pre_metrics and post_metrics:
         try:
-            # Extract batch size (may need to be adapted based on vLLM's metrics naming)
-            if "vllm_batch_size" in post_metrics:
-                batch_size = post_metrics["vllm_batch_size"]
+            # Extract batch size from appropriate metric
+            # Note: You might need to find the right metric for batch size
+            if "vllm:num_requests_running" in post_metrics:
+                batch_size = post_metrics["vllm:num_requests_running"]
 
             # Extract prefill and decode stats
             if (
-                "vllm_prefill_tokens_total" in pre_metrics
-                and "vllm_prefill_tokens_total" in post_metrics
+                "vllm:prompt_tokens_total" in pre_metrics
+                and "vllm:prompt_tokens_total" in post_metrics
             ):
                 prefill_tokens = (
-                    post_metrics["vllm_prefill_tokens_total"]
-                    - pre_metrics["vllm_prefill_tokens_total"]
+                    post_metrics["vllm:prompt_tokens_total"]
+                    - pre_metrics["vllm:prompt_tokens_total"]
                 )
 
             if (
-                "vllm_decode_tokens_total" in pre_metrics
-                and "vllm_decode_tokens_total" in post_metrics
+                "vllm:generation_tokens_total" in pre_metrics
+                and "vllm:generation_tokens_total" in post_metrics
             ):
                 decode_tokens = (
-                    post_metrics["vllm_decode_tokens_total"]
-                    - pre_metrics["vllm_decode_tokens_total"]
+                    post_metrics["vllm:generation_tokens_total"]
+                    - pre_metrics["vllm:generation_tokens_total"]
                 )
 
             # Calculate throughput (tokens per second)
             if (
-                "vllm_prefill_time_seconds" in pre_metrics
-                and "vllm_prefill_time_seconds" in post_metrics
+                "vllm:request_prefill_time_seconds" in pre_metrics
+                and "vllm:request_prefill_time_seconds" in post_metrics
             ):
                 prefill_time = (
-                    post_metrics["vllm_prefill_time_seconds"]
-                    - pre_metrics["vllm_prefill_time_seconds"]
+                    post_metrics["vllm:request_prefill_time_seconds"]
+                    - pre_metrics["vllm:request_prefill_time_seconds"]
                 )
                 if prefill_time > 0:
                     prefill_throughput = prefill_tokens / prefill_time
 
             if (
-                "vllm_decode_time_seconds" in pre_metrics
-                and "vllm_decode_time_seconds" in post_metrics
+                "vllm:request_decode_time_seconds" in pre_metrics
+                and "vllm:request_decode_time_seconds" in post_metrics
             ):
                 decode_time = (
-                    post_metrics["vllm_decode_time_seconds"]
-                    - pre_metrics["vllm_decode_time_seconds"]
+                    post_metrics["vllm:request_decode_time_seconds"]
+                    - pre_metrics["vllm:request_decode_time_seconds"]
                 )
                 if decode_time > 0:
                     decode_throughput = decode_tokens / decode_time
@@ -349,26 +378,17 @@ async def get_vllm_server_info(base_url: str) -> dict:
 
         # Also try to get metrics to understand exactly what's available
         metrics_url = f"{base_url.split('/v1')[0]}/metrics"
-        metrics_response = requests.get(metrics_url)
-        if metrics_response.status_code == 200:
-            metrics_raw = metrics_response.text
-
-            # Parse Prometheus format metrics to extract metric names
-            metric_names = set()
-            for line in metrics_raw.split("\n"):
-                if line.startswith("# TYPE"):
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        metric_name = parts[2]
-                        metric_names.add(metric_name)
-
-            # Print available metrics for debugging
-            print("\nAvailable vLLM Metrics:")
-            for metric in sorted(list(metric_names)):
-                if metric.startswith("vllm:"):
-                    print(f"- {metric}")
-        else:
-            print(f"Failed to get vLLM metrics: {metrics_response.status_code}")
+        pre_metrics = {}
+        try:
+            metrics_response = requests.get(metrics_url)
+            if metrics_response.status_code == 200:
+                # Store raw text instead of parsing as JSON
+                pre_metrics_raw = metrics_response.text
+                # Parse Prometheus format metrics
+                pre_metrics = parse_prometheus_metrics(pre_metrics_raw)
+                print(pre_metrics)
+        except Exception as e:
+            print(f"Failed to get pre-request metrics: {e}")
     except Exception as e:
         print(f"Error retrieving vLLM server info: {e}")
     return info
