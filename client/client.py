@@ -29,8 +29,13 @@ def parse_prometheus_metrics(metrics_text):
                 value = float(parts[1])
 
                 # Extract the metric name from metric{labels}
-                metric_name = metric_full.split("{")[0]
-                parsed_metrics[metric_name] = value
+                if "{" in metric_full:
+                    metric_name, labels_str = metric_full.split("{", 1)
+                    labels_str = labels_str.rstrip("}")
+                    # Store with labels as a compound key or in a nested structure
+                    parsed_metrics[metric_name] = value
+                else:
+                    parsed_metrics[metric_full] = value
         except Exception as e:
             print(f"Error parsing metric line: {line}, Error: {e}")
 
@@ -73,7 +78,9 @@ async def send_message(
     try:
         metrics_response = requests.get(metrics_url)
         if metrics_response.status_code == 200:
-            pre_metrics = metrics_response.json()
+            # Store raw text and parse with the Prometheus parser
+            pre_metrics_raw = metrics_response.text
+            pre_metrics = parse_prometheus_metrics(pre_metrics_raw)
     except Exception as e:
         print(f"Failed to get pre-request metrics: {e}")
 
@@ -104,8 +111,6 @@ async def send_message(
     except Exception as e:
         print(f"Failed to get post-request metrics: {e}")
 
-    # Extract the relevant metrics
-    # Note: These field names may need adjustment based on actual vLLM metrics endpoint
     prefill_tokens = 0
     decode_tokens = 0
     batch_size = 0
@@ -163,20 +168,6 @@ async def send_message(
                     decode_throughput = decode_tokens / decode_time
         except Exception as e:
             print(f"Error processing metrics: {e}")
-
-    # Alternative method: Query vLLM engine stats directly if /metrics endpoint is not available
-    # This endpoint might be different depending on your vLLM setup
-    try:
-        engine_stats_url = f"{base_url.split('/v1')[0]}/engine_stats"
-        stats_response = requests.get(engine_stats_url)
-        if stats_response.status_code == 200:
-            engine_stats = stats_response.json()
-            # Extract metrics from engine stats (adjust field names as needed)
-            if "active_requests" in engine_stats:
-                batch_size = engine_stats["active_requests"]
-            # Add other metrics as available in your vLLM setup
-    except Exception as e:
-        print(f"Failed to get engine stats: {e}")
 
     response = response_raw.choices[0]
     content = response.message.content
