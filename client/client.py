@@ -114,6 +114,7 @@ async def send_message(
     prefill_tokens = 0
     decode_tokens = 0
     batch_size = 0
+    effective_batch_size = 0
     prefill_throughput = 0
     decode_throughput = 0
 
@@ -136,6 +137,17 @@ async def send_message(
                 )
 
             if (
+                "vllm:iteration_tokens_total_sum" in post_metrics
+                and "vllm:iteration_tokens_total_count" in post_metrics
+                and post_metrics["vllm:iteration_tokens_total_count"] > 0
+            ):
+
+                effective_batch_size = (
+                    post_metrics["vllm:iteration_tokens_total_sum"]
+                    / post_metrics["vllm:iteration_tokens_total_count"]
+                )
+
+            if (
                 "vllm:generation_tokens_total" in pre_metrics
                 and "vllm:generation_tokens_total" in post_metrics
             ):
@@ -145,25 +157,43 @@ async def send_message(
                 )
 
             # Calculate throughput (tokens per second)
+            # Calculate prefill throughput
             if (
-                "vllm:request_prefill_time_seconds" in pre_metrics
-                and "vllm:request_prefill_time_seconds" in post_metrics
+                "vllm:prompt_tokens_total" in pre_metrics
+                and "vllm:prompt_tokens_total" in post_metrics
+                and "vllm:request_prefill_time_seconds_sum" in pre_metrics
+                and "vllm:request_prefill_time_seconds_sum" in post_metrics
             ):
-                prefill_time = (
-                    post_metrics["vllm:request_prefill_time_seconds"]
-                    - pre_metrics["vllm:request_prefill_time_seconds"]
+
+                prefill_tokens = (
+                    post_metrics["vllm:prompt_tokens_total"]
+                    - pre_metrics["vllm:prompt_tokens_total"]
                 )
+                prefill_time = (
+                    post_metrics["vllm:request_prefill_time_seconds_sum"]
+                    - pre_metrics["vllm:request_prefill_time_seconds_sum"]
+                )
+
                 if prefill_time > 0:
                     prefill_throughput = prefill_tokens / prefill_time
 
+            # Calculate decode throughput
             if (
-                "vllm:request_decode_time_seconds" in pre_metrics
-                and "vllm:request_decode_time_seconds" in post_metrics
+                "vllm:generation_tokens_total" in pre_metrics
+                and "vllm:generation_tokens_total" in post_metrics
+                and "vllm:request_decode_time_seconds_sum" in pre_metrics
+                and "vllm:request_decode_time_seconds_sum" in post_metrics
             ):
-                decode_time = (
-                    post_metrics["vllm:request_decode_time_seconds"]
-                    - pre_metrics["vllm:request_decode_time_seconds"]
+
+                decode_tokens = (
+                    post_metrics["vllm:generation_tokens_total"]
+                    - pre_metrics["vllm:generation_tokens_total"]
                 )
+                decode_time = (
+                    post_metrics["vllm:request_decode_time_seconds_sum"]
+                    - pre_metrics["vllm:request_decode_time_seconds_sum"]
+                )
+
                 if decode_time > 0:
                     decode_throughput = decode_tokens / decode_time
         except Exception as e:
@@ -186,6 +216,7 @@ async def send_message(
         "Output Tokens": output_tokens,
         "E2E Latency": e2e_time,
         "Batch Size": batch_size,
+        "Effective Batch Size": effective_batch_size,
         "Prefill Tokens": prefill_tokens,
         "Decode Tokens": decode_tokens,
         "Prefill Throughput": prefill_throughput,  # tokens per second
