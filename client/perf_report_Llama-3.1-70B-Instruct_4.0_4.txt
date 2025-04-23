@@ -1,0 +1,42 @@
+Performance Report for meta-llama/Llama-3.1-70B-Instruct
+================================
+
+Test Parameters:
+- Poisson arrival rate: 4.0
+- Tensor parallel size: 4
+- Time window: 600.0s
+
+Test Summary:
+- Total requests: 719
+- Total input tokens: 101655
+- Total output tokens: 238442
+- Avg tokens per request: 473.01
+
+Latency Metrics:
+- Average E2E latency: 102.14s
+- P50 latency: 95.38s
+- P90 latency: 204.98s
+- P99 latency: 245.93s
+
+Throughput Metrics:
+- Average prefill throughput: 2807.86 tokens/s
+- Average decode throughput: 30.24 tokens/s
+- Max prefill throughput: 98082.57 tokens/s
+- Max decode throughput: 281.67 tokens/s
+- Aggregate prefill throughput: 2807.86 tokens/s
+- Aggregate decode throughput: 30.24 tokens/s
+
+Batch Metrics:
+- Average batch size: 30.73
+- Max batch size: 31.0
+- Batch size P50: 31.00
+- Batch size P90: 31.00
+
+Throughput Analysis by Batch Size:
+- Batch size (16.0, 32.0]: Prefill=2807.86 tokens/s, Decode=30.24 tokens/s, Requests=719
+
+Token Distribution:
+- Average input tokens: 141.38
+- Average output tokens: 331.63
+- Max input tokens: 1294
+- Max output tokens: 3505

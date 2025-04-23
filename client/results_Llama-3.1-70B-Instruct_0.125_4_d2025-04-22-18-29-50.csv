@@ -1,2 +1,0 @@
-Request Time,Model,Data Source,Poisson Arrival Rate,Tensor Parallel Size,Input Tokens,Output Tokens,E2E Latency,Batch Size,Prefill Tokens,Decode Tokens,Prefill Throughput,Decode Throughput
-1745346596.0980947,meta-llama/Llama-3.1-70B-Instruct,reclor,0.125,4,223,73,3.0487489700317383,0,0,0,0,0
