@@ -1,14 +1,5 @@
 TENSOR_PARALLEL_SIZES=(4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
-    if [ ${TENSOR_PARALLEL_SIZE} -eq 1 ]; then
-        export CUDA_VISIBLE_DEVICES=0
-    elif [ ${TENSOR_PARALLEL_SIZE} -eq 2 ]; then
-        export CUDA_VISIBLE_DEVICES=0,1
-    elif [ ${TENSOR_PARALLEL_SIZE} -eq 4 ]; then
-        export CUDA_VISIBLE_DEVICES=0,1,2,3
-    elif [ ${TENSOR_PARALLEL_SIZE} -eq 8 ]; then
-        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-    fi
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
     bash serve-llama-3-70b.sh &
