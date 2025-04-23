@@ -3,7 +3,7 @@ Performance Report for meta-llama/Llama-3.1-70B-Instruct
 
 Test Parameters:
 - Poisson arrival rate: 0.25
-- Tensor parallel size: 8
+- Tensor parallel size: 4
 - Time window: 600.0s
 
 Test Summary:

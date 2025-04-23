@@ -1,9 +1,10 @@
-TENSOR_PARALLEL_SIZES=(4 8)
+TENSOR_PARALLEL_SIZES=(8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
-    bash serve-llama-3-70b.sh &
-    export SERVING_PID=$!
+    setsid bash serve-llama-3-70b.sh >/dev/null 2>&1 &
+    SERVING_PID=$!                        
+    SERVING_PGID=$(ps -o pgid= -p "$SERVING_PID" | tr -d ' ')
     while ! curl -s -f http://localhost:8000/health &> /dev/null; do
         echo "Waiting for server to start..."
         sleep 10
@@ -18,5 +19,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         python3 client.py --model-name meta-llama/Llama-3.1-70B-Instruct --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --date ${DATE_TIME}
         kill -9 ${NVIDIA_SMI_PID}
     done
-    pkill -9 ${SERVING_PID}
+    kill -TERM -- "-$SERVING_PGID"
+    sleep 5
+    kill -KILL -- "-$SERVING_PGID" 2>/dev/null || true
 done
