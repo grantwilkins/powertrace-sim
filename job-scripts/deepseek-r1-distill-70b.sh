@@ -16,7 +16,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         touch deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
         nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
         NVIDIA_SMI_PID=$!
-        python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-70B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --date ${DATE_TIME}
+        python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-70B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --date ${DATE_TIME} --reasoning True
         kill -9 ${NVIDIA_SMI_PID}
     done
     kill -TERM -- "-$SERVING_PGID"
