@@ -1,21 +1,25 @@
-TENSOR_PARALLEL_SIZES=(2 4 8)
+TENSOR_PARALLEL_SIZES=(4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
-    bash serve-deepseek-r1-distill-70b.sh &
-    while ! curl -s http://localhost:8000/v1/completions > /dev/null; do
+    setsid bash serve-deepseek-r1-distill-70b.sh >/dev/null 2>&1 &
+    SERVING_PID=$!                        
+    SERVING_PGID=$(ps -o pgid= -p "$SERVING_PID" | tr -d ' ')
+    while ! curl -s -f http://localhost:8000/health &> /dev/null; do
         echo "Waiting for server to start..."
         sleep 10
     done
     cd ~/powertrace-sim/client
-    POISSON_ARRIVAL_RATES=(1 2 4 8 16 32 64)
+    POISSON_ARRIVAL_RATES=(0.125 0.25 0.5 1.0 2.0 4.0)
     for POISSON_ARRIVAL_RATE in ${POISSON_ARRIVAL_RATES[@]}; do
         DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
         touch deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
-        nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -l 0.5 >> deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
+        nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
         NVIDIA_SMI_PID=$!
-        python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-70B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --reasoning True
+        python3 client.py --model-name deepseek-ai/DeepSeek-R1-Distill-Llama-70B --api-key ${OPENAI_API_KEY} --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --poisson-arrival-rate ${POISSON_ARRIVAL_RATE} --date ${DATE_TIME}
         kill -9 ${NVIDIA_SMI_PID}
     done
-    pkill -9 -f "vllm serve"
+    kill -TERM -- "-$SERVING_PGID"
+    sleep 5
+    kill -KILL -- "-$SERVING_PGID" 2>/dev/null || true
 done
