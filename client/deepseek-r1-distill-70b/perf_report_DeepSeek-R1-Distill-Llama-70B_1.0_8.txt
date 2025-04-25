@@ -1,0 +1,43 @@
+Performance Report for deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+================================
+
+Test Parameters:
+- Poisson arrival rate: 1.0
+- Tensor parallel size: 8
+- Time window: 600.0s
+
+Test Summary:
+- Total requests: 227
+- Total input tokens: 25681
+- Total output tokens: 80299
+- Avg tokens per request: 466.87
+
+Latency Metrics:
+- Average E2E latency: 170.98s
+- P50 latency: 159.63s
+- P90 latency: 322.23s
+- P99 latency: 360.41s
+
+Throughput Metrics:
+- Average prefill throughput: 1441.05 tokens/s
+- Average decode throughput: 24.34 tokens/s
+- Max prefill throughput: 12055.86 tokens/s
+- Max decode throughput: 164.86 tokens/s
+- Aggregate prefill throughput: 1441.05 tokens/s
+- Aggregate decode throughput: 24.34 tokens/s
+
+Batch Metrics:
+- Average batch size: 10.02
+- Max batch size: 21.0
+- Batch size P50: 0.00
+- Batch size P90: 21.00
+
+Throughput Analysis by Batch Size:
+- Batch size (8.0, 16.0]: Prefill=5002.69 tokens/s, Decode=71.13 tokens/s, Requests=6
+- Batch size (16.0, 32.0]: Prefill=2829.55 tokens/s, Decode=48.56 tokens/s, Requests=105
+
+Token Distribution:
+- Average input tokens: 113.13
+- Average output tokens: 353.74
+- Max input tokens: 887
+- Max output tokens: 3162
