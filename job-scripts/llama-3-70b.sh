@@ -11,6 +11,10 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     done
     cd ~/powertrace-sim/client
     POISSON_ARRIVAL_RATES=(0.125 0.25 0.5 1.0 2.0 4.0)
+    NUM_ITERATIONS=3
+    for ((i=0; i<NUM_ITERATIONS; i++)); do
+        POISSON_ARRIVAL_RATES+=(${POISSON_ARRIVAL_RATES[@]})
+    done
     for POISSON_ARRIVAL_RATE in ${POISSON_ARRIVAL_RATES[@]}; do
         DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
         touch llama-3-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
