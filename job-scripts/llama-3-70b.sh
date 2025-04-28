@@ -2,7 +2,7 @@ TENSOR_PARALLEL_SIZES=(4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
-    setsid bash serve-llama-3-70b.sh >/dev/null 2>&1 &
+    setsid bash serve-llama-3-70b.sh 2>&1 &
     SERVING_PID=$!                        
     SERVING_PGID=$(ps -o pgid= -p "$SERVING_PID" | tr -d ' ')
     while ! curl -s -f http://localhost:8000/health &> /dev/null; do
