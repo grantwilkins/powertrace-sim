@@ -494,3 +494,4 @@ class PowerTraceGenerator:
         model.eval()
         likelihood.eval()
         num_steps = np.min(len(prefill_tokens), int(duration / time_step))
+        
