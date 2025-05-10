@@ -46,6 +46,7 @@ class RequestFuncOutput:
     tpot: float = 0.0  # avg next-token latencies
     prompt_len: int = 0
     error: str = ""
+    request_timestamp: float
 
 
 async def async_request_tgi(
@@ -552,7 +553,6 @@ async def async_request_openai_audio(
 def get_model(pretrained_model_name_or_path: str) -> str:
     if os.getenv("VLLM_USE_MODELSCOPE", "False").lower() == "true":
         from modelscope import snapshot_download
-
         from vllm.model_executor.model_loader.weight_utils import get_lock
 
         # Use file lock to prevent multiple processes from

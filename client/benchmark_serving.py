@@ -100,6 +100,7 @@ class BenchmarkMetrics:
     median_e2el_ms: float
     std_e2el_ms: float
     percentiles_e2el_ms: list[tuple[float, float]]
+    request_timestamps: list[float] = None
 
 
 async def get_request(
@@ -165,6 +166,7 @@ def calculate_metrics(
     all_tpots: list[float] = []
     ttfts: list[float] = []
     e2els: list[float] = []
+    timestamps: list[float] = []
     for i in range(len(outputs)):
         if outputs[i].success:
             output_len = outputs[i].output_tokens
@@ -192,6 +194,7 @@ def calculate_metrics(
             itls += outputs[i].itl
             ttfts.append(outputs[i].ttft)
             e2els.append(outputs[i].latency)
+            timestamps.append(outputs[i].request_timestamp)
             completed += 1
         else:
             actual_output_lens.append(0)
@@ -260,6 +263,7 @@ def calculate_metrics(
         percentiles_e2el_ms=[
             (p, np.percentile(e2els or 0, p) * 1000) for p in selected_percentiles
         ],
+        request_timestamps=timestamps,
     )
 
     return metrics, actual_output_lens
@@ -473,6 +477,7 @@ async def benchmark(
         "itls": [output.itl for output in outputs],
         "generated_texts": [output.generated_text for output in outputs],
         "errors": [output.error for output in outputs],
+        "request_timestamps": metrics.request_timestamps,
     }
 
     def process_one_metric(
