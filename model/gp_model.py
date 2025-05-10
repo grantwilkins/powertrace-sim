@@ -1,10 +1,11 @@
-import torch
-import gpytorch
-import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import os
 import math
+import os
+
+import gpytorch
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from tqdm import tqdm
 
 
 class EnhancedSeedlessGPModel(gpytorch.models.ApproximateGP):
