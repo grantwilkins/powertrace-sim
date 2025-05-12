@@ -46,7 +46,7 @@ class RequestFuncOutput:
     tpot: float = 0.0  # avg next-token latencies
     prompt_len: int = 0
     error: str = ""
-    request_timestamp: float
+    request_timestamp: float = 0.0
 
 
 async def async_request_tgi(
@@ -291,6 +291,7 @@ async def async_request_openai_completions(
                 url=api_url, json=payload, headers=headers
             ) as response:
                 if response.status == 200:
+                    output.request_timestamp = time.time()
                     first_chunk_received = False
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
