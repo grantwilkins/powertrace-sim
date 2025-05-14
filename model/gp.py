@@ -7,6 +7,7 @@ import gpytorch
 import numpy as np
 import torch
 import tqdm
+from gpytorch.constraints import Interval
 from sklearn.cluster import MiniBatchKMeans
 
 
@@ -111,11 +112,7 @@ class PowerTraceDataset:
         ms_max = self.data_ranges["model_size"]["max"]
         if ms_max > ms_min:
             self.norm_model_size = (self.model_size - ms_min) / (ms_max - ms_min)
-
-        pr_min = self.data_ranges["poisson"]["min"]
-        pr_max = self.data_ranges["poisson"]["max"]
-        if pr_max > pr_min:
-            self.norm_poisson = (self.poisson_rate - pr_min) / (pr_max - pr_min)
+        self.norm_poisson = self.poisson_rate
 
         # Normalize hardware to binary values (0 for A100, 1 for H100)
         for i, hw in enumerate(np.unique(self.hardware)):
@@ -355,11 +352,14 @@ class GPModel(gpytorch.models.ApproximateGP):
         self.mean_module = gpytorch.means.ConstantMean()
 
         self.matern_kernel = gpytorch.kernels.MaternKernel(
-            nu=1.5, ard_num_dims=input_dim
+            nu=0.5, ard_num_dims=input_dim
         )
         self.linear_kernel = gpytorch.kernels.LinearKernel(ard_num_dims=input_dim)
         self.rbf_kernel = gpytorch.kernels.RBFKernel(ard_num_dims=input_dim)
         self.periodic_kernel = gpytorch.kernels.PeriodicKernel(ard_num_dims=input_dim)
+        self.mixture_kernel = gpytorch.kernels.SpectralMixtureKernel(
+            num_mixtures=4, ard_num_dims=input_dim
+        )
 
         # Properly scale kernels using ScaleKernel
         self.scaled_linear = gpytorch.kernels.ScaleKernel(self.linear_kernel)
@@ -372,6 +372,7 @@ class GPModel(gpytorch.models.ApproximateGP):
 
         self.covar_module = (
             self.matern_kernel
+            + self.mixture_kernel
             + self.scaled_linear
             + self.scaled_rbf
             + self.scaled_periodic
@@ -456,9 +457,9 @@ class PowerTraceGenerator:
                 hw_type=hw,
                 tp=tp,
                 model_size=ms,
-                n_epochs=100,
-                batch_size=512,
-                lr=0.01,
+                n_epochs=1000,
+                batch_size=2048,
+                lr=0.001,
                 n_inducing=n_inducing,
             )
             print(f"Training complete for TP={tp}, MS={ms}, HW={hw}")
@@ -511,7 +512,10 @@ class PowerTraceGenerator:
         else:
             inducing_points = train_x_flat.clone()
 
-        likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        # likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        likelihood = gpytorch.likelihoods.StudentTLikelihood(
+            deg_free_constraint=Interval(2.0, 100.0)
+        ).to(self.device)
         model = GPModel(
             inducing_points, train_x_flat.shape[1], sequence_length=self.sequence_length
         ).to(self.device)
@@ -609,12 +613,10 @@ class PowerTraceGenerator:
             prange[f"decode_{tp}_{ms}"]["min"],
             prange[f"decode_{tp}_{ms}"]["max"],
         )
-        pois_min, pois_max = prange["poisson"]["min"], prange["poisson"]["max"]
 
         # 4) Normalize input sequences
         norm_prefill = (prefill_tokens[:trace_length] - p_min) / (p_max - p_min)
         norm_decode = (decode_tokens[:trace_length] - d_min) / (d_max - d_min)
-        norm_poisson = (poisson_rate - pois_min) / (pois_max - pois_min)
 
         # 5) Prepare containers for normalized power
         norm_power = np.zeros(trace_length, dtype=float)
@@ -642,7 +644,7 @@ class PowerTraceGenerator:
                         prefill_rate[i],
                         decode_rate[i],
                         norm_power[i - 1],
-                        norm_poisson,
+                        poisson_rate,
                         i / seq_len,
                     ],
                     dtype=torch.float32,
@@ -664,7 +666,7 @@ class PowerTraceGenerator:
                             prefill_rate[j],
                             decode_rate[j],
                             norm_power[j - 1],
-                            norm_poisson,
+                            poisson_rate,
                             rel,
                         ]
                     )
@@ -708,23 +710,30 @@ parser.add_argument(
 
 args = parser.parse_args()
 generator = PowerTraceGenerator(models_dir=args.model_dir, data_dir=args.data_dir)
-# generator.train_all_configs()
-# generator.save_model(args.model_dir)
-loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
-print(generator.dataset.data_ranges)
+generator.train_all_configs()
+generator.save_model(args.model_dir)
+# loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
 # Example usage
 tp = 1
 ms = 8
 hw = "A100"
 # get example prefill and decode tokens from dataset
-prefill_tokens = generator.dataset.prefill_tokens[5]
-decode_tokens = generator.dataset.decode_tokens[5]
-poisson_rate = 0.5
-generated_trace = generator.inference_power_trace(
-    tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
-)
-import matplotlib.pyplot as plt
+# trace_id = 1
+# prefill_tokens = generator.dataset.prefill_tokens[trace_id]
+# decode_tokens = generator.dataset.decode_tokens[trace_id]
+# poisson_rate = generator.dataset.poisson_rate[trace_id]
+# power_trace_orig = generator.dataset.power_traces[trace_id]
+# tensor_parallelism = generator.dataset.tensor_parallelism[trace_id]
+# print("Poisson Rate:", poisson_rate)
+# print("tp", tensor_parallelism)
+# poisson_rate = 1.0
+# generated_trace = generator.inference_power_trace(
+#     tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
+# )
+# import matplotlib.pyplot as plt
 
-print(generated_trace)
-plt.plot(generated_trace)
-plt.show()
+# print(generated_trace)
+# plt.plot(generated_trace)
+# plt.plot(power_trace_orig)
+# plt.title("Generated Power Trace")
+# plt.savefig("generated_power_trace.pdf")
