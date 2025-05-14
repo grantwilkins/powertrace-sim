@@ -397,7 +397,7 @@ class PowerTraceGenerator:
         self.likelihoods = {}
         self.models_dir = models_dir or os.path.join(os.getcwd(), "powergp_models")
         self.dataset = PowerTraceDataset(data_dir) if data_dir else None
-        self.sequence_length = 10
+        self.sequence_length = 5
 
         os.makedirs(models_dir, exist_ok=True)
 
@@ -450,10 +450,10 @@ class PowerTraceGenerator:
         hw_type: str,
         tp: int,
         model_size: float,
-        n_epochs: int = 100,
-        batch_size: int = 64,
+        n_epochs: int = 20,
+        batch_size: int = 512,
         lr: float = 0.01,
-        n_inducing: int = 1000,
+        n_inducing: int = 500,
     ):
         print(f"Training model for TP={tp}, MS={model_size}, HW={hw_type}")
         try:
@@ -525,7 +525,7 @@ class PowerTraceGenerator:
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 1 == 0:
                 tqdm.tqdm.write(
                     f"Epoch {epoch + 1}/{n_epochs}, Loss: {epoch_loss/len(train_loader):.4f}"
                 )
