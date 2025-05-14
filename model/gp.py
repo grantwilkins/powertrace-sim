@@ -323,9 +323,6 @@ class PowerTraceDataset:
         Returns:
             Denormalized power trace
         """
-        config = (tp, 8.0, hw)  # Model size is not used for denormalization
-        if config not in self.data_ranges:
-            raise ValueError(f"No data available for configuration: {config}")
         min_val = self.data_ranges[f"power_{tp}"]["min"]
         max_val = self.data_ranges[f"power_{tp}"]["max"]
 
@@ -405,26 +402,51 @@ class PowerTraceGenerator:
             f"model_tp{tp}_ms{ms}_{hw}.pth",
         )
 
-    def load_model(self, tp: int, ms: str, hw: str):
+    def load_model(self, tp: int, ms: float, hw: str):
+        """
+        Load a trained GPModel + GaussianLikelihood from disk and register it
+        under self.models[(tp,ms,hw)] and self.likelihoods[(tp,ms,hw)].
+        """
         model_path = self._get_model_path(tp, ms, hw)
-        if os.path.exists(model_path):
-            checkpoint = torch.load(model_path, map_location=self.device)
-            model = GPModel(
-                checkpoint["config"]["inducing_points"],
-                checkpoint["config"]["input_dim"],
-            ).to(self.device)
-            model.load_state_dict(checkpoint["model_state"])
-            model.eval()
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"No checkpoint found at {model_path}")
 
-            likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
-            likelihood.load_state_dict(checkpoint["likelihood_state"])
+        # 1) load the full dict you saved in train_config
+        checkpoint = torch.load(model_path, map_location=self.device)
+        model_state = checkpoint["model_state"]
+        likelihood_state = checkpoint["likelihood_state"]
+        config = checkpoint["config"]
 
-            self.models[(tp, ms, hw)] = model
-            self.likelihoods[(tp, ms, hw)] = likelihood
-            print(f"Model loaded from {model_path}")
-        else:
-            print(f"Model not found at {model_path}")
-            return None
+        # 2) pull out the saved inducing‐points shape
+        #    this lives under the variational strategy in the state dict
+        ip_key = "variational_strategy.inducing_points"
+        saved_ips = model_state[ip_key]  # a Tensor of shape (n_inducing, input_dim)
+        n_inducing, input_dim = saved_ips.shape
+        sequence_length = config.get("sequence_length", None)
+
+        # 3) instantiate a fresh GPModel with dummy inducing‐points of the correct shape
+        dummy_ips = torch.zeros(n_inducing, input_dim, device=self.device)
+        model = GPModel(
+            inducing_points=dummy_ips,
+            input_dim=input_dim,
+            sequence_length=sequence_length,
+        ).to(self.device)
+
+        # 4) load its parameters (this will overwrite the dummy ips with your saved ones)
+        model.load_state_dict(model_state)
+
+        # 5) instantiate & load the likelihood
+        likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        likelihood.load_state_dict(likelihood_state)
+
+        # 6) switch to eval mode and register
+        model.eval()
+        likelihood.eval()
+        self.models[(tp, ms, hw)] = model
+        self.likelihoods[(tp, ms, hw)] = likelihood
+
+        print(f"Loaded GP model + likelihood for TP={tp}, MS={ms}, HW={hw}")
+        return model, likelihood
 
     def train_all_configs(self, n_inducing: int = 1000):
         for tp, ms, hw in self.dataset.grouped_data.keys():
@@ -559,85 +581,100 @@ class PowerTraceGenerator:
         poisson_rate: float,
         time_step: float = 0.25,
         duration: float = 600.0,
-    ):
+    ) -> np.ndarray:
         """
-        Generate power trace using autoregressive prediction to maintain temporal consistency.
+        Generate a power trace using the trained AR-GP model:
+        1. Normalize inputs per training data ranges
+        2. Autoregressively predict normalized power
+        3. Denormalize to original scale
         """
+        # 1) Ensure model + likelihood are loaded
         if (tp, ms, hw) not in self.models:
-            print(f"Model for TP={tp}, MS={ms}, HW={hw} not found.")
-            return None
-
+            raise ValueError(f"Model for TP={tp}, MS={ms}, HW={hw} not loaded.")
         model = self.models[(tp, ms, hw)].to(self.device)
         likelihood = self.likelihoods[(tp, ms, hw)].to(self.device)
-
         model.eval()
         likelihood.eval()
+
+        # 2) Truncate to desired length
         trace_length = min(len(prefill_tokens), int(duration / time_step))
-        power_trace = np.zeros(trace_length)
 
-        prefill_rate = np.gradient(prefill_tokens[:trace_length])
-        decode_rate = np.gradient(decode_tokens[:trace_length])
-        if (
-            hasattr(self.dataset, "grouped_data")
-            and (tp, ms, hw) in self.dataset.grouped_data
-        ):
-            # Use average from training data
-            avg_power = np.mean(
-                [
-                    trace.mean()
-                    for trace in self.dataset.grouped_data[(tp, ms, hw)]["power_traces"]
-                ]
-            )
-            power_trace[0] = avg_power
+        # 3) Fetch normalization ranges
+        prange = self.dataset.data_ranges
+        p_min, p_max = (
+            prange[f"prefill_{tp}_{ms}"]["min"],
+            prange[f"prefill_{tp}_{ms}"]["max"],
+        )
+        d_min, d_max = (
+            prange[f"decode_{tp}_{ms}"]["min"],
+            prange[f"decode_{tp}_{ms}"]["max"],
+        )
+        pois_min, pois_max = prange["poisson"]["min"], prange["poisson"]["max"]
+
+        # 4) Normalize input sequences
+        norm_prefill = (prefill_tokens[:trace_length] - p_min) / (p_max - p_min)
+        norm_decode = (decode_tokens[:trace_length] - d_min) / (d_max - d_min)
+        norm_poisson = (poisson_rate - pois_min) / (pois_max - pois_min)
+
+        # 5) Prepare containers for normalized power
+        norm_power = np.zeros(trace_length, dtype=float)
+
+        # 6) Initialize first timestep to mean normalized power from training
+        key = (tp, ms, hw)
+        if key in self.dataset.grouped_data:
+            norm_power[0] = np.mean(self.dataset.grouped_data[key]["power_traces"])
         else:
-            power_trace[0] = 0.5
+            norm_power[0] = 0.5
 
+        # 7) Precompute token-rate features
+        prefill_rate = np.gradient(norm_prefill)
+        decode_rate = np.gradient(norm_decode)
+
+        seq_len = self.dataset.get_train_data(tp, ms, hw)[0].shape[1]  # sequence_length
+
+        # 8) Warm-up: autoregress until we have enough history
         with torch.no_grad():
-            for i in range(1, min(self.sequence_length, trace_length)):
-                x = torch.tensor(
+            for i in range(1, min(seq_len, trace_length)):
+                feat = torch.tensor(
                     [
-                        prefill_tokens[i],
-                        decode_tokens[i],
+                        norm_prefill[i],
+                        norm_decode[i],
                         prefill_rate[i],
                         decode_rate[i],
-                        power_trace[i - 1],
-                        poisson_rate,
-                        i / self.sequence_length,
+                        norm_power[i - 1],
+                        norm_poisson,
+                        i / seq_len,
                     ],
                     dtype=torch.float32,
                     device=self.device,
                 ).unsqueeze(0)
+                out = model(feat)
+                norm_power[i] = likelihood(out).mean.cpu().item()
 
-                output = model(x)
-                power_trace[i] = likelihood(output).mean.cpu().numpy()
+            # 9) Main AR loop
+            for i in range(seq_len, trace_length):
+                # build sequence of last seq_len frames
+                seq_feats = []
+                for j in range(i - seq_len, i):
+                    rel = (j - (i - seq_len)) / seq_len
+                    seq_feats.append(
+                        [
+                            norm_prefill[j],
+                            norm_decode[j],
+                            prefill_rate[j],
+                            decode_rate[j],
+                            norm_power[j - 1],
+                            norm_poisson,
+                            rel,
+                        ]
+                    )
+                x_seq = torch.tensor(seq_feats, dtype=torch.float32, device=self.device)
+                out = model(x_seq)
+                norm_power[i] = likelihood(out).mean.cpu().numpy()[-1]
 
-            for i in range(self.sequence_length, trace_length):
-                sequence_features = []
-                for j in range(i - self.sequence_length, i):
-                    features = [
-                        prefill_tokens[j],
-                        decode_tokens[j],
-                        prefill_rate[j],
-                        decode_rate[j],
-                        power_trace[j - 1],  # Previous power
-                        poisson_rate,
-                        (j - (i - self.sequence_length))
-                        / self.sequence_length,  # Relative position
-                    ]
-                    sequence_features.append(features)
-
-                x = torch.tensor(
-                    sequence_features, dtype=torch.float32, device=self.device
-                )
-                output = model(x)
-                predictions = likelihood(output).mean.cpu().numpy()
-                power_trace[i] = predictions[-1]
-
-        # Denormalize if needed
-        if hasattr(self.dataset, "denormalize_power"):
-            power_trace = self.dataset.denormalize_power(power_trace, tp, hw)
-
-        return power_trace
+        # 10) Denormalize
+        denorm = self.dataset.denormalize_power(norm_power, tp, hw)
+        return denorm
 
     def save_model(self, model_dir):
         """
@@ -671,5 +708,23 @@ parser.add_argument(
 
 args = parser.parse_args()
 generator = PowerTraceGenerator(models_dir=args.model_dir, data_dir=args.data_dir)
-generator.train_all_configs()
-generator.save_model(args.model_dir)
+# generator.train_all_configs()
+# generator.save_model(args.model_dir)
+loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
+print(generator.dataset.data_ranges)
+# Example usage
+tp = 1
+ms = 8
+hw = "A100"
+# get example prefill and decode tokens from dataset
+prefill_tokens = generator.dataset.prefill_tokens[5]
+decode_tokens = generator.dataset.decode_tokens[5]
+poisson_rate = 0.5
+generated_trace = generator.inference_power_trace(
+    tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
+)
+import matplotlib.pyplot as plt
+
+print(generated_trace)
+plt.plot(generated_trace)
+plt.show()
