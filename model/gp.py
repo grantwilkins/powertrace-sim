@@ -369,12 +369,10 @@ class GPModel(gpytorch.models.ApproximateGP):
         self.scaled_rbf = gpytorch.kernels.ScaleKernel(self.rbf_kernel)
         self.scaled_periodic = gpytorch.kernels.ScaleKernel(self.periodic_kernel)
 
-        # Initialize scaling factors
         self.scaled_linear.outputscale = 0.5
         self.scaled_rbf.outputscale = 0.3
         self.scaled_periodic.outputscale = 0.2
 
-        # Combine kernels with proper scaling
         self.covar_module = (
             self.matern_kernel
             + self.scaled_linear
@@ -462,7 +460,7 @@ class PowerTraceGenerator:
                 ms=model_size,
                 hw=hw_type,
                 sequence_length=self.sequence_length,
-                stride=2,
+                stride=10,
             )
             n_sequences, seq_len, n_features = train_x.shape
             train_x_flat = train_x.reshape(-1, n_features).to(self.device)
@@ -661,14 +659,12 @@ parser = argparse.ArgumentParser(description="Power Trace Generator")
 parser.add_argument(
     "--data_dir",
     type=str,
-    required=True,
     help="Path to the power trace dataset",
-    default="./processed_data/power_trace_data.npz",
+    default="./vllm-benchmark-llama-3-8b-power.npz",
 )
 parser.add_argument(
     "--model_dir",
     type=str,
-    required=True,
     help="Directory to save the models",
     default="./powergp_models",
 )
