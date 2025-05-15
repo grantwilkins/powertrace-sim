@@ -16,7 +16,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         touch deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
         nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> deepseek-r1-distill-8b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
         NVIDIA_SMI_PID=$!
-        NUM_PROMPTS=
+        NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${POISSON_ARRIVAL_RATE}" | bc))
         python3 benchmark_serving.py --model deepseek-ai/DeepSeek-R1-Distill-Llama-8B --backend vllm --dataset-name sharegpt --dataset-path ${HOME}/ShareGPT_V3_unfiltered_cleaned_split.json --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --request-rate ${POISSON_ARRIVAL_RATE} --num-prompts ${NUM_PROMPTS} --endpoint /v1/completions --save-result --save-detailed
         kill -9 ${NVIDIA_SMI_PID}
     done
