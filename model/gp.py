@@ -345,14 +345,14 @@ class GPModel(gpytorch.models.ApproximateGP):
             inducing_points,
             variational_distribution,
             learn_inducing_locations=True,
-            jitter_val=1e-2,
+            jitter_val=1e-1,
         )
         super(GPModel, self).__init__(variational_strategy)
 
         self.mean_module = gpytorch.means.ConstantMean()
 
         self.matern_kernel = gpytorch.kernels.MaternKernel(
-            nu=0.5, ard_num_dims=input_dim
+            nu=1.5, ard_num_dims=input_dim
         )
         self.linear_kernel = gpytorch.kernels.LinearKernel(ard_num_dims=input_dim)
         self.rbf_kernel = gpytorch.kernels.RBFKernel(ard_num_dims=input_dim)
@@ -449,7 +449,7 @@ class PowerTraceGenerator:
         print(f"Loaded GP model + likelihood for TP={tp}, MS={ms}, HW={hw}")
         return model, likelihood
 
-    def train_all_configs(self, n_inducing: int = 1000):
+    def train_all_configs(self, n_inducing: int = 2000):
         for tp, ms, hw in self.dataset.grouped_data.keys():
             print(f"Training model for TP={tp}, MS={ms}, HW={hw}")
             self.train_config(
@@ -457,9 +457,9 @@ class PowerTraceGenerator:
                 hw_type=hw,
                 tp=tp,
                 model_size=ms,
-                n_epochs=1000,
-                batch_size=2048,
-                lr=0.001,
+                n_epochs=250,
+                batch_size=4096,
+                lr=0.01,
                 n_inducing=n_inducing,
             )
             print(f"Training complete for TP={tp}, MS={ms}, HW={hw}")
