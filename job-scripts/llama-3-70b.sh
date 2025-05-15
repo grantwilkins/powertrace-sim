@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+TENSOR_PARALLEL_SIZES=(8)
+=======
 TENSOR_PARALLEL_SIZES=(4)
+>>>>>>> 98a595337111cb93abbeb73a885b23057218417e
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
@@ -10,7 +14,11 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         sleep 10
     done
     cd ~/powertrace-sim/client
+<<<<<<< HEAD
+    POISSON_ARRIVAL_RATES=(0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0)
+=======
     POISSON_ARRIVAL_RATES=(4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0)
+>>>>>>> 98a595337111cb93abbeb73a885b23057218417e
     for POISSON_ARRIVAL_RATE in ${POISSON_ARRIVAL_RATES[@]}; do
         DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
         touch llama-3-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
