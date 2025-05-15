@@ -437,7 +437,10 @@ class PowerTraceGenerator:
         model.load_state_dict(model_state)
 
         # 5) instantiate & load the likelihood
-        likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        # likelihood = gpytorch.likelihoods.GaussianLikelihood().to(self.device)
+        likelihood = gpytorch.likelihoods.StudentTLikelihood(
+            deg_free_constraint=Interval(2.0, 100.0)
+        ).to(self.device)
         likelihood.load_state_dict(likelihood_state)
 
         # 6) switch to eval mode and register
@@ -636,6 +639,7 @@ class PowerTraceGenerator:
 
         # 8) Warm-up: autoregress until we have enough history
         with torch.no_grad():
+            # WARM-UP
             for i in range(1, min(seq_len, trace_length)):
                 feat = torch.tensor(
                     [
@@ -650,12 +654,13 @@ class PowerTraceGenerator:
                     dtype=torch.float32,
                     device=self.device,
                 ).unsqueeze(0)
-                out = model(feat)
-                norm_power[i] = likelihood(out).mean.cpu().item()
+                post = likelihood(model(feat))
+                # post.mean might be a vector → grab the last element
+                m = post.mean.cpu().numpy().ravel()  # shape (N,) even if N==1
+                norm_power[i] = m[-1]
 
-            # 9) Main AR loop
+            # MAIN AR LOOP
             for i in range(seq_len, trace_length):
-                # build sequence of last seq_len frames
                 seq_feats = []
                 for j in range(i - seq_len, i):
                     rel = (j - (i - seq_len)) / seq_len
@@ -671,8 +676,9 @@ class PowerTraceGenerator:
                         ]
                     )
                 x_seq = torch.tensor(seq_feats, dtype=torch.float32, device=self.device)
-                out = model(x_seq)
-                norm_power[i] = likelihood(out).mean.cpu().numpy()[-1]
+                post = likelihood(model(x_seq))
+                m = post.mean.cpu().numpy().ravel()
+                norm_power[i] = m[-1]
 
         # 10) Denormalize
         denorm = self.dataset.denormalize_power(norm_power, tp, hw)
@@ -710,30 +716,30 @@ parser.add_argument(
 
 args = parser.parse_args()
 generator = PowerTraceGenerator(models_dir=args.model_dir, data_dir=args.data_dir)
-generator.train_all_configs()
-generator.save_model(args.model_dir)
-# loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
+# generator.train_all_configs()
+# generator.save_model(args.model_dir)
+loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
 # Example usage
 tp = 1
 ms = 8
 hw = "A100"
 # get example prefill and decode tokens from dataset
-# trace_id = 1
-# prefill_tokens = generator.dataset.prefill_tokens[trace_id]
-# decode_tokens = generator.dataset.decode_tokens[trace_id]
-# poisson_rate = generator.dataset.poisson_rate[trace_id]
-# power_trace_orig = generator.dataset.power_traces[trace_id]
-# tensor_parallelism = generator.dataset.tensor_parallelism[trace_id]
-# print("Poisson Rate:", poisson_rate)
-# print("tp", tensor_parallelism)
-# poisson_rate = 1.0
-# generated_trace = generator.inference_power_trace(
-#     tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
-# )
-# import matplotlib.pyplot as plt
+trace_id = 1
+prefill_tokens = generator.dataset.prefill_tokens[trace_id]
+decode_tokens = generator.dataset.decode_tokens[trace_id]
+poisson_rate = generator.dataset.poisson_rate[trace_id]
+power_trace_orig = generator.dataset.power_traces[trace_id]
+tensor_parallelism = generator.dataset.tensor_parallelism[trace_id]
+print("Poisson Rate:", poisson_rate)
+print("tp", tensor_parallelism)
+poisson_rate = 1.0
+generated_trace = generator.inference_power_trace(
+    tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
+)
+import matplotlib.pyplot as plt
 
-# print(generated_trace)
-# plt.plot(generated_trace)
-# plt.plot(power_trace_orig)
-# plt.title("Generated Power Trace")
-# plt.savefig("generated_power_trace.pdf")
+print(generated_trace)
+plt.plot(generated_trace)
+plt.plot(power_trace_orig)
+plt.title("Generated Power Trace")
+plt.savefig("generated_power_trace.pdf")
