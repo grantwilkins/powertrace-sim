@@ -1296,16 +1296,9 @@ def train_seedless_gp_pipeline(data_path, output_dir="seedless_gp_results"):
 if __name__ == "__main__":
     # Choose which model to train
     train_seeded = True
-    train_seedless = True
 
     if train_seeded:
         print("\n==== Training seeded GP models (one per configuration) ====")
-        power_gp = run_gp_pipeline(data_path="./processed_data/power_trace_data.npz")
-
-    if train_seedless:
-        print("\n==== Training seedless GP model (global model) ====")
-        seedless_gp = train_seedless_gp_pipeline(
-            data_path="./processed_data/power_trace_data.npz"
-        )
+        power_gp = run_gp_pipeline(data_path="../vllm-benchmark-llama-3-8b-power.npz")
 
     print("\nTraining complete. Models are ready for use.")
