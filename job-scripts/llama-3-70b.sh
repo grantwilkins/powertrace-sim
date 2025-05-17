@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-TENSOR_PARALLEL_SIZES=(8)
-=======
-TENSOR_PARALLEL_SIZES=(4)
->>>>>>> 98a595337111cb93abbeb73a885b23057218417e
+TENSOR_PARALLEL_SIZES=(4 8)
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
@@ -14,17 +10,13 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         sleep 10
     done
     cd ~/powertrace-sim/client
-<<<<<<< HEAD
-    POISSON_ARRIVAL_RATES=(0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0)
-=======
     POISSON_ARRIVAL_RATES=(4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0 0.125 0.25 0.5 1.0 2.0 4.0)
->>>>>>> 98a595337111cb93abbeb73a885b23057218417e
     for POISSON_ARRIVAL_RATE in ${POISSON_ARRIVAL_RATES[@]}; do
         DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
         touch llama-3-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv
         nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> llama-3-70b_tp${TENSOR_PARALLEL_SIZE}_p${POISSON_ARRIVAL_RATE}_d${DATE_TIME}.csv &
         NVIDIA_SMI_PID=$!
-	NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${POISSON_ARRIVAL_RATE}" | bc))
+	    NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${POISSON_ARRIVAL_RATE}" | bc))
         python3 benchmark_serving.py --model meta-llama/Llama-3.1-70B-Instruct --backend vllm --dataset-name sharegpt --dataset-path ${HOME}/ShareGPT_V3_unfiltered_cleaned_split.json --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --request-rate ${POISSON_ARRIVAL_RATE} --num-prompts ${NUM_PROMPTS} --endpoint /v1/completions --save-result --save-detailed
         kill -9 ${NVIDIA_SMI_PID}
     done
