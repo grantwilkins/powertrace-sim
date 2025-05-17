@@ -362,20 +362,20 @@ class GPModel(gpytorch.models.ApproximateGP):
         )
 
         # Properly scale kernels using ScaleKernel
-        self.scaled_linear = gpytorch.kernels.ScaleKernel(self.linear_kernel)
-        self.scaled_rbf = gpytorch.kernels.ScaleKernel(self.rbf_kernel)
-        self.scaled_periodic = gpytorch.kernels.ScaleKernel(self.periodic_kernel)
+        # self.scaled_linear = gpytorch.kernels.ScaleKernel(self.linear_kernel)
+        # self.scaled_rbf = gpytorch.kernels.ScaleKernel(self.rbf_kernel)
+        # self.scaled_periodic = gpytorch.kernels.ScaleKernel(self.periodic_kernel)
 
-        self.scaled_linear.outputscale = 0.5
-        self.scaled_rbf.outputscale = 0.3
-        self.scaled_periodic.outputscale = 0.2
+        # self.scaled_linear.outputscale = 0.5
+        # self.scaled_rbf.outputscale = 0.3
+        # self.scaled_periodic.outputscale = 0.2
 
         self.covar_module = (
             self.matern_kernel
             + self.mixture_kernel
-            + self.scaled_linear
-            + self.scaled_rbf
-            + self.scaled_periodic
+            # + self.scaled_linear
+            # + self.scaled_rbf
+            # + self.scaled_periodic
         )
 
         self.sequence_length = sequence_length
@@ -716,30 +716,30 @@ parser.add_argument(
 
 args = parser.parse_args()
 generator = PowerTraceGenerator(models_dir=args.model_dir, data_dir=args.data_dir)
-# generator.train_all_configs()
-# generator.save_model(args.model_dir)
-loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
-# Example usage
-tp = 1
-ms = 8
-hw = "A100"
-# get example prefill and decode tokens from dataset
-trace_id = 1
-prefill_tokens = generator.dataset.prefill_tokens[trace_id]
-decode_tokens = generator.dataset.decode_tokens[trace_id]
-poisson_rate = generator.dataset.poisson_rate[trace_id]
-power_trace_orig = generator.dataset.power_traces[trace_id]
-tensor_parallelism = generator.dataset.tensor_parallelism[trace_id]
-print("Poisson Rate:", poisson_rate)
-print("tp", tensor_parallelism)
-poisson_rate = 1.0
-generated_trace = generator.inference_power_trace(
-    tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
-)
-import matplotlib.pyplot as plt
+generator.train_all_configs()
+generator.save_model(args.model_dir)
+# loaded_model, loaded_likelihood = generator.load_model(1, 8, "A100")
+# # Example usage
+# tp = 1
+# ms = 8
+# hw = "A100"
+# # get example prefill and decode tokens from dataset
+# trace_id = 1
+# prefill_tokens = generator.dataset.prefill_tokens[trace_id]
+# decode_tokens = generator.dataset.decode_tokens[trace_id]
+# poisson_rate = generator.dataset.poisson_rate[trace_id]
+# power_trace_orig = generator.dataset.power_traces[trace_id]
+# tensor_parallelism = generator.dataset.tensor_parallelism[trace_id]
+# print("Poisson Rate:", poisson_rate)
+# print("tp", tensor_parallelism)
+# poisson_rate = 1.0
+# generated_trace = generator.inference_power_trace(
+#     tp, ms, hw, prefill_tokens, decode_tokens, poisson_rate
+# )
+# import matplotlib.pyplot as plt
 
-print(generated_trace)
-plt.plot(generated_trace)
-plt.plot(power_trace_orig)
-plt.title("Generated Power Trace")
-plt.savefig("generated_power_trace.pdf")
+# print(generated_trace)
+# plt.plot(generated_trace)
+# plt.plot(power_trace_orig)
+# plt.title("Generated Power Trace")
+# plt.savefig("generated_power_trace.pdf")
