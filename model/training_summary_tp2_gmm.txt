@@ -1,3 +1,0 @@
-Final loss: 0.356983
-Best loss: 0.344145
-Loss reduction: 1.119729

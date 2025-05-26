@@ -425,7 +425,7 @@ if __name__ == "__main__":
 
     all_original_power = []
     all_sampled_power = []
-
+    sampled_power_arrs = {}
     import scipy.stats as stats
 
     # Find min and max values across all tp1 traces for clipping
@@ -465,6 +465,7 @@ if __name__ == "__main__":
         power = np.clip(power, min_power, max_power)
         original_power = dataset.traces[idx]["y"].flatten()
         sampled_power = power.flatten()
+        sampled_power_arrs[idx] = (time, sampled_power)
 
         all_original_power.append(original_power)
         all_sampled_power.append(sampled_power)
@@ -499,13 +500,22 @@ if __name__ == "__main__":
 
     print(dataset.tp_all)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(time, dataset.traces[116]["y"], label="Original")
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(time, dataset.traces[116]["y"], label="Original")
+    # plt.plot(time, power, alpha=0.5, label="Sampled")
+    # plt.xlabel("Time (s)")
+    # plt.ylabel("Power (W)")
+    # plt.legend()
+    # plt.savefig("sampled_power_trace.pdf")
+    plt.figure(figsize=(4, 3))
+    # plt.plot(time, dataset.traces[1]["y"], label="Original")
     plt.plot(time, power, alpha=0.5, label="Sampled")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Power (W)")
-    plt.legend()
-    plt.savefig("sampled_power_trace.pdf")
+    plt.xlabel("")
+    plt.ylabel("")
+    plt.xticks([])
+    plt.yticks([])
+    plt.tight_layout()
+    plt.savefig("small_trace.pdf")
 
     total_energy_original = np.trapezoid(all_original_power, dx=0.25)
     total_energy_sampled = np.trapezoid(all_sampled_power, dx=0.25)

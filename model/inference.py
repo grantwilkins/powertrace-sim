@@ -1,10 +1,12 @@
 import argparse
 import itertools
 import os
+import random
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
@@ -278,8 +280,14 @@ if __name__ == "__main__":
         help="Use Gaussian Mixture Model instead of KMeans for clustering",
     )
     args = parser.parse_args()
+    from token_scheduler import ModelConfig, TokenSimulator
+
+    token_sim = TokenSimulator.from_npz(npz_file=args.data_file)
+    results = token_sim.run_simulation(config=ModelConfig(8, 2, "A100"))
+    feature_vec = token_sim.prepare_for_inference(results)
 
     # Set device
+
     device = None
     if args.device:
         device = torch.device(args.device)
@@ -332,68 +340,81 @@ if __name__ == "__main__":
     all_original_power = []
     all_sampled_power = []
 
-    import scipy.stats as stats
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
-    for idx in tp1_indices:
-        time, power = sample_power(
-            classifiers[1],
-            mu[tp],
-            sigma[tp] * 0.2,
-            dataset.traces[idx]["x"],
-            dt=0.25,
-        )
-
-        # Store original and sampled power for this trace
-        original_power = dataset.traces[idx]["y"].flatten()
-        sampled_power = power.flatten()
-
-        all_original_power.append(original_power)
-        all_sampled_power.append(sampled_power)
-
-        # Run KS test for this individual trace
-        ks_stat, p_value = stats.ks_2samp(original_power, sampled_power)
-        print(f"Trace {idx} - KS Statistic: {ks_stat}, p-value: {p_value}")
-
-    # Concatenate all power traces for overall comparison
-    all_original_power = np.concatenate(all_original_power)
-    all_sampled_power = np.concatenate(all_sampled_power)
-
-    # Run KS test on all data combined
-    overall_ks_stat, overall_p_value = stats.ks_2samp(
-        all_original_power, all_sampled_power
-    )
-    print(f"Overall - KS Statistic: {overall_ks_stat}, p-value: {overall_p_value}")
-
-    # plot cdf of original and sampled power
-    # Use all concatenated power data for CDF
-    sorted_original_power = np.sort(all_original_power)
-    sorted_sampled_power = np.sort(all_sampled_power)
-
-    cdf_original = np.arange(1, len(sorted_original_power) + 1) / len(
-        sorted_original_power
-    )
-    cdf_sampled = np.arange(1, len(sorted_sampled_power) + 1) / len(
-        sorted_sampled_power
+    time, power = sample_power(
+        classifiers[1],
+        mu[tp],
+        sigma[tp] * 0.2,
+        feature_vec,
+        dt=0.25,
     )
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(sorted_original_power, cdf_original, label="Original CDF")
-    plt.plot(sorted_sampled_power, cdf_sampled, label="Sampled CDF")
-    plt.xlabel("Power (W)")
-    plt.ylabel("CDF")
-    plt.legend()
-    plt.title("CDF of All Original and Sampled Power")
-    plt.grid(True, alpha=0.3)
-    plt.savefig("cdf_power_trace.pdf")
+    # import scipy.stats as stats
+    # for idx in tp1_indices:
+    #     time, power = sample_power(
+    #         classifiers[1],
+    #         mu[tp],
+    #         sigma[tp] * 0.2,
+    #         dataset.traces[idx]["x"],
+    #         dt=0.25,
+    #     )
 
-    print(dataset.tp_all)
+    #     # Store original and sampled power for this trace
+    #     original_power = dataset.traces[idx]["y"].flatten()
+    #     sampled_power = power.flatten()
 
-    plt.plot(time, dataset.traces[1]["y"], label="Original")
+    #     all_original_power.append(original_power)
+    #     all_sampled_power.append(sampled_power)
+
+    #     # Run KS test for this individual trace
+    #     ks_stat, p_value = stats.ks_2samp(original_power, sampled_power)
+    #     print(f"Trace {idx} - KS Statistic: {ks_stat}, p-value: {p_value}")
+
+    # # Concatenate all power traces for overall comparison
+    # all_original_power = np.concatenate(all_original_power)
+    # all_sampled_power = np.concatenate(all_sampled_power)
+
+    # # Run KS test on all data combined
+    # overall_ks_stat, overall_p_value = stats.ks_2samp(
+    #     all_original_power, all_sampled_power
+    # )
+    # print(f"Overall - KS Statistic: {overall_ks_stat}, p-value: {overall_p_value}")
+
+    # # plot cdf of original and sampled power
+    # # Use all concatenated power data for CDF
+    # sorted_original_power = np.sort(all_original_power)
+    # sorted_sampled_power = np.sort(all_sampled_power)
+
+    # cdf_original = np.arange(1, len(sorted_original_power) + 1) / len(
+    #     sorted_original_power
+    # )
+    # cdf_sampled = np.arange(1, len(sorted_sampled_power) + 1) / len(
+    #     sorted_sampled_power
+    # )
+
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(sorted_original_power, cdf_original, label="Original CDF")
+    # plt.plot(sorted_sampled_power, cdf_sampled, label="Sampled CDF")
+    # plt.xlabel("Power (W)")
+    # plt.ylabel("CDF")
+    # plt.legend()
+    # plt.title("CDF of All Original and Sampled Power")
+    # plt.grid(True, alpha=0.3)
+    # plt.savefig("cdf_power_trace.pdf")
+
+    # print(dataset.tp_all)
+
+    plt.figure(figsize=(4, 3))
+    # plt.plot(time, dataset.traces[1]["y"], label="Original")
     plt.plot(time, power, alpha=0.5, label="Sampled")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Power (W)")
-    plt.legend()
-    plt.savefig("sampled_power_trace.pdf")
+    plt.xlabel("")
+    plt.ylabel("")
+    plt.xticks([])
+    plt.yticks([])
+    plt.show()
+    # plt.savefig("sampled_power_trace.pdf")
 
     # model_type = "gmm" if args.use_gmm else "kmeans"
     # for tp, classifier in classifiers.items():
