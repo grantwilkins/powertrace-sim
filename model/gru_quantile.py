@@ -509,7 +509,7 @@ if __name__ == "__main__":
     # plt.savefig("sampled_power_trace.pdf")
     plt.figure(figsize=(4, 3))
     # plt.plot(time, dataset.traces[1]["y"], label="Original")
-    plt.plot(time, power, alpha=0.5, label="Sampled")
+    # plt.plot(time, power, alpha=0.5, label="Sampled"))
     plt.xlabel("")
     plt.ylabel("")
     plt.xticks([])
