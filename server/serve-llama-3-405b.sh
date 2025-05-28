@@ -1,2 +1,2 @@
 cd ~/powertrace-sim/server/
-vllm serve meta-llama/Llama-3.1-405B-Instruct  --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --api-key ${OPENAI_API_KEY}
+vllm serve meta-llama/Llama-3.1-405B-Instruct-FP8  --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} --max-num-seqs 64 
