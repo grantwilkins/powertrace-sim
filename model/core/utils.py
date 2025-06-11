@@ -1,4 +1,8 @@
+from typing import Dict, Optional
+
 import numpy as np
+import torch
+from classifiers.gru import GRUClassifier
 
 
 def histogram_requests(
@@ -28,7 +32,7 @@ def histogram_requests(
     return new_req_cnt.astype("float32"), new_in_tok, new_out_tok
 
 
-def make_schedule_matrix(trace_dict):
+def make_schedule_matrix(trace_dict: Dict[str, np.ndarray]):
     """
     trace_dict contains 1-D numpy arrays *already cut to true length*.
     Returns x_t  (T × Dx)  where columns are z-scored.
@@ -58,40 +62,15 @@ def make_schedule_matrix(trace_dict):
     return (x - mu) / sd
 
 
-class SmoothingSampler:
-    def __init__(self, dataset, tp=None):
-        self.state_stats = {}
-        self.tp = tp
-
-        for k in range(6):
-            powers = []
-            for tr in dataset.traces:
-                if tp is not None and tr.get("tp", None) != tp:
-                    continue
-
-                mask = tr["z"] == k
-                if mask.sum() > 0:
-                    powers.extend(tr["y"][mask])
-
-            if powers:
-                self.state_stats[k] = {
-                    "median": np.median(powers),
-                    "mad": np.median(np.abs(powers - np.median(powers))),
-                    "iqr": np.percentile(powers, 75) - np.percentile(powers, 25),
-                    "tp": tp,
-                }
-
-    def smooth_sample(self, time, power, states, smoothing_window=5, tp=None):
-        tp = tp if tp is not None else self.tp
-        smoothed = power.copy()
-        for i in range(len(power)):
-            start = max(0, i - smoothing_window // 2)
-            end = min(len(power), i + smoothing_window // 2 + 1)
-            current_state = states[i]
-            same_state_mask = states[start:end] == current_state
-
-            if same_state_mask.sum() > 0:
-                window_values = power[start:end][same_state_mask]
-                smoothed[i] = np.median(window_values)
-
-        return time, smoothed, states
+def load_classifier(
+    path, device: Optional[torch.device] = None, Dx: int = 6, K: int = 6
+):
+    """
+    Load a classifier from a file.
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Loading classifier from {path} on device: {device}")
+    classifier = GRUClassifier(Dx=Dx, K=K).to(device)
+    classifier.load_state_dict(torch.load(path, map_location=device))
+    return classifier
