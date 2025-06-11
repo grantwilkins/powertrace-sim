@@ -25,7 +25,6 @@ class PowerTraceDataset(Dataset):
         self.hw_accelerator = npz_file.split("/")[-1].split("_")[2]
         self.llm_name = npz_file.split("/")[-1].split("_")[1]
         tp_array = d["tensor_parallelism"]
-        arrival_rate = d["arrival_rate"]
 
         n_exp = d["timestamps"].shape[0]
         for i in range(n_exp):

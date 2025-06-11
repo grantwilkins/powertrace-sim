@@ -70,7 +70,7 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     summary = load_summary_from_json(
-        f"./model_summary_{args.model}_{args.hardware_accelerator}.json"
+        f"./summary_data/model_summary_{args.model}_{args.hardware_accelerator}.json"
     )
     print(summary)
 
@@ -98,17 +98,33 @@ if __name__ == "__main__":
     # get a schedule from the data set
     tp1_indices = [i for i, tp_i in enumerate(dataset.tp_all) if tp_i == int(tp)]
     idx = np.random.choice(tp1_indices)
+    # idx = 1
     # print arrival rate of this idx
     print(summary[tp]["mu_values"])
     time_vals, power, states = smoother.sample_power(
         classifier,
-        np.array(summary[tp]["mu_values"]),
-        np.array(summary[tp]["sigma_values"]),
+        # np.array(summary[tp]["mu_values"]),
+        # np.array(summary[tp]["sigma_values"]),
+        dataset.mu[int(tp)],
+        dataset.sigma[int(tp)],
         schedule_x=dataset.traces[idx]["x"],
         dt=0.25,
         smoothing_window=5,
     )
     power = np.clip(power, summary[tp]["min_power"], summary[tp]["max_power"])
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(time_vals, power, label="Simulated Power Trace")
+    plt.plot(
+        time_vals,
+        dataset.traces[idx]["y"].flatten(),
+        label="Original Power Trace",
+        linestyle="--",
+    )
+    plt.xlabel("Time (s)")
+    plt.show()
+
     example_timestamp = time.time()
     time_vals += example_timestamp
     # ADD SKU
@@ -120,11 +136,11 @@ if __name__ == "__main__":
         sku = "Unknown_SKU"
 
     # Create DataFrame for easier CSV handling with mixed data types
-    df = pd.DataFrame({"Timestamp": time_vals, "GPU Power (W)": power, "VM SKU": sku})
+    # df = pd.DataFrame({"Timestamp": time_vals, "GPU Power (W)": power, "VM SKU": sku})
 
-    # Save to CSV
-    output_file = (
-        f"./power_traces/{args.model}_{args.hardware_accelerator}_tp{tp}_id{idx}.csv"
-    )
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    df.to_csv(output_file, index=False)
+    # # Save to CSV
+    # output_file = (
+    #     f"./power_traces/{args.model}_{args.hardware_accelerator}_tp{tp}_id{idx}.csv"
+    # )
+    # os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    # df.to_csv(output_file, index=False)

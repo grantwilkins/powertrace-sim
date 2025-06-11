@@ -2,9 +2,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-CLIENT_DIR = Path(
-    "/Users/grantwilkins/powertrace-sim/data/benchmark-deepseek-r1-distill-70b-h100"
-)
+CLIENT_DIR = Path("/Users/grantwilkins/powertrace-sim/data/edgecases-llama-3-8b-h100")
 
 json_re = re.compile(
     r"""^vllm-
