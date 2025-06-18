@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-CLIENT_DIR = Path("/Users/grantwilkins/powertrace-sim/data/edgecases-llama-3-8b-h100")
+CLIENT_DIR = Path("/Users/grantwilkins/powertrace-sim/data/benchmark-llama-3-405b-h100")
 
 json_re = re.compile(
     r"""^vllm-
@@ -19,6 +19,7 @@ model_map = {
     "DeepSeek-R1-Distill-Llama-8B": "deepseek-r1-distill-8b",
     "Llama-3.1-70B-Instruct": "llama-3-70b",
     "DeepSeek-R1-Distill-Llama-70B": "deepseek-r1-distill-70b",
+    "Llama-3.1-405B-Instruct-FP8": "llama-3-405b",
 }
 
 csv_re = re.compile(r"_d(?P<csv_dt>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})\.csv$")

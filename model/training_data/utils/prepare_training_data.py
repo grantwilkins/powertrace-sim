@@ -151,13 +151,13 @@ def extract_results_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
     base = os.path.basename(filename)
     # Pattern for Llama-3.1 files
     llama_match = re.match(
-        r"vllm-([\d\.]+)qps-tp(\d+)-Llama-3.1-(\d+)B-Instruct-(.*).json", base
+        r"vllm-([\d\.]+)qps-tp(\d+)-Llama-3.1-(\d+)B-Instruct(-FP8)?-(.*).json", base
     )
     if llama_match:
         rate = llama_match.group(1)
         tp = llama_match.group(2)
         model_size = llama_match.group(3)
-        date = llama_match.group(4)
+        date = llama_match.group(5)
         return model_size, tp, rate, date
 
     deepseek_match = re.match(
