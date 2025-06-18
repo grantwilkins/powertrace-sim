@@ -1,3 +1,4 @@
 data/*
 data
 random_plots_training_data
+*__pycache__*
