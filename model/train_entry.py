@@ -79,7 +79,7 @@ if __name__ == "__main__":
             lr=1e-3,
         )
         # Ensure directories exist
-        classifier.to("cpu")  
+        classifier.to("cpu")
         np.save(
             f"./training_data/losses/training_losses_{args.model}_{args.hardware_accelerator}_tp{args.tp}.npy",
             np.array(losses),
