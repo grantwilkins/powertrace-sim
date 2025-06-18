@@ -60,12 +60,13 @@ if __name__ == "__main__":
                 device=torch.device(args.device) if args.device else None,
                 lr=1e-3,
             )
+            classifier.to("cpu")
             np.save(
                 f"./training_data/losses/training_losses_{args.model}_{args.hardware_accelerator}_tp{tp}.npy",
                 np.array(losses),
             )
             torch.save(
-                classifier.state_dict().to("cpu"),
+                classifier.state_dict(),
                 f"{args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt",
             )
     else:
@@ -78,12 +79,12 @@ if __name__ == "__main__":
             lr=1e-3,
         )
         # Ensure directories exist
-
+        classifier.to("cpu")  
         np.save(
             f"./training_data/losses/training_losses_{args.model}_{args.hardware_accelerator}_tp{args.tp}.npy",
             np.array(losses),
         )
         torch.save(
-            classifier.state_dict().to("cpu"),
+            classifier.state_dict(),
             f"{args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{args.tp}.pt",
         )
