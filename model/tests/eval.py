@@ -75,7 +75,7 @@ if __name__ == "__main__":
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dataset = PowerTraceDataset(args.data_file, use_gmm=True)
+    dataset = PowerTraceDataset(args.data_file)
     # tp = args.tp
 
     import pandas as pd

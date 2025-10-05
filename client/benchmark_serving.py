@@ -20,6 +20,7 @@ On the client side, run:
         --endpoint /generate_stream
     to the end of the command above.
 """
+
 import argparse
 import asyncio
 import gc
@@ -62,6 +63,7 @@ from benchmark_dataset import (
     InstructCoderDataset,
     MTBenchDataset,
     RandomDataset,
+    RealisticRandomDataset,
     SampleRequest,
     ShareGPTDataset,
     SonnetDataset,
@@ -129,9 +131,9 @@ async def get_request(
     input_requests: Iterable[SampleRequest] = iter(input_requests)
 
     # Calculate scale parameter theta to maintain the desired request_rate.
-    assert (
-        burstiness > 0
-    ), f"A positive burstiness factor is expected, but given {burstiness}."
+    assert burstiness > 0, (
+        f"A positive burstiness factor is expected, but given {burstiness}."
+    )
     theta = 1.0 / (request_rate * burstiness)
 
     for request in input_requests:
@@ -632,6 +634,123 @@ def main(args: argparse.Namespace):
             "'--dataset-path' if required."
         )
 
+    # Apply workload intensity presets if specified
+    # Based on ServeGen paper findings with Pareto tail for realistic long-tail behavior
+    # Bifurcated by task type (conversation vs coding) and intensity level
+    if args.workload_intensity is not None:
+        intensity_presets = {
+            ("conversation", "low"): {
+                "input_log_mean": 5.30,
+                "input_log_std": 0.85,
+                "input_min": 16,
+                "input_max": 2048,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 1200,
+                "exp_output_mean": 120,
+                "output_min": 8,
+                "output_max": 1024,
+            },
+            ("conversation", "medium"): {
+                "input_log_mean": 6.22,
+                "input_log_std": 1.08,
+                "input_min": 32,
+                "input_max": 4096,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 2500,
+                "exp_output_mean": 250,
+                "output_min": 16,
+                "output_max": 2048,
+            },
+            ("conversation", "high"): {
+                "input_log_mean": 7.31,
+                "input_log_std": 1.08,
+                "input_min": 64,
+                "input_max": 8192,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 5000,
+                "exp_output_mean": 600,
+                "output_min": 32,
+                "output_max": 4096,
+            },
+            ("conversation", "ultra"): {
+                "input_log_mean": 8.01,
+                "input_log_std": 1.08,
+                "input_min": 128,
+                "input_max": 16384,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 10000,
+                "exp_output_mean": 1000,
+                "output_min": 64,
+                "output_max": 8192,
+            },
+            ("coding", "low"): {
+                "input_log_mean": 5.70,
+                "input_log_std": 0.95,
+                "input_min": 16,
+                "input_max": 4096,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 2500,
+                "exp_output_mean": 16,
+                "output_min": 1,
+                "output_max": 256,
+            },
+            ("coding", "medium"): {
+                "input_log_mean": 6.55,
+                "input_log_std": 1.10,
+                "input_min": 32,
+                "input_max": 8192,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 5000,
+                "exp_output_mean": 16,
+                "output_min": 1,
+                "output_max": 256,
+            },
+            ("coding", "high"): {
+                "input_log_mean": 7.60,
+                "input_log_std": 1.10,
+                "input_min": 64,
+                "input_max": 16384,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 10000,
+                "exp_output_mean": 16,
+                "output_min": 1,
+                "output_max": 256,
+            },
+            ("coding", "ultra"): {
+                "input_log_mean": 8.30,
+                "input_log_std": 1.10,
+                "input_min": 128,
+                "input_max": 24576,
+                "tail_probability": 0.08,
+                "tail_alpha": 1.4,
+                "tail_xmin": 15000,
+                "exp_output_mean": 16,
+                "output_min": 1,
+                "output_max": 256,
+            },
+        }
+
+        # Select preset based on task type and intensity
+        preset_key = (args.workload_task, args.workload_intensity)
+        preset = intensity_presets[preset_key]
+        args.realistic_input_log_mean = preset["input_log_mean"]
+        args.realistic_input_log_std = preset["input_log_std"]
+        args.realistic_input_min = preset["input_min"]
+        args.realistic_input_max = preset["input_max"]
+        args.realistic_tail_probability = preset["tail_probability"]
+        args.realistic_tail_alpha = preset["tail_alpha"]
+        args.realistic_tail_xmin = preset["tail_xmin"]
+        args.realistic_exp_output_mean = preset["exp_output_mean"]
+        args.realistic_output_min = preset["output_min"]
+        args.realistic_output_max = preset["output_max"]
+
     if args.dataset_name == "sonnet":
         dataset = SonnetDataset(dataset_path=args.dataset_path)
         # For the "sonnet" dataset, formatting depends on the backend.
@@ -645,9 +764,9 @@ def main(args: argparse.Namespace):
                 return_prompt_formatted=False,
             )
         else:
-            assert (
-                tokenizer.chat_template or tokenizer.default_chat_template
-            ), "Tokenizer/model must have chat template for sonnet dataset."
+            assert tokenizer.chat_template or tokenizer.default_chat_template, (
+                "Tokenizer/model must have chat template for sonnet dataset."
+            )
             input_requests = dataset.sample(
                 num_requests=args.num_prompts,
                 input_len=args.sonnet_input_len,
@@ -735,6 +854,23 @@ def main(args: argparse.Namespace):
                 output_len=args.random_output_len,
                 range_ratio=args.random_range_ratio,
             ),
+            "realistic": lambda: RealisticRandomDataset(random_seed=args.seed).sample(
+                tokenizer=tokenizer,
+                num_requests=args.num_prompts,
+                input_log_mean=args.realistic_input_log_mean,
+                input_log_std=args.realistic_input_log_std,
+                input_min=args.realistic_input_min,
+                input_max=args.realistic_input_max,
+                tail_probability=getattr(args, "realistic_tail_probability", 0.08),
+                tail_alpha=getattr(args, "realistic_tail_alpha", 1.4),
+                tail_xmin=getattr(args, "realistic_tail_xmin", 4096),
+                use_exponential_output=True,
+                exp_output_mean=getattr(args, "realistic_exp_output_mean", 250),
+                output_log_mean=getattr(args, "realistic_output_log_mean", 5.5),
+                output_log_std=getattr(args, "realistic_output_log_std", 0.95),
+                output_min=args.realistic_output_min,
+                output_max=args.realistic_output_max,
+            ),
         }
 
         try:
@@ -758,7 +894,7 @@ def main(args: argparse.Namespace):
     # Sampling parameters are only supported by openai-compatible backend.
     if sampling_params and args.backend not in OPENAI_COMPATIBLE_BACKENDS:
         raise ValueError(
-            "Sampling parameters are only supported by openai-compatible " "backends."
+            "Sampling parameters are only supported by openai-compatible backends."
         )
 
     if "temperature" not in sampling_params:
@@ -890,7 +1026,7 @@ if __name__ == "__main__":
         "--dataset-name",
         type=str,
         default="sharegpt",
-        choices=["sharegpt", "burstgpt", "sonnet", "random", "hf"],
+        choices=["sharegpt", "burstgpt", "sonnet", "random", "realistic", "hf"],
         help="Name of the dataset to benchmark on.",
     )
     parser.add_argument(
@@ -1126,6 +1262,94 @@ if __name__ == "__main__":
         ),
     )
 
+    realistic_group = parser.add_argument_group("realistic dataset options")
+    realistic_group.add_argument(
+        "--workload-task",
+        type=str,
+        choices=["conversation", "coding"],
+        default="conversation",
+        help="Task type for workload preset (conversation/coding). Used with --workload-intensity.",
+    )
+    realistic_group.add_argument(
+        "--workload-intensity",
+        type=str,
+        choices=["low", "medium", "high", "ultra"],
+        default=None,
+        help="Preset workload intensity (low/medium/high/ultra). Combines with --workload-task to select preset.",
+    )
+    realistic_group.add_argument(
+        "--realistic-input-log-mean",
+        type=float,
+        default=6.2,
+        help="Mean of log(input_tokens) for log-normal distribution (default 6.2 ≈ 492 tokens median).",
+    )
+    realistic_group.add_argument(
+        "--realistic-input-log-std",
+        type=float,
+        default=0.9,
+        help="Std of log(input_tokens) for log-normal distribution (default 0.9).",
+    )
+    realistic_group.add_argument(
+        "--realistic-input-min",
+        type=int,
+        default=32,
+        help="Minimum input tokens (default 32).",
+    )
+    realistic_group.add_argument(
+        "--realistic-input-max",
+        type=int,
+        default=8192,
+        help="Maximum input tokens (default 8192).",
+    )
+    realistic_group.add_argument(
+        "--realistic-tail-probability",
+        type=float,
+        default=0.08,
+        help="Probability of sampling from Pareto tail for input tokens (default 0.08 = 8%%).",
+    )
+    realistic_group.add_argument(
+        "--realistic-tail-alpha",
+        type=float,
+        default=1.4,
+        help="Pareto shape parameter for heavy tail (default 1.4).",
+    )
+    realistic_group.add_argument(
+        "--realistic-tail-xmin",
+        type=int,
+        default=4096,
+        help="Minimum value for Pareto tail samples (default 4096).",
+    )
+    realistic_group.add_argument(
+        "--realistic-exp-output-mean",
+        type=float,
+        default=250,
+        help="Mean for exponential output distribution (default 250 tokens). Used when exponential output is enabled.",
+    )
+    realistic_group.add_argument(
+        "--realistic-output-log-mean",
+        type=float,
+        default=5.5,
+        help="Mean of log(output_tokens) for log-normal distribution (default 5.5 ≈ 244 tokens median). Fallback when exponential output is disabled.",
+    )
+    realistic_group.add_argument(
+        "--realistic-output-log-std",
+        type=float,
+        default=0.95,
+        help="Std of log(output_tokens) for log-normal distribution (default 0.95). Fallback when exponential output is disabled.",
+    )
+    realistic_group.add_argument(
+        "--realistic-output-min",
+        type=int,
+        default=16,
+        help="Minimum output tokens (default 16).",
+    )
+    realistic_group.add_argument(
+        "--realistic-output-max",
+        type=int,
+        default=4096,
+        help="Maximum output tokens (default 4096).",
+    )
+
     hf_group = parser.add_argument_group("hf dataset options")
     hf_group.add_argument(
         "--hf-subset", type=str, default=None, help="Subset of the HF dataset."
@@ -1146,22 +1370,19 @@ if __name__ == "__main__":
         "--top-p",
         type=float,
         default=None,
-        help="Top-p sampling parameter. Only has effect on openai-compatible "
-        "backends.",
+        help="Top-p sampling parameter. Only has effect on openai-compatible backends.",
     )
     sampling_group.add_argument(
         "--top-k",
         type=int,
         default=None,
-        help="Top-k sampling parameter. Only has effect on openai-compatible "
-        "backends.",
+        help="Top-k sampling parameter. Only has effect on openai-compatible backends.",
     )
     sampling_group.add_argument(
         "--min-p",
         type=float,
         default=None,
-        help="Min-p sampling parameter. Only has effect on openai-compatible "
-        "backends.",
+        help="Min-p sampling parameter. Only has effect on openai-compatible backends.",
     )
     sampling_group.add_argument(
         "--temperature",

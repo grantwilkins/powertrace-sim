@@ -16,7 +16,7 @@ class PowerTraceDataset(Dataset):
               (T,3)   (T,1)   (T,)
     """
 
-    def __init__(self, npz_file: str, K: int = 6, use_gmm: bool = False):
+    def __init__(self, npz_file: str, K: int = 6):
         d = np.load(npz_file, allow_pickle=True)
         self.traces: List[Dict[str, np.ndarray]] = []
         self.tp_all: List[int] = []
@@ -53,20 +53,16 @@ class PowerTraceDataset(Dataset):
             y_concat = np.concatenate(
                 [tr["y"] for tr, tp_i in zip(self.traces, self.tp_all) if tp_i == tp]
             ).reshape(-1, 1)
-
-            if use_gmm:
-                model = GaussianMixture(
-                    n_components=K, covariance_type="diag", n_init=10, random_state=0
-                ).fit(y_concat)
-            else:
-                model = KMeans(n_clusters=K, n_init=10, random_state=0).fit(y_concat)
+            model = GaussianMixture(
+                n_components=K, covariance_type="diag", n_init=10, random_state=0
+            ).fit(y_concat)
             self.state_labels[tp] = model
 
         for tr, tp in zip(self.traces, self.tp_all):
             model = self.state_labels[tp]
             tr["z"] = model.predict(tr["y"]).astype("int64")
 
-        self.mu, self.sigma = self.compute_state_statistics(K=K, use_gmm=use_gmm)
+        self.mu, self.sigma = self.compute_state_statistics(K=K)
 
     def __len__(self) -> int:
         return len(self.traces)
@@ -79,38 +75,16 @@ class PowerTraceDataset(Dataset):
             torch.from_numpy(tr["z"]),
         )
 
-    def compute_state_statistics(self, K: int, use_gmm: bool) -> Tuple[dict, dict]:
+    def compute_state_statistics(self, K: int) -> Tuple[dict, dict]:
         mu = {}
         sigma = {}
         for tp in self.state_labels:
             model = self.state_labels[tp]
             mu[tp] = np.zeros(K)
             sigma[tp] = np.zeros(K)
-
-            if use_gmm:
-                for k in range(K):
-                    mu[tp][k] = float(model.means_[k][0])
-                    sigma[tp][k] = float(np.sqrt(model.covariances_[k][0]))
-            else:
-                for k in range(K):
-                    mu[tp][k] = float(model.cluster_centers_[k][0])
-
-                    cluster_points = []
-                    for tr, tp_i in zip(self.traces, self.tp_all):
-                        if tp_i == tp:
-                            k_indices = np.where(tr["z"] == k)[0]
-                            if len(k_indices) > 0:
-                                cluster_points.append(tr["y"][k_indices])
-
-                    if cluster_points:
-                        cluster_points = np.concatenate(cluster_points)
-                        centroid = model.cluster_centers_[k]
-                        distances = np.sqrt(
-                            np.sum((cluster_points - centroid) ** 2, axis=1)
-                        )
-                        sigma[tp][k] = float(np.mean(distances))
-                    else:
-                        sigma[tp][k] = 1.0
+            for k in range(K):
+                mu[tp][k] = float(model.means_[k][0])
+                sigma[tp][k] = float(np.sqrt(model.covariances_[k][0]))
         return mu, sigma
 
 
@@ -127,7 +101,6 @@ class PowerInferenceConfig:
     num_states: int
     state_means: np.ndarray
     state_stds: np.ndarray
-    clustering_method: str
     input_token_samples: np.ndarray
     output_token_samples: np.ndarray
     model_weights_path: str
@@ -189,7 +162,7 @@ def extract_config_from_npz(
     """Extract configuration from existing NPZ file to create JSON config."""
     from core.dataset import PowerTraceDataset
 
-    dataset = PowerTraceDataset(npz_path, K=6, use_gmm=True)
+    dataset = PowerTraceDataset(npz_path, K=6)
     data = np.load(npz_path, allow_pickle=True)
 
     mask = data["tensor_parallelism"] == tp
@@ -204,7 +177,6 @@ def extract_config_from_npz(
         num_states=6,
         state_means=dataset.mu[tp],
         state_stds=dataset.sigma[tp],
-        clustering_method="gmm",
         model_weights_path=weights_path,
         feature_dimensions=6,
     )

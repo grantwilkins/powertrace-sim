@@ -1,409 +1,773 @@
-import itertools
+"""
+ServeGen-based arrival simulator for generating realistic LLM serving workloads.
+Converts ServeGen request patterns into system-level processing timelines.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-import datasets
 import numpy as np
-import pandas as pd
-import transformers
-from core.utils import histogram_requests
+
+# Add ServeGen to path
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../ServeGen"))
+
+try:
+    from servegen import Category, ClientPool
+    from servegen.construct import generate_workload
+    from servegen.utils import get_constant_rate_fn
+
+    SERVEGEN_AVAILABLE = True
+except ImportError as e:
+    print(f"ServeGen not available: {e}")
+    SERVEGEN_AVAILABLE = False
+
+
+_PERF_DB_CACHE: Optional[Dict[str, Dict]] = None
+
+
+def _get_perf_db_path() -> str:
+    """Return absolute path to performance_database.json."""
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    perf_path = os.path.join(this_dir, "../config/performance_database.json")
+    return os.path.normpath(perf_path)
+
+
+def _load_performance_db() -> Dict[str, Dict]:
+    """Load and cache the performance database from JSON."""
+    global _PERF_DB_CACHE
+    if _PERF_DB_CACHE is not None:
+        return _PERF_DB_CACHE
+
+    path = _get_perf_db_path()
+    if not os.path.exists(path):
+        _PERF_DB_CACHE = {}
+        return _PERF_DB_CACHE
+
+    with open(path, "r") as f:
+        _PERF_DB_CACHE = json.load(f)
+    return _PERF_DB_CACHE
+
+
+def _normalize_hardware_for_key(hardware: str) -> str:
+    # Keys use lowercase (e.g., a100, h100)
+    return (hardware or "").strip().lower()
+
+
+def _infer_model_for_key(model_name: str, override: Optional[str]) -> Optional[str]:
+    # Use explicit override if provided
+    if override:
+        return override.strip()
+
+    # Heuristics to map common names to DB families
+    name = (model_name or "").strip().lower()
+    if "llama" in name:
+        # Database uses "llama-3.1"
+        return "llama-3.1"
+    if "deepseek" in name:
+        # Database uses "deepseek-r1-distill"
+        if "distill" in name or "r1" in name:
+            return "deepseek-r1-distill"
+        return "deepseek-r1-distill"
+    return None
+
+
+def _build_db_key(config: ServingConfig) -> Optional[str]:
+    model_key = _infer_model_for_key(config.model_name, config.perf_db_model_name)
+    if not model_key:
+        return None
+    size_part = f"{config.model_size_b}b"
+    hw_part = _normalize_hardware_for_key(config.hardware)
+    tp_part = f"tp{config.tensor_parallelism}"
+    return f"{model_key}_{size_part}_{hw_part}_{tp_part}"
+
+
+class PerformanceSampler:
+    """Samples TTFT and TPOT per request from performance database with fallbacks."""
+
+    def __init__(self, config: ServingConfig):
+        self.config = config
+        self.db = _load_performance_db()
+        self.db_key = _build_db_key(config)
+        self.entry = self.db.get(self.db_key) if self.db_key else None
+        self.use_fallback = self.entry is None
+
+        # Parse distributions if available
+        self.ttft_dist = None
+        self.tpot_dist = None
+        self.ttft_clip = None
+        self.tpot_clip = None
+
+        if not self.use_fallback:
+            # Try new format first, fallback to old format
+            ttft = self.entry.get("ttft_model") or self.entry.get("ttft_distribution", {})
+            tpot = self.entry.get("tpot_distribution", {})
+
+            # For clipping to observed range if present
+            ttft_stats = ttft.get("summary_stats", {})
+            tpot_stats = tpot.get("summary_stats", {})
+            if ttft_stats:
+                self.ttft_clip = (
+                    ttft_stats.get("min_observed"),
+                    ttft_stats.get("max_observed"),
+                )
+            if tpot_stats:
+                self.tpot_clip = (
+                    tpot_stats.get("min_observed"),
+                    tpot_stats.get("max_observed"),
+                )
+
+            # TTFT distribution
+            ttft_type = (ttft.get("type") or "").lower()
+            if ttft_type == "decile_quantile":
+                # Decile-conditioned quantile sampler
+                bin_edges_z = ttft.get("bin_edges_z", [])
+                quantile_levels = ttft.get("quantile_levels", [])
+                bin_quantiles = ttft.get("bin_quantiles", [])
+                nin_min = int(ttft.get("nin_min", 1))
+                nin_max = int(ttft.get("nin_max", 4096))
+                self.ttft_dist = ("decile_quantile", bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max)
+            elif ttft_type == "gamma_glm":
+                # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1)), Var = φ * μ^2
+                beta0 = float(ttft.get("beta0", 0.0))
+                beta1 = float(ttft.get("beta1", 0.0))
+                phi = float(ttft.get("phi", 0.01))
+                nin_min = int(ttft.get("nin_min", 1))
+                nin_max = int(ttft.get("nin_max", 4096))
+                self.ttft_dist = ("gamma_glm", beta0, beta1, phi, nin_min, nin_max)
+            elif ttft_type == "heteroskedastic_log_linear":
+                # Heteroskedastic model: base variance + input-dependent variance
+                intercept = float(ttft.get("intercept", 0.0))
+                slope = float(ttft.get("slope", 1.0))
+                sigma_base = float(ttft.get("sigma_base", 0.1))  # Unconditional noise
+                sigma_intercept = float(ttft.get("sigma_intercept", -2.3))
+                sigma_slope = float(ttft.get("sigma_slope", 0.0))
+                nin_min = int(ttft.get("nin_min", 1))
+                nin_max = int(ttft.get("nin_max", 4096))
+                self.ttft_dist = ("heteroskedastic_log_linear", intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max)
+            elif ttft_type == "log_linear":
+                # Legacy log-linear model: log(TTFT) = a0 + a1 * log(input_tokens) + N(0, sigma^2)
+                intercept = float(ttft.get("intercept", 0.0))
+                slope = float(ttft.get("slope", 1.0))
+                sigma_log = float(ttft.get("sigma_log", 0.1))
+                nin_min = int(ttft.get("nin_min", 1))
+                nin_max = int(ttft.get("nin_max", 4096))
+                self.ttft_dist = ("log_linear", intercept, slope, sigma_log, nin_min, nin_max)
+            elif ttft_type == "gamma":
+                shape = float(ttft.get("shape", 1.0))
+                scale = float(ttft.get("scale", 0.001))
+                self.ttft_dist = ("gamma", shape, scale)
+            elif ttft_type in ("gaussian", "normal", "norm"):
+                mean = float(ttft.get("mean", self.config.ttft_seconds))
+                std = float(ttft.get("std", 1e-3))
+                self.ttft_dist = ("gaussian", mean, std)
+
+            # TPOT distribution
+            tpot_type = (tpot.get("type") or "").lower()
+            if tpot_type in ("gaussian", "normal", "norm"):
+                mean = float(tpot.get("mean", self.config.tpot_seconds))
+                std = float(tpot.get("std", 1e-4))
+                self.tpot_dist = ("gaussian", mean, std)
+            elif tpot_type == "gamma":
+                shape = float(tpot.get("shape", 1.0))
+                scale = float(tpot.get("scale", 1e-3))
+                self.tpot_dist = ("gamma", shape, scale)
+
+        # Seed numpy for reproducibility if desired (kept global control outside)
+
+    def _clip(
+        self, value: float, clip: Optional[Tuple[Optional[float], Optional[float]]]
+    ) -> float:
+        if not clip:
+            return value
+        lo, hi = clip
+        if lo is not None and value < lo:
+            value = lo
+        if hi is not None and value > hi:
+            value = hi
+        return value
+
+    def sample_ttft(self, input_tokens: Optional[int] = None) -> float:
+        """
+        Sample TTFT (time to first token) in seconds.
+
+        Args:
+            input_tokens: Number of input tokens (required for log_linear model)
+        """
+        if self.use_fallback or self.ttft_dist is None:
+            # Fallback: scale by input length if provided
+            if input_tokens is not None:
+                return float(self.config.ttft_seconds * (input_tokens / 512))
+            return float(self.config.ttft_seconds)
+
+        kind = self.ttft_dist[0]
+        if kind == "decile_quantile":
+            # Decile-conditioned quantile sampler
+            _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = self.ttft_dist
+            if input_tokens is None:
+                input_tokens = (nin_min + nin_max) // 2
+
+            # Transform to z-space: z = log(1 + n_in)
+            z = np.log(1 + input_tokens)
+
+            # Find which bin(s) z falls into
+            bin_edges_z = np.array(bin_edges_z)
+            bin_idx = np.searchsorted(bin_edges_z, z, side='right') - 1
+            bin_idx = np.clip(bin_idx, 0, len(bin_quantiles) - 1)
+
+            # Get quantiles for this bin
+            quantiles = np.array(bin_quantiles[bin_idx])
+            quantile_levels = np.array(quantile_levels)
+
+            # Draw uniform random variable
+            u = np.random.uniform(0, 1)
+
+            # Interpolate inverse CDF at probability u
+            val = float(np.interp(u, quantile_levels, quantiles))
+            val = max(val, 0.001)  # Ensure positive (min 1ms)
+        elif kind == "gamma_glm":
+            # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1))
+            # Var = φ * μ^2, so shape k = 1/φ, scale θ = μ/k
+            _, beta0, beta1, phi, nin_min, nin_max = self.ttft_dist
+            if input_tokens is None:
+                input_tokens = (nin_min + nin_max) // 2
+            nin_clamped = np.clip(input_tokens, nin_min, nin_max)
+
+            # Compute mean: μ = exp(β0 + β1 * log(n_in + 1))
+            x = np.log(nin_clamped + 1)
+            mu = np.exp(beta0 + beta1 * x)
+
+            # Gamma parameters: k = 1/φ, θ = μ/k = μ*φ
+            k = 1.0 / phi  # shape
+            theta = mu * phi  # scale
+
+            # Sample from Gamma(k, θ)
+            val = float(np.random.gamma(k, theta))
+            val = max(val, 0.001)  # Ensure positive (min 1ms)
+        elif kind == "heteroskedastic_log_linear":
+            # Heteroskedastic: base variance + input-dependent variance
+            _, intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max = self.ttft_dist
+            if input_tokens is None:
+                # Fallback to mean if input_tokens not provided
+                input_tokens = (nin_min + nin_max) // 2
+            # Clamp to observed range
+            nin_clamped = np.clip(input_tokens, nin_min, nin_max)
+            log_n = np.log(nin_clamped)
+
+            # Mean prediction
+            mu = intercept + slope * log_n
+
+            # Total variance = base + input-dependent
+            # sigma_total = sqrt(sigma_base^2 + sigma_input^2)
+            log_sigma_input = sigma_intercept + sigma_slope * log_n
+            sigma_input = np.exp(log_sigma_input)
+            sigma_total = np.sqrt(sigma_base**2 + sigma_input**2)
+
+            # Sample with combined noise
+            log_ttft = mu + np.random.normal(0, sigma_total)
+            val = float(np.exp(log_ttft))
+            val = max(val, 0.001)  # Ensure positive (min 1ms)
+        elif kind == "log_linear":
+            # Legacy log-linear: constant variance
+            _, intercept, slope, sigma_log, nin_min, nin_max = self.ttft_dist
+            if input_tokens is None:
+                # Fallback to mean if input_tokens not provided
+                input_tokens = (nin_min + nin_max) // 2
+            # Clamp to observed range
+            nin_clamped = np.clip(input_tokens, nin_min, nin_max)
+            log_ttft = intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
+            val = float(np.exp(log_ttft))
+            val = max(val, 0.001)  # Ensure positive (min 1ms)
+        elif kind == "gamma":
+            _, shape, scale = self.ttft_dist
+            val = float(np.random.gamma(shape, scale))
+        elif kind == "gaussian":
+            _, mean, std = self.ttft_dist
+            val = float(np.random.normal(mean, std))
+            if val <= 0:
+                val = mean  # ensure positive
+        else:
+            val = float(self.config.ttft_seconds)
+        return self._clip(val, self.ttft_clip)
+
+    def sample_tpot(self) -> float:
+        if self.use_fallback or self.tpot_dist is None:
+            return float(self.config.tpot_seconds)
+        kind = self.tpot_dist[0]
+        if kind == "gaussian":
+            _, mean, std = self.tpot_dist
+            val = float(np.random.normal(mean, std))
+            if val <= 0:
+                val = mean
+        elif kind == "gamma":
+            _, shape, scale = self.tpot_dist
+            val = float(np.random.gamma(shape, scale))
+        else:
+            val = float(self.config.tpot_seconds)
+        return self._clip(val, self.tpot_clip)
 
 
 @dataclass
-class ModelConfig:
-    """Configuration for a specific model deployment."""
+class ServingConfig:
+    """Configuration for LLM serving system parameters."""
 
-    model_size: int
-    tensor_parallelism: int
-    hardware: str
+    # Model and hardware
+    model_name: str
+    model_size_b: int  # Model size in billions of parameters
+    hardware: str  # "A100", "H100", etc.
+    tensor_parallelism: int = 1
 
-    def __hash__(self):
-        return hash((self.model_size, self.tensor_parallelism, self.hardware))
+    # Performance parameters (can be distributions later)
+    ttft_seconds: float = 0.5  # Time to first token (includes prefill)
+    tpot_seconds: float = 0.02  # Time per output token (1/decode_tps)
+
+    # Optional: explicit performance DB model name (e.g., "llama-3.1", "deepseek-r1-distill")
+    perf_db_model_name: Optional[str] = None
+
+    # System constraints
+    batch_size: int = 32  # Maximum concurrent requests
+    queue_limit: int = 100  # Maximum queued requests
 
     def __str__(self):
-        return f"{self.model_size}B-TP{self.tensor_parallelism}-{self.hardware}"
+        return f"{self.model_name}-TP{self.tensor_parallelism}-{self.hardware}"
 
 
 @dataclass
-class TokenRequest:
-    """Represents a single token processing request."""
+class ServeGenRequest:
+    """Request from ServeGen with timing information."""
 
-    arrival_time: float
-    input_tokens: int
-    output_tokens: int
+    request_id: int
+    arrival_time: float  # When request arrived
+    input_tokens: int  # Context/prompt tokens
+    output_tokens: int  # Generated tokens
+
+    # Computed timing (set by simulator)
+    prefill_start: Optional[float] = None
+    prefill_end: Optional[float] = None
+    decode_start: Optional[float] = None
+    decode_end: Optional[float] = None
 
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
 
-class TokenDistribution:
-    """Manages token distributions and sampling."""
-
-    def __init__(self, input_tokens: np.ndarray, output_tokens: np.ndarray):
-        """
-        Initialize with token distributions.
-
-        Args:
-            input_tokens: Array of input token counts
-            output_tokens: Array of output token counts
-        """
-        self.input_tokens = input_tokens[input_tokens != 0]
-        self.output_tokens = output_tokens[output_tokens != 0]
-
-    def sample(self, count: int = 1) -> List[Tuple[int, int]]:
-        """
-        Sample pairs of input and output token counts.
-
-        Args:
-            count: Number of samples to generate
-
-        Returns:
-            List of (input_tokens, output_tokens) tuples
-        """
-        in_samples = np.random.choice(self.input_tokens, size=count)
-        out_samples = np.random.choice(self.output_tokens, size=count)
-        return [(int(i), int(o)) for i, o in zip(in_samples, out_samples)]
-
-    @classmethod
-    def from_huggingface(
-        cls,
-        dataset_name: str,
-        input_field: str = "inputs",
-        output_field: str = "outputs",
-    ):
-        """
-        Create a distribution from a HuggingFace dataset.
-
-        Args:
-            dataset_name: Name of the HuggingFace dataset
-            input_field: Field containing input text
-            output_field: Field containing output text
-
-        Returns:
-            A new TokenDistribution instance
-        """
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
-            "meta-llama/Llama-3.1-8B-Instruct"
-        )
-        data = datasets.load_dataset(dataset_name)
-
-        input_tokens = np.array(
-            [len(tokenizer.encode(text)) for text in data[input_field]]
-        )
-
-        output_tokens = np.array(
-            [len(tokenizer.encode(text)) for text in data[output_field]]
-        )
-
-        return cls(input_tokens, output_tokens)
-
-
-class ThroughputStats:
-    """Manages throughput statistics for different model configurations."""
+class ServeGenWorkloadGenerator:
+    """Generates realistic workloads using ServeGen data."""
 
     def __init__(self):
-        self.prefill_throughput: Dict[ModelConfig, float] = {}
-        self.decode_throughput: Dict[ModelConfig, float] = {}
-        self.ttft_constant: Dict[ModelConfig, float] = {}
+        if not SERVEGEN_AVAILABLE:
+            raise RuntimeError("ServeGen not available. Please install ServeGen.")
 
-    def add_config(
-        self, config: ModelConfig, prefill_thr: float, decode_thr: float, ttft: float
-    ):
-        """Add throughput stats for a configuration."""
-        self.prefill_throughput[config] = prefill_thr
-        self.decode_throughput[config] = decode_thr
-        self.ttft_constant[config] = ttft
-
-    def get_prefill_throughput(self, config: ModelConfig) -> float:
-        """Get prefill throughput for a configuration."""
-        return self.prefill_throughput[config]
-
-    def get_decode_throughput(self, config: ModelConfig) -> float:
-        """Get decode throughput for a configuration."""
-        return self.decode_throughput[config]
-
-
-class RequestSimulator:
-    """Simulates token processing requests."""
-
-    def __init__(
-        self, token_distribution: TokenDistribution, throughput_stats: ThroughputStats
-    ):
-        self.token_distribution = token_distribution
-        self.throughput_stats = throughput_stats
-
-    def generate_poisson_requests(
-        self, time_horizon: float, arrival_rate: float
-    ) -> List[TokenRequest]:
+    def generate_requests(
+        self,
+        category: str = "language",  # "language", "reason", "multimodal"
+        model_type: str = "m-large",  # "m-small", "m-mid", "m-large"
+        duration: float = 3600,  # Simulation duration in seconds
+        time_window: Optional[str] = None,  # "18:00-19:00" or None for random
+        rate_requests_per_sec: float = 1.0,  # Target request rate
+        seed: int = 0,
+    ) -> List[ServeGenRequest]:
         """
-        Generate requests following a Poisson process.
+        Generate a realistic request stream using ServeGen.
 
         Args:
-            time_horizon: Maximum time to generate requests for
-            arrival_rate: Average number of requests per time unit
+            category: Workload category (language/reason/multimodal)
+            model_type: Model size category (m-small/m-mid/m-large)
+            duration: How long to simulate (seconds)
+            time_window: Time window for realistic patterns (e.g., "18:00-19:00")
+            rate_requests_per_sec: Target arrival rate
+            seed: Random seed for reproducibility
 
         Returns:
-            List of TokenRequest objects
+            List of ServeGenRequest objects with realistic token distributions
         """
+        np.random.seed(seed)
+
+        # Load ServeGen client pool
+        category_enum = getattr(Category, category.upper())
+        pool = ClientPool(category_enum, model_type)
+
+        # Create time window view if specified
+        if time_window:
+            start_sec, end_sec = self._parse_time_window(time_window)
+            view = pool.span(start_sec, end_sec)
+        else:
+            # Use a default productive time window (e.g., 14:00-18:00)
+            view = pool.span(50400, 64800)  # 2pm-6pm
+
+        # Generate rate function
+        rate_fn = get_constant_rate_fn(view, rate_requests_per_sec)
+
+        # Generate ServeGen requests
+        servegen_requests = generate_workload(
+            view, rate_fn, duration=duration, seed=seed
+        )
+
+        # Convert to our internal format
         requests = []
-        t = 0.0
-
-        while t < time_horizon:
-            # Sample next arrival time from exponential distribution
-            t += np.random.exponential(1 / arrival_rate)
-            if t >= time_horizon:
-                break
-
-            # Sample input and output token counts
-            in_tok, out_tok = self.token_distribution.sample(1)[0]
-            requests.append(TokenRequest(t, in_tok, out_tok))
-
-        return requests
-
-    def estimate_completion_times(
-        self, requests: List[TokenRequest], config: ModelConfig
-    ) -> pd.DataFrame:
-        """
-        Estimate completion times for a list of requests.
-
-        Args:
-            requests: List of token requests
-            config: Model configuration to use
-
-        Returns:
-            DataFrame with request timing information
-        """
-        prefill_thr = self.throughput_stats.get_prefill_throughput(config)
-        decode_thr = self.throughput_stats.get_decode_throughput(config)
-
-        data = []
-        for req in requests:
-            prefill_end = req.arrival_time + (req.input_tokens / prefill_thr)
-            decode_end = prefill_end + (req.output_tokens / decode_thr)
-
-            data.append(
-                {
-                    "arrival_time": req.arrival_time,
-                    "input_tokens": req.input_tokens,
-                    "output_tokens": req.output_tokens,
-                    "prefill_end": prefill_end,
-                    "decode_end": decode_end,
-                    "total_time": decode_end - req.arrival_time,
-                }
+        for req in servegen_requests:
+            requests.append(
+                ServeGenRequest(
+                    request_id=req.request_id,
+                    arrival_time=req.timestamp,
+                    input_tokens=req.data["input_tokens"],
+                    output_tokens=req.data["output_tokens"],
+                )
             )
 
-        return pd.DataFrame(data)
+        return sorted(requests, key=lambda x: x.arrival_time)
+
+    def _parse_time_window(self, time_window: str) -> Tuple[int, int]:
+        """Convert time window string to seconds since midnight."""
+        try:
+            start_str, end_str = time_window.split("-")
+            start_hour, start_min = map(int, start_str.split(":"))
+            end_hour, end_min = map(int, end_str.split(":"))
+
+            start_seconds = start_hour * 3600 + start_min * 60
+            end_seconds = end_hour * 3600 + end_min * 60
+
+            return start_seconds, end_seconds
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid time window format: {time_window}. Use 'HH:MM-HH:MM'"
+            ) from e
 
 
-class TokenScheduler:
-    """Schedules and analyzes token processing."""
+class ServingSystemSimulator:
+    """Simulates LLM serving system behavior with batching and queueing."""
 
-    def __init__(self, simulator: RequestSimulator):
-        self.simulator = simulator
+    def __init__(self, config: ServingConfig):
+        self.config = config
 
-    def analyze_schedule(
-        self,
-        requests: List[TokenRequest],
-        config: ModelConfig,
-        time_horizon: float,
-        time_step: float,
+    def simulate_request_processing(
+        self, requests: List[ServeGenRequest]
+    ) -> List[ServeGenRequest]:
+        """
+        Simulate how requests are processed through the serving system.
+
+        Args:
+            requests: List of requests with arrival times
+
+        Returns:
+            List of requests with computed processing timelines
+        """
+        # Sort by arrival time
+        requests = sorted(requests, key=lambda x: x.arrival_time)
+        processed_requests = []
+
+        # Simple FIFO queue simulation with batching
+        active_requests = []  # Currently processing
+
+        # Initialize performance samplers (TTFT/TPOT) based on config/database
+        sampler = PerformanceSampler(self.config)
+
+        for req in requests:
+            # Calculate when this request can start processing
+            if len(active_requests) < self.config.batch_size:
+                # Can start immediately
+                start_time = req.arrival_time
+            else:
+                # Must wait - find earliest completion time
+                earliest_completion = min(
+                    r.decode_end for r in active_requests if r.decode_end
+                )
+                start_time = max(req.arrival_time, earliest_completion)
+
+            # Sample per-request TTFT/TPOT and calculate processing timeline
+            sampled_ttft = sampler.sample_ttft(req.input_tokens)
+            sampled_tpot = sampler.sample_tpot()
+
+            prefill_start = start_time
+            prefill_end = prefill_start + sampled_ttft
+
+            decode_start = prefill_end
+            decode_duration = req.output_tokens * sampled_tpot
+            decode_end = decode_start + decode_duration
+
+            # Update request with timing
+            req.prefill_start = prefill_start
+            req.prefill_end = prefill_end
+            req.decode_start = decode_start
+            req.decode_end = decode_end
+
+            processed_requests.append(req)
+
+            # Clean up completed requests from active list
+            active_requests = [r for r in active_requests if r.decode_end > start_time]
+            active_requests.append(req)
+
+        return processed_requests
+
+    def create_system_timeline(
+        self, requests: List[ServeGenRequest], time_step: float = 0.25
     ) -> Dict[str, np.ndarray]:
         """
-        Analyze a request schedule to get token processing statistics.
+        Create system-level timeline matching the training data format.
+
+        This produces the same 6D feature format as prepare_training_data.py:
+        [request_count, input_tokens, output_tokens, active_requests, prefill_tokens, decode_tokens]
 
         Args:
-            requests: List of token requests
-            config: Model configuration to use
-            time_horizon: Maximum time to analyze
-            time_step: Time step for binning
+            requests: Processed requests with timing information
+            time_step: Time resolution for binning (seconds)
 
         Returns:
-            Dictionary with arrays of statistics over time
+            Dictionary with timeline arrays matching training format
         """
-        # Calculate completion times
-        timing_df = self.simulator.estimate_completion_times(requests, config)
+        if not requests:
+            return {}
 
-        # Initialize time bins
-        timestamps = np.arange(0, time_horizon, time_step)
-        prefill_tokens = np.zeros_like(timestamps, dtype=float)
-        decode_tokens = np.zeros_like(timestamps, dtype=float)
-        active_requests = np.zeros_like(timestamps, dtype=int)
+        # Create time bins
+        start_time = min(req.arrival_time for req in requests)
+        end_time = max(req.decode_end for req in requests)
+        time_bins = np.arange(start_time, end_time + time_step, time_step)
 
-        # Fill bins
-        for t_idx, t in enumerate(timestamps):
-            # Requests that arrive in this time bin
-            new_reqs = timing_df[
-                (timing_df["arrival_time"] >= t)
-                & (timing_df["arrival_time"] < t + time_step)
-            ]
-            prefill_tokens[t_idx] = new_reqs["input_tokens"].sum()
-
-            # Requests in decode phase during this time bin
-            decoding = timing_df[
-                (timing_df["prefill_end"] <= t) & (t < timing_df["decode_end"])
-            ]
-            decode_tokens[t_idx] = decoding["output_tokens"].sum()
-
-            # Active requests during this time bin
-            active = timing_df[
-                (timing_df["arrival_time"] <= t) & (t < timing_df["decode_end"])
-            ]
-            active_requests[t_idx] = len(active)
-
-        # Prepare result arrays
-        return {
-            "timestamps": timestamps,
-            "prefill_tokens": prefill_tokens,
-            "decode_tokens": decode_tokens,
-            "active_requests": active_requests,
-            "request_times": np.array([r.arrival_time for r in requests]),
-            "input_tokens": np.array([r.input_tokens for r in requests]),
-            "output_tokens": np.array([r.output_tokens for r in requests]),
+        # Initialize result arrays
+        timeline = {
+            "timestamps": time_bins,
+            "request_count": np.zeros(len(time_bins)),  # New requests this bin
+            "input_tokens": np.zeros(len(time_bins)),  # Input tokens arriving
+            "output_tokens": np.zeros(len(time_bins)),  # Output tokens arriving
+            "active_requests": np.zeros(len(time_bins)),  # Concurrent requests
+            "prefill_tokens": np.zeros(len(time_bins)),  # Tokens starting prefill
+            "decode_tokens": np.zeros(len(time_bins)),  # Tokens being decoded
+            "request_timestamps": [],  # Individual request times
+            "individual_input_tokens": [],  # Individual request inputs
+            "individual_output_tokens": [],  # Individual request outputs
         }
 
-    def prepare_inference_features(
-        self, schedule_data: Dict[str, np.ndarray]
-    ) -> np.ndarray:
-        """
-        Format schedule data for inference model input.
+        # Fill timeline bins
+        for i, current_time in enumerate(time_bins):
+            # Define time interval for this bin
+            if i == 0:
+                interval_start = current_time - time_step / 2
+            else:
+                interval_start = (current_time + time_bins[i - 1]) / 2
 
-        Args:
-            schedule_data: Schedule data from analyze_schedule
+            if i == len(time_bins) - 1:
+                interval_end = current_time + time_step / 2
+            else:
+                interval_end = (current_time + time_bins[i + 1]) / 2
 
-        Returns:
-            Feature matrix ready for inference (z-scored)
-        """
-        trace_dict = {
-            "timestamps": schedule_data["timestamps"],
-            "request_ts": schedule_data["request_times"],
-            "input_tokens": schedule_data["input_tokens"],
-            "output_tokens": schedule_data["output_tokens"],
-            "active_requests": schedule_data["active_requests"],
-            "prefill_tokens": schedule_data["prefill_tokens"],
-            "decode_tokens": schedule_data["decode_tokens"],
-        }
+            # Requests arriving in this interval
+            arriving = [
+                r for r in requests if interval_start <= r.arrival_time < interval_end
+            ]
+            timeline["request_count"][i] = len(arriving)
+            timeline["input_tokens"][i] = sum(r.input_tokens for r in arriving)
+            timeline["output_tokens"][i] = sum(r.output_tokens for r in arriving)
 
-        cnt, tok_in, tok_out = histogram_requests(
-            bin_ts=trace_dict["timestamps"],
-            req_ts=trace_dict["request_ts"],
-            in_tok=trace_dict["input_tokens"],
-            out_tok=trace_dict["output_tokens"],
+            # Requests starting prefill in this interval
+            prefill_starting = [
+                r for r in requests if interval_start <= r.prefill_start < interval_end
+            ]
+            timeline["prefill_tokens"][i] = sum(
+                r.input_tokens for r in prefill_starting
+            )
+
+            # Requests actively decoding at this time
+            decoding = [
+                r for r in requests if r.decode_start <= current_time <= r.decode_end
+            ]
+            timeline["decode_tokens"][i] = sum(r.output_tokens for r in decoding)
+
+            # Total active requests at this time
+            active = [
+                r for r in requests if r.prefill_start <= current_time <= r.decode_end
+            ]
+            timeline["active_requests"][i] = len(active)
+
+        # Store individual request data for histogram_requests compatibility
+        timeline["request_timestamps"] = np.array([r.arrival_time for r in requests])
+        timeline["individual_input_tokens"] = np.array(
+            [r.input_tokens for r in requests]
+        )
+        timeline["individual_output_tokens"] = np.array(
+            [r.output_tokens for r in requests]
         )
 
+        return timeline
+
+    def create_feature_matrix(self, timeline: Dict[str, np.ndarray]) -> np.ndarray:
+        """
+        Create 6D feature matrix matching training format.
+
+        Uses the same logic as make_schedule_matrix in core/utils.py.
+
+        Returns:
+            (T, 6) array with [request_count, input_tokens, output_tokens,
+                              active_requests, prefill_tokens, decode_tokens]
+        """
+        from core.utils import histogram_requests
+
+        # Get histogrammed arrival data (matches training pipeline)
+        cnt, tok_in, tok_out = histogram_requests(
+            bin_ts=timeline["timestamps"],
+            req_ts=timeline["request_timestamps"],
+            in_tok=timeline["individual_input_tokens"],
+            out_tok=timeline["individual_output_tokens"],
+        )
+
+        # Stack features (same order as training)
         x = np.stack(
             [
-                cnt,
-                tok_in,
-                tok_out,
-                trace_dict["active_requests"],
-                trace_dict["prefill_tokens"],
-                trace_dict["decode_tokens"],
+                cnt,  # Request count
+                tok_in,  # Input tokens (histogrammed)
+                tok_out,  # Output tokens (histogrammed)
+                timeline["active_requests"],  # Active requests
+                timeline["prefill_tokens"],  # Prefill tokens
+                timeline["decode_tokens"],  # Decode tokens
             ],
-            axis=-1,
-        )
+            axis=1,
+        ).astype("float32")
 
-        # Z-score normalize each column
+        # Z-score normalize (same as training)
         mu = x.mean(0, keepdims=True)
         sd = x.std(0, keepdims=True) + 1e-6
         return (x - mu) / sd
 
 
-class TokenSimulator:
-    """Main class for token-based LLM simulation."""
+class ServeGenPowerSimulator:
+    """End-to-end simulator using ServeGen for power trace generation."""
 
-    @classmethod
-    def from_npz(cls, npz_file: str, hf_dataset: Optional[str] = None):
-        """
-        Create a simulator from an NPZ file.
+    def __init__(self, serving_config: ServingConfig):
+        self.serving_config = serving_config
+        self.workload_generator = ServeGenWorkloadGenerator()
+        self.system_simulator = ServingSystemSimulator(serving_config)
 
-        Args:
-            npz_file: Path to NPZ file with benchmark data
-            hf_dataset: Optional HuggingFace dataset name
-
-        Returns:
-            A configured TokenSimulator instance
-        """
-        # Load data
-        data = np.load(npz_file, allow_pickle=True)
-
-        # Set up token distribution
-        if hf_dataset:
-            token_dist = TokenDistribution.from_huggingface(hf_dataset)
-        else:
-            token_dist = TokenDistribution(data["input_tokens"], data["output_tokens"])
-
-        # Set up throughput stats
-        throughput_stats = ThroughputStats()
-        unique_models = np.unique(data["model_sizes"])
-        unique_tp = np.unique(data["tensor_parallelism"])
-        unique_hw = np.unique(data["hardware"])
-
-        for ms, tp, hw in itertools.product(unique_models, unique_tp, unique_hw):
-            mask = (
-                (data["model_sizes"] == ms)
-                & (data["tensor_parallelism"] == tp)
-                & (data["hardware"] == hw)
-            )
-
-            if not np.any(mask):
-                continue
-
-            config = ModelConfig(ms, tp, hw)
-            prefill_thr = np.mean(data["prefill_throughputs"][mask].flatten())
-            decode_thr = np.mean(data["decode_throughputs"][mask].flatten())
-            ttft = np.mean(data["prefill_times"][mask].flatten())
-
-            throughput_stats.add_config(config, prefill_thr, decode_thr, ttft)
-
-        request_sim = RequestSimulator(token_dist, throughput_stats)
-        scheduler = TokenScheduler(request_sim)
-
-        simulator = cls()
-        simulator.token_distribution = token_dist
-        simulator.throughput_stats = throughput_stats
-        simulator.request_simulator = request_sim
-        simulator.scheduler = scheduler
-
-        return simulator
-
-    def run_simulation(
+    def generate_power_simulation_data(
         self,
-        config: ModelConfig,
-        time_horizon: float = 600,
-        arrival_rate: float = 1.0,
-        time_step: float = 0.25,
+        category: str = "language",
+        model_type: str = "m-large",
+        duration: float = 3600,
+        rate_requests_per_sec: float = 1.0,
+        time_window: Optional[str] = None,
+        seed: int = 0,
     ) -> Dict[str, np.ndarray]:
         """
-        Run a complete simulation.
+        Generate complete simulation data for power prediction.
 
-        Args:
-            config: Model configuration to use
-            time_horizon: Simulation time horizon
-            arrival_rate: Request arrival rate (per time unit)
-            time_step: Time step for analysis
-
-        Returns:
-            Dictionary with simulation results
+        Returns dictionary with keys matching the training NPZ format:
+        - timestamps, request_timestamps
+        - input_tokens, output_tokens
+        - prefill_tokens, decode_tokens, active_requests
+        - And other metadata needed for GRU inference
         """
-        requests = self.request_simulator.generate_poisson_requests(
-            time_horizon, arrival_rate
+
+        # Step 1: Generate realistic requests
+        requests = self.workload_generator.generate_requests(
+            category=category,
+            model_type=model_type,
+            duration=duration,
+            time_window=time_window,
+            rate_requests_per_sec=rate_requests_per_sec,
+            seed=seed,
         )
 
-        return self.scheduler.analyze_schedule(
-            requests, config, time_horizon, time_step
-        )
+        if not requests:
+            raise ValueError("No requests generated. Check ServeGen configuration.")
 
-    def prepare_for_inference(
-        self, simulation_results: Dict[str, np.ndarray]
-    ) -> np.ndarray:
-        """
-        Convert simulation results to the format expected by inference models.
+        # Step 2: Simulate serving system processing
+        processed_requests = self.system_simulator.simulate_request_processing(requests)
 
-        Args:
-            simulation_results: Results from run_simulation
+        # Step 3: Create system timeline
+        timeline = self.system_simulator.create_system_timeline(processed_requests)
 
-        Returns:
-            Feature matrix ready for inference (z-scored)
-        """
-        return self.scheduler.prepare_inference_features(simulation_results)
+        # Step 4: Create feature matrix for GRU
+        feature_matrix = self.system_simulator.create_feature_matrix(timeline)
+
+        return {
+            "feature_matrix": feature_matrix,
+            "timeline": timeline,
+            "requests": processed_requests,
+            "serving_config": self.serving_config,
+        }
+
+
+# Convenience functions for easy usage
+def create_llama_config(
+    size_b: int, tp: int = 1, hardware: str = "A100"
+) -> ServingConfig:
+    """Create a standard Llama model configuration."""
+    # TTFT varies by model size (larger models take longer for prefill)
+    ttft = 0.5 if size_b <= 8 else 0.8 if size_b <= 70 else 1.2
+    # TPOT also varies by model size (larger models slower per token)
+    tpot = 0.02 if size_b <= 8 else 0.033 if size_b <= 70 else 0.05
+
+    return ServingConfig(
+        model_name=f"llama-3-{size_b}b",
+        model_size_b=size_b,
+        hardware=hardware,
+        tensor_parallelism=tp,
+        ttft_seconds=ttft,
+        tpot_seconds=tpot,
+        batch_size=32,
+        perf_db_model_name="llama-3.1",
+    )
+
+
+def create_deepseek_config(
+    size_b: int, tp: int = 1, hardware: str = "A100"
+) -> ServingConfig:
+    """Create a standard DeepSeek model configuration."""
+    # Reasoning models typically have higher TTFT and TPOT
+    ttft = 0.8 if size_b <= 8 else 1.2 if size_b <= 70 else 1.8
+    tpot = (
+        0.022 if size_b <= 8 else 0.04 if size_b <= 70 else 0.067
+    )  # Slightly slower per token
+
+    return ServingConfig(
+        model_name=f"deepseek-r1-{size_b}b",
+        model_size_b=size_b,
+        hardware=hardware,
+        tensor_parallelism=tp,
+        ttft_seconds=ttft,
+        tpot_seconds=tpot,
+        batch_size=24,  # Smaller batches for reasoning workloads
+        perf_db_model_name="deepseek-r1-distill",
+    )
+
+
+def quick_simulate(
+    model: str = "llama-3-8b",
+    hardware: str = "A100",
+    tp: int = 1,
+    workload: str = "language",
+    duration: float = 3600,
+    rate: float = 1.0,
+) -> Dict[str, np.ndarray]:
+    """
+    Quick simulation with sensible defaults.
+
+    Args:
+        model: Model name (e.g., "llama-3-8b", "deepseek-r1-70b")
+        hardware: Hardware type ("A100", "H100")
+        tp: Tensor parallelism
+        workload: Workload type ("language", "reason", "multimodal")
+        duration: Simulation time (seconds)
+        rate: Request rate (requests/sec)
+
+    Returns:
+        Simulation data ready for GRU inference
+    """
+    # Parse model configuration
+    if "llama" in model.lower():
+        size = int(model.split("-")[-1].replace("b", ""))
+        config = create_llama_config(size, tp, hardware)
+    elif "deepseek" in model.lower():
+        size = int(model.split("-")[-1].replace("b", ""))
+        config = create_deepseek_config(size, tp, hardware)
+    else:
+        raise ValueError(f"Unknown model: {model}")
+
+    # Run simulation
+    simulator = ServeGenPowerSimulator(config)
+    return simulator.generate_power_simulation_data(
+        category=workload, duration=duration, rate_requests_per_sec=rate
+    )
