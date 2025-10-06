@@ -62,7 +62,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    dataset = PowerTraceDataset(args.data_file, use_gmm=True)
+    dataset = PowerTraceDataset(args.data_file)
     device = None
     if args.device:
         device = torch.device(args.device)

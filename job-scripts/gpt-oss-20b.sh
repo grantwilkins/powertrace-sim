@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(4 8)
+TENSOR_PARALLEL_SIZES=(1 2 4 8)
 ALL_INTENSITIES=(low medium high ultra)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5
@@ -23,7 +23,7 @@ random_intensity() {
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
     export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
     cd ~/powertrace-sim/server
-    setsid bash serve-deepseek-r1-distill-70b.sh 2>&1 &
+    setsid bash serve-gpt-oss-20b.sh 2>&1 &
     SERVING_PID=$!
     SERVING_PGID=$(ps -o pgid= -p "$SERVING_PID" | tr -d ' ')
 
@@ -57,7 +57,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
             WORKLOAD_INTENSITY=${CONFIG[1]}
 
             DATE_TIME=$(date '+%Y-%m-%d-%H-%M-%S')
-            OUTPUT_PREFIX="deepseek-r1-distill-70b_tp${TENSOR_PARALLEL_SIZE}_${WORKLOAD_TASK}_${WORKLOAD_INTENSITY}_rate${ARRIVAL_RATE}_iter${ITERATION}_${DATE_TIME}"
+            OUTPUT_PREFIX="gpt-oss-20b_tp${TENSOR_PARALLEL_SIZE}_${WORKLOAD_TASK}_${WORKLOAD_INTENSITY}_rate${ARRIVAL_RATE}_iter${ITERATION}_${DATE_TIME}"
             echo "  Iteration ${ITERATION}/${ITERATIONS}: Task=${WORKLOAD_TASK}, Intensity=${WORKLOAD_INTENSITY}"
 
             # Start GPU monitoring
@@ -70,7 +70,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
 
             # Run benchmark
             python3 benchmark_serving.py \
-                --model deepseek-ai/DeepSeek-R1-Distill-Llama-70B \
+                --model openai/gpt-oss-20b \
                 --backend vllm \
                 --dataset-name realistic \
                 --workload-task ${WORKLOAD_TASK} \
@@ -86,7 +86,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
             kill -9 ${NVIDIA_SMI_PID}
         done
     done
-    
+
     # Shutdown server
     echo "Shutting down server (TP=${TENSOR_PARALLEL_SIZE})..."
     kill -TERM -- "-$SERVING_PGID"

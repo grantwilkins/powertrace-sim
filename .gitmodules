@@ -1,0 +1,3 @@
+[submodule "ServeGen"]
+	path = ServeGen
+	url = https://github.com/alibaba/ServeGen.git
