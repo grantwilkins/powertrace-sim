@@ -405,14 +405,20 @@ def create_performance_database(data_root_dir: str, output_file: str):
                 raw_data_by_config[key]["input_lens"].extend(input_lens)
                 raw_data_by_config[key]["ttft_values_s"].extend(ttft_s)
 
-            # For TPOT: use ITLs (inter-token latencies) which are per-token decode times
-            # ITLs are lists of token-by-token latencies (already in seconds)
+            # For TPOT: use ITLs (inter-token latencies)
+            # New format: ITLs are mean values per request (single floats)
+            # Legacy format: ITLs are lists of per-token latencies
             itls = data.get("itls", [])
             if itls:
-                # Flatten all ITLs from all requests into one list
-                for request_itls in itls:
-                    if request_itls:  # Skip empty lists
-                        raw_data_by_config[key]["tpot_values_s"].extend(request_itls)
+                # Check format: if first element is a list, it's legacy format
+                if itls and isinstance(itls[0], list):
+                    # Legacy: Flatten all ITLs from all requests
+                    for request_itls in itls:
+                        if request_itls:  # Skip empty lists
+                            raw_data_by_config[key]["tpot_values_s"].extend(request_itls)
+                else:
+                    # New format: ITLs are already mean values per request
+                    raw_data_by_config[key]["tpot_values_s"].extend(itls)
 
             # Fallback: if no ITLs, use mean TPOT as proxy
             elif "mean_tpot_ms" in data:

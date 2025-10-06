@@ -193,7 +193,9 @@ def calculate_metrics(
                 tpots.append(tpot)
             # Note: if output_len <= 1, we regard tpot as 0 for goodput
             all_tpots.append(tpot)
-            itls += outputs[i].itl
+            # Store mean ITL per request instead of all ITLs to reduce file size
+            if outputs[i].itl and len(outputs[i].itl) > 0:
+                itls.append(np.mean(outputs[i].itl))
             ttfts.append(outputs[i].ttft)
             e2els.append(outputs[i].latency)
             timestamps.append(outputs[i].request_timestamp)
@@ -477,8 +479,6 @@ async def benchmark(
         "output_lens": actual_output_lens,
         "ttfts": [output.ttft for output in outputs],
         "itls": [output.itl for output in outputs],
-        "generated_texts": [output.generated_text for output in outputs],
-        "errors": [output.error for output in outputs],
         "request_timestamps": metrics.request_timestamps,
     }
 
@@ -588,7 +588,7 @@ def save_to_pytorch_benchmark_format(
     ]
     # These raw data might be useful, but they are rather big. They can be added
     # later if needed
-    ignored_metrics = ["ttfts", "itls", "generated_texts", "errors"]
+    ignored_metrics = ["ttfts", "itls"]
     pt_records = convert_to_pytorch_benchmark_format(
         args=args,
         metrics={k: [results[k]] for k in metrics},
@@ -968,8 +968,6 @@ def main(args: argparse.Namespace):
                 "output_lens",
                 "ttfts",
                 "itls",
-                "generated_texts",
-                "errors",
             ]:
                 if field in result_json:
                     del result_json[field]
