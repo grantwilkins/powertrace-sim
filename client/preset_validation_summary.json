@@ -1,3 +1,154 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:c2c7515a2ce32306b50a3dfca9881567c3bc9fe57a324f37220cb4df1f850e90
-size 2786
+{
+  "conversation_low": {
+    "input": {
+      "min": 16,
+      "median": 218,
+      "mean": 448.97665,
+      "p90": 1159,
+      "max": 6136,
+      "target_median": 200,
+      "tail_pct": 8.2
+    },
+    "output": {
+      "min": 8,
+      "median": 83,
+      "mean": 119.46555,
+      "p90": 274,
+      "max": 1024,
+      "target_mean": 120
+    }
+  },
+  "conversation_medium": {
+    "input": {
+      "min": 32,
+      "median": 571,
+      "mean": 1143.5907,
+      "p90": 3077,
+      "max": 12237,
+      "target_median": 502,
+      "tail_pct": 8.125
+    },
+    "output": {
+      "min": 16,
+      "median": 173,
+      "mean": 249.34075,
+      "p90": 574,
+      "max": 2048,
+      "target_mean": 250
+    }
+  },
+  "conversation_high": {
+    "input": {
+      "min": 64,
+      "median": 1695,
+      "mean": 2896.4942,
+      "p90": 7680,
+      "max": 24319,
+      "target_median": 1495,
+      "tail_pct": 8.16
+    },
+    "output": {
+      "min": 32,
+      "median": 421,
+      "mean": 598.5158,
+      "p90": 1372,
+      "max": 4096,
+      "target_mean": 600
+    }
+  },
+  "conversation_ultra": {
+    "input": {
+      "min": 128,
+      "median": 3374,
+      "mean": 5756.7614,
+      "p90": 15247,
+      "max": 49025,
+      "target_median": 3010,
+      "tail_pct": 7.765
+    },
+    "output": {
+      "min": 64,
+      "median": 708,
+      "mean": 1005.91605,
+      "p90": 2302,
+      "max": 8192,
+      "target_mean": 1000
+    }
+  },
+  "coding_low": {
+    "input": {
+      "min": 16,
+      "median": 329,
+      "mean": 793.8327,
+      "p90": 2009,
+      "max": 12285,
+      "target_median": 298,
+      "tail_pct": 7.75
+    },
+    "output": {
+      "min": 1,
+      "median": 11,
+      "mean": 15.55995,
+      "p90": 36,
+      "max": 179,
+      "target_mean": 16
+    }
+  },
+  "coding_medium": {
+    "input": {
+      "min": 32,
+      "median": 786,
+      "mean": 1853.82505,
+      "p90": 5369,
+      "max": 24574,
+      "target_median": 699,
+      "tail_pct": 7.95
+    },
+    "output": {
+      "min": 1,
+      "median": 11,
+      "mean": 15.6245,
+      "p90": 37,
+      "max": 142,
+      "target_mean": 16
+    }
+  },
+  "coding_high": {
+    "input": {
+      "min": 64,
+      "median": 2257,
+      "mean": 4565.656,
+      "p90": 12520,
+      "max": 48950,
+      "target_median": 1998,
+      "tail_pct": 7.89
+    },
+    "output": {
+      "min": 1,
+      "median": 11,
+      "mean": 15.63945,
+      "p90": 36,
+      "max": 178,
+      "target_mean": 16
+    }
+  },
+  "coding_ultra": {
+    "input": {
+      "min": 128,
+      "median": 4569,
+      "mean": 8162.1469,
+      "p90": 21969,
+      "max": 73149,
+      "target_median": 4023,
+      "tail_pct": 7.93
+    },
+    "output": {
+      "min": 1,
+      "median": 11,
+      "mean": 15.57525,
+      "p90": 36,
+      "max": 169,
+      "target_mean": 16
+    }
+  }
+}
