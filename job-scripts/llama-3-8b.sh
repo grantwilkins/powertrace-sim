@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(1 2 4 8)
-ALL_INTENSITIES=(low medium high ultra)
+TENSOR_PARALLEL_SIZES=(8)
+ALL_INTENSITIES=(low medium high)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5
 ARRIVAL_RATES=(0.015625 0.0625 0.25 1 4 16 64)
@@ -40,8 +40,8 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         # Iteration 2: high with random task
         # Iterations 3-5: random task and intensity
         WORKLOAD_CONFIGS=(
-            "$(random_task) ultra"
-            "$(random_task) high"
+            "coding high"
+            "conversation high"
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
@@ -60,7 +60,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
             touch ${OUTPUT_PREFIX}.csv
             nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> ${OUTPUT_PREFIX}.csv &
             NVIDIA_SMI_PID=$!
-            NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${ARRIVAL_RATE}" | bc))
+            NUM_PROMPTS=$(printf "%.0f" $(echo "300 * ${ARRIVAL_RATE}" | bc))
             python3 benchmark_serving.py \
                 --model meta-llama/Llama-3.1-8B-Instruct \
                 --backend vllm \

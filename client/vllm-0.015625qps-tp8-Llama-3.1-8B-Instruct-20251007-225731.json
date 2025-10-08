@@ -1,0 +1,80 @@
+{
+  "date": "20251007-225731",
+  "backend": "vllm",
+  "model_id": "meta-llama/Llama-3.1-8B-Instruct",
+  "tokenizer_id": "meta-llama/Llama-3.1-8B-Instruct",
+  "num_prompts": 5,
+  "tensor_parallel_size": 8,
+  "request_rate": 0.015625,
+  "burstiness": 1.0,
+  "max_concurrency": null,
+  "duration": 331.9602962370009,
+  "completed": 5,
+  "total_input_tokens": 3962,
+  "total_output_tokens": 519,
+  "request_throughput": 0.015062042228177442,
+  "request_goodput:": null,
+  "output_throughput": 1.5634399832848183,
+  "total_token_throughput": 13.498602244892622,
+  "input_lens": [
+    897,
+    281,
+    460,
+    1345,
+    979
+  ],
+  "output_lens": [
+    90,
+    100,
+    311,
+    8,
+    10
+  ],
+  "ttfts": [
+    0.013438647998555098,
+    0.01509810999777983,
+    0.020936363998771412,
+    0.021385249998274958,
+    0.020430633001524257
+  ],
+  "itls": [
+    0.0030118538539436793,
+    0.002990003646449292,
+    0.0030005165161245744,
+    0.0028904651428872186,
+    0.002833331888622423
+  ],
+  "generated_texts": [
+    "I\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_",
+    "screencapture<|reserved_special_token_173|>import os\nimport sys\nimport time\nimport datetime\nimport random\nimport math\nimport re\nimport string\nimport itertools\nimport functools\nimport operator\nimport collections\nimport heapq\nimport bisect\nimport decimal\nimport fractions\nimport numpy\nimport scipy\nimport pandas\nimport matplotlib\nimport seaborn\nimport plotly\nimport sklearn\nimport tensorflow\nimport keras\nimport pytorch\nimport torch\nimport torchvision\n",
+    "abiliy\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_",
+    "\ufffd.t\ufffd.t\ufffd.",
+    "\ufffd_\ufffd_\ufffd_\ufffd_\ufffd_"
+  ],
+  "errors": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "request_timestamps": [
+    1759877519.3676853,
+    1759877529.0555418,
+    1759877659.7755933,
+    1759877700.8871787,
+    1759877804.2722847
+  ],
+  "mean_ttft_ms": 18.25780099898111,
+  "median_ttft_ms": 20.430633001524257,
+  "std_ttft_ms": 3.3131471069933722,
+  "p99_ttft_ms": 21.367294558294816,
+  "mean_tpot_ms": 2.9452173363415213,
+  "median_tpot_ms": 2.9900003838437526,
+  "std_tpot_ms": 0.07075284539672452,
+  "p99_tpot_ms": 3.0113923772204103,
+  "mean_itl_ms": 2.9960286322877385,
+  "median_itl_ms": 2.9968795006425353,
+  "std_itl_ms": 0.13002354298327218,
+  "p99_itl_ms": 3.300685600042925
+}
