@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(1 2 4 8)
-ALL_INTENSITIES=(low medium high ultra)
+TENSOR_PARALLEL_SIZES=(4 8)
+ALL_INTENSITIES=(low medium high)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5
 
@@ -43,8 +43,8 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         # Iteration 2: high with random task
         # Iterations 3-5: random task and intensity
         WORKLOAD_CONFIGS=(
-            "$(random_task) ultra"
-            "$(random_task) high"
+            "coding high"
+            "conversation high"
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
@@ -66,7 +66,7 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
             NVIDIA_SMI_PID=$!
 
             # Calculate number of prompts for 10 minutes at this arrival rate
-            NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${ARRIVAL_RATE}" | bc))
+            NUM_PROMPTS=$(printf "%.0f" $(echo "300 * ${ARRIVAL_RATE}" | bc))
 
             # Run benchmark
             python3 benchmark_serving.py \

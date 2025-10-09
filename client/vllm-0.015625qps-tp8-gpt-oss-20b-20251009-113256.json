@@ -1,0 +1,80 @@
+{
+  "date": "20251009-113256",
+  "backend": "vllm",
+  "model_id": "openai/gpt-oss-20b",
+  "tokenizer_id": "openai/gpt-oss-20b",
+  "num_prompts": 5,
+  "tensor_parallel_size": 8,
+  "request_rate": 0.015625,
+  "burstiness": 1.0,
+  "max_concurrency": null,
+  "duration": 331.8769498389993,
+  "completed": 5,
+  "total_input_tokens": 54850,
+  "total_output_tokens": 66,
+  "request_throughput": 0.015065824855946184,
+  "request_goodput:": null,
+  "output_throughput": 0.19886888809848963,
+  "total_token_throughput": 165.47096755782812,
+  "input_lens": [
+    13911,
+    3103,
+    5864,
+    16384,
+    15588
+  ],
+  "output_lens": [
+    10,
+    13,
+    41,
+    1,
+    1
+  ],
+  "ttfts": [
+    0.04393416899984004,
+    0.02553110100052436,
+    0.03610109600049327,
+    0.05759726100041007,
+    0.06750181000097655
+  ],
+  "itls": [
+    0.0020524165554686785,
+    0.002360026750011457,
+    0.0024263111250093063,
+    0.0024263111250093063,
+    0.0024263111250093063
+  ],
+  "generated_texts": [
+    "<|vq_clip_12273|>",
+    "s<|vq_clip_12273|>this image",
+    "<|vq_clip_12273|>this is a screenshot of a code editor with a python script. the script is a function that calculates the sum of two numbers. the code is written in",
+    " ",
+    "<"
+  ],
+  "errors": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "request_timestamps": [
+    1760009244.261958,
+    1760009253.928155,
+    1760009384.609767,
+    1760009425.7064505,
+    1760009529.0997672
+  ],
+  "mean_ttft_ms": 46.13308740044886,
+  "median_ttft_ms": 43.93416899984004,
+  "std_ttft_ms": 14.953043296348362,
+  "p99_ttft_ms": 67.10562804095389,
+  "mean_tpot_ms": 2.2795218444049103,
+  "median_tpot_ms": 2.360003749951526,
+  "std_tpot_ms": 0.1629638287580132,
+  "p99_tpot_ms": 2.4249784359993405,
+  "mean_itl_ms": 2.3581068032742265,
+  "median_itl_ms": 2.4063830005616182,
+  "std_itl_ms": 0.37274679389965754,
+  "p99_itl_ms": 2.8945196001586737
+}

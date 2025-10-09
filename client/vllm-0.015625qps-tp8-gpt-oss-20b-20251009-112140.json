@@ -1,0 +1,80 @@
+{
+  "date": "20251009-112140",
+  "backend": "vllm",
+  "model_id": "openai/gpt-oss-20b",
+  "tokenizer_id": "openai/gpt-oss-20b",
+  "num_prompts": 5,
+  "tensor_parallel_size": 8,
+  "request_rate": 0.015625,
+  "burstiness": 1.0,
+  "max_concurrency": null,
+  "duration": 331.87486099799935,
+  "completed": 5,
+  "total_input_tokens": 31181,
+  "total_output_tokens": 771,
+  "request_throughput": 0.015065919681184113,
+  "request_goodput:": null,
+  "output_throughput": 2.32316481483859,
+  "total_token_throughput": 96.27725313063895,
+  "input_lens": [
+    8192,
+    2303,
+    4302,
+    8192,
+    8192
+  ],
+  "output_lens": [
+    101,
+    503,
+    112,
+    44,
+    11
+  ],
+  "ttfts": [
+    0.03176854999946954,
+    0.023176431999672786,
+    0.030707023999639205,
+    0.03953113799980201,
+    0.04182423900056165
+  ],
+  "itls": [
+    0.002407339559995307,
+    0.0023936625369236583,
+    0.0024068494324285543,
+    0.00276120665114641,
+    0.00239883699996426
+  ],
+  "generated_texts": [
+    "<|vq_clip_12273|>this is a screenshot of a website that displays a list of products. the page is divided into two sections, one for the product and the other for the product's details. the product is a 3d model of a car, and the product's details are displayed in a table format. the page also has a search bar and a menu bar. the website appears to be a product listing page for a 3d model of a car.",
+    "i<|vq_clip_12273|>this is a screenshot of a conversation between two users on a messaging platform. the user is asking for a photo of a person named \"sara\" and the other user is responding with a photo of a woman. the conversation appears to be in a language that is not familiar to the user. the user is also asking for a photo of a person named \"sara\" and the other user is responding with a photo of a woman. the conversation is in a language that is not familiar to the user. the user is also asking for a photo of a person named \"sara\" and the other user is responding with a photo of a woman. the conversation is in a language that is not familiar to the user. the user is also asking for a photo of a person named \"sara\" and the other user is responding with a photo of a woman. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar to the user. the conversation is in a language that is not familiar",
+    "<|vq_clip_12273|>this image displays a list of files and folders in a computer's file explorer. the files are organized in a hierarchical structure, with the topmost folder being \"c:\\users\\user\\documents\\my files\". the files are labeled with different names and are arranged in a grid-like pattern. the file explorer is open and the user can see the files and folders in the list. the image appears to be a screenshot of a computer's file explorer, showing the files and folders in a hierarchical structure.",
+    " 2019 2018 2017 2016 2015 2014 2013 2012 2011 2010 2009 2008 2007 2006 200",
+    "ern<|vq_clip_12273|>"
+  ],
+  "errors": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "request_timestamps": [
+    1760008568.8147507,
+    1760008578.4969163,
+    1760008709.1229558,
+    1760008750.2390685,
+    1760008853.6110415
+  ],
+  "mean_ttft_ms": 33.40147659982904,
+  "median_ttft_ms": 31.768549999469542,
+  "std_ttft_ms": 6.678229353796251,
+  "p99_ttft_ms": 41.73251496053126,
+  "mean_tpot_ms": 2.472615395825561,
+  "median_tpot_ms": 2.40684734234418,
+  "std_tpot_ms": 0.1444473354473676,
+  "p99_tpot_ms": 2.7470443324759692,
+  "mean_itl_ms": 2.4180907581657403,
+  "median_itl_ms": 2.3810349994164426,
+  "std_itl_ms": 0.185042535789717,
+  "p99_itl_ms": 2.9153239598235814
+}

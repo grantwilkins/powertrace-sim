@@ -1,0 +1,80 @@
+{
+  "date": "20251009-113833",
+  "backend": "vllm",
+  "model_id": "openai/gpt-oss-20b",
+  "tokenizer_id": "openai/gpt-oss-20b",
+  "num_prompts": 5,
+  "tensor_parallel_size": 8,
+  "request_rate": 0.015625,
+  "burstiness": 1.0,
+  "max_concurrency": null,
+  "duration": 331.7958224260001,
+  "completed": 5,
+  "total_input_tokens": 54850,
+  "total_output_tokens": 66,
+  "request_throughput": 0.01506950860152901,
+  "request_goodput:": null,
+  "output_throughput": 0.19891751354018292,
+  "total_token_throughput": 165.51142687231342,
+  "input_lens": [
+    13911,
+    3103,
+    5864,
+    16384,
+    15588
+  ],
+  "output_lens": [
+    10,
+    13,
+    41,
+    1,
+    1
+  ],
+  "ttfts": [
+    0.04564910500084807,
+    0.026296055999409873,
+    0.03721573599978001,
+    0.058370389000629075,
+    0.08113102999959665
+  ],
+  "itls": [
+    0.002150363888884183,
+    0.0023212586667492965,
+    0.002391335374977643,
+    0.002391335374977643,
+    0.002391335374977643
+  ],
+  "generated_texts": [
+    "<|vq_clip_12273|>",
+    "s<|vq_clip_12273|>this image",
+    "<|vq_clip_12273|>this image displays a table with various columns and rows. the table appears to be a part of a larger dataset, with columns labeled \"id\", \"name",
+    " ",
+    "<"
+  ],
+  "errors": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "request_timestamps": [
+    1760009582.1123753,
+    1760009591.77508,
+    1760009722.4074867,
+    1760009763.5305777,
+    1760009866.8363197
+  ],
+  "mean_ttft_ms": 49.732463200052734,
+  "median_ttft_ms": 45.64910500084807,
+  "std_ttft_ms": 18.884338567527788,
+  "p99_ttft_ms": 80.22060435963795,
+  "mean_tpot_ms": 2.287614869456539,
+  "median_tpot_ms": 2.3212332500103607,
+  "std_tpot_ms": 0.10123583499632344,
+  "p99_tpot_ms": 2.3899251494979885,
+  "mean_itl_ms": 2.3419966229517204,
+  "median_itl_ms": 2.403670001513092,
+  "std_itl_ms": 0.34959898983427645,
+  "p99_itl_ms": 2.71425079954497
+}

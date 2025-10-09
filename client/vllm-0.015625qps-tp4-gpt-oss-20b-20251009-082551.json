@@ -1,0 +1,80 @@
+{
+  "date": "20251009-082551",
+  "backend": "vllm",
+  "model_id": "openai/gpt-oss-20b",
+  "tokenizer_id": "openai/gpt-oss-20b",
+  "num_prompts": 5,
+  "tensor_parallel_size": 4,
+  "request_rate": 0.015625,
+  "burstiness": 1.0,
+  "max_concurrency": null,
+  "duration": 331.98583955699996,
+  "completed": 5,
+  "total_input_tokens": 13472,
+  "total_output_tokens": 568,
+  "request_throughput": 0.015060883339698981,
+  "request_goodput:": null,
+  "output_throughput": 1.7109163473898044,
+  "total_token_throughput": 42.29096041787474,
+  "input_lens": [
+    3378,
+    774,
+    1446,
+    4096,
+    3778
+  ],
+  "output_lens": [
+    188,
+    209,
+    143,
+    18,
+    10
+  ],
+  "ttfts": [
+    0.021211588999904052,
+    0.016243859000041994,
+    0.02258272000017314,
+    0.027219886999773735,
+    0.03217813400033265
+  ],
+  "itls": [
+    0.0024918430962568958,
+    0.002509224692307026,
+    0.0025040122042272244,
+    0.002519950999987272,
+    0.0025117941111400593
+  ],
+  "generated_texts": [
+    "<|vq_clip_12273|>this image displays a list of items in a table format. the items include \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"c\", \"",
+    "<|vq_clip_12273|>this is a screenshot of a code editor with a python script. the script is written in a dark theme and has a black background. the code appears to be a function that calculates the sum of two numbers. the function is written in a python script and is used to calculate the sum of two numbers. the code is written in a dark theme and has a black background. the script appears to be a function that calculates the sum of two numbers. it is written in a python script and is used to calculate the sum of two numbers. the code is written in a dark theme and has a black background. the script appears to be a function that calculates the sum of two numbers.<|image_border_0|>\n\nIt seems like your message got a bit garbled. Could you clarify what you need help with? Whether it's about a specific topic or a general question, I'm here to help!\n\nIt seems like your message got a bit garbled. Could you clarify\n\n",
+    "<|vq_clip_12273|>this image displays a list of 10 items, each with a different color and shape. the items are arranged in a grid, with each item having a unique shape and color. the first item is a blue square with a white circle in the center, the second item is a green circle with a white square in the center, and the third item is a yellow circle with a white square in the center. the fourth item is a red circle with a white square in the center, and the fifth item is a purple circle with a white square in the center. the list appears to be a collection of items that are used for a specific purpose or task.",
+    "\ufffd<|vq_clip_12273|>this image displays a list of items",
+    "<|vq_clip_12273|>"
+  ],
+  "errors": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "request_timestamps": [
+    1759998019.2631428,
+    1759998028.9477344,
+    1759998159.6695485,
+    1759998200.7667336,
+    1759998304.168589
+  ],
+  "mean_ttft_ms": 23.887237800045114,
+  "median_ttft_ms": 22.58272000017314,
+  "std_ttft_ms": 5.424529715369072,
+  "p99_ttft_ms": 31.97980412031029,
+  "mean_tpot_ms": 2.5073547780582555,
+  "median_tpot_ms": 2.509223264422207,
+  "std_tpot_ms": 0.009306933270623713,
+  "p99_tpot_ms": 2.5196057579061293,
+  "mean_itl_ms": 2.5025016731797707,
+  "median_itl_ms": 2.499391999663203,
+  "std_itl_ms": 0.08254980926981142,
+  "p99_itl_ms": 2.7144131802833726
+}
