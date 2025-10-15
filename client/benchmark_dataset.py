@@ -31,10 +31,7 @@ import pandas as pd
 from datasets import load_dataset
 from PIL import Image
 from transformers import PreTrainedTokenizerBase
-from vllm.lora.request import LoRARequest
-from vllm.lora.utils import get_adapter_absolute_path
 from vllm.multimodal import MultiModalDataDict
-from vllm.transformers_utils.tokenizer import AnyTokenizer, get_lora_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +50,6 @@ class SampleRequest:
     prompt_len: int
     expected_output_len: int
     multi_modal_data: Optional[Union[MultiModalDataDict, dict]] = None
-    lora_request: Optional[LoRARequest] = None
 
 
 # -----------------------------------------------------------------------------
@@ -110,48 +106,6 @@ class BenchmarkDataset(ABC):
         # TODO (jenniferzhao): add support for downloading data
         raise NotImplementedError("load_data must be implemented in subclasses.")
 
-    def get_random_lora_request(
-        self,
-        tokenizer: PreTrainedTokenizerBase,
-        max_loras: Optional[int] = None,
-        lora_path: Optional[str] = None,
-    ) -> tuple[Optional[LoRARequest], AnyTokenizer]:
-        """
-        Optionally select a random LoRA request and return its associated
-        tokenizer.
-
-        This method is used when LoRA parameters are provided.  It randomly
-        selects a LoRA based on max_loras and retrieves a cached tokenizer for
-        that LoRA if available. Otherwise, it returns the base tokenizer.
-
-        Args:
-            tokenizer (PreTrainedTokenizerBase): The base tokenizer to use if no
-            LoRA is selected.  max_loras (Optional[int]): The maximum number of
-            LoRAs available. If None, LoRA is not used.  lora_path
-            (Optional[str]): Path to the LoRA parameters on disk. If None, LoRA
-            is not used.
-
-        Returns:
-            tuple[Optional[LoRARequest], AnyTokenizer]: A tuple where the first
-            element is a LoRARequest (or None if not applicable) and the second
-            element is the tokenizer associated with the LoRA request (or the
-            base tokenizer).
-        """
-        if max_loras is None or lora_path is None:
-            return None, tokenizer
-
-        # Generate a random LoRA ID in the range [1, max_loras].
-        lora_id = random.randint(1, max_loras)
-        lora_request = LoRARequest(
-            lora_name=str(lora_id),
-            lora_int_id=lora_id,
-            lora_path=lora_path_on_disk(lora_path),
-        )
-        if lora_id not in lora_tokenizer_cache:
-            lora_tokenizer_cache[lora_id] = get_lora_tokenizer(lora_request)
-        # Return lora_request and the cached tokenizer if available; otherwise,
-        # return the base tokenizer
-        return lora_request, lora_tokenizer_cache[lora_id] or tokenizer
 
     @abstractmethod
     def sample(
@@ -224,13 +178,6 @@ def is_valid_sequence(
     )
 
 
-@cache
-def lora_path_on_disk(lora_path: str) -> str:
-    return get_adapter_absolute_path(lora_path)
-
-
-# Global cache for LoRA tokenizers.
-lora_tokenizer_cache: dict[int, AnyTokenizer] = {}
 
 
 def process_image(image: Any) -> Mapping[str, Any]:
@@ -592,8 +539,6 @@ class ShareGPTDataset(BenchmarkDataset):
         self,
         tokenizer: PreTrainedTokenizerBase,
         num_requests: int,
-        lora_path: Optional[str] = None,
-        max_loras: Optional[int] = None,
         output_len: Optional[int] = None,
         enable_multimodal_chat: bool = False,
         **kwargs,
@@ -607,9 +552,6 @@ class ShareGPTDataset(BenchmarkDataset):
                 entry["conversations"][1]["value"],
             )
 
-            lora_request, tokenizer = self.get_random_lora_request(
-                tokenizer=tokenizer, max_loras=max_loras, lora_path=lora_path
-            )
             prompt_ids = tokenizer(prompt).input_ids
             completion_ids = tokenizer(completion).input_ids
             prompt_len = len(prompt_ids)
@@ -627,7 +569,6 @@ class ShareGPTDataset(BenchmarkDataset):
                     prompt=prompt,
                     prompt_len=prompt_len,
                     expected_output_len=new_output_len,
-                    lora_request=lora_request,
                 )
             )
         self.maybe_oversample_requests(samples, num_requests)
@@ -763,8 +704,6 @@ class BurstGPTDataset(BenchmarkDataset):
         self,
         tokenizer: PreTrainedTokenizerBase,
         num_requests: int,
-        max_loras: Optional[int] = None,
-        lora_path: Optional[str] = None,
         **kwargs,
     ) -> list[SampleRequest]:
         samples = []
@@ -772,9 +711,6 @@ class BurstGPTDataset(BenchmarkDataset):
         for i in range(num_requests):
             input_len = int(data[i][2])
             output_len = int(data[i][3])
-            lora_req, tokenizer = self.get_random_lora_request(
-                tokenizer=tokenizer, max_loras=max_loras, lora_path=lora_path
-            )
             vocab_size = tokenizer.vocab_size
             # Generate a synthetic prompt: a list of token IDs computed as (i +
             # j) modulo vocab_size.
@@ -785,7 +721,6 @@ class BurstGPTDataset(BenchmarkDataset):
                     prompt=prompt,
                     prompt_len=input_len,
                     expected_output_len=output_len,
-                    lora_request=lora_req,
                 )
             )
         return samples
