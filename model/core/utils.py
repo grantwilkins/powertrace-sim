@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
-from classifiers.gru import GRUClassifier
+from model.classifiers.gru import GRUClassifier
 
 
 def histogram_requests(
@@ -68,6 +68,16 @@ def load_classifier(
     """
     Load a classifier from a file.
     """
+    import os
+
+    # Resolve path relative to project root
+    if not os.path.isabs(path) and not os.path.exists(path):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        resolved = os.path.join(project_root, path)
+        if os.path.exists(resolved):
+            path = resolved
+
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Loading classifier from {path} on device: {device}")

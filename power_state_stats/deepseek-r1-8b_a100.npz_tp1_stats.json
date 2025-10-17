@@ -1,0 +1,4 @@
+{
+  "model_name": "deepseek-r1-8b",
+  "hardware": "a100.npz",
+  "tensor_parallelism": 

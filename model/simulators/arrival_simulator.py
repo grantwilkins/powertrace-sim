@@ -104,7 +104,9 @@ class PerformanceSampler:
 
         if not self.use_fallback:
             # Try new format first, fallback to old format
-            ttft = self.entry.get("ttft_model") or self.entry.get("ttft_distribution", {})
+            ttft = self.entry.get("ttft_model") or self.entry.get(
+                "ttft_distribution", {}
+            )
             tpot = self.entry.get("tpot_distribution", {})
 
             # For clipping to observed range if present
@@ -130,7 +132,14 @@ class PerformanceSampler:
                 bin_quantiles = ttft.get("bin_quantiles", [])
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("decile_quantile", bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max)
+                self.ttft_dist = (
+                    "decile_quantile",
+                    bin_edges_z,
+                    quantile_levels,
+                    bin_quantiles,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "gamma_glm":
                 # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1)), Var = φ * μ^2
                 beta0 = float(ttft.get("beta0", 0.0))
@@ -148,7 +157,16 @@ class PerformanceSampler:
                 sigma_slope = float(ttft.get("sigma_slope", 0.0))
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("heteroskedastic_log_linear", intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max)
+                self.ttft_dist = (
+                    "heteroskedastic_log_linear",
+                    intercept,
+                    slope,
+                    sigma_base,
+                    sigma_intercept,
+                    sigma_slope,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "log_linear":
                 # Legacy log-linear model: log(TTFT) = a0 + a1 * log(input_tokens) + N(0, sigma^2)
                 intercept = float(ttft.get("intercept", 0.0))
@@ -156,7 +174,14 @@ class PerformanceSampler:
                 sigma_log = float(ttft.get("sigma_log", 0.1))
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("log_linear", intercept, slope, sigma_log, nin_min, nin_max)
+                self.ttft_dist = (
+                    "log_linear",
+                    intercept,
+                    slope,
+                    sigma_log,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "gamma":
                 shape = float(ttft.get("shape", 1.0))
                 scale = float(ttft.get("scale", 0.001))
@@ -207,7 +232,9 @@ class PerformanceSampler:
         kind = self.ttft_dist[0]
         if kind == "decile_quantile":
             # Decile-conditioned quantile sampler
-            _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = self.ttft_dist
+            _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = (
+                self.ttft_dist
+            )
             if input_tokens is None:
                 input_tokens = (nin_min + nin_max) // 2
 
@@ -216,7 +243,7 @@ class PerformanceSampler:
 
             # Find which bin(s) z falls into
             bin_edges_z = np.array(bin_edges_z)
-            bin_idx = np.searchsorted(bin_edges_z, z, side='right') - 1
+            bin_idx = np.searchsorted(bin_edges_z, z, side="right") - 1
             bin_idx = np.clip(bin_idx, 0, len(bin_quantiles) - 1)
 
             # Get quantiles for this bin
@@ -250,7 +277,16 @@ class PerformanceSampler:
             val = max(val, 0.001)  # Ensure positive (min 1ms)
         elif kind == "heteroskedastic_log_linear":
             # Heteroskedastic: base variance + input-dependent variance
-            _, intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max = self.ttft_dist
+            (
+                _,
+                intercept,
+                slope,
+                sigma_base,
+                sigma_intercept,
+                sigma_slope,
+                nin_min,
+                nin_max,
+            ) = self.ttft_dist
             if input_tokens is None:
                 # Fallback to mean if input_tokens not provided
                 input_tokens = (nin_min + nin_max) // 2
@@ -279,7 +315,9 @@ class PerformanceSampler:
                 input_tokens = (nin_min + nin_max) // 2
             # Clamp to observed range
             nin_clamped = np.clip(input_tokens, nin_min, nin_max)
-            log_ttft = intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
+            log_ttft = (
+                intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
+            )
             val = float(np.exp(log_ttft))
             val = max(val, 0.001)  # Ensure positive (min 1ms)
         elif kind == "gamma":
@@ -604,7 +642,7 @@ class ServingSystemSimulator:
             (T, 6) array with [request_count, input_tokens, output_tokens,
                               active_requests, prefill_tokens, decode_tokens]
         """
-        from core.utils import histogram_requests
+        from model.core.utils import histogram_requests
 
         # Get histogrammed arrival data (matches training pipeline)
         cnt, tok_in, tok_out = histogram_requests(

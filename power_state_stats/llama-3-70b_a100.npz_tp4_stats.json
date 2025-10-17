@@ -1,0 +1,4 @@
+{
+  "model_name": "llama-3-70b",
+  "hardware": "a100.npz",
+  "tensor_parallelism": 
