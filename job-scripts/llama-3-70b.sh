@@ -65,8 +65,8 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
             nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> ${OUTPUT_PREFIX}.csv &
             NVIDIA_SMI_PID=$!
 
-            # Calculate number of prompts for 10 minutes at this arrival rate
-            NUM_PROMPTS=$(printf "%.0f" $(echo "600 * ${ARRIVAL_RATE}" | bc))
+            # Calculate number of prompts for 5 minutes at this arrival rate
+            NUM_PROMPTS=$(printf "%.0f" $(echo "300 * ${ARRIVAL_RATE}" | bc))
 
             # Run benchmark
             python3 benchmark_serving.py \
