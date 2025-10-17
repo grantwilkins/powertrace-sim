@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(4 8)
+TENSOR_PARALLEL_SIZES=(1 2)
 ALL_INTENSITIES=(low medium high)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5

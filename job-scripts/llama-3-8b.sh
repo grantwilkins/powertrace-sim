@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(8)
+TENSOR_PARALLEL_SIZES=(4)
 ALL_INTENSITIES=(low medium high)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5
-ARRIVAL_RATES=(0.015625 0.0625 0.25 1 4 16 64)
+ARRIVAL_RATES=(4 16 64)
 
 # Function to get random task
 random_task() {
