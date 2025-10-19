@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 166, in <module>
+    best_lr, sweep_results = lr_sweep(
+                             ^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 292, in lr_sweep
+    logits = classifier(x)
+             ^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/gru.py", line 12, in forward
+    return self.fc(h)
+           ^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/linear.py", line 116, in forward
+    return F.linear(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: mat1 and mat2 shapes cannot be multiplied (3917x64 and 128x6)

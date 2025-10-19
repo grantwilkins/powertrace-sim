@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 166, in <module>
+    best_lr, sweep_results = lr_sweep(
+                             ^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 275, in lr_sweep
+    classifier = GRUClassifier(Dx, K, H=hidden_size, bidirectional=bidirectional).to(device)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: GRUClassifier.__init__() got an unexpected keyword argument 'bidirectional'

@@ -47,26 +47,28 @@ if __name__ == "__main__":
 
     # New LR sweep and training options
     parser.add_argument(
-        "--lr_sweep",
-        action="store_true",
-        help="Run LR sweep before training to find optimal learning rate",
-    )
-    parser.add_argument(
-        "--lr_sweep_epochs",
-        type=int,
-        default=15,
-        help="Number of epochs for each LR in sweep (default: 15)",
-    )
-    parser.add_argument(
-        "--use_best_lr",
-        action="store_true",
-        help="Use the best LR from a previous sweep (must have run --lr_sweep first)",
+        "--stage",
+        type=str,
+        default="train",
+        choices=["lr_sweep", "hidden_size", "directionality", "train"],
+        help="Training stage (default: train)",
     )
     parser.add_argument(
         "--lr",
         type=float,
         default=1e-3,
         help="Learning rate for training (default: 1e-3)",
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=64,
+        help="Hidden size for GRU (default: 64)",
+    )
+    parser.add_argument(
+        "--bidirectional",
+        action="store_true",
+        help="Use bidirectional GRU",
     )
     parser.add_argument(
         "--num_epochs",
@@ -82,16 +84,33 @@ if __name__ == "__main__":
         help="LR scheduler type (default: cosine)",
     )
     parser.add_argument(
-        "--multi_seed",
+        "--seed",
         type=int,
+        default=42,
+        help="Random seed (default: 42)",
+    )
+    parser.add_argument(
+        "--wandb_project",
+        type=str,
         default=None,
-        help="Run training with N seeds and report mean±std (e.g., --multi_seed 3)",
+        help="WandB project name (e.g., model_hardware). If not specified, wandb is disabled.",
+    )
+    parser.add_argument(
+        "--wandb_run_name",
+        type=str,
+        default=None,
+        help="WandB run name (auto-generated if not specified)",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default="./training_results",
         help="Directory to save training logs and plots",
+    )
+    parser.add_argument(
+        "--save_model",
+        action="store_true",
+        help="Save model weights after training",
     )
 
     args = parser.parse_args()
@@ -115,74 +134,166 @@ if __name__ == "__main__":
         tps_to_train = [args.tp]
         print(f"Training TP={args.tp}")
 
+    # Parse model and hardware from data_file if not using defaults
+    # Expected format: random_{model}_{hardware}.npz
+    data_basename = os.path.basename(args.data_file)
+    if data_basename.startswith("random_") and data_basename.endswith(".npz"):
+        parts = data_basename[7:-4].rsplit("_", 1)  # Remove "random_" prefix and ".npz" suffix
+        if len(parts) == 2:
+            inferred_model, inferred_hardware = parts
+            print(f"Inferred from filename: model={inferred_model}, hardware={inferred_hardware}")
+        else:
+            inferred_model = args.model
+            inferred_hardware = args.hardware_accelerator
+    else:
+        inferred_model = args.model
+        inferred_hardware = args.hardware_accelerator
+
     # Main training loop
     for tp in tps_to_train:
         print(f"\n{'='*70}")
         print(f"Processing TP={tp}")
         print(f"{'='*70}\n")
 
-        current_lr = args.lr
+        # Auto-generate wandb project name if not specified
+        wandb_project = args.wandb_project
+        if wandb_project is None and args.stage != "train":
+            # For ablation stages, automatically create project name
+            wandb_project = f"{inferred_model}_{inferred_hardware}"
 
-        # Step 1: Optional LR sweep
-        if args.lr_sweep:
-            print("Running LR sweep...")
+        if args.stage == "lr_sweep":
+            print("Running LR sweep (100 epochs per LR)...")
             best_lr, sweep_results = lr_sweep(
                 dataset=dataset,
                 tp=tp,
-                num_epochs=args.lr_sweep_epochs,
+                num_epochs=100,
+                hidden_size=args.hidden_size,
                 device=device,
-                output_dir=os.path.join(args.output_dir, f"lr_sweep_tp{tp}"),
+                output_dir=args.output_dir,
+                seed=args.seed,
+                wandb_project=wandb_project,
+                wandb_run_prefix=f"stage1_lr_sweep",
+                bidirectional=args.bidirectional,
             )
             print(f"\nBest LR from sweep: {best_lr:.2e}")
-            current_lr = best_lr
 
-        # Step 2: Multi-seed training or single training
-        if args.multi_seed is not None:
-            print(f"\nRunning multi-seed training with {args.multi_seed} seeds...")
-            results = multi_seed_training(
+            # Save best LR to file
+            with open(os.path.join(args.output_dir, "best_lr.txt"), "w") as f:
+                f.write(f"{best_lr:.2e}\n")
+            print(f"Best LR saved to {args.output_dir}/best_lr.txt")
+
+        elif args.stage == "hidden_size":
+            print(f"Running hidden size ablation (H ∈ {{16, 32, 64, 128, 256}})...")
+            hidden_sizes = [16, 32, 64, 128, 256]
+            best_f1 = 0.0
+            best_H = 64
+
+            for H in hidden_sizes:
+                print(f"\n--- Training with H={H} ---")
+                run_name = f"stage2_H{H}_tp{tp}" if args.wandb_run_name is None else args.wandb_run_name
+                classifier, metrics = train_classifiers(
+                    dataset=dataset,
+                    tp=tp,
+                    hidden_size=H,
+                    lr=args.lr,
+                    num_epochs=args.num_epochs,
+                    device=device,
+                    use_scheduler=(args.scheduler != "none"),
+                    scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
+                    output_dir=args.output_dir,
+                    seed=args.seed,
+                    bidirectional=args.bidirectional,
+                    wandb_project=wandb_project,
+                    wandb_run_name=run_name,
+                    save_model=False,  # We'll save the best one at the end
+                )
+
+                if metrics['final_val_f1'] > best_f1:
+                    best_f1 = metrics['final_val_f1']
+                    best_H = H
+                    # Save this model as it's the best so far
+                    model_path = os.path.join(args.output_dir, f"model_tp{tp}_H{H}_{'bi' if args.bidirectional else 'uni'}GRU_best.pt")
+                    torch.save(classifier.state_dict(), model_path)
+                    print(f"New best H={H} with F1={best_f1:.4f}, saved to {model_path}")
+
+            print(f"\nBest hidden size: H={best_H} (F1={best_f1:.4f})")
+            with open(os.path.join(args.output_dir, "best_hidden_size.txt"), "w") as f:
+                f.write(f"{best_H}\n")
+
+        elif args.stage == "directionality":
+            print(f"Running directionality ablation (UniGRU vs BiGRU)...")
+
+            # UniGRU
+            print("\n--- Training UniGRU ---")
+            run_name_uni = f"stage3_uniGRU_tp{tp}" if args.wandb_run_name is None else f"{args.wandb_run_name}_uni"
+            classifier_uni, metrics_uni = train_classifiers(
                 dataset=dataset,
                 tp=tp,
-                lr=current_lr,
-                num_seeds=args.multi_seed,
+                hidden_size=args.hidden_size,
+                lr=args.lr,
                 num_epochs=args.num_epochs,
                 device=device,
                 use_scheduler=(args.scheduler != "none"),
                 scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
-                output_dir=os.path.join(args.output_dir, f"tp{tp}"),
+                output_dir=args.output_dir,
+                seed=args.seed,
+                bidirectional=False,
+                wandb_project=wandb_project,
+                wandb_run_name=run_name_uni,
+                save_model=False,
             )
 
-            # Save the best classifier from multi-seed runs
-            best_idx = np.argmax(results['all_f1s'])
-            classifier = results['classifiers'][best_idx]
-            print(f"\nUsing classifier from seed {best_idx} (F1={results['all_f1s'][best_idx]:.4f})")
+            # BiGRU
+            print("\n--- Training BiGRU ---")
+            run_name_bi = f"stage3_biGRU_tp{tp}" if args.wandb_run_name is None else f"{args.wandb_run_name}_bi"
+            classifier_bi, metrics_bi = train_classifiers(
+                dataset=dataset,
+                tp=tp,
+                hidden_size=args.hidden_size,
+                lr=args.lr,
+                num_epochs=args.num_epochs,
+                device=device,
+                use_scheduler=(args.scheduler != "none"),
+                scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
+                output_dir=args.output_dir,
+                seed=args.seed,
+                bidirectional=True,
+                wandb_project=wandb_project,
+                wandb_run_name=run_name_bi,
+                save_model=False,
+            )
 
-        else:
-            print(f"\nTraining with LR={current_lr:.2e}...")
+            print(f"\nDirectionality Results:")
+            print(f"  UniGRU: F1={metrics_uni['final_val_f1']:.4f}")
+            print(f"  BiGRU:  F1={metrics_bi['final_val_f1']:.4f}")
+
+        else:  # args.stage == "train"
+            print(f"\nTraining with LR={args.lr:.2e}, H={args.hidden_size}, {'Bi' if args.bidirectional else 'Uni'}GRU...")
             classifier, metrics = train_classifiers(
                 dataset=dataset,
                 tp=tp,
-                lr=current_lr,
+                hidden_size=args.hidden_size,
+                lr=args.lr,
                 num_epochs=args.num_epochs,
                 device=device,
                 use_scheduler=(args.scheduler != "none"),
                 scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
-                output_dir=os.path.join(args.output_dir, f"tp{tp}"),
+                output_dir=args.output_dir,
+                seed=args.seed,
+                bidirectional=args.bidirectional,
+                wandb_project=wandb_project,
+                wandb_run_name=args.wandb_run_name,
+                save_model=args.save_model,
             )
 
-            # Save losses (backward compatibility)
-            os.makedirs("./training_data/losses", exist_ok=True)
-            np.save(
-                f"./training_data/losses/training_losses_{args.model}_{args.hardware_accelerator}_tp{tp}.npy",
-                np.array(metrics['train_losses']),
-            )
-
-        # Step 3: Save model weights
-        classifier.to("cpu")
-        torch.save(
-            classifier.state_dict(),
-            f"{args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt",
-        )
-        print(f"\nSaved weights to: {args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt")
+            # Save model weights (backward compatibility)
+            if args.save_model:
+                classifier.to("cpu")
+                torch.save(
+                    classifier.state_dict(),
+                    f"{args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt",
+                )
+                print(f"\nSaved weights to: {args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt")
 
     print(f"\n{'='*70}")
     print("Training complete!")

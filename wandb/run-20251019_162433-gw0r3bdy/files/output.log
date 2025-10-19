@@ -1,0 +1,30 @@
+Epoch 010: train_loss=1.7365, val_loss=1.6855, val_f1=0.2587
+Epoch 020: train_loss=1.7132, val_loss=1.6661, val_f1=0.2652
+Epoch 030: train_loss=1.6836, val_loss=1.6372, val_f1=0.2727
+Epoch 040: train_loss=1.6440, val_loss=1.5903, val_f1=0.2798
+Traceback (most recent call last):
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 166, in <module>
+    best_lr, sweep_results = lr_sweep(
+                             ^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 292, in lr_sweep
+    logits = classifier(x)
+             ^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/gru.py", line 13, in forward
+    h, _ = self.gru(x)
+           ^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/rnn.py", line 1100, in forward
+    result = _VF.gru(input, hx, self._flat_weights, self.bias, self.num_layers,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

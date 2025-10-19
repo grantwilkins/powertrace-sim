@@ -1,0 +1,16 @@
+{"time":"2025-10-19T16:21:51.983995-07:00","level":"INFO","msg":"using version","core version":"0.18.5"}
+{"time":"2025-10-19T16:21:51.984074-07:00","level":"INFO","msg":"created symlink","path":"/Users/grantwilkins/powertrace-sim/wandb/run-20251019_162151-hmzh6675/logs/debug-core.log"}
+{"time":"2025-10-19T16:21:52.097619-07:00","level":"INFO","msg":"created new stream","id":"hmzh6675"}
+{"time":"2025-10-19T16:21:52.097662-07:00","level":"INFO","msg":"stream: started","id":"hmzh6675"}
+{"time":"2025-10-19T16:21:52.097707-07:00","level":"INFO","msg":"sender: started","stream_id":"hmzh6675"}
+{"time":"2025-10-19T16:21:52.09769-07:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"hmzh6675"}}
+{"time":"2025-10-19T16:21:52.097912-07:00","level":"INFO","msg":"handler: started","stream_id":{"value":"hmzh6675"}}
+{"time":"2025-10-19T16:21:52.397068-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-10-19T16:21:52.683096-07:00","level":"INFO","msg":"stream: closing","id":"hmzh6675"}
+{"time":"2025-10-19T16:21:52.683442-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-10-19T16:21:52.68405-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-10-19T16:21:54.500438-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-19T16:21:54.644473-07:00","level":"INFO","msg":"handler: closed","stream_id":{"value":"hmzh6675"}}
+{"time":"2025-10-19T16:21:54.644564-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":{"value":"hmzh6675"}}
+{"time":"2025-10-19T16:21:54.644612-07:00","level":"INFO","msg":"sender: closed","stream_id":"hmzh6675"}
+{"time":"2025-10-19T16:21:54.647268-07:00","level":"INFO","msg":"stream: closed","id":"hmzh6675"}
