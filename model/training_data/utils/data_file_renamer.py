@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-CLIENT_DIR = Path("/Users/grantwilkins/powertrace-sim/data/benchmark-llama-3-405b-h100")
+CLIENT_DIR = Path("/Users/grantwilkins/powertrace-sim/data/random-gpt-oss-20b-a100")
 
 json_re = re.compile(
     r"""^vllm-
@@ -20,11 +20,14 @@ model_map = {
     "Llama-3.1-70B-Instruct": "llama-3-70b",
     "DeepSeek-R1-Distill-Llama-70B": "deepseek-r1-distill-70b",
     "Llama-3.1-405B-Instruct-FP8": "llama-3-405b",
+    "gpt-oss-20b": "gpt-oss-20b",
+    "gpt-oss-120b": "gpt-oss-120b",
 }
 
 csv_re = re.compile(r"_d(?P<csv_dt>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})\.csv$")
 
-for json_path in CLIENT_DIR.glob("vllm-*qps-tp*-*.json"):
+# Recursively search for any subdirectory under CLIENT_DIR for .json files
+for json_path in CLIENT_DIR.rglob("vllm-*qps-tp*-*.json"):
     m = json_re.match(json_path.name)
     if not m:
         continue
@@ -41,7 +44,8 @@ for json_path in CLIENT_DIR.glob("vllm-*qps-tp*-*.json"):
     )
     pattern = f"{model_csv}_tp{tp}_p{qps}_d*.csv"
     candidates = []
-    for csv_path in CLIENT_DIR.glob(pattern):
+    # Search for CSVs in the same directory as the JSON file, recursively is not needed for CSV match
+    for csv_path in json_path.parent.glob(pattern):
         cm = csv_re.search(csv_path.name)
         if not cm:
             continue

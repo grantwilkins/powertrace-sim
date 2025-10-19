@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from model.core.utils import make_schedule_matrix
+from core.utils import make_schedule_matrix
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from torch.utils.data import Dataset

@@ -96,7 +96,8 @@ def discover_experiment_pairs(data_root_dir: str) -> List[Tuple[str, str]]:
 
     for csv_path in all_csvs:
         base = os.path.basename(csv_path)
-        if "_tp" in base and "_p" in base:
+        # Accept both old pattern (_p) and new pattern (rate)
+        if "_tp" in base and ("_p" in base or "rate" in base):
             power_files.append(csv_path)
         else:
             print(
@@ -116,29 +117,74 @@ def discover_experiment_pairs(data_root_dir: str) -> List[Tuple[str, str]]:
         f"Found {len(power_files)} power files and {len(results_files)} results files"
     )
 
-    matched_pairs = []
+    # Organize files by (tp, rate) for matching
+    from collections import defaultdict
+    power_by_key = defaultdict(list)
+    results_by_key = defaultdict(list)
+
     for pfile in power_files:
         pinfo = extract_power_info(pfile)
         if not pinfo:
             continue
         p_model, p_tp, p_rate, p_date = pinfo
+        # Key is just (tp, rate) since model is the same within a directory
+        # Normalize rate to float for consistent matching
+        key = (p_tp, float(p_rate))
+        power_by_key[key].append((pfile, p_date))
 
-        # Look for a results file that matches
-        for rfile in results_files:
-            rinfo = extract_results_info(rfile)
-            if not rinfo:
-                continue
-            r_model, r_tp, r_rate, r_date = rinfo
+    for rfile in results_files:
+        rinfo = extract_results_info(rfile)
+        if not rinfo:
+            continue
+        r_model, r_tp, r_rate, r_date = rinfo
+        # Normalize rate to float for consistent matching
+        key = (r_tp, float(r_rate))
+        results_by_key[key].append((rfile, r_date))
 
-            # Check if they match on model, tp, and rate
-            if p_model == r_model and p_tp == r_tp and p_rate == r_rate:
-                if p_date and r_date:
-                    if p_date == r_date:
-                        matched_pairs.append((pfile, rfile))
-                        break
-                else:
-                    matched_pairs.append((pfile, rfile))
-                    break
+    matched_pairs = []
+
+    # For each (tp, rate) combination, match CSVs to JSONs by closest following timestamp
+    for key in power_by_key:
+        if key not in results_by_key:
+            print(f"No results files found for tp={key[0]}, rate={key[1]}")
+            continue
+
+        power_list = sorted(power_by_key[key], key=lambda x: x[1].replace('-', ''))  # Sort by normalized date
+        results_list = sorted(results_by_key[key], key=lambda x: x[1].replace('-', ''))  # Sort by normalized date
+
+        used_results = set()
+
+        for pfile, p_date in power_list:
+            # Find the closest following JSON file
+            best_match = None
+            min_time_diff = float('inf')
+
+            # Normalize timestamps to comparable format (remove all hyphens)
+            p_date_clean = p_date.replace('-', '')
+
+            for rfile, r_date in results_list:
+                if rfile in used_results:
+                    continue
+
+                r_date_clean = r_date.replace('-', '')
+
+                # JSON file should come after CSV file (or very close to it)
+                if r_date_clean >= p_date_clean:
+                    try:
+                        time_diff = int(r_date_clean) - int(p_date_clean)
+                        if time_diff < min_time_diff:
+                            min_time_diff = time_diff
+                            best_match = rfile
+                    except ValueError:
+                        # If conversion fails, skip this pair
+                        continue
+
+            if best_match:
+                matched_pairs.append((pfile, best_match))
+                used_results.add(best_match)
+                print(f"Matched: {os.path.basename(pfile)} -> {os.path.basename(best_match)} (time_diff={min_time_diff})")
+            else:
+                print(f"No match found for {os.path.basename(pfile)} (date={p_date_clean})")
 
     print(
         f"Found {len(power_files)} power files, {len(results_files)} results files, "
@@ -149,7 +195,7 @@ def discover_experiment_pairs(data_root_dir: str) -> List[Tuple[str, str]]:
 
 def extract_results_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
     base = os.path.basename(filename)
-    # Pattern for Llama-3.1 files
+    # Pattern for Llama-3.1 files (old format)
     llama_match = re.match(
         r"vllm-([\d\.]+)qps-tp(\d+)-Llama-3.1-(\d+)B-Instruct(-FP8)?-(.*).json", base
     )
@@ -158,6 +204,28 @@ def extract_results_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         tp = llama_match.group(2)
         model_size = llama_match.group(3)
         date = llama_match.group(5)
+        return model_size, tp, rate, date
+
+    # Pattern for new Llama-3.1 format with timestamp at end (timestamp may have hyphens)
+    llama_new_match = re.match(
+        r"vllm-([\d\.]+)qps-tp(\d+)-Llama-3\.1-(\d+)B-Instruct-([\d-]+).json", base
+    )
+    if llama_new_match:
+        rate = llama_new_match.group(1)
+        tp = llama_new_match.group(2)
+        model_size = llama_new_match.group(3)
+        date = llama_new_match.group(4)
+        return model_size, tp, rate, date
+
+    # Pattern for gpt-oss files: vllm-{rate}qps-tp{tp}-gpt-oss-{size}b-{timestamp}.json
+    gpt_oss_match = re.match(
+        r"vllm-([\d\.]+)qps-tp(\d+)-gpt-oss-(\d+)b-([\d-]+).json", base
+    )
+    if gpt_oss_match:
+        rate = gpt_oss_match.group(1)
+        tp = gpt_oss_match.group(2)
+        model_size = gpt_oss_match.group(3)
+        date = gpt_oss_match.group(4)
         return model_size, tp, rate, date
 
     deepseek_match = re.match(
@@ -170,18 +238,41 @@ def extract_results_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         date = deepseek_match.group(4)
         return model_size, tp, rate, date
 
+    print(f"Could not extract results info from: {base}")
     return None
 
 
 def extract_power_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
     base = os.path.basename(filename)
-    # Pattern for Llama-3 files
+    # Pattern for old Llama-3 files: llama-3-{size}b_tp{tp}_p{rate}_d{date}.csv
     llama_match = re.match(r"llama-3-(\d+)b_tp(\d+)_p([\d\.]+)_d(.*).csv", base)
     if llama_match:
         model_size = llama_match.group(1)
         tp = llama_match.group(2)
         rate = llama_match.group(3)
         date = llama_match.group(4)
+        return model_size, tp, rate, date
+
+    # Pattern for new Llama-3 files: llama-3-{size}b_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
+    llama_new_match = re.match(
+        r"llama-3-(\d+)b_tp(\d+)_\w+_\w+_rate([\d\.]+)_iter\d+_([\d-]+).csv", base
+    )
+    if llama_new_match:
+        model_size = llama_new_match.group(1)
+        tp = llama_new_match.group(2)
+        rate = llama_new_match.group(3)
+        date = llama_new_match.group(4)
+        return model_size, tp, rate, date
+
+    # Pattern for gpt-oss files: gpt-oss-{size}b_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
+    gpt_oss_match = re.match(
+        r"gpt-oss-(\d+)b_tp(\d+)_\w+_\w+_rate([\d\.]+)_iter\d+_([\d-]+).csv", base
+    )
+    if gpt_oss_match:
+        model_size = gpt_oss_match.group(1)
+        tp = gpt_oss_match.group(2)
+        rate = gpt_oss_match.group(3)
+        date = gpt_oss_match.group(4)
         return model_size, tp, rate, date
 
     # Pattern for DeepSeek files
@@ -195,6 +286,7 @@ def extract_power_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         date = deepseek_match.group(4)
         return model_size, tp, rate, date
 
+    print(f"Could not extract power info from: {base}")
     return None
 
 
@@ -219,12 +311,12 @@ def analyze_benchmark_results(json_file: str) -> pd.DataFrame:
             if i < len(data["input_lens"]) and i < len(data["output_lens"]):
                 if data["ttfts"][i] is not None:
                     prefill_time = data["ttfts"][i]
-                    e2e_latency = data.get("e2el", [])[i] if "e2el" in data else None
+                    e2e_latency = data.get("e2el", [])[i] if "e2el" in data and i < len(data.get("e2el", [])) else None
                     if e2e_latency is not None:
                         decode_time = e2e_latency - prefill_time
                     else:
                         itls_for_request = (
-                            data["itls"][i] if isinstance(data["itls"][i], list) else []
+                            data["itls"][i] if i < len(data["itls"]) and isinstance(data["itls"][i], list) else []
                         )
                         decode_time = sum(itls_for_request) if itls_for_request else 0
                     results.append(
@@ -365,16 +457,50 @@ def extract_experiment_info(power_csv_path: str) -> Optional[dict]:
         Dict with model_name, tp, rate, and date
     """
     base = os.path.basename(power_csv_path)
-    model_match = re.match(r"(.*)_tp(\d+)_p([\d\.]+)_d(.*).csv", base)
-    if not model_match:
-        return None
 
-    return {
-        "model_name": model_match.group(1),
-        "tp": int(model_match.group(2)),
-        "rate": float(model_match.group(3)),
-        "date": model_match.group(4),
-    }
+    # Try old format first: {model}_tp{tp}_p{rate}_d{date}.csv
+    model_match = re.match(r"(.*)_tp(\d+)_p([\d\.]+)_d(.*).csv", base)
+    if model_match:
+        return {
+            "model_name": model_match.group(1),
+            "tp": int(model_match.group(2)),
+            "rate": float(model_match.group(3)),
+            "date": model_match.group(4),
+        }
+
+    # Try new format: {model}_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
+    new_match = re.match(
+        r"(.*)_tp(\d+)_\w+_\w+_rate([\d\.]+)_iter\d+_(.*).csv", base
+    )
+    if new_match:
+        return {
+            "model_name": new_match.group(1),
+            "tp": int(new_match.group(2)),
+            "rate": float(new_match.group(3)),
+            "date": new_match.group(4),
+        }
+
+    return None
+
+
+def infer_hardware_from_path(file_path: str) -> str:
+    """
+    Infer hardware type from the directory path.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        Hardware type (e.g., 'a100', 'h100')
+    """
+    path_lower = file_path.lower()
+    if '-a100' in path_lower or '_a100' in path_lower:
+        return 'a100'
+    elif '-h100' in path_lower or '_h100' in path_lower:
+        return 'h100'
+    else:
+        # Default to a100 if can't determine
+        return 'a100'
 
 
 def load_and_process_experiments(
@@ -422,6 +548,10 @@ def load_and_process_experiments(
         if not info:
             print(f"Could not extract experiment info from {power_csv}")
             continue
+
+        # Infer hardware from path
+        info['hardware'] = infer_hardware_from_path(power_csv)
+
         power_df = parse_power_csv(power_csv)
         results_df = analyze_benchmark_results(results_json)
         if power_df.empty or results_df.empty:
@@ -541,30 +671,47 @@ if __name__ == "__main__":
         results_df = all_results_dfs[i]
         info = all_experiment_info[i]
 
-        # pad power trace to max_len with edge values
+        # Calculate average timestamp interval for padding
+        if len(power_df) > 1:
+            avg_interval = (power_df["timestamp"].max() - power_df["timestamp"].min()) / (len(power_df) - 1)
+        else:
+            avg_interval = 0.25  # default 250ms
+
+        # Pad power trace: use edge for power (idle power should be last value if workload ended)
+        # For a more accurate idle, could use min power, but edge is safer
         power_trace = power_df["power"].values
+        idle_power = power_trace.min() if len(power_trace) > 0 else 0  # Use minimum observed power as idle
         power_trace = np.pad(
-            power_trace, (0, max_len_power - len(power_trace)), mode="edge"
+            power_trace, (0, max_len_power - len(power_trace)), mode="constant", constant_values=idle_power
         )
+
+        # Pad timestamps: continue incrementing at average interval
         timestamp_arr = power_df["timestamp"].values
-        timestamp_arr = np.pad(
-            timestamp_arr, (0, max_len_power - len(timestamp_arr)), mode="linear_ramp"
-        )
+        if len(timestamp_arr) < max_len_power:
+            last_timestamp = timestamp_arr[-1] if len(timestamp_arr) > 0 else 0
+            padding_length = max_len_power - len(timestamp_arr)
+            # Create monotonically increasing timestamps
+            padded_timestamps = last_timestamp + avg_interval * (np.arange(1, padding_length + 1))
+            timestamp_arr = np.concatenate([timestamp_arr, padded_timestamps])
+
+        # Pad token counts and requests: use 0 (no activity after workload ends)
         prefill_tokens_arr = power_df["prefill_tokens"].values
         prefill_tokens_arr = np.pad(
             prefill_tokens_arr,
             (0, max_len_power - len(prefill_tokens_arr)),
-            mode="edge",
+            mode="constant",
+            constant_values=0,
         )
         decode_tokens_arr = power_df["decode_tokens"].values
         decode_tokens_arr = np.pad(
-            decode_tokens_arr, (0, max_len_power - len(decode_tokens_arr)), mode="edge"
+            decode_tokens_arr, (0, max_len_power - len(decode_tokens_arr)), mode="constant", constant_values=0
         )
         active_requests_arr = power_df["active_requests"].values
         active_requests_arr = np.pad(
             active_requests_arr,
             (0, max_len_power - len(active_requests_arr)),
-            mode="edge",
+            mode="constant",
+            constant_values=0,
         )
 
         input_tokens_arr = results_df["input_tokens"].values
