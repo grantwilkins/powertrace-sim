@@ -1,0 +1,11 @@
+{"time":"2025-10-20T03:14:39.600840611Z","level":"INFO","msg":"stream: starting","core version":"0.22.2"}
+{"time":"2025-10-20T03:14:39.998364296Z","level":"INFO","msg":"stream: created new stream","id":"t3pke32j"}
+{"time":"2025-10-20T03:14:39.998429462Z","level":"INFO","msg":"handler: started","stream_id":"t3pke32j"}
+{"time":"2025-10-20T03:14:39.998509096Z","level":"INFO","msg":"stream: started","id":"t3pke32j"}
+{"time":"2025-10-20T03:14:39.998528426Z","level":"INFO","msg":"writer: started","stream_id":"t3pke32j"}
+{"time":"2025-10-20T03:14:39.998542477Z","level":"INFO","msg":"sender: started","stream_id":"t3pke32j"}
+{"time":"2025-10-20T03:23:40.734236678Z","level":"INFO","msg":"stream: closing","id":"t3pke32j"}
+{"time":"2025-10-20T03:23:41.018030242Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-20T03:23:41.202024393Z","level":"INFO","msg":"handler: closed","stream_id":"t3pke32j"}
+{"time":"2025-10-20T03:23:41.202155697Z","level":"INFO","msg":"sender: closed","stream_id":"t3pke32j"}
+{"time":"2025-10-20T03:23:41.202171306Z","level":"INFO","msg":"stream: closed","id":"t3pke32j"}

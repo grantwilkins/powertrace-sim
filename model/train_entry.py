@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
         elif args.stage == "hidden_size":
             print(f"Running hidden size ablation (H ∈ {{16, 32, 64, 128, 256}})...")
-            hidden_sizes = [16, 32, 64, 128, 256]
+            hidden_sizes = [64, 128, 256]
             best_f1 = 0.0
             best_H = 64
 
