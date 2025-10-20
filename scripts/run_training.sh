@@ -9,7 +9,7 @@ set -e
 DATA_DIR="data"
 RESULTS_BASE="results/training"
 HIDDEN_SIZE=64
-LR=1e-4
+LR=3e-4
 NUM_EPOCHS=1000
 BATCH_SIZE=8
 SEED=42
@@ -98,14 +98,10 @@ main() {
                     --hidden_size "${HIDDEN_SIZE}" \
                     --lr "${LR}" \
                     --num_epochs "${NUM_EPOCHS}" \
-                    --batch_size "${BATCH_SIZE}" \
                     --seed "${SEED}" \
                     --output_dir "${output_dir}" \
                     --bidirectional \
                     --save_model \
-                    --compute_extra_metrics \
-                    --use_scheduler \
-                    --scheduler_type "cosine" \
                     --wandb_project "${WANDB_PROJECT}" \
                     --wandb_run_name "${model}_${hardware}_tp${tp}_H${HIDDEN_SIZE}_lr${LR}"
 
