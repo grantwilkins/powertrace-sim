@@ -1,0 +1,25 @@
+Training classifier for TP=1
+Number of unique states across all TP=1 samples: 6
+Class weights: [0.11069892 0.8513909  0.7668171  0.5017582  1.7881237  1.9812112 ]
+Train size: 23, Val size: 4
+Epoch 1/1000: 100%|████████████████████████████████████████████████████████████████████████████████████████| 23/23 [00:01<00:00, 16.64it/s, loss=1.6755]
+Traceback (most recent call last):
+  File "/home/azureuser/powertrace-sim/model/train_entry.py", line 194, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 542, in train_classifiers
+    val_loss, val_acc, val_f1, conf_mat, transition_mae, autocorr_r2 = evaluate_classifier(
+                                                                       ^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 169, in evaluate_classifier
+    autocorr_r2 = compute_autocorr_r2(all_preds_2d, all_labels_2d)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 98, in compute_autocorr_r2
+    pred_autocorrs.append(autocorr(y_pred[i], lag))
+                          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 89, in autocorr
+    c = np.correlate(x - np.mean(x), x - np.mean(x), mode='full')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/numpy/_core/numeric.py", line 765, in correlate
+    return multiarray.correlate2(a, v, mode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: object too deep for desired array

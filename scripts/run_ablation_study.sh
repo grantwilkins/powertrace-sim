@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Configuration
-DATA_DIR="model/training_data"
+DATA_DIR="data"
 RESULTS_BASE="results"
 SEED=42
 
@@ -87,7 +87,7 @@ main() {
 
         TPS=$(get_model_tps "$model")
 
-        for hardware in "a100"; do
+        for hardware in "h100"; do
             data_file="${DATA_DIR}/random_${model}_${hardware}.npz"
 
             # Check if data file exists
