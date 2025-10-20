@@ -47,12 +47,17 @@ def compute_class_weights(
         all_labels.append(z.numpy())
     all_labels = np.concatenate(all_labels)
 
-    counts = np.bincount(all_labels, minlength=K)
+    # Get unique classes actually present in the data
+    unique_classes = np.unique(all_labels)
+    actual_K = len(unique_classes)
+
+    # Compute counts only for classes that exist
+    counts = np.bincount(all_labels)
     # Clamp counts to avoid exploding weights for empty classes
     counts = np.clip(counts, 1, None)
     weights = 1.0 / counts
     # Normalize weights
-    weights = weights * (K / weights.sum())
+    weights = weights * (actual_K / weights.sum())
 
     return torch.FloatTensor(weights).to(device)
 
