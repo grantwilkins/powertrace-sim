@@ -161,8 +161,8 @@ def evaluate_classifier(
         # For proper implementation, you'd need the classifier to output power values too
         all_x = np.concatenate(all_x, axis=0)
         all_y = np.concatenate(all_y, axis=0)
-        all_preds_2d = all_preds.reshape(all_y.shape)
-        all_labels_2d = all_labels.reshape(all_y.shape)
+        all_preds_2d = all_preds.reshape(all_y.shape).squeeze(-1)
+        all_labels_2d = all_labels.reshape(all_y.shape).squeeze(-1)
 
         # Use labels/preds as proxy for power (this assumes classes map to power bins)
         transition_mae = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
