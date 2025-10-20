@@ -82,16 +82,12 @@ main() {
     log_info "Starting ablation study pipeline"
     log_info "Seed: ${SEED}"
     log_info "Results will be saved to: ${RESULTS_BASE}/"
-
-    # Create results directory
     mkdir -p "${RESULTS_BASE}"
+    for model in "llama-3-8b"; do
 
-    # Iterate over all combinations
-    for model in "llama-3-8b" "llama-3-70b" "gpt-oss-20b" "gpt-oss-120b"; do
-        # Get TP values for this model
         TPS=$(get_model_tps "$model")
 
-        for hardware in "a100" "h100"; do
+        for hardware in "a100"; do
             data_file="${DATA_DIR}/random_${model}_${hardware}.npz"
 
             # Check if data file exists
@@ -111,31 +107,17 @@ main() {
                 log_info "Model: ${model} | Hardware: ${hardware} | TP: ${tp}"
                 log_info "----------------------------------------"
 
-                # STAGE 1: LR Sweep
-                echo ""
-                log_info "=== STAGE 1: LR Sweep ==="
-                stage1_dir="${RESULTS_BASE}/stage1_lr_sweep/${model}_${hardware}_tp${tp}"
-                run_stage "${model}" "${hardware}" "${tp}" "lr_sweep" \
-                    "--num_epochs ${STAGE1_EPOCHS} --hidden_size ${STAGE1_H}"
+                # # STAGE 1: LR Sweep
+                # echo ""
+                # log_info "=== STAGE 1: LR Sweep ==="
+                # stage1_dir="${RESULTS_BASE}/stage1_lr_sweep/${model}_${hardware}_tp${tp}"
+                # run_stage "${model}" "${hardware}" "${tp}" "lr_sweep" \
+                #     "--num_epochs ${STAGE1_EPOCHS} --hidden_size ${STAGE1_H}"
 
-                # Read best LR
-                best_lr_file="${stage1_dir}/best_lr.txt"
-                if [ -f "${best_lr_file}" ]; then
-                    best_lr=$(cat "${best_lr_file}")
-                    log_success "Best LR from sweep: ${best_lr}"
-                else
-                    log_error "Could not find best_lr.txt, using default 1e-3"
-                    best_lr="1e-3"
-                fi
-
-                # STAGE 2: Hidden Size Ablation
-                echo ""
                 log_info "=== STAGE 2: Hidden Size Ablation ==="
                 stage2_dir="${RESULTS_BASE}/stage2_hidden_size/${model}_${hardware}_tp${tp}"
                 run_stage "${model}" "${hardware}" "${tp}" "hidden_size" \
                     "--num_epochs ${STAGE2_EPOCHS} --lr ${best_lr}"
-
-                # Read best hidden size
                 best_h_file="${stage2_dir}/best_hidden_size.txt"
                 if [ -f "${best_h_file}" ]; then
                     best_h=$(cat "${best_h_file}")
