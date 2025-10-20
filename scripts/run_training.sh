@@ -63,7 +63,8 @@ main() {
     log_info "Num Epochs: $NUM_EPOCHS"
     log_info "Batch Size: $BATCH_SIZE"
     log_info "Bidirectional: True"
-    log_info "Scheduler: cosine with warmup"
+    log_info "Scheduler: ReduceLROnPlateau (factor=0.5, patience=3, cooldown=1)"
+    log_info "Label Smoothing: 0.05"
     log_info "Seed: $SEED"
     log_info "=========================================="
     echo ""
@@ -112,6 +113,9 @@ main() {
                     --output_dir "${output_dir}" \
                     --bidirectional \
                     --save_model \
+                    --compute_extra_metrics \
+                    --use_scheduler \
+                    --scheduler_type "plateau" \
                     --wandb_project "${WANDB_PROJECT}" \
                     --wandb_run_name "${model}_${hardware}_tp${tp}_H${HIDDEN_SIZE}_lr${LR}"
 

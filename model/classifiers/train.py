@@ -103,42 +103,86 @@ def compute_transition_mae(
     return np.mean(transition_errors) if len(transition_errors) > 0 else 0.0
 
 
-def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 20) -> float:
+def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 128) -> float:
     """
     Compute R² between autocorrelation functions of predicted and true power traces.
 
+    Uses Fisher z-transform aggregation for stability and fixed lag structure.
+
     Args:
-        y_pred: Predicted power values (N, T)
-        y_true: True power values (N, T)
-        max_lag: Maximum lag for autocorrelation computation
+        y_pred: Predicted power values (N, T) - should be continuous power, not class IDs
+        y_true: True power values (N, T) - should be continuous power, not class IDs
+        max_lag: Maximum lag for autocorrelation computation (default 128)
 
     Returns:
         R² of autocorrelation functions
     """
-    def autocorr(x, lag):
-        """Compute autocorrelation at given lag."""
-        c0 = np.var(x)
-        c = np.correlate(x - np.mean(x), x - np.mean(x), mode='full')
-        c = c[len(c)//2:]  # Take positive lags
-        return c[lag] / (c[0] + 1e-8)
+    def autocorr_at_lag(x, lag):
+        """
+        Compute autocorrelation at a specific lag using proper normalization.
+        Handles masking and uses only valid (non-padded) timesteps.
+        """
+        # Remove mean and compute std
+        x_mean = np.mean(x)
+        x_std = np.std(x)
 
-    pred_autocorrs = []
-    true_autocorrs = []
+        if x_std < 1e-8:
+            return 0.0
 
-    for i in range(len(y_pred)):
-        # Limit lags to min(max_lag, T//4) for stability
-        T = len(y_pred[i])
-        effective_max_lag = min(max_lag, T // 4)
-        for lag in range(1, effective_max_lag + 1):
-            pred_autocorrs.append(autocorr(y_pred[i], lag))
-            true_autocorrs.append(autocorr(y_true[i], lag))
+        # Normalize
+        x_norm = (x - x_mean) / x_std
 
-    pred_autocorrs = np.array(pred_autocorrs)
-    true_autocorrs = np.array(true_autocorrs)
+        # Compute correlation at lag
+        n = len(x_norm)
+        if lag >= n:
+            return 0.0
 
-    # Compute R²
-    ss_res = np.sum((true_autocorrs - pred_autocorrs) ** 2)
-    ss_tot = np.sum((true_autocorrs - np.mean(true_autocorrs)) ** 2)
+        numerator = np.sum(x_norm[:-lag] * x_norm[lag:])
+        denominator = n - lag
+
+        return numerator / denominator if denominator > 0 else 0.0
+
+    # Filter out sequences that are too short
+    min_length = max_lag + 4
+    valid_indices = [i for i in range(len(y_pred)) if len(y_pred[i]) >= min_length]
+
+    if len(valid_indices) == 0:
+        return 0.0
+
+    # Compute ACF for each lag across all valid sequences
+    pred_acf_by_lag = {lag: [] for lag in range(1, max_lag + 1)}
+    true_acf_by_lag = {lag: [] for lag in range(1, max_lag + 1)}
+
+    for i in valid_indices:
+        for lag in range(1, max_lag + 1):
+            pred_r = autocorr_at_lag(y_pred[i], lag)
+            true_r = autocorr_at_lag(y_true[i], lag)
+            pred_acf_by_lag[lag].append(pred_r)
+            true_acf_by_lag[lag].append(true_r)
+
+    # Aggregate using Fisher z-transform
+    pred_acf_agg = []
+    true_acf_agg = []
+
+    for lag in range(1, max_lag + 1):
+        # Fisher z-transform: atanh(r)
+        pred_z = [np.arctanh(np.clip(r, -0.999, 0.999)) for r in pred_acf_by_lag[lag]]
+        true_z = [np.arctanh(np.clip(r, -0.999, 0.999)) for r in true_acf_by_lag[lag]]
+
+        # Average in z-space
+        pred_z_mean = np.mean(pred_z)
+        true_z_mean = np.mean(true_z)
+
+        # Transform back: tanh
+        pred_acf_agg.append(np.tanh(pred_z_mean))
+        true_acf_agg.append(np.tanh(true_z_mean))
+
+    pred_acf_agg = np.array(pred_acf_agg)
+    true_acf_agg = np.array(true_acf_agg)
+
+    # Compute R² on aggregated ACFs
+    ss_res = np.sum((true_acf_agg - pred_acf_agg) ** 2)
+    ss_tot = np.sum((true_acf_agg - np.mean(true_acf_agg)) ** 2)
     r2 = 1 - (ss_res / (ss_tot + 1e-8))
 
     return max(0.0, r2)  # Clip to [0, 1]
@@ -537,18 +581,29 @@ def train_classifiers(
 
     classifier = GRUClassifier(Dx, K, H=hidden_size, bidirectional=bidirectional).to(device)
     optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=1e-2)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    # Use label smoothing for better generalization
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.05)
 
     # Setup scheduler
     scheduler = None
+    scheduler_step_mode = "batch"  # "batch" or "epoch"
     if use_scheduler:
-        total_steps = num_epochs * len(train_loader)
         if scheduler_type == "cosine":
+            total_steps = num_epochs * len(train_loader)
             scheduler = build_cosine_with_warmup(optimizer, total_steps, warmup_pct=0.05)
+            scheduler_step_mode = "batch"
         elif scheduler_type == "onecycle":
+            total_steps = num_epochs * len(train_loader)
             scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer, max_lr=lr, total_steps=total_steps, pct_start=0.05
             )
+            scheduler_step_mode = "batch"
+        elif scheduler_type == "plateau":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode='min', factor=0.5, patience=3, cooldown=1, verbose=True
+            )
+            scheduler_step_mode = "epoch"
 
     train_losses = []
     val_losses = []
@@ -579,7 +634,8 @@ def train_classifiers(
             torch.nn.utils.clip_grad_norm_(classifier.parameters(), max_norm=1.0)
             optimizer.step()
 
-            if scheduler is not None:
+            # Step scheduler per batch if needed
+            if scheduler is not None and scheduler_step_mode == "batch":
                 scheduler.step()
 
             epoch_loss += loss.item()
@@ -603,6 +659,10 @@ def train_classifiers(
         # Track best F1 for model saving
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1
+
+        # Step scheduler per epoch if needed (e.g., ReduceLROnPlateau)
+        if scheduler is not None and scheduler_step_mode == "epoch":
+            scheduler.step(val_loss)
 
         # Log to wandb
         if wandb_project:
