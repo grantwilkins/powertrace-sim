@@ -52,9 +52,9 @@ class PowerTraceDataset(Dataset):
         for tp in unique_tp:
             y_concat = np.concatenate(
                 [tr["y"] for tr, tp_i in zip(self.traces, self.tp_all) if tp_i == tp]
-            ).reshape(-1, 1)
+            ).reshape(-1, 1).astype(np.float64)
             model = GaussianMixture(
-                n_components=K, covariance_type="diag", n_init=10, random_state=0
+                n_components=K, covariance_type="diag", n_init=10, random_state=0, reg_covar=1e-6
             ).fit(y_concat)
             self.state_labels[tp] = model
 

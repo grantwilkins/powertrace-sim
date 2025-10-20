@@ -117,7 +117,7 @@ main() {
                 log_info "=== STAGE 2: Hidden Size Ablation ==="
                 stage2_dir="${RESULTS_BASE}/stage2_hidden_size/${model}_${hardware}_tp${tp}"
                 run_stage "${model}" "${hardware}" "${tp}" "hidden_size" \
-                    "--num_epochs ${STAGE2_EPOCHS} --lr ${best_lr}"
+                    "--num_epochs ${STAGE2_EPOCHS} --lr 0.001"
                 best_h_file="${stage2_dir}/best_hidden_size.txt"
                 if [ -f "${best_h_file}" ]; then
                     best_h=$(cat "${best_h_file}")
