@@ -1,3 +1,4 @@
+import math
 import os
 from typing import Dict, List, Optional, Tuple
 
@@ -13,6 +14,29 @@ from sklearn.metrics import confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset, random_split
 
 
+def build_cosine_with_warmup(optimizer, total_steps: int, warmup_pct: float = 0.05):
+    """
+    Build a cosine learning rate scheduler with linear warmup.
+
+    Args:
+        optimizer: PyTorch optimizer
+        total_steps: Total number of training steps
+        warmup_pct: Percentage of total_steps for warmup (default 0.05 = 5%)
+
+    Returns:
+        LambdaLR scheduler
+    """
+    warmup_steps = max(1, int(total_steps * warmup_pct))
+
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return float(step + 1) / warmup_steps
+        t = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return 0.5 * (1.0 + math.cos(math.pi * t))
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+
 def compute_class_weights(
     tp_dataset: Dataset, K: int, device: torch.device
 ) -> torch.Tensor:
@@ -23,9 +47,12 @@ def compute_class_weights(
         all_labels.append(z.numpy())
     all_labels = np.concatenate(all_labels)
 
-    class_counts = np.bincount(all_labels, minlength=K)
-    weights = 1.0 / (class_counts + 1e-6)
-    weights = weights / weights.sum() * K
+    counts = np.bincount(all_labels, minlength=K)
+    # Clamp counts to avoid exploding weights for empty classes
+    counts = np.clip(counts, 1, None)
+    weights = 1.0 / counts
+    # Normalize weights
+    weights = weights * (K / weights.sum())
 
     return torch.FloatTensor(weights).to(device)
 
@@ -94,7 +121,10 @@ def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 2
     true_autocorrs = []
 
     for i in range(len(y_pred)):
-        for lag in range(1, min(max_lag + 1, len(y_pred[i]))):
+        # Limit lags to min(max_lag, T//4) for stability
+        T = len(y_pred[i])
+        effective_max_lag = min(max_lag, T // 4)
+        for lag in range(1, effective_max_lag + 1):
             pred_autocorrs.append(autocorr(y_pred[i], lag))
             true_autocorrs.append(autocorr(y_true[i], lag))
 
@@ -116,6 +146,7 @@ def evaluate_classifier(
     device: torch.device,
     criterion: nn.Module,
     compute_extra_metrics: bool = False,
+    state_power_means: Optional[np.ndarray] = None,
 ) -> Tuple[float, float, float, np.ndarray, Optional[float], Optional[float]]:
     """Evaluate classifier and return loss, accuracy, macro-F1, confusion matrix, and optional extra metrics."""
     classifier.eval()
@@ -156,17 +187,25 @@ def evaluate_classifier(
     autocorr_r2 = None
 
     if compute_extra_metrics and len(all_x) > 0:
-        # Reconstruct predictions and ground truth as continuous power traces
-        # Note: This is approximate - we're using class predictions, not actual power values
-        # For proper implementation, you'd need the classifier to output power values too
         all_x = np.concatenate(all_x, axis=0)
         all_y = np.concatenate(all_y, axis=0)
         all_preds_2d = all_preds.reshape(all_y.shape).squeeze(-1)
         all_labels_2d = all_labels.reshape(all_y.shape).squeeze(-1)
 
-        # Use labels/preds as proxy for power (this assumes classes map to power bins)
-        transition_mae = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
-        autocorr_r2 = compute_autocorr_r2(all_preds_2d, all_labels_2d)
+        # Convert state IDs to power values if means are provided
+        if state_power_means is not None:
+            def states_to_power(states_2d, mu):
+                """Convert state IDs to power values using GMM means."""
+                return mu[states_2d.astype(int)]
+
+            y_pred_power = states_to_power(all_preds_2d, state_power_means)
+            y_true_power = states_to_power(all_labels_2d, state_power_means)
+            transition_mae = compute_transition_mae(y_pred_power, y_true_power, all_x)
+            autocorr_r2 = compute_autocorr_r2(y_pred_power, y_true_power)
+        else:
+            # Fallback: use state IDs as proxy for power
+            transition_mae = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
+            autocorr_r2 = compute_autocorr_r2(all_preds_2d, all_labels_2d)
 
     return avg_loss, accuracy, macro_f1, conf_matrix, transition_mae, autocorr_r2
 
@@ -178,6 +217,7 @@ def lr_sweep(
     num_epochs: int = 100,
     val_split: float = 0.15,
     hidden_size: int = 64,
+    batch_size: int = 8,
     device: Optional[torch.device] = None,
     output_dir: str = "./lr_sweep_results",
     seed: int = 42,
@@ -235,13 +275,13 @@ def lr_sweep(
     print(f"Class weights: {class_weights.cpu().numpy()}")
 
     # Split into train/val
-    torch.manual_seed(seed)
     val_size = int(len(tp_dataset) * val_split)
     train_size = len(tp_dataset) - val_size
-    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size])
+    g = torch.Generator().manual_seed(seed)
+    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size], generator=g)
 
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     results = {}
     best_lr = None
@@ -323,7 +363,7 @@ def lr_sweep(
                     f"val_loss={val_loss:.4f}, val_f1={val_f1:.4f}"
                 )
 
-        final_f1 = val_f1s[-1]
+        final_f1 = max(val_f1s)  # Changed: use max F1, not last epoch
         results[lr] = {
             "train_losses": train_losses,
             "val_losses": val_losses,
@@ -331,7 +371,7 @@ def lr_sweep(
             "final_f1": final_f1,
         }
 
-        print(f"Final validation F1: {final_f1:.4f}")
+        print(f"Best validation F1: {final_f1:.4f}")
 
         if wandb_project:
             wandb.finish()
@@ -397,6 +437,7 @@ def train_classifiers(
     hidden_size: int = 64,
     num_epochs: int = 1000,
     lr: float = 5e-3,
+    batch_size: int = 8,
     device: Optional[torch.device] = None,
     use_scheduler: bool = True,
     scheduler_type: str = "cosine",
@@ -472,17 +513,20 @@ def train_classifiers(
     all_z = torch.cat([dataset[i][2] for i in tp_indices])
     K = len(torch.unique(all_z))
     print(f"Number of unique states across all TP={tp} samples: {K}")
+
+    # Get state power means for this TP (for power-domain metrics)
+    state_power_means = dataset.mu.get(tp, None) if hasattr(dataset, 'mu') else None
     class_weights = None
     if use_class_weights:
         class_weights = compute_class_weights(tp_dataset, K, device)
         print(f"Class weights: {class_weights.cpu().numpy()}")
-    torch.manual_seed(seed)
     val_size = int(len(tp_dataset) * val_split)
     train_size = len(tp_dataset) - val_size
-    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size])
+    g = torch.Generator().manual_seed(seed)
+    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size], generator=g)
 
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     print(f"Train size: {train_size}, Val size: {val_size}")
 
@@ -495,10 +539,7 @@ def train_classifiers(
     if use_scheduler:
         total_steps = num_epochs * len(train_loader)
         if scheduler_type == "cosine":
-            warmup_steps = int(0.05 * total_steps)
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=total_steps - warmup_steps, eta_min=lr * 0.01
-            )
+            scheduler = build_cosine_with_warmup(optimizer, total_steps, warmup_pct=0.05)
         elif scheduler_type == "onecycle":
             scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer, max_lr=lr, total_steps=total_steps, pct_start=0.05
@@ -522,6 +563,10 @@ def train_classifiers(
             x = x.to(device)
             z = z.to(device)
 
+            # Log pre-step LR
+            cur_lr = optimizer.param_groups[0]["lr"]
+            learning_rates.append(cur_lr)
+
             optimizer.zero_grad()
             logits = classifier(x)
             loss = criterion(logits.view(-1, K), z.view(-1))
@@ -531,7 +576,6 @@ def train_classifiers(
 
             if scheduler is not None:
                 scheduler.step()
-                learning_rates.append(optimizer.param_groups[0]["lr"])
 
             epoch_loss += loss.item()
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
@@ -540,7 +584,8 @@ def train_classifiers(
 
         # Validation
         val_loss, val_acc, val_f1, conf_mat, transition_mae, autocorr_r2 = evaluate_classifier(
-            classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics
+            classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics,
+            state_power_means=state_power_means
         )
         val_losses.append(val_loss)
         val_accs.append(val_acc)
@@ -583,7 +628,8 @@ def train_classifiers(
             )
 
     final_val_loss, final_val_acc, final_val_f1, final_conf_mat, final_transition_mae, final_autocorr_r2 = evaluate_classifier(
-        classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics
+        classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics,
+        state_power_means=state_power_means
     )
 
     print(f"\nFinal Results for TP={tp}:")
