@@ -1,14 +1,22 @@
 #!/bin/bash
 
 # Configuration
+<<<<<<< HEAD
 TENSOR_PARALLEL_SIZES=(8)
+=======
+TENSOR_PARALLEL_SIZES=(4)
+>>>>>>> 439936317e57129bc12d5511d5fd4251e1a462a9
 ALL_INTENSITIES=(low medium high)
 ALL_TASKS=(conversation coding)
 ITERATIONS=5
 
 # Generate arrival rates as powers of 4: 4^-3 to 4^3
 # 4^-3=0.015625, 4^-2=0.0625, 4^-1=0.25, 4^0=1, 4^1=4, 4^2=16, 4^3=64
+<<<<<<< HEAD
 ARRIVAL_RATES=(0.015625)
+=======
+ARRIVAL_RATES=(16 64)
+>>>>>>> 439936317e57129bc12d5511d5fd4251e1a462a9
 
 # Function to get random task
 random_task() {
@@ -43,8 +51,13 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         # Iteration 2: high with random task
         # Iterations 3-5: random task and intensity
         WORKLOAD_CONFIGS=(
+<<<<<<< HEAD
             "conversation high"
             "coding high"
+=======
+            "coding high"
+            "conversation high"
+>>>>>>> 439936317e57129bc12d5511d5fd4251e1a462a9
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
             "$(random_task) $(random_intensity)"
