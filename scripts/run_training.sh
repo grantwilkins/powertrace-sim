@@ -9,7 +9,7 @@ set -e
 DATA_DIR="data"
 RESULTS_BASE="results/training"
 HIDDEN_SIZE=64
-NUM_EPOCHS=1000
+NUM_EPOCHS=500
 BATCH_SIZE=8
 SEED=42
 WANDB_PROJECT="powertrace-classifier-training"
