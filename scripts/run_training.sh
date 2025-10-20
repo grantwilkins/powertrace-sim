@@ -9,7 +9,6 @@ set -e
 DATA_DIR="data"
 RESULTS_BASE="results/training"
 HIDDEN_SIZE=64
-LR=3e-4
 NUM_EPOCHS=1000
 BATCH_SIZE=8
 SEED=42
@@ -25,6 +24,17 @@ get_model_tps() {
         *) echo "" ;;
     esac
 }
+
+get_model_lr() {
+    case "$1" in
+        "llama-3-8b") echo "2e-4" ;;
+        "llama-3-70b") echo "1e-4" ;;
+        "gpt-oss-20b") echo "2e-4" ;;
+        "gpt-oss-120b") echo "1e-4" ;;
+        *) echo "1e-4" ;;
+    esac
+}
+
 # Color output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -63,6 +73,7 @@ main() {
     # Models and hardware combinations
     for model in "llama-3-8b" "llama-3-70b" "gpt-oss-20b" "gpt-oss-120b"; do
         TPS=$(get_model_tps "$model")
+        LR=$(get_model_lr "$model")
 
         for hardware in "h100" "a100"; do
             data_file="${DATA_DIR}/random_${model}_${hardware}.npz"
