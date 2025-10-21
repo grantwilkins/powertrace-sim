@@ -37,11 +37,6 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
 
     for ARRIVAL_RATE in ${ARRIVAL_RATES[@]}; do
         echo "Running arrival rate: ${ARRIVAL_RATE} req/s (TP=${TENSOR_PARALLEL_SIZE})"
-
-        # Define 5 iterations with guaranteed ultra and high coverage
-        # Iteration 1: ultra with random task
-        # Iteration 2: high with random task
-        # Iterations 3-5: random task and intensity
         WORKLOAD_CONFIGS=(
             "$(random_task) ultra"
             "$(random_task) high"
