@@ -4,9 +4,7 @@
 TENSOR_PARALLEL_SIZES=(1 2)
 ALL_DATASETS=(likaixin/InstructCoder AI-MO/aimo-validation-aime vdaita/edit_10k_char)
 ITERATIONS=5
-
 ARRIVAL_RATES=(0.0625 0.25 1 4 16 64)
-
 random_datasets() {
     echo ${ALL_DATASETS[$RANDOM % ${#ALL_DATASETS[@]}]}
 }

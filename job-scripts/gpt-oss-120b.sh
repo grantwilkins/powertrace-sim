@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-TENSOR_PARALLEL_SIZES=(1 2)
+TENSOR_PARALLEL_SIZES=(4 8)
 ALL_DATASETS=(likaixin/InstructCoder AI-MO/aimo-validation-aime vdaita/edit_10k_char)
 ITERATIONS=5
 
