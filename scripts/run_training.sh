@@ -72,7 +72,7 @@ main() {
     mkdir -p "${RESULTS_BASE}"
 
     # Models and hardware combinations
-    for model in "llama-3-8b" "llama-3-70b" "gpt-oss-20b" "gpt-oss-120b"; do
+    for model in "gpt-oss-20b" "gpt-oss-120b"; do
         TPS=$(get_model_tps "$model")
         LR=$(get_model_lr "$model")
 
@@ -113,9 +113,6 @@ main() {
                     --output_dir "${output_dir}" \
                     --bidirectional \
                     --save_model \
-                    --compute_extra_metrics \
-                    --use_scheduler \
-                    --scheduler_type "plateau" \
                     --wandb_project "${WANDB_PROJECT}" \
                     --wandb_run_name "${model}_${hardware}_tp${tp}_H${HIDDEN_SIZE}_lr${LR}"
 
