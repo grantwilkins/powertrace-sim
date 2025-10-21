@@ -1,0 +1,1432 @@
+{
+  "deepseek-r1-distill_70b_a100_tp4": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 70,
+    "hardware": "A100",
+    "tensor_parallelism": 4,
+    "num_experiments": 36,
+    "total_requests": 28350,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.2764987950482993,
+      "slope": 0.1744700810909811,
+      "sigma_base": 0.25170719280163656,
+      "sigma_intercept": -2.4048696306698862,
+      "sigma_slope": 0.18323057815467284,
+      "n_train": 28066,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.09371518697175145,
+        "median_seconds": 0.07201276299747406,
+        "std_seconds": 0.05261563465951535,
+        "min_observed": 0.03221285800100304,
+        "max_observed": 0.28636341499804985
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.03849946893094171,
+      "std": 0.018758986444427687,
+      "summary_stats": {
+        "mean_seconds": 0.03849946893094171,
+        "median_seconds": 0.03619305949905538,
+        "std_seconds": 0.018758986444427687,
+        "min_observed": 6.722999387420714e-06,
+        "max_observed": 0.30015872300282354
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        1216.288662260589,
+        288.05599460912185,
+        1568.9263705043481,
+        987.479499560403,
+        1334.843438597269,
+        365.3225917966971
+      ],
+      "state_stds": [
+        18.49745159098942,
+        8.269209388501402,
+        60.95566394731169,
+        269.11173242131406,
+        76.4294195660249,
+        13.339237056617717
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_70b_a100_tp8": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 70,
+    "hardware": "A100",
+    "tensor_parallelism": 8,
+    "num_experiments": 36,
+    "total_requests": 28350,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.476488347239092,
+      "slope": 0.07803547991357264,
+      "sigma_base": 0.2084309525505783,
+      "sigma_intercept": -2.6197717653555905,
+      "sigma_slope": 0.1874852256948944,
+      "n_train": 28066,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.04724159800784042,
+        "median_seconds": 0.041199471001164056,
+        "std_seconds": 0.022089881405230855,
+        "min_observed": 0.020051106002938468,
+        "max_observed": 0.14645652799663367
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.023263496408938877,
+      "std": 0.006613100000755835,
+      "summary_stats": {
+        "mean_seconds": 0.023263496408938877,
+        "median_seconds": 0.02277257050081971,
+        "std_seconds": 0.006613100000755835,
+        "min_observed": 0.012201782999909483,
+        "max_observed": 0.2273992560003535
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        2031.8631553331095,
+        562.4781524369724,
+        2328.465906684228,
+        711.2624516732941,
+        2072.7115774580247,
+        1349.3074378133535
+      ],
+      "state_stds": [
+        23.225254342872653,
+        9.748932886222777,
+        300.6754816009721,
+        17.892718481175315,
+        24.94597810813034,
+        576.8097220517959
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_70b_h100_tp4": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 70,
+    "hardware": "H100",
+    "tensor_parallelism": 4,
+    "num_experiments": 60,
+    "total_requests": 47250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.7380052243969297,
+      "slope": 0.13356191741352902,
+      "sigma_base": 0.1765532448877818,
+      "sigma_intercept": -2.571204014432053,
+      "sigma_slope": 0.13919303502475308,
+      "n_train": 46778,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.045922787885257936,
+        "median_seconds": 0.04072541099958471,
+        "std_seconds": 0.017920581668700978,
+        "min_observed": 0.02290751900000032,
+        "max_observed": 0.10537827599910088
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.01983929272144035,
+      "std": 0.004791759804362316,
+      "summary_stats": {
+        "mean_seconds": 0.01983929272144035,
+        "median_seconds": 0.01913918799982639,
+        "std_seconds": 0.004791759804362316,
+        "min_observed": 0.014102450000791578,
+        "max_observed": 0.24124843699974008
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        1777.223094879971,
+        484.701378439626,
+        1850.4892710804343,
+        789.9575257973867,
+        1460.6194095644487,
+        1949.5991308810646
+      ],
+      "state_stds": [
+        31.56111528434389,
+        12.146051091030987,
+        31.777133044416523,
+        205.85256907772103,
+        210.5429567534991,
+        60.163078787006775
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_70b_h100_tp8": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 70,
+    "hardware": "H100",
+    "tensor_parallelism": 8,
+    "num_experiments": 60,
+    "total_requests": 47250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.8997421631463016,
+      "slope": 0.07977571105129246,
+      "sigma_base": 0.16163344863925655,
+      "sigma_intercept": -2.8263105531585966,
+      "sigma_slope": 0.1774660812971405,
+      "n_train": 46778,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.03017751151811344,
+        "median_seconds": 0.027787530998466536,
+        "std_seconds": 0.010274951346556321,
+        "min_observed": 0.01649616699978651,
+        "max_observed": 0.07230893300038588
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.013512053811149026,
+      "std": 0.002372648416263392,
+      "summary_stats": {
+        "mean_seconds": 0.013512053811149026,
+        "median_seconds": 0.013140107999788597,
+        "std_seconds": 0.002372648416263392,
+        "min_observed": 6.300999302766286e-06,
+        "max_observed": 0.3148098840001694
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        2965.8486789851704,
+        946.5720484174121,
+        2069.771296138042,
+        2596.087710192457,
+        1275.857758210298,
+        3021.430554522921
+      ],
+      "state_stds": [
+        40.83484412694814,
+        7.363102733687238,
+        177.8954089285386,
+        287.4066155610418,
+        266.0130868543682,
+        75.69301569096037
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_a100_tp1": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 1,
+    "num_experiments": 44,
+    "total_requests": 29250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.273451974636078,
+      "slope": 0.1651580083972583,
+      "sigma_base": 0.19986767552118678,
+      "sigma_intercept": -2.6098353519288437,
+      "sigma_slope": 0.17792302706464558,
+      "n_train": 28958,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.03179807286449761,
+        "median_seconds": 0.026704950999373978,
+        "std_seconds": 0.014820967257235557,
+        "min_observed": 0.013354687000173726,
+        "max_observed": 0.08102940800017677
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.012876559595742238,
+      "std": 0.003298449342129141,
+      "summary_stats": {
+        "mean_seconds": 0.012876559595742238,
+        "median_seconds": 0.012455354500161775,
+        "std_seconds": 0.003298449342129141,
+        "min_observed": 0.005935775999205362,
+        "max_observed": 0.09625958700053161
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        71.56968034845283,
+        285.3860361156483,
+        370.6610789495474,
+        218.61705170732964,
+        88.5410045210966,
+        296.7732911797547
+      ],
+      "state_stds": [
+        1.414876463821856,
+        4.48923100848785,
+        42.092700010930926,
+        66.13412319406805,
+        2.4528303775487745,
+        6.328559609992752
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_a100_tp2": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 2,
+    "num_experiments": 36,
+    "total_requests": 28350,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.556252572128656,
+      "slope": 0.12094608788443971,
+      "sigma_base": 0.20511431944835445,
+      "sigma_intercept": -2.806710762316074,
+      "sigma_slope": 0.22427431468130113,
+      "n_train": 28066,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.019225552088296453,
+        "median_seconds": 0.017050308000762016,
+        "std_seconds": 0.007962851753223569,
+        "min_observed": 0.00967838199903781,
+        "max_observed": 0.049509203999150486
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.008592499177299508,
+      "std": 0.0013307208167595086,
+      "summary_stats": {
+        "mean_seconds": 0.008592499177299508,
+        "median_seconds": 0.008525343500423332,
+        "std_seconds": 0.0013307208167595086,
+        "min_observed": 0.003573591000531451,
+        "max_observed": 0.20283714200013492
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        522.0079275468601,
+        139.0494756134014,
+        389.7536717904052,
+        530.5816399214395,
+        598.9506531750488,
+        170.20651650359378
+      ],
+      "state_stds": [
+        6.1942324310311445,
+        1.3179953690556108,
+        97.83331365260013,
+        9.648675324596393,
+        67.59595261929609,
+        10.546025669944258
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_a100_tp4": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 4,
+    "num_experiments": 36,
+    "total_requests": 28350,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.64351860113008,
+      "slope": 0.058671249753250956,
+      "sigma_base": 0.14820459808384268,
+      "sigma_intercept": -2.2250514368511323,
+      "sigma_slope": 0.021192191059031494,
+      "n_train": 28066,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.01290002994675739,
+        "median_seconds": 0.012399821000144584,
+        "std_seconds": 0.003663197718489179,
+        "min_observed": 0.007369494000158738,
+        "max_observed": 0.031698908998805564
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.006192741057338238,
+      "std": 0.0007317986539228936,
+      "summary_stats": {
+        "mean_seconds": 0.006192741057338238,
+        "median_seconds": 0.006216722001227026,
+        "std_seconds": 0.0007317986539228936,
+        "min_observed": 7.714999810559675e-06,
+        "max_observed": 0.2703284229974088
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        850.1123184453645,
+        276.5749801566698,
+        470.3008664792176,
+        346.06525625935564,
+        289.818478656749,
+        777.2517886207856
+      ],
+      "state_stds": [
+        18.018810189624975,
+        1.6565215276807992,
+        121.62031211536932,
+        6.779959849541927,
+        8.075953392896349,
+        104.07448072685823
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_a100_tp8": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 8,
+    "num_experiments": 36,
+    "total_requests": 28350,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.699863233016016,
+      "slope": 0.05542707613329673,
+      "sigma_base": 0.13932506538119238,
+      "sigma_intercept": -2.1628145590846137,
+      "sigma_slope": -0.009156026031095475,
+      "n_train": 28066,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.011930729548921371,
+        "median_seconds": 0.011661844997433946,
+        "std_seconds": 0.0028491753293330402,
+        "min_observed": 0.006526123001094675,
+        "max_observed": 0.026040749999083346
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.00561835430662073,
+      "std": 0.00041131901941581785,
+      "summary_stats": {
+        "mean_seconds": 0.00561835430662073,
+        "median_seconds": 0.005614128000161145,
+        "std_seconds": 0.00041131901941581785,
+        "min_observed": 6.9929992605466396e-06,
+        "max_observed": 0.2225838490012393
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        564.4200267421443,
+        1350.4170495541648,
+        688.160601354895,
+        669.5774203840522,
+        552.8536280918981,
+        1143.4859727703847
+      ],
+      "state_stds": [
+        6.687648004214845,
+        23.602299111491266,
+        7.49462468852749,
+        68.73784507825019,
+        2.4055260676416084,
+        186.60602938771842
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_h100_tp1": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 1,
+    "num_experiments": 60,
+    "total_requests": 47250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.580933025358784,
+      "slope": 0.1186648812049541,
+      "sigma_base": 0.14655917543547314,
+      "sigma_intercept": -2.7851448685633855,
+      "sigma_slope": 0.14015659033585032,
+      "n_train": 46778,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.018080184989005377,
+        "median_seconds": 0.01652713800103811,
+        "std_seconds": 0.005545913955490106,
+        "min_observed": 0.010199805001320783,
+        "max_observed": 0.03561381000054098
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.007478378247012129,
+      "std": 0.000911601594844925,
+      "summary_stats": {
+        "mean_seconds": 0.007478378247012129,
+        "median_seconds": 0.007392460000119172,
+        "std_seconds": 0.000911601594844925,
+        "min_observed": 0.003092045999437687,
+        "max_observed": 0.292019808999612
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        373.1542474945185,
+        119.41749844686494,
+        464.10794035607296,
+        273.1718052478628,
+        169.3582403957073,
+        440.40432418829585
+      ],
+      "state_stds": [
+        36.99758072795616,
+        1.5402454042466505,
+        11.160029112847214,
+        33.83987119941921,
+        32.802122918702715,
+        7.414581405895717
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_h100_tp2": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 2,
+    "num_experiments": 60,
+    "total_requests": 47250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.769865531914613,
+      "slope": 0.09486212643622553,
+      "sigma_base": 0.13681091413344681,
+      "sigma_intercept": -2.929148793541193,
+      "sigma_slope": 0.156086507799985,
+      "n_train": 46778,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.013358007128473102,
+        "median_seconds": 0.012362213998130755,
+        "std_seconds": 0.0037669260742824416,
+        "min_observed": 0.007980796999618178,
+        "max_observed": 0.026944913999614073
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.0054485136153732145,
+      "std": 0.0005926691540901471,
+      "summary_stats": {
+        "mean_seconds": 0.0054485136153732145,
+        "median_seconds": 0.005412309998064302,
+        "std_seconds": 0.0005926691540901471,
+        "min_observed": 0.0006492269985756138,
+        "max_observed": 0.21845363899774384
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        237.4684288250076,
+        772.2112855803454,
+        553.5042453923572,
+        438.27583598165575,
+        672.9592113236147,
+        305.32562848340234
+      ],
+      "state_stds": [
+        4.651241504407488,
+        13.329969611533773,
+        42.79342958546593,
+        44.338875708703,
+        47.22011395663315,
+        40.619125669729776
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_h100_tp4": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 4,
+    "num_experiments": 58,
+    "total_requests": 42450,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.827696090547718,
+      "slope": 0.054563605834081444,
+      "sigma_base": 0.09632734869349857,
+      "sigma_intercept": -2.5862642059368035,
+      "sigma_slope": 0.0023256276593397983,
+      "n_train": 42026,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.01034111452605671,
+        "median_seconds": 0.010187966996454634,
+        "std_seconds": 0.00180198096443999,
+        "min_observed": 0.006276871004956774,
+        "max_observed": 0.01970796399837127
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.0040692951548241315,
+      "std": 0.0003585837189893285,
+      "summary_stats": {
+        "mean_seconds": 0.0040692951548241315,
+        "median_seconds": 0.004048091999720782,
+        "std_seconds": 0.0003585837189893285,
+        "min_observed": 3.6100027500651777e-06,
+        "max_observed": 0.23177359500550665
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        472.9665032819476,
+        1280.755584062057,
+        923.1063453780995,
+        737.5505270921996,
+        1126.812923677822,
+        536.7501529134865
+      ],
+      "state_stds": [
+        2.6033790703285873,
+        22.602827718501015,
+        68.93892344048619,
+        70.69122705436811,
+        77.26808343909465,
+        50.22210345397731
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "deepseek-r1-distill_8b_h100_tp8": {
+    "model_name": "deepseek-r1-distill",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 8,
+    "num_experiments": 60,
+    "total_requests": 47250,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.882821792848366,
+      "slope": 0.054445270121436615,
+      "sigma_base": 0.09596679809584607,
+      "sigma_intercept": -2.636342784260045,
+      "sigma_slope": 0.015077213348413398,
+      "n_train": 46778,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.009780532085933763,
+        "median_seconds": 0.00963989199954085,
+        "std_seconds": 0.0016915422272182447,
+        "min_observed": 0.006161554000300384,
+        "max_observed": 0.019451354000011634
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.003568540531830744,
+      "std": 0.0003151071474177584,
+      "summary_stats": {
+        "mean_seconds": 0.003568540531830744,
+        "median_seconds": 0.0035554440000851173,
+        "std_seconds": 0.0003151071474177584,
+        "min_observed": 4.068000635015778e-06,
+        "max_observed": 0.2283544370002346
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        945.3492922815,
+        2066.952729429215,
+        1599.3398551000905,
+        1868.1027763745883,
+        1352.5147150984108,
+        1063.8283478129974
+      ],
+      "state_stds": [
+        5.4035443999441695,
+        23.001713403753726,
+        95.81413716544513,
+        104.77063534764268,
+        94.64629787802411,
+        82.28687143261973
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_405b_h100_tp8": {
+    "model_name": "llama-3.1",
+    "model_size_b": 405,
+    "hardware": "H100",
+    "tensor_parallelism": 8,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.301989251131907,
+      "slope": 0.20289842430912391,
+      "sigma_base": 0.2148289412379988,
+      "sigma_intercept": -1.9843366465139602,
+      "sigma_slope": 0.05243021568424554,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.10233170390234829,
+        "median_seconds": 0.0775685964999866,
+        "std_seconds": 0.05232194289079753,
+        "min_observed": 0.03905998100162833,
+        "max_observed": 0.28131847600161564
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.03964231464291553,
+      "std": 0.019136629036866002,
+      "summary_stats": {
+        "mean_seconds": 0.03964231464291553,
+        "median_seconds": 0.03606781000053161,
+        "std_seconds": 0.019136629036866002,
+        "min_observed": 5.324000085238367e-06,
+        "max_observed": 0.34465107699725195
+      }
+    }
+  },
+  "llama-3.1_70b_a100_tp4": {
+    "model_name": "llama-3.1",
+    "model_size_b": 70,
+    "hardware": "A100",
+    "tensor_parallelism": 4,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.292199251308227,
+      "slope": 0.1768275727569421,
+      "sigma_base": 0.25661435540061156,
+      "sigma_intercept": -2.3581008233830936,
+      "sigma_slope": 0.1769888138941995,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.09344611872266077,
+        "median_seconds": 0.071524450000652,
+        "std_seconds": 0.05288136573795947,
+        "min_observed": 0.031682328999522724,
+        "max_observed": 0.2886322449994623
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.038506760493754226,
+      "std": 0.01879130402373585,
+      "summary_stats": {
+        "mean_seconds": 0.038506760493754226,
+        "median_seconds": 0.03618059899963555,
+        "std_seconds": 0.01879130402373585,
+        "min_observed": 0.00031945699993229937,
+        "max_observed": 0.3014001580013428
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        1220.8841402170688,
+        290.6518330015254,
+        1439.587630810637,
+        1222.0919138405122,
+        364.09068760164996,
+        911.090219019998
+      ],
+      "state_stds": [
+        12.516461122454109,
+        6.451115717025563,
+        130.57791687969853,
+        28.405096108724447,
+        9.35281535584889,
+        332.89186511696147
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_70b_a100_tp8": {
+    "model_name": "llama-3.1",
+    "model_size_b": 70,
+    "hardware": "A100",
+    "tensor_parallelism": 8,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.4888860647019144,
+      "slope": 0.08253239131376641,
+      "sigma_base": 0.209480911481065,
+      "sigma_intercept": -2.6470652037844338,
+      "sigma_slope": 0.19659993159565614,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.047626883434700236,
+        "median_seconds": 0.04156557150054141,
+        "std_seconds": 0.022255569363102422,
+        "min_observed": 0.019988272000773577,
+        "max_observed": 0.14852347200030636
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.023194084014552068,
+      "std": 0.00663761257356576,
+      "summary_stats": {
+        "mean_seconds": 0.023194084014552068,
+        "median_seconds": 0.02274999600058436,
+        "std_seconds": 0.00663761257356576,
+        "min_observed": 6.231999577721581e-06,
+        "max_observed": 0.22706469699915033
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        1958.2409225140411,
+        551.7894469494266,
+        2368.9032983529114,
+        1471.4465477768965,
+        677.8486721851785,
+        2057.7027211277377
+      ],
+      "state_stds": [
+        32.35199177755813,
+        15.872511961691202,
+        266.98855937822907,
+        436.2032454257347,
+        24.894893635676087,
+        41.44751121829171
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_70b_h100_tp4": {
+    "model_name": "llama-3.1",
+    "model_size_b": 70,
+    "hardware": "H100",
+    "tensor_parallelism": 4,
+    "num_experiments": 29,
+    "total_requests": 21225,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.761862378706949,
+      "slope": 0.13359547856054022,
+      "sigma_base": 0.17830550019200164,
+      "sigma_intercept": -2.574205683020601,
+      "sigma_slope": 0.1439415459478801,
+      "n_train": 21012,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.04490640667090005,
+        "median_seconds": 0.03975653149973368,
+        "std_seconds": 0.017862389840709716,
+        "min_observed": 0.022059615002945065,
+        "max_observed": 0.10430902100051753
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.019426753393052654,
+      "std": 0.004619305516581418,
+      "summary_stats": {
+        "mean_seconds": 0.019426753393052654,
+        "median_seconds": 0.018782432999614684,
+        "std_seconds": 0.004619305516581418,
+        "min_observed": 3.94200105802156e-06,
+        "max_observed": 0.32528344399997877
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        490.09936590063194,
+        1847.642827182783,
+        1139.140639873525,
+        1954.7000735353706,
+        1498.7496487257047,
+        711.5184338786923
+      ],
+      "state_stds": [
+        15.614554360671187,
+        48.45189824024085,
+        140.78445431684992,
+        71.1927683823983,
+        158.71080136049108,
+        139.8766096906187
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_70b_h100_tp8": {
+    "model_name": "llama-3.1",
+    "model_size_b": 70,
+    "hardware": "H100",
+    "tensor_parallelism": 8,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -3.91287637337533,
+      "slope": 0.08278655303801276,
+      "sigma_base": 0.16873131792935198,
+      "sigma_intercept": -2.8647299036194482,
+      "sigma_slope": 0.19388470992242782,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.030253304142725295,
+        "median_seconds": 0.027647978000004514,
+        "std_seconds": 0.010549932894574938,
+        "min_observed": 0.01634394400025485,
+        "max_observed": 0.07160882700009097
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.013517428876655796,
+      "std": 0.002365293595101598,
+      "summary_stats": {
+        "mean_seconds": 0.013517428876655796,
+        "median_seconds": 0.013153623998732655,
+        "std_seconds": 0.002365293595101598,
+        "min_observed": 4.091001756023616e-06,
+        "max_observed": 0.2247124159998748
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        2949.6350793697247,
+        958.8016430430434,
+        1423.4574615162428,
+        2463.1236431510856,
+        3108.4852825160815,
+        3016.319680916347
+      ],
+      "state_stds": [
+        27.666197728220915,
+        11.06931183495364,
+        333.1999108497942,
+        325.81442287463324,
+        64.09657087090685,
+        28.24387865806555
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_a100_tp1": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 1,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.23379006010128,
+      "slope": 0.1611152748413563,
+      "sigma_base": 0.1923683897752381,
+      "sigma_intercept": -2.6597868484866174,
+      "sigma_slope": 0.18069434842641907,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.03238114436817644,
+        "median_seconds": 0.027193423000426264,
+        "std_seconds": 0.014786576945151807,
+        "min_observed": 0.013659819000167772,
+        "max_observed": 0.08123689700005343
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.012973723643449548,
+      "std": 0.0033781952799153575,
+      "summary_stats": {
+        "mean_seconds": 0.012973723643449548,
+        "median_seconds": 0.012534223998954985,
+        "std_seconds": 0.0033781952799153575,
+        "min_observed": 0.005522952997125685,
+        "max_observed": 0.30745398399812984
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        68.32494390264769,
+        292.89914998296484,
+        368.7073634449598,
+        204.005594683224,
+        83.30064027259071,
+        285.120949359384
+      ],
+      "state_stds": [
+        0.659976372161746,
+        7.114298300751719,
+        51.22028659366089,
+        89.72305520311507,
+        1.550021502889673,
+        4.261566888584819
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_a100_tp2": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 2,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.490288017478818,
+      "slope": 0.11811329068405736,
+      "sigma_base": 0.19307791961097473,
+      "sigma_intercept": -2.802390703242489,
+      "sigma_slope": 0.20903197125576506,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.020150583436762057,
+        "median_seconds": 0.018000733998633223,
+        "std_seconds": 0.007878593772930025,
+        "min_observed": 0.009988990997953806,
+        "max_observed": 0.05011628499778453
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.008663593844468194,
+      "std": 0.0014045983821888038,
+      "summary_stats": {
+        "mean_seconds": 0.008663593844468194,
+        "median_seconds": 0.008578352004406042,
+        "std_seconds": 0.0014045983821888038,
+        "min_observed": 7.844995707273483e-06,
+        "max_observed": 0.25246796799910953
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        135.09494730022664,
+        508.3382579439775,
+        383.05407419532594,
+        572.9944666449592,
+        161.45939458935703,
+        515.9767077172284
+      ],
+      "state_stds": [
+        1.1669748901660972,
+        5.64378400485488,
+        100.49249316488314,
+        68.8020944697404,
+        8.147922129404082,
+        7.796287211573861
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_a100_tp4": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 4,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.580604515946748,
+      "slope": 0.04517491500477186,
+      "sigma_base": 0.14524552518922737,
+      "sigma_intercept": -2.138383254206,
+      "sigma_slope": -0.01321824399063476,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.012832899972840761,
+        "median_seconds": 0.012610393001523335,
+        "std_seconds": 0.0030203810800211624,
+        "min_observed": 0.007593100002850406,
+        "max_observed": 0.03009036000003107
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.006261940282644412,
+      "std": 0.0006276999810391427,
+      "summary_stats": {
+        "mean_seconds": 0.006261940282644412,
+        "median_seconds": 0.006298228996456601,
+        "std_seconds": 0.0006276999810391427,
+        "min_observed": 7.332986569963396e-06,
+        "max_observed": 0.26440370899945265
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        856.1697393802491,
+        277.71460057615155,
+        627.4150289628933,
+        291.1103143715745,
+        341.3957900823845,
+        833.0230658671443
+      ],
+      "state_stds": [
+        13.359190294015294,
+        1.6469502248419952,
+        168.9756508350291,
+        9.708508389977238,
+        6.348340803160844,
+        12.39582039393008
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_a100_tp8": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "A100",
+    "tensor_parallelism": 8,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.6031028847743,
+      "slope": 0.04221319525663921,
+      "sigma_base": 0.13083533411936785,
+      "sigma_intercept": -2.1749661157698807,
+      "sigma_slope": -0.021125778182272778,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.012325943487436411,
+        "median_seconds": 0.012143929001467768,
+        "std_seconds": 0.0024965866788795635,
+        "min_observed": 0.006701434002025053,
+        "max_observed": 0.023989372988580726
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.005712750424866902,
+      "std": 0.00041491732478128655,
+      "summary_stats": {
+        "mean_seconds": 0.005712750424866902,
+        "median_seconds": 0.005692843005817849,
+        "std_seconds": 0.00041491732478128655,
+        "min_observed": 8.005008567124605e-06,
+        "max_observed": 0.3264865560049657
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        552.2835732092333,
+        1322.116620583573,
+        671.9203431092274,
+        1103.9182366634168,
+        650.97424358685,
+        560.9894717844495
+      ],
+      "state_stds": [
+        1.5498608364782862,
+        18.93192250221363,
+        5.403268326059417,
+        195.75189263955542,
+        50.56079667282858,
+        5.76421105953736
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_h100_tp1": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 1,
+    "num_experiments": 32,
+    "total_requests": 35637,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.463961705271178,
+      "slope": 0.11969295737967879,
+      "sigma_base": 0.1682365999141712,
+      "sigma_intercept": -2.3258116158867823,
+      "sigma_slope": 0.06634160182858652,
+      "n_train": 35280,
+      "nin_min": 4,
+      "nin_max": 1024,
+      "summary_stats": {
+        "mean_seconds": 0.020614101627523217,
+        "median_seconds": 0.018803492500410357,
+        "std_seconds": 0.006749437728176168,
+        "min_observed": 0.010708894000345026,
+        "max_observed": 0.04300277399988772
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.008361698809656835,
+      "std": 0.002160303869363252,
+      "summary_stats": {
+        "mean_seconds": 0.008361698809656835,
+        "median_seconds": 0.007685137500629935,
+        "std_seconds": 0.002160303869363252,
+        "min_observed": 3.8890000269020675e-06,
+        "max_observed": 0.26327211700004227
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        464.380132979441,
+        119.50400226911536,
+        383.23183161236454,
+        284.97228830367754,
+        438.0789692864353,
+        177.10207073152492
+      ],
+      "state_stds": [
+        10.99849476940451,
+        1.9275354214504687,
+        30.891156859306918,
+        34.37696842349552,
+        8.985779309471033,
+        34.78283945031978
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_h100_tp2": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 2,
+    "num_experiments": 29,
+    "total_requests": 21225,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.763722759641296,
+      "slope": 0.09349926241655353,
+      "sigma_base": 0.13627296076557469,
+      "sigma_intercept": -2.9527401736502,
+      "sigma_slope": 0.15926002766875305,
+      "n_train": 21012,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.013345842393635255,
+        "median_seconds": 0.012345241999355494,
+        "std_seconds": 0.0037329234335886285,
+        "min_observed": 0.00812259700614959,
+        "max_observed": 0.02695797200067318
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.00544443331509555,
+      "std": 0.0006463812830483552,
+      "summary_stats": {
+        "mean_seconds": 0.00544443331509555,
+        "median_seconds": 0.0054127399998833425,
+        "std_seconds": 0.0006463812830483552,
+        "min_observed": 0.0009265450025850441,
+        "max_observed": 0.25721235199671355
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        302.459469858378,
+        774.4177448363146,
+        238.58439473947922,
+        561.4466425811468,
+        671.8098663507225,
+        443.002592034323
+      ],
+      "state_stds": [
+        42.10516711603119,
+        18.65285976844823,
+        1.754393819284885,
+        42.22695489164133,
+        37.850310260301995,
+        45.50785714668082
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_h100_tp4": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 4,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.818928892948732,
+      "slope": 0.051846174075753856,
+      "sigma_base": 0.0966946382236846,
+      "sigma_intercept": -2.5279039640879355,
+      "sigma_slope": -0.011528860357635303,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.01030401954707981,
+        "median_seconds": 0.010179508500186785,
+        "std_seconds": 0.0017584372060567002,
+        "min_observed": 0.006565126999703352,
+        "max_observed": 0.01974282299988772
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.00406320618586581,
+      "std": 0.0003876002924408054,
+      "summary_stats": {
+        "mean_seconds": 0.00406320618586581,
+        "median_seconds": 0.00404366299881076,
+        "std_seconds": 0.0003876002924408054,
+        "min_observed": 3.9360002119792625e-06,
+        "max_observed": 0.2605150469998989
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        1304.3970790844153,
+        483.79667202666576,
+        959.2904041760858,
+        773.3643845049461,
+        1154.98074928514,
+        558.5434900930362
+      ],
+      "state_stds": [
+        22.52337429093235,
+        2.4994845153502925,
+        69.44960319749498,
+        70.27562904367159,
+        74.0750553317179,
+        56.890678808333064
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  },
+  "llama-3.1_8b_h100_tp8": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 8,
+    "num_experiments": 30,
+    "total_requests": 23625,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.8676802577995435,
+      "slope": 0.05358521896160589,
+      "sigma_base": 0.10023010499248959,
+      "sigma_intercept": -2.5639797721036337,
+      "sigma_slope": 0.005484471613214186,
+      "n_train": 23388,
+      "nin_min": 4,
+      "nin_max": 1020,
+      "summary_stats": {
+        "mean_seconds": 0.009903487962977506,
+        "median_seconds": 0.009734247501910431,
+        "std_seconds": 0.0017889631086356042,
+        "min_observed": 0.0061368280003080145,
+        "max_observed": 0.019719766001799144
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.0035707840589039898,
+      "std": 0.0003770943084150294,
+      "summary_stats": {
+        "mean_seconds": 0.0035707840589039898,
+        "median_seconds": 0.003556535997631727,
+        "std_seconds": 0.0003770943084150294,
+        "min_observed": 3.630004357546568e-06,
+        "max_observed": 0.3110037629958242
+      }
+    },
+    "power_states": {
+      "num_states": 6,
+      "state_means": [
+        957.8626607987821,
+        1862.0318853709932,
+        1575.8827116135355,
+        2074.4499221902806,
+        1319.2753755923559,
+        1064.8045062385117
+      ],
+      "state_stds": [
+        7.8182767084890346,
+        111.08469928128572,
+        96.0199967008603,
+        24.523608440165813,
+        88.6124697655928,
+        67.84831969673164
+      ],
+      "clustering_method": "gaussian_mixture"
+    }
+  }
+}

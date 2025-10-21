@@ -1,2 +1,0 @@
-hardware,model,tp,f1_score,transition_mae,power_mape,autocorr_r2_mean,autocorr_r2_std,num_samples
-a100,llama-3-8b,1,0.6052,14.7762,8.5659,0.9925,0.0000,10

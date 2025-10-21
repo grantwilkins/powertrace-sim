@@ -4,12 +4,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from core.dataset import PowerTraceDataset
+from core.utils import load_classifier
+from predictors.smooth_sampler import SmoothingSampler
 from scipy.stats import pearsonr
 from statsmodels.tsa.stattools import acf, pacf
-
-from model.core.dataset import PowerTraceDataset
-from model.core.utils import load_classifier
-from model.predictors.smooth_sampler import SmoothingSampler
 
 
 def compute_autocorrelation_metrics(real_trace, synthetic_trace, max_lags=50):
@@ -38,12 +37,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         required=True,
-        choices=[
-            "llama-3-8b",
-            "llama-3-70b",
-            "deepseek-r1-distill-8b",
-            "deepseek-r1-distill-70b",
-        ],
+        choices=["llama-3-8b", "llama-3-70b", "gpt-oss-20b", "gpt-oss-120b"],
         help="LLM name",
     )
     # parser.add_argument(
@@ -56,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--weights-path",
         type=str,
-        default="../gru_classifier_weights/",
+        default="../random_gru_classifier_weights/",
         help="Path to the classifier weights folder",
     )
     parser.add_argument(

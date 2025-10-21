@@ -67,7 +67,7 @@ def load_model_config(
     hardware: str,
     tp: int,
     summary_data_dir: str = "model/summary_data",
-    performance_db_path: str = "model/config/performance_database.json",
+    performance_db_path: str = "model/performance_database.json",
     weights_base_path: str = "gru_classifier_weights",
 ) -> ModelConfig:
     """
@@ -143,9 +143,7 @@ def load_model_config(
         tpot_std = perf_data["tpot_distribution"]["std"]
 
     # Construct classifier weights path
-    weights_path = os.path.join(
-        weights_base_path, f"{model_name}_{hardware}_tp{tp}.pt"
-    )
+    weights_path = os.path.join(weights_base_path, f"{model_name}_{hardware}_tp{tp}.pt")
 
     return ModelConfig(
         model_name=model_name,
@@ -163,7 +161,7 @@ def load_model_config(
 
 
 def load_performance_database(
-    performance_db_path: str = "model/config/performance_database.json",
+    performance_db_path: str = "model/performance_database.json",
 ) -> Dict:
     """Load performance database."""
     if not os.path.exists(performance_db_path):
@@ -193,7 +191,7 @@ def list_available_models(summary_data_dir: str = "model/summary_data") -> list:
 
 def get_all_configs(
     summary_data_dir: str = "model/summary_data",
-    performance_db_path: str = "model/config/performance_database.json",
+    performance_db_path: str = "model/performance_database.json",
     weights_base_path: str = "gru_classifier_weights",
 ) -> Dict[str, ModelConfig]:
     """

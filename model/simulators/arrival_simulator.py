@@ -498,26 +498,17 @@ class ServingSystemSimulator:
         # Sort by arrival time
         requests = sorted(requests, key=lambda x: x.arrival_time)
         processed_requests = []
-
-        # Simple FIFO queue simulation with batching
         active_requests = []  # Currently processing
-
-        # Initialize performance samplers (TTFT/TPOT) based on config/database
         sampler = PerformanceSampler(self.config)
 
         for req in requests:
-            # Calculate when this request can start processing
             if len(active_requests) < self.config.batch_size:
-                # Can start immediately
                 start_time = req.arrival_time
             else:
-                # Must wait - find earliest completion time
                 earliest_completion = min(
                     r.decode_end for r in active_requests if r.decode_end
                 )
                 start_time = max(req.arrival_time, earliest_completion)
-
-            # Sample per-request TTFT/TPOT and calculate processing timeline
             sampled_ttft = sampler.sample_ttft(req.input_tokens)
             sampled_tpot = sampler.sample_tpot()
 
@@ -527,16 +518,12 @@ class ServingSystemSimulator:
             decode_start = prefill_end
             decode_duration = req.output_tokens * sampled_tpot
             decode_end = decode_start + decode_duration
-
-            # Update request with timing
             req.prefill_start = prefill_start
             req.prefill_end = prefill_end
             req.decode_start = decode_start
             req.decode_end = decode_end
 
             processed_requests.append(req)
-
-            # Clean up completed requests from active list
             active_requests = [r for r in active_requests if r.decode_end > start_time]
             active_requests.append(req)
 

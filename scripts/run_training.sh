@@ -113,7 +113,6 @@ main() {
                     --output_dir "${output_dir}" \
                     --bidirectional \
                     --save_model \
-		            --states_cache_dir ./model/states_cache \
                     --wandb_project "${WANDB_PROJECT}" \
                     --wandb_run_name "${model}_${hardware}_tp${tp}_H${HIDDEN_SIZE}_lr${LR}"
 

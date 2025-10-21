@@ -1,4 +1,0 @@
-{
-  "model_name": "llama-3-8b",
-  "hardware": "a100.npz",
-  "tensor_parallelism": 

@@ -171,7 +171,9 @@ def fit_ttft_heteroskedastic(input_lens: List[int], ttft_s: List[float]) -> Dict
     input_lens_bulk = input_lens[bulk_mask]
     ttft_s_bulk = ttft_s[bulk_mask]
 
-    print(f"  Filtered {(~bulk_mask).sum()} P99 outliers (>{p99_threshold:.6f}s), keeping {len(ttft_s_bulk)} samples")
+    print(
+        f"  Filtered {(~bulk_mask).sum()} P99 outliers (>{p99_threshold:.6f}s), keeping {len(ttft_s_bulk)} samples"
+    )
 
     # Log transform
     log_input = np.log(input_lens_bulk)
@@ -483,7 +485,7 @@ def create_performance_database(data_root_dir: str, output_file: str):
             "num_experiments": config_data["num_experiments"],
             "total_requests": len(ttft_values_s),
             "ttft_model": ttft_model,  # NEW FORMAT
-            "tpot_distribution": tpot_model
+            "tpot_distribution": tpot_model,
         }
 
     # Save to JSON
@@ -588,7 +590,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_file",
         type=str,
-        default="/Users/grantwilkins/powertrace-sim/model/config/performance_database.json",
+        default="/Users/grantwilkins/powertrace-sim/model/performance_database.json",
         help="Output JSON file for performance database",
     )
     parser.add_argument(

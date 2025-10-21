@@ -14,8 +14,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 def add_power_stats_to_performance_db(
     summary_data_dir: str = "model/summary_data",
-    performance_db_path: str = "model/config/performance_database.json",
-    output_path: str = "model/config/performance_database.json",
+    performance_db_path: str = "model/performance_database.json",
+    output_path: str = "model/performance_database.json",
 ):
     """
     Add power state statistics to performance database.
@@ -43,7 +43,9 @@ def add_power_stats_to_performance_db(
         # Extract model and hardware from filename
         # Format: model_summary_{model_name}_{hardware}.json
         basename = os.path.basename(summary_file)
-        parts = basename.replace("model_summary_", "").replace(".json", "").rsplit("_", 1)
+        parts = (
+            basename.replace("model_summary_", "").replace(".json", "").rsplit("_", 1)
+        )
 
         if len(parts) != 2:
             print(f"Skipping {basename} - unexpected format")
@@ -122,13 +124,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--db-path",
         type=str,
-        default="model/config/performance_database.json",
+        default="model/performance_database.json",
         help="Path to performance database",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="model/config/performance_database.json",
+        default="model/performance_database.json",
         help="Output path (defaults to updating in place)",
     )
     args = parser.parse_args()

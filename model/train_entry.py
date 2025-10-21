@@ -112,41 +112,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Save model weights after training",
     )
-    parser.add_argument(
-        "--state_mode",
-        type=str,
-        default="auto",
-        choices=["auto", "fixed"],
-        help="State discovery mode: 'auto' uses DP-GMM with caching, 'fixed' uses fixed K (default: auto)",
-    )
-    parser.add_argument(
-        "--states_cache_dir",
-        type=str,
-        default="./states_cache",
-        help="Directory for cached state models (default: ./state_cache)",
-    )
-    parser.add_argument(
-        "--Kmax_auto",
-        type=int,
-        default=12,
-        help="Maximum number of states for auto mode (default: 12)",
-    )
 
     args = parser.parse_args()
 
     dataset = PowerTraceDataset(
         args.data_file,
         K=6,
-        state_mode="auto",
-        states_cache_dir=args.states_cache_dir,
-        Kmax_auto=args.Kmax_auto,
-        seed=args.seed,
     )
     print(f"Loaded dataset with {len(dataset)} traces")
     print(f"Sample trace shape: {dataset.traces[0]['z'].shape}")
-    print(f"State discovery mode: {args.state_mode}")
-    if hasattr(dataset, "K_by_tp"):
-        print(f"States per TP: {dataset.K_by_tp}")
 
     # Setup directories
     os.makedirs("./training_data/losses", exist_ok=True)

@@ -28,6 +28,7 @@ def _resolve_path(path: str) -> str:
 @dataclass
 class ModelConfig:
     """Complete configuration for a model/hardware/TP combination."""
+
     model_name: str
     hardware: str
     tensor_parallelism: int
@@ -44,7 +45,9 @@ class ModelConfig:
         return f"{self.model_name}-TP{self.tensor_parallelism}-{self.hardware.upper()}"
 
 
-def load_performance_database(path: str = "model/config/performance_database.json") -> Dict:
+def load_performance_database(
+    path: str = "model/performance_database.json",
+) -> Dict:
     """Load unified performance database."""
     path = _resolve_path(path)
     if not os.path.exists(path):
@@ -57,15 +60,15 @@ def load_model_config(
     model_name: str,
     hardware: str,
     tp: int,
-    performance_db_path: str = "model/config/performance_database.json",
+    performance_db_path: str = "model/performance_database.json",
     weights_base_path: str = "model/gru_classifier_weights",
 ) -> ModelConfig:
     """Load complete model configuration from unified performance database."""
     performance_db_path = _resolve_path(performance_db_path)
     weights_base_path = _resolve_path(weights_base_path)
-    
+
     perf_db = load_performance_database(performance_db_path)
-    
+
     # Map model names to database format
     model_map = {
         "llama-3-8b": "llama-3.1_8b",
@@ -76,24 +79,24 @@ def load_model_config(
         "deepseek-r1-distill-8b": "deepseek-r1-distill_8b",
         "deepseek-r1-distill-70b": "deepseek-r1-distill_70b",
     }
-    
+
     db_model_name = model_map.get(model_name, model_name)
     db_key = f"{db_model_name}_{hardware}_tp{tp}"
-    
+
     if db_key not in perf_db:
         available = list(perf_db.keys())[:10]
         raise KeyError(f"Config not found: {db_key}. Available: {available}...")
-    
+
     entry = perf_db[db_key]
-    
+
     if "power_states" not in entry:
         raise ValueError(f"No power stats for {db_key}")
-    
+
     power_stats = entry["power_states"]
     state_means = np.array(power_stats["state_means"])
     state_stds = np.array(power_stats["state_stds"])
     num_states = power_stats["num_states"]
-    
+
     ttft_mean = ttft_std = tpot_mean = tpot_std = None
     if "ttft_model" in entry:
         ttft_mean = entry["ttft_model"]["summary_stats"]["mean_seconds"]
@@ -101,9 +104,9 @@ def load_model_config(
     if "tpot_distribution" in entry:
         tpot_mean = entry["tpot_distribution"]["mean"]
         tpot_std = entry["tpot_distribution"]["std"]
-    
+
     weights_path = os.path.join(weights_base_path, f"{model_name}_{hardware}_tp{tp}.pt")
-    
+
     return ModelConfig(
         model_name=model_name,
         hardware=hardware,
