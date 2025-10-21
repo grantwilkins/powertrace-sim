@@ -72,7 +72,7 @@ main() {
     mkdir -p "${RESULTS_BASE}"
 
     # Models and hardware combinations
-    for model in "gpt-oss-20b" "gpt-oss-120b"; do
+    for model in "llama-3-8b" "llama-3-70b"; do
         TPS=$(get_model_tps "$model")
         LR=$(get_model_lr "$model")
 
