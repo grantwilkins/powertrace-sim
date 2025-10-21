@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--weights-path",
         type=str,
-        default="../random_gru_classifier_weights/",
+        default="../sharegpt_gru_classifier_weights/",
         help="Path to the classifier weights folder",
     )
     parser.add_argument(
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # Store all CDF data for plotting
     cdf_data = []
 
-    for tp in [1, 2, 4, 8]:
+    for tp in [1, 2]:
         print(f"\nProcessing TP={tp}")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",

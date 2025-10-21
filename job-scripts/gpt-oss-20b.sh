@@ -8,7 +8,7 @@ ITERATIONS=5
 ARRIVAL_RATES=(0.0625 0.25 1 4 16 64)
 
 random_datasets() {
-    echo ${ALL_TASKS[$RANDOM % ${#ALL_DATASETS[@]}]}
+    echo ${ALL_DATASETS[$RANDOM % ${#ALL_DATASETS[@]}]}
 }
 
 for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
