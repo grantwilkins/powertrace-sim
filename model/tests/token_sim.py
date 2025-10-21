@@ -27,7 +27,6 @@ def test_token_simulator():
         orig_prefill_tokens.append(dataset.traces[idx]["prefill_tokens"])
         orig_decode_tokens.append(dataset.traces[idx]["decode_tokens"])
 
-    # make a line cdf of the prefill tokens against that of the original
     orig_prefill_tokens = np.concatenate(orig_prefill_tokens)
     orig_decode_tokens = np.concatenate(orig_decode_tokens)
     sim_prefill_tokens = results["prefill_tokens"]

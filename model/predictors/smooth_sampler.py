@@ -2,8 +2,8 @@ from typing import Optional
 
 import numpy as np
 import torch
-from classifiers.gru import GRUClassifier
-from core.dataset import PowerTraceDataset
+from ..classifiers.gru import GRUClassifier
+from ..core.dataset import PowerTraceDataset
 
 
 class SmoothingSampler:

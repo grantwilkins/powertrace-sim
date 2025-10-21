@@ -4,11 +4,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from core.dataset import PowerTraceDataset
-from core.utils import load_classifier
-from predictors.smooth_sampler import SmoothingSampler
 from scipy.stats import pearsonr
 from statsmodels.tsa.stattools import acf, pacf
+
+from model.core.dataset import PowerTraceDataset
+from model.core.utils import load_classifier
+from model.predictors.smooth_sampler import SmoothingSampler
 
 
 def compute_autocorrelation_metrics(real_trace, synthetic_trace, max_lags=50):
@@ -50,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--weights-path",
         type=str,
-        default="../sharegpt_gru_classifier_weights/",
+        default="model/sharegpt_gru_classifier_weights/",
         help="Path to the classifier weights folder",
     )
     parser.add_argument(
@@ -165,8 +166,8 @@ if __name__ == "__main__":
 
         print(f"TP={tp} indices:", dataset.tp_all)
 
-        total_energy_original = np.trapezoid(all_original_power, dx=0.25)
-        total_energy_sampled = np.trapezoid(all_sampled_power, dx=0.25)
+        total_energy_original = np.trapz(all_original_power, dx=0.25)
+        total_energy_sampled = np.trapz(all_sampled_power, dx=0.25)
         print(f"Total energy consumed (original): {total_energy_original:.2f} J")
         print(f"Total energy consumed (sampled): {total_energy_sampled:.2f} J")
         print(
@@ -206,18 +207,17 @@ if __name__ == "__main__":
         )
         print(f"NRMSE: {nrmse:.4f}")
 
-    # Create combined CDF plot using seaborn
-    # Convert to DataFrame and sample if too large
     df = pd.DataFrame(cdf_data)
     if len(df) > 10000:  # If more than 10k points, sample down
         df = df.sample(n=10000, random_state=42)
     sns.set_style("whitegrid")
     sns.set_palette("colorblind")
+    sns.set_context("paper", font_scale=1.2)
     matplotlib.rcParams["pdf.fonttype"] = 42
     matplotlib.rcParams["ps.fonttype"] = 42
     matplotlib.rcParams["font.family"] = "Times New Roman"
 
-    plt.figure(figsize=(6, 3))
+    plt.figure(figsize=(4, 3))
     sns.lineplot(
         data=df,
         x="Power",
@@ -229,13 +229,9 @@ if __name__ == "__main__":
     )
     # plt.xlim(0, 1600)
     plt.ylim(0, 1.05)
-    plt.xlabel("Power (W)")
+    plt.xlabel("Active GPU Power (W)")
     plt.ylabel("CDF")
-    plt.legend(
-        bbox_to_anchor=(1.05, 0.85),
-        frameon=False,
-        loc="upper left",
-    )
+    plt.legend()
     plt.tight_layout()
 
     plt.savefig(f"cdf-power-trace_{model}_{hw}_combined.pdf")

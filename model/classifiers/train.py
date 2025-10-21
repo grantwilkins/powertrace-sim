@@ -7,11 +7,12 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
-import wandb
 from classifiers.gru import GRUClassifier
 from core.dataset import PowerTraceDataset
 from sklearn.metrics import confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset, random_split
+
+import wandb
 
 
 def build_cosine_with_warmup(optimizer, total_steps: int, warmup_pct: float = 0.05):
@@ -46,23 +47,19 @@ def compute_class_weights(
         _, _, z = tp_dataset[i]
         all_labels.append(z.numpy())
     all_labels = np.concatenate(all_labels)
-
-    # Compute counts for all classes present in the data
     counts = np.bincount(all_labels, minlength=K)
-
-    # For classes that don't exist in the data, set their weight to 1.0
-    # For classes that do exist, compute inverse frequency
     weights = np.ones(K, dtype=np.float32)
     for i in range(K):
         if counts[i] > 0:
             weights[i] = 1.0 / counts[i]
 
-    # Normalize only using the classes that exist
     present_classes = counts > 0
     num_present = present_classes.sum()
     if num_present > 0:
         sum_present_weights = weights[present_classes].sum()
-        weights[present_classes] = weights[present_classes] * (num_present / sum_present_weights)
+        weights[present_classes] = weights[present_classes] * (
+            num_present / sum_present_weights
+        )
 
     return torch.FloatTensor(weights).to(device)
 
@@ -88,56 +85,35 @@ def compute_transition_mae(
     transition_errors = []
 
     for i in range(len(y_pred)):
-        prefill = x[i, :, 0]  # prefill_tokens over time
-        decode = x[i, :, 1]   # decode_tokens over time
+        prefill = x[i, :, 0]
+        decode = x[i, :, 1]
 
-        # Detect transitions: where prefill drops or decode rises significantly
         prefill_diff = np.abs(np.diff(prefill))
         decode_diff = np.abs(np.diff(decode))
-
-        # Transition points (offset by 1 due to diff)
-        transition_mask = (prefill_diff > threshold * np.max(prefill + 1e-6)) | \
-                         (decode_diff > threshold * np.max(decode + 1e-6))
+        transition_mask = (prefill_diff > threshold * np.max(prefill + 1e-6)) | (
+            decode_diff > threshold * np.max(decode + 1e-6)
+        )
 
         if transition_mask.sum() > 0:
-            # Compute MAE at transition points (+1 to align with original indices)
             transition_indices = np.where(transition_mask)[0] + 1
-            errors = np.abs(y_pred[i, transition_indices] - y_true[i, transition_indices])
+            errors = np.abs(
+                y_pred[i, transition_indices] - y_true[i, transition_indices]
+            )
             transition_errors.extend(errors)
 
     return np.mean(transition_errors) if len(transition_errors) > 0 else 0.0
 
 
-def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 128) -> float:
-    """
-    Compute R² between autocorrelation functions of predicted and true power traces.
-
-    Uses Fisher z-transform aggregation for stability and fixed lag structure.
-
-    Args:
-        y_pred: Predicted power values (N, T) - should be continuous power, not class IDs
-        y_true: True power values (N, T) - should be continuous power, not class IDs
-        max_lag: Maximum lag for autocorrelation computation (default 128)
-
-    Returns:
-        R² of autocorrelation functions
-    """
+def compute_autocorr_r2(
+    y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 128
+) -> float:
     def autocorr_at_lag(x, lag):
-        """
-        Compute autocorrelation at a specific lag using proper normalization.
-        Handles masking and uses only valid (non-padded) timesteps.
-        """
-        # Remove mean and compute std
         x_mean = np.mean(x)
         x_std = np.std(x)
 
         if x_std < 1e-8:
             return 0.0
-
-        # Normalize
         x_norm = (x - x_mean) / x_std
-
-        # Compute correlation at lag
         n = len(x_norm)
         if lag >= n:
             return 0.0
@@ -147,14 +123,12 @@ def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 1
 
         return numerator / denominator if denominator > 0 else 0.0
 
-    # Filter out sequences that are too short
     min_length = max_lag + 4
     valid_indices = [i for i in range(len(y_pred)) if len(y_pred[i]) >= min_length]
 
     if len(valid_indices) == 0:
         return 0.0
 
-    # Compute ACF for each lag across all valid sequences
     pred_acf_by_lag = {lag: [] for lag in range(1, max_lag + 1)}
     true_acf_by_lag = {lag: [] for lag in range(1, max_lag + 1)}
 
@@ -165,32 +139,24 @@ def compute_autocorr_r2(y_pred: np.ndarray, y_true: np.ndarray, max_lag: int = 1
             pred_acf_by_lag[lag].append(pred_r)
             true_acf_by_lag[lag].append(true_r)
 
-    # Aggregate using Fisher z-transform
     pred_acf_agg = []
     true_acf_agg = []
 
     for lag in range(1, max_lag + 1):
-        # Fisher z-transform: atanh(r)
         pred_z = [np.arctanh(np.clip(r, -0.999, 0.999)) for r in pred_acf_by_lag[lag]]
         true_z = [np.arctanh(np.clip(r, -0.999, 0.999)) for r in true_acf_by_lag[lag]]
-
-        # Average in z-space
         pred_z_mean = np.mean(pred_z)
         true_z_mean = np.mean(true_z)
-
-        # Transform back: tanh
         pred_acf_agg.append(np.tanh(pred_z_mean))
         true_acf_agg.append(np.tanh(true_z_mean))
 
     pred_acf_agg = np.array(pred_acf_agg)
     true_acf_agg = np.array(true_acf_agg)
-
-    # Compute R² on aggregated ACFs
     ss_res = np.sum((true_acf_agg - pred_acf_agg) ** 2)
     ss_tot = np.sum((true_acf_agg - np.mean(true_acf_agg)) ** 2)
     r2 = 1 - (ss_res / (ss_tot + 1e-8))
 
-    return max(0.0, r2)  # Clip to [0, 1]
+    return max(0.0, r2)
 
 
 def evaluate_classifier(
@@ -202,7 +168,6 @@ def evaluate_classifier(
     compute_extra_metrics: bool = False,
     state_power_means: Optional[np.ndarray] = None,
 ) -> Tuple[float, float, float, np.ndarray, Optional[float], Optional[float]]:
-    """Evaluate classifier and return loss, accuracy, macro-F1, confusion matrix, and optional extra metrics."""
     classifier.eval()
     total_loss = 0.0
     all_preds = []
@@ -248,6 +213,7 @@ def evaluate_classifier(
 
         # Convert state IDs to power values if means are provided
         if state_power_means is not None:
+
             def states_to_power(states_2d, mu):
                 """Convert state IDs to power values using GMM means."""
                 return mu[states_2d.astype(int)]
@@ -325,9 +291,11 @@ def lr_sweep(
     K = len(torch.unique(all_z))
 
     # Verify K matches cached state discovery
-    if hasattr(dataset, 'K_by_tp') and tp in dataset.K_by_tp:
+    if hasattr(dataset, "K_by_tp") and tp in dataset.K_by_tp:
         K_cached = dataset.K_by_tp[tp]
-        assert K == K_cached, f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        assert K == K_cached, (
+            f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        )
         method = dataset.state_method_by_tp.get(tp, "unknown")
         print(f"Using {K} states for TP={tp} (method: {method})")
     else:
@@ -341,7 +309,9 @@ def lr_sweep(
     val_size = int(len(tp_dataset) * val_split)
     train_size = len(tp_dataset) - val_size
     g = torch.Generator().manual_seed(seed)
-    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size], generator=g)
+    train_dataset, val_dataset = random_split(
+        tp_dataset, [train_size, val_size], generator=g
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -375,7 +345,9 @@ def lr_sweep(
             )
 
         torch.manual_seed(seed)
-        classifier = GRUClassifier(Dx, K, H=hidden_size, bidirectional=bidirectional).to(device)
+        classifier = GRUClassifier(
+            Dx, K, H=hidden_size, bidirectional=bidirectional
+        ).to(device)
         optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=1e-2)
         criterion = nn.CrossEntropyLoss(weight=class_weights)
 
@@ -404,21 +376,28 @@ def lr_sweep(
 
             # Validation
             val_loss, val_acc, val_f1, _, _, _ = evaluate_classifier(
-                classifier, val_loader, K, device, criterion, compute_extra_metrics=False
+                classifier,
+                val_loader,
+                K,
+                device,
+                criterion,
+                compute_extra_metrics=False,
             )
             val_losses.append(val_loss)
             val_f1s.append(val_f1)
 
             # Log to wandb
             if wandb_project:
-                wandb.log({
-                    "epoch": epoch + 1,
-                    "train_loss": train_losses[-1],
-                    "val_loss": val_loss,
-                    "val_f1": val_f1,
-                    "val_acc": val_acc,
-                    "lr": lr,
-                })
+                wandb.log(
+                    {
+                        "epoch": epoch + 1,
+                        "train_loss": train_losses[-1],
+                        "val_loss": val_loss,
+                        "val_f1": val_f1,
+                        "val_acc": val_acc,
+                        "lr": lr,
+                    }
+                )
 
             if (epoch + 1) % 10 == 0:
                 print(
@@ -461,36 +440,39 @@ def save_lr_sweep_to_csv(results: Dict, output_dir: str, tp: int):
     # Summary CSV
     summary_data = []
     for lr, metrics in results.items():
-        summary_data.append({
-            'learning_rate': lr,
-            'final_val_f1': metrics['final_f1'],
-            'best_val_f1': max(metrics['val_f1s']),
-            'final_train_loss': metrics['train_losses'][-1],
-            'final_val_loss': metrics['val_losses'][-1],
-        })
+        summary_data.append(
+            {
+                "learning_rate": lr,
+                "final_val_f1": metrics["final_f1"],
+                "best_val_f1": max(metrics["val_f1s"]),
+                "final_train_loss": metrics["train_losses"][-1],
+                "final_val_loss": metrics["val_losses"][-1],
+            }
+        )
 
     summary_df = pd.DataFrame(summary_data)
     summary_df.to_csv(
-        os.path.join(output_dir, f'lr_sweep_summary_tp{tp}.csv'),
-        index=False
+        os.path.join(output_dir, f"lr_sweep_summary_tp{tp}.csv"), index=False
     )
 
     # Per-epoch CSV for each LR
     for lr, metrics in results.items():
         epoch_data = []
-        for epoch in range(len(metrics['train_losses'])):
-            epoch_data.append({
-                'epoch': epoch + 1,
-                'train_loss': metrics['train_losses'][epoch],
-                'val_loss': metrics['val_losses'][epoch],
-                'val_f1': metrics['val_f1s'][epoch],
-            })
+        for epoch in range(len(metrics["train_losses"])):
+            epoch_data.append(
+                {
+                    "epoch": epoch + 1,
+                    "train_loss": metrics["train_losses"][epoch],
+                    "val_loss": metrics["val_losses"][epoch],
+                    "val_f1": metrics["val_f1s"][epoch],
+                }
+            )
 
         epoch_df = pd.DataFrame(epoch_data)
-        lr_str = f"{lr:.2e}".replace('.', 'p').replace('-', 'm')
+        lr_str = f"{lr:.2e}".replace(".", "p").replace("-", "m")
         epoch_df.to_csv(
-            os.path.join(output_dir, f'lr_sweep_tp{tp}_lr{lr_str}_epochs.csv'),
-            index=False
+            os.path.join(output_dir, f"lr_sweep_tp{tp}_lr{lr_str}_epochs.csv"),
+            index=False,
         )
 
 
@@ -577,16 +559,18 @@ def train_classifiers(
     K = len(torch.unique(all_z))
 
     # Verify K matches cached state discovery
-    if hasattr(dataset, 'K_by_tp') and tp in dataset.K_by_tp:
+    if hasattr(dataset, "K_by_tp") and tp in dataset.K_by_tp:
         K_cached = dataset.K_by_tp[tp]
-        assert K == K_cached, f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        assert K == K_cached, (
+            f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        )
         method = dataset.state_method_by_tp.get(tp, "unknown")
         print(f"Using {K} states for TP={tp} (method: {method})")
     else:
         print(f"Number of unique states across all TP={tp} samples: {K}")
 
     # Get state power means for this TP (for power-domain metrics)
-    state_power_means = dataset.mu.get(tp, None) if hasattr(dataset, 'mu') else None
+    state_power_means = dataset.mu.get(tp, None) if hasattr(dataset, "mu") else None
     class_weights = None
     if use_class_weights:
         class_weights = compute_class_weights(tp_dataset, K, device)
@@ -594,14 +578,18 @@ def train_classifiers(
     val_size = int(len(tp_dataset) * val_split)
     train_size = len(tp_dataset) - val_size
     g = torch.Generator().manual_seed(seed)
-    train_dataset, val_dataset = random_split(tp_dataset, [train_size, val_size], generator=g)
+    train_dataset, val_dataset = random_split(
+        tp_dataset, [train_size, val_size], generator=g
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     print(f"Train size: {train_size}, Val size: {val_size}")
 
-    classifier = GRUClassifier(Dx, K, H=hidden_size, bidirectional=bidirectional).to(device)
+    classifier = GRUClassifier(Dx, K, H=hidden_size, bidirectional=bidirectional).to(
+        device
+    )
     optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=1e-2)
 
     # Use label smoothing for better generalization
@@ -613,7 +601,9 @@ def train_classifiers(
     if use_scheduler:
         if scheduler_type == "cosine":
             total_steps = num_epochs * len(train_loader)
-            scheduler = build_cosine_with_warmup(optimizer, total_steps, warmup_pct=0.05)
+            scheduler = build_cosine_with_warmup(
+                optimizer, total_steps, warmup_pct=0.05
+            )
             scheduler_step_mode = "batch"
         elif scheduler_type == "onecycle":
             total_steps = num_epochs * len(train_loader)
@@ -623,7 +613,7 @@ def train_classifiers(
             scheduler_step_mode = "batch"
         elif scheduler_type == "plateau":
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=0.5, patience=3, cooldown=1, verbose=True
+                optimizer, mode="min", factor=0.5, patience=3, cooldown=1, verbose=True
             )
             scheduler_step_mode = "epoch"
 
@@ -666,9 +656,16 @@ def train_classifiers(
         train_losses.append(epoch_loss / len(train_loader))
 
         # Validation
-        val_loss, val_acc, val_f1, conf_mat, transition_mae, autocorr_r2 = evaluate_classifier(
-            classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics,
-            state_power_means=state_power_means
+        val_loss, val_acc, val_f1, conf_mat, transition_mae, autocorr_r2 = (
+            evaluate_classifier(
+                classifier,
+                val_loader,
+                K,
+                device,
+                criterion,
+                compute_extra_metrics=compute_extra_metrics,
+                state_power_means=state_power_means,
+            )
         )
         val_losses.append(val_loss)
         val_accs.append(val_acc)
@@ -714,9 +711,21 @@ def train_classifiers(
                 f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}{extra_str}"
             )
 
-    final_val_loss, final_val_acc, final_val_f1, final_conf_mat, final_transition_mae, final_autocorr_r2 = evaluate_classifier(
-        classifier, val_loader, K, device, criterion, compute_extra_metrics=compute_extra_metrics,
-        state_power_means=state_power_means
+    (
+        final_val_loss,
+        final_val_acc,
+        final_val_f1,
+        final_conf_mat,
+        final_transition_mae,
+        final_autocorr_r2,
+    ) = evaluate_classifier(
+        classifier,
+        val_loader,
+        K,
+        device,
+        criterion,
+        compute_extra_metrics=compute_extra_metrics,
+        state_power_means=state_power_means,
     )
 
     print(f"\nFinal Results for TP={tp}:")
@@ -748,11 +757,16 @@ def train_classifiers(
     }
 
     # Save per-epoch metrics to CSV
-    save_training_metrics_to_csv(metrics, output_dir, tp, lr, seed, hidden_size, bidirectional)
+    save_training_metrics_to_csv(
+        metrics, output_dir, tp, lr, seed, hidden_size, bidirectional
+    )
 
     # Save model weights if requested
     if save_model:
-        model_path = os.path.join(output_dir, f"model_tp{tp}_H{hidden_size}_{'bi' if bidirectional else 'uni'}GRU.pt")
+        model_path = os.path.join(
+            output_dir,
+            f"model_tp{tp}_H{hidden_size}_{'bi' if bidirectional else 'uni'}GRU.pt",
+        )
         torch.save(classifier.state_dict(), model_path)
         print(f"Model saved to {model_path}")
 
@@ -764,67 +778,85 @@ def train_classifiers(
 
 
 def save_training_metrics_to_csv(
-    metrics: Dict, output_dir: str, tp: int, lr: float, seed: int,
-    hidden_size: int = 64, bidirectional: bool = False
+    metrics: Dict,
+    output_dir: str,
+    tp: int,
+    lr: float,
+    seed: int,
+    hidden_size: int = 64,
+    bidirectional: bool = False,
 ):
     """Save training metrics to CSV file."""
     epoch_data = []
-    for epoch in range(len(metrics['train_losses'])):
+    for epoch in range(len(metrics["train_losses"])):
         row = {
-            'epoch': epoch + 1,
-            'train_loss': metrics['train_losses'][epoch],
-            'val_loss': metrics['val_losses'][epoch],
-            'val_acc': metrics['val_accs'][epoch],
-            'val_f1': metrics['val_f1s'][epoch],
+            "epoch": epoch + 1,
+            "train_loss": metrics["train_losses"][epoch],
+            "val_loss": metrics["val_losses"][epoch],
+            "val_acc": metrics["val_accs"][epoch],
+            "val_f1": metrics["val_f1s"][epoch],
         }
 
         # Add extra metrics if available
-        if metrics.get('val_transition_maes') and len(metrics['val_transition_maes']) > epoch:
-            row['val_transition_mae'] = metrics['val_transition_maes'][epoch]
-        if metrics.get('val_autocorr_r2s') and len(metrics['val_autocorr_r2s']) > epoch:
-            row['val_autocorr_r2'] = metrics['val_autocorr_r2s'][epoch]
+        if (
+            metrics.get("val_transition_maes")
+            and len(metrics["val_transition_maes"]) > epoch
+        ):
+            row["val_transition_mae"] = metrics["val_transition_maes"][epoch]
+        if metrics.get("val_autocorr_r2s") and len(metrics["val_autocorr_r2s"]) > epoch:
+            row["val_autocorr_r2"] = metrics["val_autocorr_r2s"][epoch]
 
         # Add learning rate if available
-        if metrics['learning_rates'] and len(metrics['learning_rates']) > 0:
+        if metrics["learning_rates"] and len(metrics["learning_rates"]) > 0:
             # Average LR for the epoch (multiple steps per epoch)
-            epoch_start = epoch * (len(metrics['learning_rates']) // len(metrics['train_losses']))
-            epoch_end = (epoch + 1) * (len(metrics['learning_rates']) // len(metrics['train_losses']))
-            row['avg_lr'] = np.mean(metrics['learning_rates'][epoch_start:epoch_end])
+            epoch_start = epoch * (
+                len(metrics["learning_rates"]) // len(metrics["train_losses"])
+            )
+            epoch_end = (epoch + 1) * (
+                len(metrics["learning_rates"]) // len(metrics["train_losses"])
+            )
+            row["avg_lr"] = np.mean(metrics["learning_rates"][epoch_start:epoch_end])
 
         epoch_data.append(row)
 
     epoch_df = pd.DataFrame(epoch_data)
-    lr_str = f"{lr:.2e}".replace('.', 'p').replace('-', 'm')
-    arch_str = 'bi' if bidirectional else 'uni'
+    lr_str = f"{lr:.2e}".replace(".", "p").replace("-", "m")
+    arch_str = "bi" if bidirectional else "uni"
     epoch_df.to_csv(
-        os.path.join(output_dir, f'training_tp{tp}_H{hidden_size}_{arch_str}_lr{lr_str}_seed{seed}_epochs.csv'),
-        index=False
+        os.path.join(
+            output_dir,
+            f"training_tp{tp}_H{hidden_size}_{arch_str}_lr{lr_str}_seed{seed}_epochs.csv",
+        ),
+        index=False,
     )
 
     # Save summary metrics
     summary_data = {
-        'tp': tp,
-        'hidden_size': hidden_size,
-        'bidirectional': bidirectional,
-        'learning_rate': lr,
-        'seed': seed,
-        'final_train_loss': metrics['train_losses'][-1],
-        'final_val_loss': metrics['final_val_loss'],
-        'final_val_acc': metrics['final_val_acc'],
-        'final_val_f1': metrics['final_val_f1'],
-        'best_val_f1': max(metrics['val_f1s']),
-        'num_epochs': len(metrics['train_losses']),
+        "tp": tp,
+        "hidden_size": hidden_size,
+        "bidirectional": bidirectional,
+        "learning_rate": lr,
+        "seed": seed,
+        "final_train_loss": metrics["train_losses"][-1],
+        "final_val_loss": metrics["final_val_loss"],
+        "final_val_acc": metrics["final_val_acc"],
+        "final_val_f1": metrics["final_val_f1"],
+        "best_val_f1": max(metrics["val_f1s"]),
+        "num_epochs": len(metrics["train_losses"]),
     }
 
-    if metrics.get('final_transition_mae') is not None:
-        summary_data['final_transition_mae'] = metrics['final_transition_mae']
-    if metrics.get('final_autocorr_r2') is not None:
-        summary_data['final_autocorr_r2'] = metrics['final_autocorr_r2']
+    if metrics.get("final_transition_mae") is not None:
+        summary_data["final_transition_mae"] = metrics["final_transition_mae"]
+    if metrics.get("final_autocorr_r2") is not None:
+        summary_data["final_autocorr_r2"] = metrics["final_autocorr_r2"]
 
     summary_df = pd.DataFrame([summary_data])
     summary_df.to_csv(
-        os.path.join(output_dir, f'training_tp{tp}_H{hidden_size}_{arch_str}_lr{lr_str}_seed{seed}_summary.csv'),
-        index=False
+        os.path.join(
+            output_dir,
+            f"training_tp{tp}_H{hidden_size}_{arch_str}_lr{lr_str}_seed{seed}_summary.csv",
+        ),
+        index=False,
     )
 
 

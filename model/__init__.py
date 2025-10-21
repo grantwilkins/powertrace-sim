@@ -1,1 +1,1 @@
-from classifiers.gru import GRUClassifier
+from .classifiers.gru import GRUClassifier
