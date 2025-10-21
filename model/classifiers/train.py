@@ -47,17 +47,22 @@ def compute_class_weights(
         all_labels.append(z.numpy())
     all_labels = np.concatenate(all_labels)
 
-    # Get unique classes actually present in the data
-    unique_classes = np.unique(all_labels)
-    actual_K = len(unique_classes)
+    # Compute counts for all classes present in the data
+    counts = np.bincount(all_labels, minlength=K)
 
-    # Compute counts only for classes that exist
-    counts = np.bincount(all_labels)
-    # Clamp counts to avoid exploding weights for empty classes
-    counts = np.clip(counts, 1, None)
-    weights = 1.0 / counts
-    # Normalize weights
-    weights = weights * (actual_K / weights.sum())
+    # For classes that don't exist in the data, set their weight to 1.0
+    # For classes that do exist, compute inverse frequency
+    weights = np.ones(K, dtype=np.float32)
+    for i in range(K):
+        if counts[i] > 0:
+            weights[i] = 1.0 / counts[i]
+
+    # Normalize only using the classes that exist
+    present_classes = counts > 0
+    num_present = present_classes.sum()
+    if num_present > 0:
+        sum_present_weights = weights[present_classes].sum()
+        weights[present_classes] = weights[present_classes] * (num_present / sum_present_weights)
 
     return torch.FloatTensor(weights).to(device)
 
@@ -319,6 +324,15 @@ def lr_sweep(
     all_z = torch.cat([dataset[i][2] for i in tp_indices])
     K = len(torch.unique(all_z))
 
+    # Verify K matches cached state discovery
+    if hasattr(dataset, 'K_by_tp') and tp in dataset.K_by_tp:
+        K_cached = dataset.K_by_tp[tp]
+        assert K == K_cached, f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        method = dataset.state_method_by_tp.get(tp, "unknown")
+        print(f"Using {K} states for TP={tp} (method: {method})")
+    else:
+        print(f"Number of unique states: {K}")
+
     # Compute class weights
     class_weights = compute_class_weights(tp_dataset, K, device)
     print(f"Class weights: {class_weights.cpu().numpy()}")
@@ -561,7 +575,15 @@ def train_classifiers(
     Dx = x_sample.shape[1]
     all_z = torch.cat([dataset[i][2] for i in tp_indices])
     K = len(torch.unique(all_z))
-    print(f"Number of unique states across all TP={tp} samples: {K}")
+
+    # Verify K matches cached state discovery
+    if hasattr(dataset, 'K_by_tp') and tp in dataset.K_by_tp:
+        K_cached = dataset.K_by_tp[tp]
+        assert K == K_cached, f"K mismatch: found {K} unique states in data but cache has {K_cached}"
+        method = dataset.state_method_by_tp.get(tp, "unknown")
+        print(f"Using {K} states for TP={tp} (method: {method})")
+    else:
+        print(f"Number of unique states across all TP={tp} samples: {K}")
 
     # Get state power means for this TP (for power-domain metrics)
     state_power_means = dataset.mu.get(tp, None) if hasattr(dataset, 'mu') else None

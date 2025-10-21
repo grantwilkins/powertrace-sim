@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 import torch
-from classifiers.train import train_classifiers, lr_sweep, multi_seed_training
+from classifiers.train import lr_sweep, multi_seed_training, train_classifiers
 from core.dataset import PowerTraceDataset
 
 if __name__ == "__main__":
@@ -112,12 +112,41 @@ if __name__ == "__main__":
         action="store_true",
         help="Save model weights after training",
     )
+    parser.add_argument(
+        "--state_mode",
+        type=str,
+        default="auto",
+        choices=["auto", "fixed"],
+        help="State discovery mode: 'auto' uses DP-GMM with caching, 'fixed' uses fixed K (default: auto)",
+    )
+    parser.add_argument(
+        "--states_cache_dir",
+        type=str,
+        default="./states_cache",
+        help="Directory for cached state models (default: ./state_cache)",
+    )
+    parser.add_argument(
+        "--Kmax_auto",
+        type=int,
+        default=12,
+        help="Maximum number of states for auto mode (default: 12)",
+    )
 
     args = parser.parse_args()
 
-    dataset = PowerTraceDataset(args.data_file)
+    dataset = PowerTraceDataset(
+        args.data_file,
+        K=6,
+        state_mode="auto",
+        states_cache_dir=args.states_cache_dir,
+        Kmax_auto=args.Kmax_auto,
+        seed=args.seed,
+    )
     print(f"Loaded dataset with {len(dataset)} traces")
     print(f"Sample trace shape: {dataset.traces[0]['z'].shape}")
+    print(f"State discovery mode: {args.state_mode}")
+    if hasattr(dataset, "K_by_tp"):
+        print(f"States per TP: {dataset.K_by_tp}")
 
     # Setup directories
     os.makedirs("./training_data/losses", exist_ok=True)
@@ -138,10 +167,14 @@ if __name__ == "__main__":
     # Expected format: random_{model}_{hardware}.npz
     data_basename = os.path.basename(args.data_file)
     if data_basename.startswith("random_") and data_basename.endswith(".npz"):
-        parts = data_basename[7:-4].rsplit("_", 1)  # Remove "random_" prefix and ".npz" suffix
+        parts = data_basename[7:-4].rsplit(
+            "_", 1
+        )  # Remove "random_" prefix and ".npz" suffix
         if len(parts) == 2:
             inferred_model, inferred_hardware = parts
-            print(f"Inferred from filename: model={inferred_model}, hardware={inferred_hardware}")
+            print(
+                f"Inferred from filename: model={inferred_model}, hardware={inferred_hardware}"
+            )
         else:
             inferred_model = args.model
             inferred_hardware = args.hardware_accelerator
@@ -151,9 +184,9 @@ if __name__ == "__main__":
 
     # Main training loop
     for tp in tps_to_train:
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Processing TP={tp}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         # Auto-generate wandb project name if not specified
         wandb_project = args.wandb_project
@@ -190,7 +223,11 @@ if __name__ == "__main__":
 
             for H in hidden_sizes:
                 print(f"\n--- Training with H={H} ---")
-                run_name = f"stage2_H{H}_tp{tp}" if args.wandb_run_name is None else args.wandb_run_name
+                run_name = (
+                    f"stage2_H{H}_tp{tp}"
+                    if args.wandb_run_name is None
+                    else args.wandb_run_name
+                )
                 classifier, metrics = train_classifiers(
                     dataset=dataset,
                     tp=tp,
@@ -199,7 +236,9 @@ if __name__ == "__main__":
                     num_epochs=args.num_epochs,
                     device=device,
                     use_scheduler=(args.scheduler != "none"),
-                    scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
+                    scheduler_type=args.scheduler
+                    if args.scheduler != "none"
+                    else "cosine",
                     output_dir=args.output_dir,
                     seed=args.seed,
                     bidirectional=args.bidirectional,
@@ -208,13 +247,18 @@ if __name__ == "__main__":
                     save_model=False,  # We'll save the best one at the end
                 )
 
-                if metrics['final_val_f1'] > best_f1:
-                    best_f1 = metrics['final_val_f1']
+                if metrics["final_val_f1"] > best_f1:
+                    best_f1 = metrics["final_val_f1"]
                     best_H = H
                     # Save this model as it's the best so far
-                    model_path = os.path.join(args.output_dir, f"model_tp{tp}_H{H}_{'bi' if args.bidirectional else 'uni'}GRU_best.pt")
+                    model_path = os.path.join(
+                        args.output_dir,
+                        f"model_tp{tp}_H{H}_{'bi' if args.bidirectional else 'uni'}GRU_best.pt",
+                    )
                     torch.save(classifier.state_dict(), model_path)
-                    print(f"New best H={H} with F1={best_f1:.4f}, saved to {model_path}")
+                    print(
+                        f"New best H={H} with F1={best_f1:.4f}, saved to {model_path}"
+                    )
 
             print(f"\nBest hidden size: H={best_H} (F1={best_f1:.4f})")
             with open(os.path.join(args.output_dir, "best_hidden_size.txt"), "w") as f:
@@ -225,7 +269,11 @@ if __name__ == "__main__":
 
             # UniGRU
             print("\n--- Training UniGRU ---")
-            run_name_uni = f"stage3_uniGRU_tp{tp}" if args.wandb_run_name is None else f"{args.wandb_run_name}_uni"
+            run_name_uni = (
+                f"stage3_uniGRU_tp{tp}"
+                if args.wandb_run_name is None
+                else f"{args.wandb_run_name}_uni"
+            )
             classifier_uni, metrics_uni = train_classifiers(
                 dataset=dataset,
                 tp=tp,
@@ -245,7 +293,11 @@ if __name__ == "__main__":
 
             # BiGRU
             print("\n--- Training BiGRU ---")
-            run_name_bi = f"stage3_biGRU_tp{tp}" if args.wandb_run_name is None else f"{args.wandb_run_name}_bi"
+            run_name_bi = (
+                f"stage3_biGRU_tp{tp}"
+                if args.wandb_run_name is None
+                else f"{args.wandb_run_name}_bi"
+            )
             classifier_bi, metrics_bi = train_classifiers(
                 dataset=dataset,
                 tp=tp,
@@ -268,7 +320,9 @@ if __name__ == "__main__":
             print(f"  BiGRU:  F1={metrics_bi['final_val_f1']:.4f}")
 
         else:  # args.stage == "train"
-            print(f"\nTraining with LR={args.lr:.2e}, H={args.hidden_size}, {'Bi' if args.bidirectional else 'Uni'}GRU...")
+            print(
+                f"\nTraining with LR={args.lr:.2e}, H={args.hidden_size}, {'Bi' if args.bidirectional else 'Uni'}GRU..."
+            )
             classifier, metrics = train_classifiers(
                 dataset=dataset,
                 tp=tp,
@@ -293,10 +347,12 @@ if __name__ == "__main__":
                     classifier.state_dict(),
                     f"{args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt",
                 )
-                print(f"\nSaved weights to: {args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt")
+                print(
+                    f"\nSaved weights to: {args.weights_path}/{args.model}_{args.hardware_accelerator}_tp{tp}.pt"
+                )
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("Training complete!")
     print(f"Results saved to: {args.output_dir}")
     print(f"Model weights saved to: {args.weights_path}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
