@@ -76,10 +76,20 @@ if __name__ == "__main__":
     import pandas as pd
     import seaborn as sns
 
+    # Define a consistent color key mapping for TP values
+    # Using matplotlib's default color cycle for consistency
+    tp_values = [1, 2]
+    tp_color_key = {
+        1: "#1f77b4",  # blue
+        2: "#ff7f0e",  # orange
+        4: "#2ca02c",  # green
+        8: "#d62728",  # red
+    }
+
     # Store all CDF data for plotting
     cdf_data = []
 
-    for tp in [1, 2]:
+    for tp in tp_values:
         print(f"\nProcessing TP={tp}")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",
@@ -103,14 +113,14 @@ if __name__ == "__main__":
             max_power = max(max_power, np.max(trace_power))
 
         plt.clf()
-        plt.plot(dataset.traces[tp_indices[0]]["z"].flatten())
+        plt.plot(dataset.traces[tp_indices[0]]["z"].flatten(), color=tp_color_key[tp])
         plt.xlim(0, 50)
         plt.title("State Sequence for First Trace")
         plt.xlabel("Time Step")
         plt.ylabel("State")
         plt.savefig(f"state_sequence_trace_{tp}.pdf")
         plt.close()
-        plt.plot(dataset.traces[tp_indices[0]]["y"].flatten())
+        plt.plot(dataset.traces[tp_indices[0]]["y"].flatten(), color=tp_color_key[tp])
         plt.xlim(0, 50)
         plt.title("Power Trace for First Trace")
         plt.xlabel("Time Step")
@@ -211,11 +221,13 @@ if __name__ == "__main__":
     if len(df) > 10000:  # If more than 10k points, sample down
         df = df.sample(n=10000, random_state=42)
     sns.set_style("whitegrid")
-    sns.set_palette("colorblind")
-    sns.set_context("paper", font_scale=1.2)
+    sns.set_context("talk")
     matplotlib.rcParams["pdf.fonttype"] = 42
     matplotlib.rcParams["ps.fonttype"] = 42
     matplotlib.rcParams["font.family"] = "Times New Roman"
+
+    # Custom palette: map TP to color via the color key (as str, since seaborn expects str keys for hue)
+    palette = {tp: tp_color_key[tp] for tp in tp_values}
 
     plt.figure(figsize=(4, 3))
     sns.lineplot(
@@ -225,14 +237,13 @@ if __name__ == "__main__":
         style="Type",
         hue="TP",
         lw=1.5,
-        palette="colorblind",
+        palette=palette,
     )
     # plt.xlim(0, 1600)
     plt.ylim(0, 1.05)
     plt.xlabel("Active GPU Power (W)")
     plt.ylabel("CDF")
-    plt.legend()
     plt.tight_layout()
-
+    plt.legend().remove()
     plt.savefig(f"cdf-power-trace_{model}_{hw}_combined.pdf")
     plt.close()

@@ -3,8 +3,9 @@ import os
 
 import numpy as np
 import torch
-from classifiers.train import train_classifiers
-from core.dataset import PowerTraceDataset
+
+from model.classifiers.train import train_classifiers
+from model.core.dataset import PowerTraceDataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train GRU model on power traces")
@@ -150,8 +151,6 @@ if __name__ == "__main__":
             lr=args.lr,
             num_epochs=args.num_epochs,
             device=device,
-            use_scheduler=(args.scheduler != "none"),
-            scheduler_type=args.scheduler if args.scheduler != "none" else "cosine",
             output_dir=args.output_dir,
             seed=args.seed,
             bidirectional=args.bidirectional,

@@ -7,12 +7,12 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
-from classifiers.gru import GRUClassifier
-from core.dataset import PowerTraceDataset
 from sklearn.metrics import confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset, random_split
 
 import wandb
+from model.classifiers.gru import GRUClassifier
+from model.core.dataset import PowerTraceDataset
 
 
 def build_cosine_with_warmup(optimizer, total_steps: int, warmup_pct: float = 0.05):
