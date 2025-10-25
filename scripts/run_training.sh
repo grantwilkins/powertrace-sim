@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-DATA_DIR="data"
+DATA_DIR="/home/azureuser"
 RESULTS_BASE="results/training"
 HIDDEN_SIZE=64
 NUM_EPOCHS=500
@@ -27,11 +27,11 @@ get_model_tps() {
 
 get_model_lr() {
     case "$1" in
-        "llama-3-8b") echo "2e-4" ;;
-        "llama-3-70b") echo "1e-4" ;;
-        "gpt-oss-20b") echo "2e-4" ;;
-        "gpt-oss-120b") echo "1e-4" ;;
-        *) echo "1e-4" ;;
+        "llama-3-8b") echo "5e-5" ;;
+        "llama-3-70b") echo "6e-5" ;;
+        "gpt-oss-20b") echo "5e-5" ;;
+        "gpt-oss-120b") echo "5e-5" ;;
+        *) echo "1e-4" ;
     esac
 }
 
@@ -72,12 +72,12 @@ main() {
     mkdir -p "${RESULTS_BASE}"
 
     # Models and hardware combinations
-    for model in "llama-3-8b" "llama-3-70b"; do
+    for model in "gpt-oss-20b" "gpt-oss-120b"; do
         TPS=$(get_model_tps "$model")
         LR=$(get_model_lr "$model")
 
         for hardware in "h100" "a100"; do
-            data_file="${DATA_DIR}/random_${model}_${hardware}.npz"
+            data_file="${DATA_DIR}/benchmark_${model}_${hardware}.npz"
 
             # Check if data file exists
             if [ ! -f "${data_file}" ]; then
@@ -100,12 +100,11 @@ main() {
                 mkdir -p "${output_dir}"
 
                 # Run training
-                python model/train_entry.py \
+                python -m model.train_entry \
                     --data_file "${data_file}" \
                     --model "${model}" \
                     --hardware_accelerator "${hardware}" \
                     --tp "${tp}" \
-                    --stage "train" \
                     --hidden_size "${HIDDEN_SIZE}" \
                     --lr "${LR}" \
                     --num_epochs "${NUM_EPOCHS}" \

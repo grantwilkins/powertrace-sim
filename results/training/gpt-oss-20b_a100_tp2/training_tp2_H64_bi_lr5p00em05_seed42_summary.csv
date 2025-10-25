@@ -1,0 +1,2 @@
+tp,hidden_size,bidirectional,learning_rate,seed,final_train_loss,final_val_loss,final_val_acc,final_val_f1,best_val_f1,num_epochs,final_transition_mae,final_autocorr_r2
+2,64,True,5e-05,42,1.5425843298435211,1.533745288848877,0.513124604680582,0.3956621224146379,0.3981558714707456,500,89.04255359649058,0.07361229773604705
