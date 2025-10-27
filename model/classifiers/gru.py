@@ -25,7 +25,7 @@ class GRUClassifier(nn.Module):
         self,
         Dx,
         K,
-        H=128,
+        H=64,
         bidirectional=True,
         num_layers=2,
         rnn_dropout=0.2,

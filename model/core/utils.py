@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
+
 from ..classifiers.gru import GRUClassifier
 
 
@@ -32,9 +33,10 @@ def histogram_requests(
     return new_req_cnt.astype("float32"), new_in_tok, new_out_tok
 
 
-def make_schedule_matrix(trace_dict: Dict[str, np.ndarray]):
+def make_schedule_matrix(trace_dict: Dict[str, np.ndarray], arrival_rate: float = None):
     """
     trace_dict contains 1-D numpy arrays *already cut to true length*.
+    arrival_rate: Poisson arrival rate for the trace (optional, broadcasts to all timesteps).
     Returns x_t  (T × Dx)  where columns are z-scored.
     """
 
@@ -45,17 +47,25 @@ def make_schedule_matrix(trace_dict: Dict[str, np.ndarray]):
         out_tok=trace_dict["output_tokens"],
     )
 
-    x = np.stack(
-        [
-            cnt,
-            tok_in,
-            tok_out,
-            trace_dict["active_requests"],
-            trace_dict["prefill_tokens"],
-            trace_dict["decode_tokens"],
-        ],
-        axis=1,
-    ).astype("float32")
+    T = len(cnt)
+
+    # Base features (6 features)
+    features = [
+        cnt,
+        tok_in,
+        tok_out,
+        trace_dict["active_requests"],
+        trace_dict["prefill_tokens"],
+        trace_dict["decode_tokens"],
+    ]
+
+    # Add arrival rate as 7th feature if provided
+    if arrival_rate is not None:
+        # Broadcast log2(arrival_rate) to all timesteps
+        arrival_rate_feature = np.full(T, np.log2(arrival_rate), dtype="float32")
+        features.append(arrival_rate_feature)
+
+    x = np.stack(features, axis=1).astype("float32")
 
     mu = x.mean(0, keepdims=True)
     sd = x.std(0, keepdims=True) + 1e-6
@@ -63,7 +73,7 @@ def make_schedule_matrix(trace_dict: Dict[str, np.ndarray]):
 
 
 def load_classifier(
-    path, device: Optional[torch.device] = None, Dx: int = 6, K: int = 6
+    path, device: Optional[torch.device] = None, Dx: int = 7, K: int = 6
 ):
     """
     Load a classifier from a file.
@@ -81,6 +91,6 @@ def load_classifier(
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Loading classifier from {path} on device: {device}")
-    classifier = GRUClassifier(Dx=Dx, K=K).to(device)
+    classifier = GRUClassifier(H=64, Dx=Dx, K=K, num_layers=2).to(device)
     classifier.load_state_dict(torch.load(path, map_location=device))
     return classifier

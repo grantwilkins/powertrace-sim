@@ -26,11 +26,15 @@ class PowerTraceDataset(Dataset):
         self.llm_name = npz_file.split("/")[-1].split("_")[1]
 
         tp_array = d["tensor_parallelism"]
+        poisson_rate_array = d.get("poisson_rate", None)
         n_exp = d["timestamps"].shape[0]
 
         for i in range(n_exp):
             bin_mask = d["timestamps"][i] > 0
             req_mask = d["request_timestamps"][i] > 0
+
+            # Extract arrival rate if available
+            arrival_rate = float(poisson_rate_array[i]) if poisson_rate_array is not None else None
 
             trace = dict(
                 timestamps=d["timestamps"][i][bin_mask],
@@ -41,8 +45,9 @@ class PowerTraceDataset(Dataset):
                 request_ts=d["request_timestamps"][i][req_mask],
                 input_tokens=d["input_tokens"][i][req_mask],
                 output_tokens=d["output_tokens"][i][req_mask],
+                arrival_rate=arrival_rate,
             )
-            trace["x"] = make_schedule_matrix(trace)
+            trace["x"] = make_schedule_matrix(trace, arrival_rate=arrival_rate)
             trace["y"] = trace["power"][:, None]  # (T,1)
             self.traces.append(trace)
             self.tp_all.append(int(tp_array[i]))
@@ -194,7 +199,7 @@ def extract_config_from_npz(
         state_means=dataset.mu[tp],
         state_stds=dataset.sigma[tp],
         model_weights_path=weights_path,
-        feature_dimensions=6,
+        feature_dimensions=7,  # Updated to include arrival_rate feature
     )
 
     return config
