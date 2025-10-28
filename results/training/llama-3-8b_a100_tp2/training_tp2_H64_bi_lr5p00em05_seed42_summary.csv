@@ -1,2 +1,2 @@
-tp,hidden_size,bidirectional,learning_rate,seed,final_train_loss,final_val_loss,final_val_acc,final_val_f1,best_val_f1,num_epochs,final_transition_mae,final_autocorr_r2
-2,64,True,5e-05,42,1.3755601644515991,1.316084623336792,0.5374710648148148,0.4031499564022996,0.4199301448881368,500,89.18726896685227,0.79497585299994
+tp,hidden_size,bidirectional,learning_rate,seed,final_train_loss,final_val_loss,final_val_acc,final_val_balanced_acc,final_val_f1,final_val_ece,best_val_f1,num_epochs,final_transition_mae,final_autocorr_r2,final_tolerance_power_acc,final_boundary_f1
+2,64,True,5e-05,42,1.3253514468669891,1.2470426559448242,0.5691550925925926,0.4026751421840438,0.40477049528787123,0.12033457429950228,0.40713256500170925,500,85.35267117042677,0.8995951419903021,0.5691550925925926,0.04943820176447419
