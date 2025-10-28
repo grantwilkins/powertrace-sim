@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset, random_split
 
 import wandb
@@ -159,6 +159,76 @@ def compute_autocorr_r2(
     return max(0.0, r2)
 
 
+def tolerance_power_accuracy(
+    pred_z: np.ndarray, true_z: np.ndarray, mu: np.ndarray, tol_w: float = 25.0
+) -> float:
+    """
+    Compute accuracy within a tolerance window in watts.
+    More forgiving than exact state ID matching when GMM states overlap.
+
+    Args:
+        pred_z: Predicted state IDs (N, T)
+        true_z: True state IDs (N, T)
+        mu: State power means (K,)
+        tol_w: Tolerance in watts
+    """
+    pw_pred = mu[pred_z.astype(int)]
+    pw_true = mu[true_z.astype(int)]
+    return float(np.mean(np.abs(pw_pred - pw_true) <= tol_w))
+
+
+def boundary_f1(pred_z: np.ndarray, true_z: np.ndarray) -> float:
+    """
+    F1 score for transition boundary detection.
+    Evaluates how well the model captures state changes.
+
+    Args:
+        pred_z: Predicted state IDs (N, T)
+        true_z: True state IDs (N, T)
+    """
+    if pred_z.shape[1] <= 1:
+        return 0.0
+
+    b_pred = np.diff(pred_z, axis=1) != 0
+    b_true = np.diff(true_z, axis=1) != 0
+    tp = np.logical_and(b_pred, b_true).sum()
+    fp = np.logical_and(b_pred, ~b_true).sum()
+    fn = np.logical_and(~b_pred, b_true).sum()
+
+    precision = tp / (tp + fp + 1e-9)
+    recall = tp / (tp + fn + 1e-9)
+    f1 = 2 * precision * recall / (precision + recall + 1e-9)
+    return float(f1)
+
+
+def expected_calibration_error(
+    probs: np.ndarray, labels: np.ndarray, n_bins: int = 15
+) -> float:
+    """
+    Compute Expected Calibration Error (ECE).
+    Measures how well predicted probabilities match actual accuracy.
+
+    Args:
+        probs: Softmax probabilities (N*T, K)
+        labels: True labels (N*T,)
+        n_bins: Number of bins for calibration curve
+    """
+    conf = probs.max(1)
+    preds = probs.argmax(1)
+    bins = np.linspace(0, 1, n_bins + 1)
+    ece_val = 0.0
+    m = len(labels)
+
+    for i in range(n_bins):
+        mask = (conf >= bins[i]) & (conf < bins[i + 1])
+        if mask.any():
+            acc = np.mean(preds[mask] == labels[mask])
+            avg_conf = np.mean(conf[mask])
+            ece_val += np.abs(acc - avg_conf) * np.sum(mask) / m
+
+    return float(ece_val)
+
+
 def evaluate_classifier(
     classifier: nn.Module,
     loader: DataLoader,
@@ -167,11 +237,19 @@ def evaluate_classifier(
     criterion: nn.Module,
     compute_extra_metrics: bool = False,
     state_power_means: Optional[np.ndarray] = None,
-) -> Tuple[float, float, float, np.ndarray, Optional[float], Optional[float]]:
+) -> Dict[str, any]:
+    """
+    Evaluate classifier and return comprehensive metrics.
+
+    Returns dict with keys: loss, accuracy, balanced_accuracy, macro_f1,
+    confusion_matrix, and optionally: transition_mae, autocorr_r2,
+    tolerance_power_acc, boundary_f1, ece
+    """
     classifier.eval()
     total_loss = 0.0
     all_preds = []
     all_labels = []
+    all_probs = []
     all_x = []
     all_y = []
 
@@ -184,11 +262,13 @@ def evaluate_classifier(
             loss = criterion(logits.view(-1, K), z.view(-1))
             total_loss += loss.item()
 
+            probs = torch.softmax(logits, dim=-1).cpu().numpy()
             preds = torch.argmax(logits, dim=-1).cpu().numpy().flatten()
             labels = z.cpu().numpy().flatten()
 
             all_preds.extend(preds)
             all_labels.extend(labels)
+            all_probs.append(probs.reshape(-1, K))
 
             if compute_extra_metrics:
                 all_x.append(x.cpu().numpy())
@@ -196,20 +276,34 @@ def evaluate_classifier(
 
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
+    all_probs = np.concatenate(all_probs, axis=0)
 
+    # Base metrics
     avg_loss = total_loss / len(loader)
     accuracy = (all_preds == all_labels).mean()
+    balanced_acc = balanced_accuracy_score(all_labels, all_preds)
     macro_f1 = f1_score(all_labels, all_preds, average="macro", zero_division=0)
     conf_matrix = confusion_matrix(all_labels, all_preds, labels=list(range(K)))
+    ece_val = expected_calibration_error(all_probs, all_labels)
 
-    transition_mae = None
-    autocorr_r2 = None
+    metrics = {
+        "loss": avg_loss,
+        "accuracy": accuracy,
+        "balanced_accuracy": balanced_acc,
+        "macro_f1": macro_f1,
+        "confusion_matrix": conf_matrix,
+        "ece": ece_val,
+    }
 
+    # Extended metrics
     if compute_extra_metrics and len(all_x) > 0:
         all_x = np.concatenate(all_x, axis=0)
         all_y = np.concatenate(all_y, axis=0)
         all_preds_2d = all_preds.reshape(all_y.shape).squeeze(-1)
         all_labels_2d = all_labels.reshape(all_y.shape).squeeze(-1)
+
+        # Boundary F1 (sequence-aware)
+        metrics["boundary_f1"] = boundary_f1(all_preds_2d, all_labels_2d)
 
         # Convert state IDs to power values if means are provided
         if state_power_means is not None:
@@ -220,14 +314,18 @@ def evaluate_classifier(
 
             y_pred_power = states_to_power(all_preds_2d, state_power_means)
             y_true_power = states_to_power(all_labels_2d, state_power_means)
-            transition_mae = compute_transition_mae(y_pred_power, y_true_power, all_x)
-            autocorr_r2 = compute_autocorr_r2(y_pred_power, y_true_power)
+
+            metrics["transition_mae"] = compute_transition_mae(y_pred_power, y_true_power, all_x)
+            metrics["autocorr_r2"] = compute_autocorr_r2(y_pred_power, y_true_power)
+            metrics["tolerance_power_acc"] = tolerance_power_accuracy(
+                all_preds_2d, all_labels_2d, state_power_means, tol_w=25.0
+            )
         else:
             # Fallback: use state IDs as proxy for power
-            transition_mae = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
-            autocorr_r2 = compute_autocorr_r2(all_preds_2d, all_labels_2d)
+            metrics["transition_mae"] = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
+            metrics["autocorr_r2"] = compute_autocorr_r2(all_preds_2d, all_labels_2d)
 
-    return avg_loss, accuracy, macro_f1, conf_matrix, transition_mae, autocorr_r2
+    return metrics
 
 
 def lr_sweep(
@@ -375,7 +473,7 @@ def lr_sweep(
             train_losses.append(epoch_loss / len(train_loader))
 
             # Validation
-            val_loss, val_acc, val_f1, _, _, _ = evaluate_classifier(
+            val_metrics = evaluate_classifier(
                 classifier,
                 val_loader,
                 K,
@@ -383,8 +481,8 @@ def lr_sweep(
                 criterion,
                 compute_extra_metrics=False,
             )
-            val_losses.append(val_loss)
-            val_f1s.append(val_f1)
+            val_losses.append(val_metrics["loss"])
+            val_f1s.append(val_metrics["macro_f1"])
 
             # Log to wandb
             if wandb_project:
@@ -392,9 +490,11 @@ def lr_sweep(
                     {
                         "epoch": epoch + 1,
                         "train_loss": train_losses[-1],
-                        "val_loss": val_loss,
-                        "val_f1": val_f1,
-                        "val_acc": val_acc,
+                        "val_loss": val_metrics["loss"],
+                        "val_f1": val_metrics["macro_f1"],
+                        "val_acc": val_metrics["accuracy"],
+                        "val_balanced_acc": val_metrics["balanced_accuracy"],
+                        "val_ece": val_metrics["ece"],
                         "lr": lr,
                     }
                 )
@@ -402,7 +502,7 @@ def lr_sweep(
             if (epoch + 1) % 10 == 0:
                 print(
                     f"Epoch {epoch + 1:03d}: train_loss={train_losses[-1]:.4f}, "
-                    f"val_loss={val_loss:.4f}, val_f1={val_f1:.4f}"
+                    f"val_loss={val_metrics['loss']:.4f}, val_f1={val_metrics['macro_f1']:.4f}"
                 )
 
         final_f1 = max(val_f1s)  # Changed: use max F1, not last epoch
@@ -656,69 +756,73 @@ def train_classifiers(
         train_losses.append(epoch_loss / len(train_loader))
 
         # Validation
-        val_loss, val_acc, val_f1, conf_mat, transition_mae, autocorr_r2 = (
-            evaluate_classifier(
-                classifier,
-                val_loader,
-                K,
-                device,
-                criterion,
-                compute_extra_metrics=compute_extra_metrics,
-                state_power_means=state_power_means,
-            )
+        val_metrics = evaluate_classifier(
+            classifier,
+            val_loader,
+            K,
+            device,
+            criterion,
+            compute_extra_metrics=compute_extra_metrics,
+            state_power_means=state_power_means,
         )
-        val_losses.append(val_loss)
-        val_accs.append(val_acc)
-        val_f1s.append(val_f1)
-        if transition_mae is not None:
-            val_transition_maes.append(transition_mae)
-        if autocorr_r2 is not None:
-            val_autocorr_r2s.append(autocorr_r2)
+
+        val_losses.append(val_metrics["loss"])
+        val_accs.append(val_metrics["accuracy"])
+        val_f1s.append(val_metrics["macro_f1"])
+        if "transition_mae" in val_metrics:
+            val_transition_maes.append(val_metrics["transition_mae"])
+        if "autocorr_r2" in val_metrics:
+            val_autocorr_r2s.append(val_metrics["autocorr_r2"])
 
         # Track best F1 for model saving
-        if val_f1 > best_val_f1:
-            best_val_f1 = val_f1
+        if val_metrics["macro_f1"] > best_val_f1:
+            best_val_f1 = val_metrics["macro_f1"]
 
         # Step scheduler per epoch if needed (e.g., ReduceLROnPlateau)
         if scheduler is not None and scheduler_step_mode == "epoch":
-            scheduler.step(val_loss)
+            scheduler.step(val_metrics["loss"])
 
         # Log to wandb
         if wandb_project:
             log_dict = {
                 "epoch": epoch + 1,
                 "train_loss": train_losses[-1],
-                "val_loss": val_loss,
-                "val_f1": val_f1,
-                "val_acc": val_acc,
+                "val_loss": val_metrics["loss"],
+                "val_f1": val_metrics["macro_f1"],
+                "val_acc": val_metrics["accuracy"],
+                "val_balanced_acc": val_metrics["balanced_accuracy"],
+                "val_ece": val_metrics["ece"],
             }
-            if transition_mae is not None:
-                log_dict["val_transition_mae"] = transition_mae
-            if autocorr_r2 is not None:
-                log_dict["val_autocorr_r2"] = autocorr_r2
+            # Add extended metrics if available
+            if "transition_mae" in val_metrics:
+                log_dict["val_transition_mae"] = val_metrics["transition_mae"]
+            if "autocorr_r2" in val_metrics:
+                log_dict["val_autocorr_r2"] = val_metrics["autocorr_r2"]
+            if "tolerance_power_acc" in val_metrics:
+                log_dict["val_tolerance_power_acc"] = val_metrics["tolerance_power_acc"]
+            if "boundary_f1" in val_metrics:
+                log_dict["val_boundary_f1"] = val_metrics["boundary_f1"]
             if scheduler is not None:
                 log_dict["lr"] = optimizer.param_groups[0]["lr"]
             wandb.log(log_dict)
 
         if (epoch + 1) % 10 == 0:
             extra_str = ""
-            if transition_mae is not None:
-                extra_str += f", Trans MAE: {transition_mae:.4f}"
-            if autocorr_r2 is not None:
-                extra_str += f", AutoCorr R²: {autocorr_r2:.4f}"
+            if "transition_mae" in val_metrics:
+                extra_str += f", Trans MAE: {val_metrics['transition_mae']:.4f}"
+            if "autocorr_r2" in val_metrics:
+                extra_str += f", AutoCorr R²: {val_metrics['autocorr_r2']:.4f}"
+            if "tolerance_power_acc" in val_metrics:
+                extra_str += f", Tol.Acc(25W): {val_metrics['tolerance_power_acc']:.3f}"
+            if "boundary_f1" in val_metrics:
+                extra_str += f", Boundary F1: {val_metrics['boundary_f1']:.3f}"
             print(
                 f"TP {tp}, Epoch {epoch + 1}, Train Loss: {train_losses[-1]:.4f}, "
-                f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}{extra_str}"
+                f"Val Loss: {val_metrics['loss']:.4f}, Val Acc: {val_metrics['accuracy']:.4f}, "
+                f"Val F1: {val_metrics['macro_f1']:.4f}{extra_str}"
             )
 
-    (
-        final_val_loss,
-        final_val_acc,
-        final_val_f1,
-        final_conf_mat,
-        final_transition_mae,
-        final_autocorr_r2,
-    ) = evaluate_classifier(
+    final_metrics = evaluate_classifier(
         classifier,
         val_loader,
         K,
@@ -729,13 +833,19 @@ def train_classifiers(
     )
 
     print(f"\nFinal Results for TP={tp}:")
-    print(f"  Val Loss: {final_val_loss:.4f}")
-    print(f"  Val Accuracy: {final_val_acc:.4f}")
-    print(f"  Val Macro-F1: {final_val_f1:.4f}")
-    if final_transition_mae is not None:
-        print(f"  Transition MAE: {final_transition_mae:.4f}")
-    if final_autocorr_r2 is not None:
-        print(f"  AutoCorr R²: {final_autocorr_r2:.4f}")
+    print(f"  Val Loss: {final_metrics['loss']:.4f}")
+    print(f"  Val Accuracy: {final_metrics['accuracy']:.4f}")
+    print(f"  Val Balanced Accuracy: {final_metrics['balanced_accuracy']:.4f}")
+    print(f"  Val Macro-F1: {final_metrics['macro_f1']:.4f}")
+    print(f"  Val ECE: {final_metrics['ece']:.4f}")
+    if "transition_mae" in final_metrics:
+        print(f"  Transition MAE: {final_metrics['transition_mae']:.4f}")
+    if "autocorr_r2" in final_metrics:
+        print(f"  AutoCorr R²: {final_metrics['autocorr_r2']:.4f}")
+    if "tolerance_power_acc" in final_metrics:
+        print(f"  Tolerance Power Acc (25W): {final_metrics['tolerance_power_acc']:.3f}")
+    if "boundary_f1" in final_metrics:
+        print(f"  Boundary F1: {final_metrics['boundary_f1']:.3f}")
 
     # Save training results
     os.makedirs(output_dir, exist_ok=True)
@@ -747,12 +857,16 @@ def train_classifiers(
         "val_f1s": val_f1s,
         "val_transition_maes": val_transition_maes if compute_extra_metrics else None,
         "val_autocorr_r2s": val_autocorr_r2s if compute_extra_metrics else None,
-        "final_val_loss": final_val_loss,
-        "final_val_acc": final_val_acc,
-        "final_val_f1": final_val_f1,
-        "final_transition_mae": final_transition_mae,
-        "final_autocorr_r2": final_autocorr_r2,
-        "confusion_matrix": final_conf_mat,
+        "final_val_loss": final_metrics["loss"],
+        "final_val_acc": final_metrics["accuracy"],
+        "final_val_balanced_acc": final_metrics["balanced_accuracy"],
+        "final_val_f1": final_metrics["macro_f1"],
+        "final_val_ece": final_metrics["ece"],
+        "final_transition_mae": final_metrics.get("transition_mae"),
+        "final_autocorr_r2": final_metrics.get("autocorr_r2"),
+        "final_tolerance_power_acc": final_metrics.get("tolerance_power_acc"),
+        "final_boundary_f1": final_metrics.get("boundary_f1"),
+        "confusion_matrix": final_metrics["confusion_matrix"],
         "learning_rates": learning_rates if scheduler else None,
     }
 
@@ -840,7 +954,9 @@ def save_training_metrics_to_csv(
         "final_train_loss": metrics["train_losses"][-1],
         "final_val_loss": metrics["final_val_loss"],
         "final_val_acc": metrics["final_val_acc"],
+        "final_val_balanced_acc": metrics["final_val_balanced_acc"],
         "final_val_f1": metrics["final_val_f1"],
+        "final_val_ece": metrics["final_val_ece"],
         "best_val_f1": max(metrics["val_f1s"]),
         "num_epochs": len(metrics["train_losses"]),
     }
@@ -849,6 +965,10 @@ def save_training_metrics_to_csv(
         summary_data["final_transition_mae"] = metrics["final_transition_mae"]
     if metrics.get("final_autocorr_r2") is not None:
         summary_data["final_autocorr_r2"] = metrics["final_autocorr_r2"]
+    if metrics.get("final_tolerance_power_acc") is not None:
+        summary_data["final_tolerance_power_acc"] = metrics["final_tolerance_power_acc"]
+    if metrics.get("final_boundary_f1") is not None:
+        summary_data["final_boundary_f1"] = metrics["final_boundary_f1"]
 
     summary_df = pd.DataFrame([summary_data])
     summary_df.to_csv(
