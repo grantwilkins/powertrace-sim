@@ -237,19 +237,29 @@ def evaluate_classifier(
     criterion: nn.Module,
     compute_extra_metrics: bool = False,
     state_power_means: Optional[np.ndarray] = None,
+    use_viterbi: bool = False,
+    viterbi_penalty: float = 1.0,
 ) -> Dict[str, any]:
     """
     Evaluate classifier and return comprehensive metrics.
 
+    Args:
+        use_viterbi: If True, apply Viterbi decoding to smooth predictions
+        viterbi_penalty: Transition penalty for Viterbi (higher = smoother)
+
     Returns dict with keys: loss, accuracy, balanced_accuracy, macro_f1,
     confusion_matrix, and optionally: transition_mae, autocorr_r2,
     tolerance_power_acc, boundary_f1, ece
+    If use_viterbi=True, also includes viterbi_* versions of metrics.
     """
+    from model.core.utils import viterbi_decode
+
     classifier.eval()
     total_loss = 0.0
     all_preds = []
     all_labels = []
     all_probs = []
+    all_logits = []
     all_x = []
     all_y = []
 
@@ -269,6 +279,7 @@ def evaluate_classifier(
             all_preds.extend(preds)
             all_labels.extend(labels)
             all_probs.append(probs.reshape(-1, K))
+            all_logits.append(logits.cpu().numpy())  # Store for Viterbi
 
             if compute_extra_metrics:
                 all_x.append(x.cpu().numpy())
@@ -277,8 +288,9 @@ def evaluate_classifier(
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
     all_probs = np.concatenate(all_probs, axis=0)
+    all_logits_cat = np.concatenate(all_logits, axis=0)  # (B, T, K)
 
-    # Base metrics
+    # Base metrics (independent predictions)
     avg_loss = total_loss / len(loader)
     accuracy = (all_preds == all_labels).mean()
     balanced_acc = balanced_accuracy_score(all_labels, all_preds)
@@ -295,6 +307,24 @@ def evaluate_classifier(
         "ece": ece_val,
     }
 
+    # Viterbi-decoded metrics (sequence smoothing)
+    if use_viterbi:
+        # Apply Viterbi decoding
+        viterbi_preds = viterbi_decode(
+            all_logits_cat, transition_penalty=viterbi_penalty
+        )
+        viterbi_preds_flat = viterbi_preds.flatten()
+
+        viterbi_acc = (viterbi_preds_flat == all_labels).mean()
+        viterbi_balanced_acc = balanced_accuracy_score(all_labels, viterbi_preds_flat)
+        viterbi_f1 = f1_score(
+            all_labels, viterbi_preds_flat, average="macro", zero_division=0
+        )
+
+        metrics["viterbi_accuracy"] = viterbi_acc
+        metrics["viterbi_balanced_accuracy"] = viterbi_balanced_acc
+        metrics["viterbi_macro_f1"] = viterbi_f1
+
     # Extended metrics
     if compute_extra_metrics and len(all_x) > 0:
         all_x = np.concatenate(all_x, axis=0)
@@ -304,6 +334,11 @@ def evaluate_classifier(
 
         # Boundary F1 (sequence-aware)
         metrics["boundary_f1"] = boundary_f1(all_preds_2d, all_labels_2d)
+
+        # Viterbi boundary F1 if using Viterbi
+        if use_viterbi:
+            viterbi_preds_2d = viterbi_preds.reshape(all_y.shape).squeeze(-1)
+            metrics["viterbi_boundary_f1"] = boundary_f1(viterbi_preds_2d, all_labels_2d)
 
         # Convert state IDs to power values if means are provided
         if state_power_means is not None:
@@ -320,6 +355,19 @@ def evaluate_classifier(
             metrics["tolerance_power_acc"] = tolerance_power_accuracy(
                 all_preds_2d, all_labels_2d, state_power_means, tol_w=25.0
             )
+
+            # Viterbi versions
+            if use_viterbi:
+                y_viterbi_power = states_to_power(viterbi_preds_2d, state_power_means)
+                metrics["viterbi_transition_mae"] = compute_transition_mae(
+                    y_viterbi_power, y_true_power, all_x
+                )
+                metrics["viterbi_autocorr_r2"] = compute_autocorr_r2(
+                    y_viterbi_power, y_true_power
+                )
+                metrics["viterbi_tolerance_power_acc"] = tolerance_power_accuracy(
+                    viterbi_preds_2d, all_labels_2d, state_power_means, tol_w=25.0
+                )
         else:
             # Fallback: use state IDs as proxy for power
             metrics["transition_mae"] = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)

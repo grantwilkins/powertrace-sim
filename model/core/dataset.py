@@ -199,7 +199,7 @@ def extract_config_from_npz(
         state_means=dataset.mu[tp],
         state_stds=dataset.sigma[tp],
         model_weights_path=weights_path,
-        feature_dimensions=7,  # Updated to include arrival_rate feature
+        feature_dimensions=10,  # Updated: 7 base + 3 diff features
     )
 
     return config
