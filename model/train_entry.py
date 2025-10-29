@@ -42,6 +42,18 @@ if __name__ == "__main__":
         default=None,
         help="Device to train on (cuda, cuda:0, cpu, etc.). Defaults to cuda if available.",
     )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for the classifier",
+    )
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        default=500,
+        help="Number of epochs to train for",
+    )
     args = parser.parse_args()
 
     dataset = PowerTraceDataset(args.data_file)
@@ -58,7 +70,8 @@ if __name__ == "__main__":
                 dataset,
                 tp=tp,
                 device=torch.device(args.device) if args.device else None,
-                lr=1e-3,
+                num_epochs=args.num_epochs,
+                lr=args.lr,
             )
             classifier.to("cpu")
             np.save(
@@ -75,8 +88,8 @@ if __name__ == "__main__":
             dataset,
             tp=args.tp,
             device=torch.device(args.device) if args.device else None,
-            num_epochs=1000,
-            lr=1e-3,
+            num_epochs=args.num_epochs,
+            lr=args.lr,
         )
         # Ensure directories exist
         classifier.to("cpu")
