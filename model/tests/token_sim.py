@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from core.dataset import PowerTraceDataset
-from simulators.arrival_simulator import ModelConfig, TokenSimulator
+
+from model.core.dataset import PowerTraceDataset
+from model.simulators.arrival_simulator import ModelConfig, TokenSimulator
 
 
 def test_token_simulator():

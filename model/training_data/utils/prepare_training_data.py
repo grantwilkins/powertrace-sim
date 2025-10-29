@@ -106,7 +106,8 @@ def discover_experiment_pairs(data_root_dir: str) -> List[Tuple[str, str]]:
 
     for json_path in all_jsons:
         base = os.path.basename(json_path)
-        if "vllm-" in base:
+        # Accept vllm- prefix OR files that will match our patterns
+        if "vllm-" in base or any(pattern in base for pattern in ["llama-3", "gpt-oss", "deepseek"]):
             results_files.append(json_path)
         else:
             print(
@@ -228,6 +229,17 @@ def extract_results_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         date = gpt_oss_match.group(4)
         return model_size, tp, rate, date
 
+    # Pattern for new gpt-oss files: gpt-oss-{size}b_tp{tp}_rate{rate}_iter{iter}_{timestamp}.json
+    gpt_oss_new_match = re.match(
+        r"gpt-oss-(\d+)b_tp(\d+)_rate([\d\.]+)_iter\d+_([\d-]+).json", base
+    )
+    if gpt_oss_new_match:
+        model_size = gpt_oss_new_match.group(1)
+        tp = gpt_oss_new_match.group(2)
+        rate = gpt_oss_new_match.group(3)
+        date = gpt_oss_new_match.group(4)
+        return model_size, tp, rate, date
+
     deepseek_match = re.match(
         r"vllm-([\d\.]+)qps-tp(\d+)-DeepSeek-R1-Distill-Llama-(\d+)B-(.*).json", base
     )
@@ -264,7 +276,7 @@ def extract_power_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         date = llama_new_match.group(4)
         return model_size, tp, rate, date
 
-    # Pattern for gpt-oss files: gpt-oss-{size}b_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
+    # Pattern for gpt-oss files with category/distribution: gpt-oss-{size}b_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
     gpt_oss_match = re.match(
         r"gpt-oss-(\d+)b_tp(\d+)_\w+_\w+_rate([\d\.]+)_iter\d+_([\d-]+).csv", base
     )
@@ -273,6 +285,17 @@ def extract_power_info(filename: str) -> Optional[Tuple[str, str, str, str]]:
         tp = gpt_oss_match.group(2)
         rate = gpt_oss_match.group(3)
         date = gpt_oss_match.group(4)
+        return model_size, tp, rate, date
+
+    # Pattern for simpler gpt-oss files: gpt-oss-{size}b_tp{tp}_rate{rate}_iter{iter}_{timestamp}.csv
+    gpt_oss_simple_match = re.match(
+        r"gpt-oss-(\d+)b_tp(\d+)_rate([\d\.]+)_iter\d+_([\d-]+).csv", base
+    )
+    if gpt_oss_simple_match:
+        model_size = gpt_oss_simple_match.group(1)
+        tp = gpt_oss_simple_match.group(2)
+        rate = gpt_oss_simple_match.group(3)
+        date = gpt_oss_simple_match.group(4)
         return model_size, tp, rate, date
 
     # Pattern for DeepSeek files
@@ -468,7 +491,7 @@ def extract_experiment_info(power_csv_path: str) -> Optional[dict]:
             "date": model_match.group(4),
         }
 
-    # Try new format: {model}_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
+    # Try new format with category/distribution: {model}_tp{tp}_{category}_{distribution}_rate{rate}_iter{iter}_{timestamp}.csv
     new_match = re.match(
         r"(.*)_tp(\d+)_\w+_\w+_rate([\d\.]+)_iter\d+_(.*).csv", base
     )
@@ -478,6 +501,18 @@ def extract_experiment_info(power_csv_path: str) -> Optional[dict]:
             "tp": int(new_match.group(2)),
             "rate": float(new_match.group(3)),
             "date": new_match.group(4),
+        }
+
+    # Try simpler format: {model}_tp{tp}_rate{rate}_iter{iter}_{timestamp}.csv
+    simple_match = re.match(
+        r"(.*)_tp(\d+)_rate([\d\.]+)_iter\d+_(.*).csv", base
+    )
+    if simple_match:
+        return {
+            "model_name": simple_match.group(1),
+            "tp": int(simple_match.group(2)),
+            "rate": float(simple_match.group(3)),
+            "date": simple_match.group(4),
         }
 
     return None
@@ -679,47 +714,30 @@ if __name__ == "__main__":
         results_df = all_results_dfs[i]
         info = all_experiment_info[i]
 
-        # Calculate average timestamp interval for padding
-        if len(power_df) > 1:
-            avg_interval = (power_df["timestamp"].max() - power_df["timestamp"].min()) / (len(power_df) - 1)
-        else:
-            avg_interval = 0.25  # default 250ms
-
-        # Pad power trace: use edge for power (idle power should be last value if workload ended)
-        # For a more accurate idle, could use min power, but edge is safer
+        # pad power trace to max_len with edge values
         power_trace = power_df["power"].values
-        idle_power = power_trace.min() if len(power_trace) > 0 else 0  # Use minimum observed power as idle
         power_trace = np.pad(
-            power_trace, (0, max_len_power - len(power_trace)), mode="constant", constant_values=idle_power
+            power_trace, (0, max_len_power - len(power_trace)), mode="edge"
         )
-
-        # Pad timestamps: continue incrementing at average interval
         timestamp_arr = power_df["timestamp"].values
-        if len(timestamp_arr) < max_len_power:
-            last_timestamp = timestamp_arr[-1] if len(timestamp_arr) > 0 else 0
-            padding_length = max_len_power - len(timestamp_arr)
-            # Create monotonically increasing timestamps
-            padded_timestamps = last_timestamp + avg_interval * (np.arange(1, padding_length + 1))
-            timestamp_arr = np.concatenate([timestamp_arr, padded_timestamps])
-
-        # Pad token counts and requests: use 0 (no activity after workload ends)
+        timestamp_arr = np.pad(
+            timestamp_arr, (0, max_len_power - len(timestamp_arr)), mode="linear_ramp"
+        )
         prefill_tokens_arr = power_df["prefill_tokens"].values
         prefill_tokens_arr = np.pad(
             prefill_tokens_arr,
             (0, max_len_power - len(prefill_tokens_arr)),
-            mode="constant",
-            constant_values=0,
+            mode="edge",
         )
         decode_tokens_arr = power_df["decode_tokens"].values
         decode_tokens_arr = np.pad(
-            decode_tokens_arr, (0, max_len_power - len(decode_tokens_arr)), mode="constant", constant_values=0
+            decode_tokens_arr, (0, max_len_power - len(decode_tokens_arr)), mode="edge"
         )
         active_requests_arr = power_df["active_requests"].values
         active_requests_arr = np.pad(
             active_requests_arr,
             (0, max_len_power - len(active_requests_arr)),
-            mode="constant",
-            constant_values=0,
+            mode="edge",
         )
 
         input_tokens_arr = results_df["input_tokens"].values

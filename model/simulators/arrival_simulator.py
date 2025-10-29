@@ -103,13 +103,11 @@ class PerformanceSampler:
         self.tpot_clip = None
 
         if not self.use_fallback:
-            # Try new format first, fallback to old format
             ttft = self.entry.get("ttft_model") or self.entry.get(
                 "ttft_distribution", {}
             )
             tpot = self.entry.get("tpot_distribution", {})
 
-            # For clipping to observed range if present
             ttft_stats = ttft.get("summary_stats", {})
             tpot_stats = tpot.get("summary_stats", {})
             if ttft_stats:
@@ -123,10 +121,8 @@ class PerformanceSampler:
                     tpot_stats.get("max_observed"),
                 )
 
-            # TTFT distribution
             ttft_type = (ttft.get("type") or "").lower()
             if ttft_type == "decile_quantile":
-                # Decile-conditioned quantile sampler
                 bin_edges_z = ttft.get("bin_edges_z", [])
                 quantile_levels = ttft.get("quantile_levels", [])
                 bin_quantiles = ttft.get("bin_quantiles", [])
@@ -141,7 +137,6 @@ class PerformanceSampler:
                     nin_max,
                 )
             elif ttft_type == "gamma_glm":
-                # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1)), Var = φ * μ^2
                 beta0 = float(ttft.get("beta0", 0.0))
                 beta1 = float(ttft.get("beta1", 0.0))
                 phi = float(ttft.get("phi", 0.01))
@@ -149,10 +144,9 @@ class PerformanceSampler:
                 nin_max = int(ttft.get("nin_max", 4096))
                 self.ttft_dist = ("gamma_glm", beta0, beta1, phi, nin_min, nin_max)
             elif ttft_type == "heteroskedastic_log_linear":
-                # Heteroskedastic model: base variance + input-dependent variance
                 intercept = float(ttft.get("intercept", 0.0))
                 slope = float(ttft.get("slope", 1.0))
-                sigma_base = float(ttft.get("sigma_base", 0.1))  # Unconditional noise
+                sigma_base = float(ttft.get("sigma_base", 0.1))
                 sigma_intercept = float(ttft.get("sigma_intercept", -2.3))
                 sigma_slope = float(ttft.get("sigma_slope", 0.0))
                 nin_min = int(ttft.get("nin_min", 1))
@@ -168,7 +162,6 @@ class PerformanceSampler:
                     nin_max,
                 )
             elif ttft_type == "log_linear":
-                # Legacy log-linear model: log(TTFT) = a0 + a1 * log(input_tokens) + N(0, sigma^2)
                 intercept = float(ttft.get("intercept", 0.0))
                 slope = float(ttft.get("slope", 1.0))
                 sigma_log = float(ttft.get("sigma_log", 0.1))
@@ -191,7 +184,6 @@ class PerformanceSampler:
                 std = float(ttft.get("std", 1e-3))
                 self.ttft_dist = ("gaussian", mean, std)
 
-            # TPOT distribution
             tpot_type = (tpot.get("type") or "").lower()
             if tpot_type in ("gaussian", "normal", "norm"):
                 mean = float(tpot.get("mean", self.config.tpot_seconds))
@@ -201,8 +193,6 @@ class PerformanceSampler:
                 shape = float(tpot.get("shape", 1.0))
                 scale = float(tpot.get("scale", 1e-3))
                 self.tpot_dist = ("gamma", shape, scale)
-
-        # Seed numpy for reproducibility if desired (kept global control outside)
 
     def _clip(
         self, value: float, clip: Optional[Tuple[Optional[float], Optional[float]]]
@@ -224,59 +214,46 @@ class PerformanceSampler:
             input_tokens: Number of input tokens (required for log_linear model)
         """
         if self.use_fallback or self.ttft_dist is None:
-            # Fallback: scale by input length if provided
             if input_tokens is not None:
                 return float(self.config.ttft_seconds * (input_tokens / 512))
             return float(self.config.ttft_seconds)
 
         kind = self.ttft_dist[0]
         if kind == "decile_quantile":
-            # Decile-conditioned quantile sampler
             _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = (
                 self.ttft_dist
             )
             if input_tokens is None:
                 input_tokens = (nin_min + nin_max) // 2
 
-            # Transform to z-space: z = log(1 + n_in)
             z = np.log(1 + input_tokens)
 
-            # Find which bin(s) z falls into
             bin_edges_z = np.array(bin_edges_z)
             bin_idx = np.searchsorted(bin_edges_z, z, side="right") - 1
             bin_idx = np.clip(bin_idx, 0, len(bin_quantiles) - 1)
 
-            # Get quantiles for this bin
             quantiles = np.array(bin_quantiles[bin_idx])
             quantile_levels = np.array(quantile_levels)
 
-            # Draw uniform random variable
             u = np.random.uniform(0, 1)
 
-            # Interpolate inverse CDF at probability u
             val = float(np.interp(u, quantile_levels, quantiles))
-            val = max(val, 0.001)  # Ensure positive (min 1ms)
+            val = max(val, 0.001)
         elif kind == "gamma_glm":
-            # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1))
-            # Var = φ * μ^2, so shape k = 1/φ, scale θ = μ/k
             _, beta0, beta1, phi, nin_min, nin_max = self.ttft_dist
             if input_tokens is None:
                 input_tokens = (nin_min + nin_max) // 2
             nin_clamped = np.clip(input_tokens, nin_min, nin_max)
 
-            # Compute mean: μ = exp(β0 + β1 * log(n_in + 1))
             x = np.log(nin_clamped + 1)
             mu = np.exp(beta0 + beta1 * x)
 
-            # Gamma parameters: k = 1/φ, θ = μ/k = μ*φ
             k = 1.0 / phi  # shape
             theta = mu * phi  # scale
 
-            # Sample from Gamma(k, θ)
             val = float(np.random.gamma(k, theta))
-            val = max(val, 0.001)  # Ensure positive (min 1ms)
+            val = max(val, 0.001)
         elif kind == "heteroskedastic_log_linear":
-            # Heteroskedastic: base variance + input-dependent variance
             (
                 _,
                 intercept,
@@ -288,38 +265,26 @@ class PerformanceSampler:
                 nin_max,
             ) = self.ttft_dist
             if input_tokens is None:
-                # Fallback to mean if input_tokens not provided
                 input_tokens = (nin_min + nin_max) // 2
-            # Clamp to observed range
             nin_clamped = np.clip(input_tokens, nin_min, nin_max)
             log_n = np.log(nin_clamped)
-
-            # Mean prediction
             mu = intercept + slope * log_n
-
-            # Total variance = base + input-dependent
-            # sigma_total = sqrt(sigma_base^2 + sigma_input^2)
             log_sigma_input = sigma_intercept + sigma_slope * log_n
             sigma_input = np.exp(log_sigma_input)
             sigma_total = np.sqrt(sigma_base**2 + sigma_input**2)
-
-            # Sample with combined noise
             log_ttft = mu + np.random.normal(0, sigma_total)
             val = float(np.exp(log_ttft))
-            val = max(val, 0.001)  # Ensure positive (min 1ms)
+            val = max(val, 0.001)
         elif kind == "log_linear":
-            # Legacy log-linear: constant variance
             _, intercept, slope, sigma_log, nin_min, nin_max = self.ttft_dist
             if input_tokens is None:
-                # Fallback to mean if input_tokens not provided
                 input_tokens = (nin_min + nin_max) // 2
-            # Clamp to observed range
             nin_clamped = np.clip(input_tokens, nin_min, nin_max)
             log_ttft = (
                 intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
             )
             val = float(np.exp(log_ttft))
-            val = max(val, 0.001)  # Ensure positive (min 1ms)
+            val = max(val, 0.001)
         elif kind == "gamma":
             _, shape, scale = self.ttft_dist
             val = float(np.random.gamma(shape, scale))
@@ -327,7 +292,7 @@ class PerformanceSampler:
             _, mean, std = self.ttft_dist
             val = float(np.random.normal(mean, std))
             if val <= 0:
-                val = mean  # ensure positive
+                val = mean
         else:
             val = float(self.config.ttft_seconds)
         return self._clip(val, self.ttft_clip)
@@ -353,22 +318,18 @@ class PerformanceSampler:
 class ServingConfig:
     """Configuration for LLM serving system parameters."""
 
-    # Model and hardware
     model_name: str
-    model_size_b: int  # Model size in billions of parameters
-    hardware: str  # "A100", "H100", etc.
+    model_size_b: int
+    hardware: str
     tensor_parallelism: int = 1
 
-    # Performance parameters (can be distributions later)
-    ttft_seconds: float = 0.5  # Time to first token (includes prefill)
-    tpot_seconds: float = 0.02  # Time per output token (1/decode_tps)
+    ttft_seconds: float = 0.5
+    tpot_seconds: float = 0.02
 
-    # Optional: explicit performance DB model name (e.g., "llama-3.1", "deepseek-r1-distill")
     perf_db_model_name: Optional[str] = None
 
-    # System constraints
-    batch_size: int = 32  # Maximum concurrent requests
-    queue_limit: int = 100  # Maximum queued requests
+    batch_size: int = 32
+    queue_limit: int = 100
 
     def __str__(self):
         return f"{self.model_name}-TP{self.tensor_parallelism}-{self.hardware}"
@@ -376,14 +337,10 @@ class ServingConfig:
 
 @dataclass
 class ServeGenRequest:
-    """Request from ServeGen with timing information."""
-
     request_id: int
-    arrival_time: float  # When request arrived
-    input_tokens: int  # Context/prompt tokens
-    output_tokens: int  # Generated tokens
-
-    # Computed timing (set by simulator)
+    arrival_time: float
+    input_tokens: int
+    output_tokens: int
     prefill_start: Optional[float] = None
     prefill_end: Optional[float] = None
     decode_start: Optional[float] = None
@@ -395,35 +352,19 @@ class ServeGenRequest:
 
 
 class ServeGenWorkloadGenerator:
-    """Generates realistic workloads using ServeGen data."""
-
     def __init__(self):
         if not SERVEGEN_AVAILABLE:
             raise RuntimeError("ServeGen not available. Please install ServeGen.")
 
     def generate_requests(
         self,
-        category: str = "language",  # "language", "reason", "multimodal"
-        model_type: str = "m-large",  # "m-small", "m-mid", "m-large"
-        duration: float = 3600,  # Simulation duration in seconds
-        time_window: Optional[str] = None,  # "18:00-19:00" or None for random
-        rate_requests_per_sec: float = 1.0,  # Target request rate
+        category: str = "language",
+        model_type: str = "m-large",
+        duration: float = 3600,
+        time_window: Optional[str] = None,
+        rate_requests_per_sec: float = 1.0,
         seed: int = 0,
     ) -> List[ServeGenRequest]:
-        """
-        Generate a realistic request stream using ServeGen.
-
-        Args:
-            category: Workload category (language/reason/multimodal)
-            model_type: Model size category (m-small/m-mid/m-large)
-            duration: How long to simulate (seconds)
-            time_window: Time window for realistic patterns (e.g., "18:00-19:00")
-            rate_requests_per_sec: Target arrival rate
-            seed: Random seed for reproducibility
-
-        Returns:
-            List of ServeGenRequest objects with realistic token distributions
-        """
         np.random.seed(seed)
         category_enum = getattr(Category, category.upper())
         pool = ClientPool(category_enum, model_type)
@@ -475,7 +416,7 @@ class ServingSystemSimulator:
     ) -> List[ServeGenRequest]:
         requests = sorted(requests, key=lambda x: x.arrival_time)
         processed_requests = []
-        active_requests = []  # Currently processing
+        active_requests = []
         sampler = PerformanceSampler(self.config)
 
         for req in requests:
