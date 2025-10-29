@@ -12,20 +12,11 @@ from pathlib import Path
 
 # Configuration mapping: model -> (data_file_pattern, tp_values)
 CONFIGS = {
-    "llama-3-8b": {
-        "tp_values": [1, 2],
-        "hardware": ["a100", "h100"],
-        "data_pattern": "vllm-benchmark_llama-3-8b_{hw}.npz",
-    },
+
     "llama-3-70b": {
         "tp_values": [4, 8],
         "hardware": ["a100", "h100"],
         "data_pattern": "vllm-benchmark_llama-3-70b_{hw}.npz",
-    },
-    "deepseek-r1-distill-8b": {
-        "tp_values": [1, 2],
-        "hardware": ["a100", "h100"],
-        "data_pattern": "vllm-benchmark_deepseek-r1-8b_{hw}.npz",
     },
     "deepseek-r1-distill-70b": {
         "tp_values": [4, 8],

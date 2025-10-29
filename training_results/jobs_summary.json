@@ -1,33 +1,5 @@
 [
   {
-    "model": "llama-3-8b",
-    "hardware": "a100",
-    "tp": 1,
-    "job_name": "llama-3-8b_a100_tp1",
-    "success": true
-  },
-  {
-    "model": "llama-3-8b",
-    "hardware": "a100",
-    "tp": 2,
-    "job_name": "llama-3-8b_a100_tp2",
-    "success": true
-  },
-  {
-    "model": "llama-3-8b",
-    "hardware": "h100",
-    "tp": 1,
-    "job_name": "llama-3-8b_h100_tp1",
-    "success": true
-  },
-  {
-    "model": "llama-3-8b",
-    "hardware": "h100",
-    "tp": 2,
-    "job_name": "llama-3-8b_h100_tp2",
-    "success": true
-  },
-  {
     "model": "llama-3-70b",
     "hardware": "a100",
     "tp": 4,
@@ -39,48 +11,20 @@
     "hardware": "a100",
     "tp": 8,
     "job_name": "llama-3-70b_a100_tp8",
-    "success": false
+    "success": true
   },
   {
     "model": "llama-3-70b",
     "hardware": "h100",
     "tp": 4,
     "job_name": "llama-3-70b_h100_tp4",
-    "success": false
+    "success": true
   },
   {
     "model": "llama-3-70b",
     "hardware": "h100",
     "tp": 8,
     "job_name": "llama-3-70b_h100_tp8",
-    "success": true
-  },
-  {
-    "model": "deepseek-r1-distill-8b",
-    "hardware": "a100",
-    "tp": 1,
-    "job_name": "deepseek-r1-distill-8b_a100_tp1",
-    "success": true
-  },
-  {
-    "model": "deepseek-r1-distill-8b",
-    "hardware": "a100",
-    "tp": 2,
-    "job_name": "deepseek-r1-distill-8b_a100_tp2",
-    "success": true
-  },
-  {
-    "model": "deepseek-r1-distill-8b",
-    "hardware": "h100",
-    "tp": 1,
-    "job_name": "deepseek-r1-distill-8b_h100_tp1",
-    "success": true
-  },
-  {
-    "model": "deepseek-r1-distill-8b",
-    "hardware": "h100",
-    "tp": 2,
-    "job_name": "deepseek-r1-distill-8b_h100_tp2",
     "success": true
   },
   {
