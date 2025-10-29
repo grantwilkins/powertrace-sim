@@ -1,0 +1,18 @@
+{"time":"2025-10-28T23:48:47.686945-07:00","level":"INFO","msg":"using version","core version":"0.18.5"}
+{"time":"2025-10-28T23:48:47.688018-07:00","level":"INFO","msg":"created symlink","path":"/Users/grantwilkins/powertrace-sim/wandb/run-20251028_234847-3w1piy73/logs/debug-core.log"}
+{"time":"2025-10-28T23:48:47.90337-07:00","level":"INFO","msg":"created new stream","id":"3w1piy73"}
+{"time":"2025-10-28T23:48:47.903419-07:00","level":"INFO","msg":"stream: started","id":"3w1piy73"}
+{"time":"2025-10-28T23:48:47.903595-07:00","level":"INFO","msg":"sender: started","stream_id":"3w1piy73"}
+{"time":"2025-10-28T23:48:47.903604-07:00","level":"INFO","msg":"handler: started","stream_id":{"value":"3w1piy73"}}
+{"time":"2025-10-28T23:48:47.903564-07:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"3w1piy73"}}
+{"time":"2025-10-28T23:48:48.12206-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-10-28T23:49:22.77378-07:00","level":"INFO","msg":"stream: closing","id":"3w1piy73"}
+{"time":"2025-10-28T23:49:22.773973-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-10-28T23:49:22.774311-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-10-28T23:49:22.882118-07:00","level":"WARN","msg":"No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"}
+{"time":"2025-10-28T23:49:22.882132-07:00","level":"INFO","msg":"sender: sendDefer: no job artifact to save"}
+{"time":"2025-10-28T23:49:23.263633-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-28T23:49:23.395795-07:00","level":"INFO","msg":"handler: closed","stream_id":{"value":"3w1piy73"}}
+{"time":"2025-10-28T23:49:23.39594-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":{"value":"3w1piy73"}}
+{"time":"2025-10-28T23:49:23.395973-07:00","level":"INFO","msg":"sender: closed","stream_id":"3w1piy73"}
+{"time":"2025-10-28T23:49:23.396561-07:00","level":"INFO","msg":"stream: closed","id":"3w1piy73"}

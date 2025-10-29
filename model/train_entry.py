@@ -3,8 +3,9 @@ import os
 
 import numpy as np
 import torch
-from classifiers.train import train_classifiers
-from core.dataset import PowerTraceDataset
+
+from model.classifiers.train import train_classifiers
+from model.core.dataset import PowerTraceDataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train IOHMM model on power traces")

@@ -84,7 +84,7 @@ if __name__ == "__main__":
     # Store all CDF data for plotting
     cdf_data = []
 
-    for tp in [1, 2, 4, 8]:
+    for tp in [1, 2]:
         print(f"\nProcessing TP={tp}")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",
@@ -106,22 +106,6 @@ if __name__ == "__main__":
             trace_power = dataset.traces[idx]["y"].flatten()
             min_power = min(min_power, np.min(trace_power))
             max_power = max(max_power, np.max(trace_power))
-
-        plt.clf()
-        plt.plot(dataset.traces[tp_indices[0]]["z"].flatten())
-        plt.xlim(0, 50)
-        plt.title("State Sequence for First Trace")
-        plt.xlabel("Time Step")
-        plt.ylabel("State")
-        plt.savefig(f"state_sequence_trace_{tp}.pdf")
-        plt.close()
-        plt.plot(dataset.traces[tp_indices[0]]["y"].flatten())
-        plt.xlim(0, 50)
-        plt.title("Power Trace for First Trace")
-        plt.xlabel("Time Step")
-        plt.ylabel("Power (W)")
-        plt.savefig(f"power_trace_{tp}.pdf")
-        plt.close()
 
         for idx in tp_indices:
             time, power, states = smoother.sample_power(
@@ -155,7 +139,6 @@ if __name__ == "__main__":
             sorted_sampled_power
         )
 
-        # Add data to cdf_data list
         cdf_data.extend(
             [
                 {"Power": p, "CDF": c, "Type": "Original", "TP": tp}
@@ -171,15 +154,14 @@ if __name__ == "__main__":
 
         print(f"TP={tp} indices:", dataset.tp_all)
 
-        total_energy_original = np.trapezoid(all_original_power, dx=0.25)
-        total_energy_sampled = np.trapezoid(all_sampled_power, dx=0.25)
+        total_energy_original = np.trapz(all_original_power, dx=0.25)
+        total_energy_sampled = np.trapz(all_sampled_power, dx=0.25)
         print(f"Total energy consumed (original): {total_energy_original:.2f} J")
         print(f"Total energy consumed (sampled): {total_energy_sampled:.2f} J")
         print(
             f"Energy difference: {total_energy_sampled - total_energy_original:.2f} J"
         )
 
-        # Compute autocorrelation metrics
         print("Computing autocorrelation metrics...")
         autocorr_metrics = compute_autocorrelation_metrics(
             all_original_power, all_sampled_power
@@ -188,42 +170,36 @@ if __name__ == "__main__":
         print(f"ACF Correlation: {autocorr_metrics['acf_correlation']:.4f}")
         print(f"ACF MAE: {autocorr_metrics['acf_mae']:.4f}")
 
-        # Compute earth mover's distance
         from scipy.stats import wasserstein_distance
 
         emd = wasserstein_distance(sorted_original_power, sorted_sampled_power)
         print(f"Earth Mover's Distance: {emd:.4f}")
 
-        # Calculate p99 error
         p99_original = np.percentile(all_original_power, 99)
         p99_sampled = np.percentile(all_sampled_power, 99)
         p99_error = np.abs(p99_original - p99_sampled) / p99_original * 100
         print(f"P99 Error: {p99_error:.2f}%")
 
-        # Calculate p95 error
         p95_original = np.percentile(all_original_power, 95)
         p95_sampled = np.percentile(all_sampled_power, 95)
         p95_error = np.abs(p95_original - p95_sampled) / p95_original * 100
         print(f"P95 Error: {p95_error:.2f}%")
-
-        # Compute NRMSE
         nrmse = np.sqrt(np.mean((all_original_power - all_sampled_power) ** 2)) / (
             np.max(all_original_power) - np.min(all_original_power)
         )
         print(f"NRMSE: {nrmse:.4f}")
 
-    # Create combined CDF plot using seaborn
-    # Convert to DataFrame and sample if too large
     df = pd.DataFrame(cdf_data)
     if len(df) > 10000:  # If more than 10k points, sample down
         df = df.sample(n=10000, random_state=42)
     sns.set_style("whitegrid")
     sns.set_palette("colorblind")
+    sns.set_context("talk", font_scale=1.9)
     matplotlib.rcParams["pdf.fonttype"] = 42
     matplotlib.rcParams["ps.fonttype"] = 42
     matplotlib.rcParams["font.family"] = "Times New Roman"
 
-    plt.figure(figsize=(6, 3))
+    plt.figure(figsize=(6, 4))
     sns.lineplot(
         data=df,
         x="Power",
@@ -244,5 +220,5 @@ if __name__ == "__main__":
     )
     plt.tight_layout()
 
-    plt.savefig(f"cdf-power-trace_{model}_{hw}_combined.pdf")
+    plt.savefig(f"cdf-power-trace_{model}_{hw}_combined.pdf", bbox_inches="tight")
     plt.close()

@@ -1,0 +1,22 @@
+Epoch 1/500: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 24/24 [00:13<00:00,  1.76it/s, loss=1.8192]
+Epoch 2/500: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 24/24 [00:12<00:00,  1.86it/s, loss=1.7733]
+Epoch 3/500:  46%|█████████████████████████████████████████████████████████████████▌                                                                             | 11/24 [00:06<00:07,  1.77it/s, loss=1.7745]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 88, in <module>
+    classifier, losses = train_classifiers(
+                         ^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 86, in train_classifiers
+    loss.backward()
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/_tensor.py", line 581, in backward
+    torch.autograd.backward(
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/autograd/__init__.py", line 347, in backward
+    _engine_run_backward(
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/autograd/graph.py", line 825, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/wandb/integration/torch/wandb_torch.py", line 276, in <lambda>
+    handle = var.register_hook(lambda grad: _callback(grad, log_track))
+
+KeyboardInterrupt

@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
-from classifiers.gru import GRUClassifier
+from model.classifiers.gru import GRUClassifier
 
 
 def histogram_requests(

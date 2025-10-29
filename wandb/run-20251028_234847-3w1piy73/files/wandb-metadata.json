@@ -1,0 +1,49 @@
+{
+  "os": "macOS-14.3.1-arm64-arm-64bit",
+  "python": "3.12.2",
+  "startedAt": "2025-10-29T06:48:47.684476Z",
+  "args": [
+    "--data_file",
+    "./model/training_data/vllm-benchmark_llama-3-70b_a100.npz",
+    "--model",
+    "llama-3-70b",
+    "--tp",
+    "4",
+    "--hardware_accelerator",
+    "h100",
+    "--lr",
+    "1e-4"
+  ],
+  "program": "-m model.train_entry",
+  "git": {
+    "remote": "https://github.com/grantwilkins/powertrace-sim",
+    "commit": "77e23aeaef13d7d1106039a8855d3bac2b416b81"
+  },
+  "email": "grant.wilkins371@gmail.com",
+  "root": "/Users/grantwilkins/powertrace-sim",
+  "host": "DN525b5h.SUNet",
+  "username": "grantwilkins",
+  "executable": "/Users/grantwilkins/anaconda3/envs/ml-inference/bin/python3",
+  "cpu_count": 10,
+  "cpu_count_logical": 10,
+  "disk": {
+    "/": {
+      "total": "994662584320",
+      "used": "662758531072"
+    }
+  },
+  "memory": {
+    "total": "34359738368"
+  },
+  "cpu": {
+    "count": 10,
+    "countLogical": 10
+  },
+  "apple": {
+    "name": "Apple M1 Pro",
+    "ecpuCores": 2,
+    "pcpuCores": 8,
+    "gpuCores": 16,
+    "memoryGb": 32
+  }
+}

@@ -5,10 +5,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
-import wandb
-from classifiers.gru import GRUClassifier
-from core.dataset import PowerTraceDataset
 from torch.utils.data import DataLoader, Dataset
+
+import wandb
+from model.classifiers.gru import GRUClassifier
+from model.core.dataset import PowerTraceDataset
 
 
 def train_classifiers(
@@ -74,7 +75,7 @@ def train_classifiers(
         classifier.train()
         epoch_loss = 0.0
         batch_losses = []
-        progress_bar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")
+        progress_bar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}")
         for x, y, z in progress_bar:
             x = x.to(device)
             z = z.to(device)
@@ -128,7 +129,7 @@ def train_classifiers(
 
         if (epoch + 1) % 10 == 0:
             print(
-                f"TP {tp}, Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, "
+                f"TP {tp}, Epoch {epoch + 1}, Train Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.4f}"
             )
 
