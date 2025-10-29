@@ -158,8 +158,6 @@ if __name__ == "__main__":
             wandb_run_name=args.wandb_run_name,
             save_model=args.save_model,
         )
-
-        # Save model weights (backward compatibility)
         if args.save_model:
             classifier.to("cpu")
             torch.save(

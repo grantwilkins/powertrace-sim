@@ -338,7 +338,9 @@ def evaluate_classifier(
         # Viterbi boundary F1 if using Viterbi
         if use_viterbi:
             viterbi_preds_2d = viterbi_preds.reshape(all_y.shape).squeeze(-1)
-            metrics["viterbi_boundary_f1"] = boundary_f1(viterbi_preds_2d, all_labels_2d)
+            metrics["viterbi_boundary_f1"] = boundary_f1(
+                viterbi_preds_2d, all_labels_2d
+            )
 
         # Convert state IDs to power values if means are provided
         if state_power_means is not None:
@@ -350,7 +352,9 @@ def evaluate_classifier(
             y_pred_power = states_to_power(all_preds_2d, state_power_means)
             y_true_power = states_to_power(all_labels_2d, state_power_means)
 
-            metrics["transition_mae"] = compute_transition_mae(y_pred_power, y_true_power, all_x)
+            metrics["transition_mae"] = compute_transition_mae(
+                y_pred_power, y_true_power, all_x
+            )
             metrics["autocorr_r2"] = compute_autocorr_r2(y_pred_power, y_true_power)
             metrics["tolerance_power_acc"] = tolerance_power_accuracy(
                 all_preds_2d, all_labels_2d, state_power_means, tol_w=25.0
@@ -370,258 +374,12 @@ def evaluate_classifier(
                 )
         else:
             # Fallback: use state IDs as proxy for power
-            metrics["transition_mae"] = compute_transition_mae(all_preds_2d, all_labels_2d, all_x)
+            metrics["transition_mae"] = compute_transition_mae(
+                all_preds_2d, all_labels_2d, all_x
+            )
             metrics["autocorr_r2"] = compute_autocorr_r2(all_preds_2d, all_labels_2d)
 
     return metrics
-
-
-def lr_sweep(
-    dataset: PowerTraceDataset,
-    tp: int,
-    lr_range: List[float] = None,
-    num_epochs: int = 100,
-    val_split: float = 0.15,
-    hidden_size: int = 64,
-    batch_size: int = 8,
-    device: Optional[torch.device] = None,
-    output_dir: str = "./lr_sweep_results",
-    seed: int = 42,
-    wandb_project: Optional[str] = None,
-    wandb_entity: str = "grantfwilkins-stanford-university",
-    wandb_run_prefix: str = "",
-    bidirectional: bool = False,
-) -> Tuple[float, Dict]:
-    """
-    Perform LR sweep with constant learning rates.
-
-    Args:
-        dataset: PowerTraceDataset
-        tp: Tensor parallelism value
-        lr_range: List of learning rates to try (hardcoded default)
-        num_epochs: Number of epochs for each LR trial
-        val_split: Fraction of data for validation
-        hidden_size: Hidden size for GRU
-        device: Device to train on
-        output_dir: Directory to save results
-        seed: Random seed
-        wandb_project: WandB project name
-        wandb_entity: WandB entity/team name
-        wandb_run_prefix: Prefix for wandb run name
-        bidirectional: Whether to use bidirectional GRU
-
-    Returns:
-        best_lr: Best learning rate based on validation macro-F1
-        results: Dictionary with detailed results for each LR
-    """
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    if lr_range is None:
-        # Hardcoded LR range
-        lr_range = [3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    print(f"LR Sweep for TP={tp}")
-    print(f"LR range: {[f'{lr:.2e}' for lr in lr_range]}")
-
-    # Prepare dataset
-    tp_indices = [i for i, tp_i in enumerate(dataset.tp_all) if tp_i == tp]
-    tp_dataset = TPDataset(dataset, tp_indices)
-
-    # Get K and input dimension
-    x_sample, _, z_sample = dataset[tp_indices[0]]
-    Dx = x_sample.shape[1]
-    all_z = torch.cat([dataset[i][2] for i in tp_indices])
-    K = len(torch.unique(all_z))
-
-    # Verify K matches cached state discovery
-    if hasattr(dataset, "K_by_tp") and tp in dataset.K_by_tp:
-        K_cached = dataset.K_by_tp[tp]
-        assert K == K_cached, (
-            f"K mismatch: found {K} unique states in data but cache has {K_cached}"
-        )
-        method = dataset.state_method_by_tp.get(tp, "unknown")
-        print(f"Using {K} states for TP={tp} (method: {method})")
-    else:
-        print(f"Number of unique states: {K}")
-
-    # Compute class weights
-    class_weights = compute_class_weights(tp_dataset, K, device)
-    print(f"Class weights: {class_weights.cpu().numpy()}")
-
-    # Split into train/val
-    val_size = int(len(tp_dataset) * val_split)
-    train_size = len(tp_dataset) - val_size
-    g = torch.Generator().manual_seed(seed)
-    train_dataset, val_dataset = random_split(
-        tp_dataset, [train_size, val_size], generator=g
-    )
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-    results = {}
-    best_lr = None
-    best_f1 = -1.0
-
-    for lr in lr_range:
-        print(f"\n{'=' * 60}")
-        print(f"Testing LR = {lr:.2e}")
-        print(f"{'=' * 60}")
-
-        # Initialize wandb for this LR trial
-        if wandb_project:
-            run_name = f"{wandb_run_prefix}_lr{lr:.2e}_tp{tp}"
-            wandb.init(
-                project=wandb_project,
-                entity=wandb_entity,
-                name=run_name,
-                config={
-                    "stage": "lr_sweep",
-                    "lr": lr,
-                    "tp": tp,
-                    "hidden_size": hidden_size,
-                    "bidirectional": bidirectional,
-                    "num_epochs": num_epochs,
-                    "seed": seed,
-                },
-                reinit=True,
-            )
-
-        torch.manual_seed(seed)
-        classifier = GRUClassifier(
-            Dx, K, H=hidden_size, bidirectional=bidirectional
-        ).to(device)
-        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=1e-2)
-        criterion = nn.CrossEntropyLoss(weight=class_weights)
-
-        train_losses = []
-        val_losses = []
-        val_f1s = []
-
-        for epoch in range(num_epochs):
-            # Training
-            classifier.train()
-            epoch_loss = 0.0
-            for x, y, z in train_loader:
-                x = x.to(device)
-                z = z.to(device)
-
-                optimizer.zero_grad()
-                logits = classifier(x)
-                loss = criterion(logits.view(-1, K), z.view(-1))
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(classifier.parameters(), max_norm=1.0)
-                optimizer.step()
-
-                epoch_loss += loss.item()
-
-            train_losses.append(epoch_loss / len(train_loader))
-
-            # Validation
-            val_metrics = evaluate_classifier(
-                classifier,
-                val_loader,
-                K,
-                device,
-                criterion,
-                compute_extra_metrics=False,
-            )
-            val_losses.append(val_metrics["loss"])
-            val_f1s.append(val_metrics["macro_f1"])
-
-            # Log to wandb
-            if wandb_project:
-                wandb.log(
-                    {
-                        "epoch": epoch + 1,
-                        "train_loss": train_losses[-1],
-                        "val_loss": val_metrics["loss"],
-                        "val_f1": val_metrics["macro_f1"],
-                        "val_acc": val_metrics["accuracy"],
-                        "val_balanced_acc": val_metrics["balanced_accuracy"],
-                        "val_ece": val_metrics["ece"],
-                        "lr": lr,
-                    }
-                )
-
-            if (epoch + 1) % 10 == 0:
-                print(
-                    f"Epoch {epoch + 1:03d}: train_loss={train_losses[-1]:.4f}, "
-                    f"val_loss={val_metrics['loss']:.4f}, val_f1={val_metrics['macro_f1']:.4f}"
-                )
-
-        final_f1 = max(val_f1s)  # Changed: use max F1, not last epoch
-        results[lr] = {
-            "train_losses": train_losses,
-            "val_losses": val_losses,
-            "val_f1s": val_f1s,
-            "final_f1": final_f1,
-        }
-
-        print(f"Best validation F1: {final_f1:.4f}")
-
-        if wandb_project:
-            wandb.finish()
-
-        if final_f1 > best_f1:
-            best_f1 = final_f1
-            best_lr = lr
-
-    print(f"\n{'=' * 60}")
-    print(f"Best LR: {best_lr:.2e} (val F1 = {best_f1:.4f})")
-    print(f"{'=' * 60}")
-
-    # Save sweep results
-    np.save(os.path.join(output_dir, f"lr_sweep_tp{tp}.npy"), results)
-
-    # Save to CSV
-    save_lr_sweep_to_csv(results, output_dir, tp)
-
-    return best_lr, results
-
-
-def save_lr_sweep_to_csv(results: Dict, output_dir: str, tp: int):
-    """Save LR sweep results to CSV."""
-    # Summary CSV
-    summary_data = []
-    for lr, metrics in results.items():
-        summary_data.append(
-            {
-                "learning_rate": lr,
-                "final_val_f1": metrics["final_f1"],
-                "best_val_f1": max(metrics["val_f1s"]),
-                "final_train_loss": metrics["train_losses"][-1],
-                "final_val_loss": metrics["val_losses"][-1],
-            }
-        )
-
-    summary_df = pd.DataFrame(summary_data)
-    summary_df.to_csv(
-        os.path.join(output_dir, f"lr_sweep_summary_tp{tp}.csv"), index=False
-    )
-
-    # Per-epoch CSV for each LR
-    for lr, metrics in results.items():
-        epoch_data = []
-        for epoch in range(len(metrics["train_losses"])):
-            epoch_data.append(
-                {
-                    "epoch": epoch + 1,
-                    "train_loss": metrics["train_losses"][epoch],
-                    "val_loss": metrics["val_losses"][epoch],
-                    "val_f1": metrics["val_f1s"][epoch],
-                }
-            )
-
-        epoch_df = pd.DataFrame(epoch_data)
-        lr_str = f"{lr:.2e}".replace(".", "p").replace("-", "m")
-        epoch_df.to_csv(
-            os.path.join(output_dir, f"lr_sweep_tp{tp}_lr{lr_str}_epochs.csv"),
-            index=False,
-        )
 
 
 def train_classifiers(
@@ -630,7 +388,7 @@ def train_classifiers(
     hidden_size: int = 64,
     num_epochs: int = 1000,
     lr: float = 5e-3,
-    batch_size: int = 8,
+    batch_size: int = 1,
     device: Optional[torch.device] = None,
     use_scheduler: bool = True,
     scheduler_type: str = "cosine",
@@ -901,7 +659,9 @@ def train_classifiers(
     if "autocorr_r2" in final_metrics:
         print(f"  AutoCorr R²: {final_metrics['autocorr_r2']:.4f}")
     if "tolerance_power_acc" in final_metrics:
-        print(f"  Tolerance Power Acc (25W): {final_metrics['tolerance_power_acc']:.3f}")
+        print(
+            f"  Tolerance Power Acc (25W): {final_metrics['tolerance_power_acc']:.3f}"
+        )
     if "boundary_f1" in final_metrics:
         print(f"  Boundary F1: {final_metrics['boundary_f1']:.3f}")
 
@@ -917,7 +677,9 @@ def train_classifiers(
         "val_eces": val_eces,
         "val_transition_maes": val_transition_maes if compute_extra_metrics else None,
         "val_autocorr_r2s": val_autocorr_r2s if compute_extra_metrics else None,
-        "val_tolerance_power_accs": val_tolerance_power_accs if compute_extra_metrics else None,
+        "val_tolerance_power_accs": val_tolerance_power_accs
+        if compute_extra_metrics
+        else None,
         "val_boundary_f1s": val_boundary_f1s if compute_extra_metrics else None,
         "final_val_loss": final_metrics["loss"],
         "final_val_acc": final_metrics["accuracy"],
@@ -1049,56 +811,6 @@ def save_training_metrics_to_csv(
         ),
         index=False,
     )
-
-
-def multi_seed_training(
-    dataset: PowerTraceDataset, tp: int, lr: float, num_seeds: int = 3, **kwargs
-) -> Dict:
-    """
-    Train with multiple seeds and report mean ± std.
-
-    Args:
-        dataset: PowerTraceDataset
-        tp: Tensor parallelism value
-        lr: Learning rate to use
-        num_seeds: Number of seeds to run
-        **kwargs: Additional arguments for train_classifiers
-
-    Returns:
-        results: Dictionary with aggregated results across seeds
-    """
-    all_val_f1s = []
-    all_val_accs = []
-    all_classifiers = []
-
-    for seed in range(num_seeds):
-        print(f"\n{'=' * 60}")
-        print(f"Training with seed {seed}")
-        print(f"{'=' * 60}")
-
-        classifier, metrics = train_classifiers(dataset, tp, lr=lr, seed=seed, **kwargs)
-
-        all_val_f1s.append(metrics["final_val_f1"])
-        all_val_accs.append(metrics["final_val_acc"])
-        all_classifiers.append(classifier)
-
-    results = {
-        "mean_f1": np.mean(all_val_f1s),
-        "std_f1": np.std(all_val_f1s),
-        "mean_acc": np.mean(all_val_accs),
-        "std_acc": np.std(all_val_accs),
-        "all_f1s": all_val_f1s,
-        "all_accs": all_val_accs,
-        "classifiers": all_classifiers,
-    }
-
-    print(f"\n{'=' * 60}")
-    print(f"Multi-seed Results (n={num_seeds}):")
-    print(f"  Macro-F1: {results['mean_f1']:.4f} ± {results['std_f1']:.4f}")
-    print(f"  Accuracy: {results['mean_acc']:.4f} ± {results['std_acc']:.4f}")
-    print(f"{'=' * 60}")
-
-    return results
 
 
 class TPDataset(Dataset):
