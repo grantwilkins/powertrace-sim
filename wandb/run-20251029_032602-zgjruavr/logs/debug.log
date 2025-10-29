@@ -1,0 +1,23 @@
+2025-10-29 03:26:02,365 INFO    MainThread:12452 [wandb_setup.py:_flush():81] Current SDK version is 0.22.2
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_setup.py:_flush():81] Configure stats pid to 12452
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_setup.py:_flush():81] Loading settings from /home/azureuser/.config/wandb/settings
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_setup.py:_flush():81] Loading settings from /home/azureuser/powertrace-sim/wandb/settings
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_init.py:setup_run_log_directory():705] Logging user logs to /home/azureuser/powertrace-sim/wandb/run-20251029_032602-zgjruavr/logs/debug.log
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_init.py:setup_run_log_directory():706] Logging internal logs to /home/azureuser/powertrace-sim/wandb/run-20251029_032602-zgjruavr/logs/debug-internal.log
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_init.py:init():832] calling init triggers
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_init.py:init():837] wandb.init called with sweep_config: {}
+config: {'tp': 8, 'hidden_size': 64, 'num_epochs': 500, 'lr': 5e-05, 'scheduler': 'cosine', 'seed': 42, 'bidirectional': True, '_wandb': {}}
+2025-10-29 03:26:02,366 INFO    MainThread:12452 [wandb_init.py:init():880] starting backend
+2025-10-29 03:26:02,599 INFO    MainThread:12452 [wandb_init.py:init():883] sending inform_init request
+2025-10-29 03:26:02,633 INFO    MainThread:12452 [wandb_init.py:init():891] backend started and connected
+2025-10-29 03:26:02,636 INFO    MainThread:12452 [wandb_init.py:init():961] updated telemetry
+2025-10-29 03:26:02,669 INFO    MainThread:12452 [wandb_init.py:init():985] communicating run to backend with 90.0 second timeout
+2025-10-29 03:26:03,076 INFO    MainThread:12452 [wandb_init.py:init():1036] starting run threads in backend
+2025-10-29 03:26:03,189 INFO    MainThread:12452 [wandb_run.py:_console_start():2509] atexit reg
+2025-10-29 03:26:03,189 INFO    MainThread:12452 [wandb_run.py:_redirect():2357] redirect: wrap_raw
+2025-10-29 03:26:03,189 INFO    MainThread:12452 [wandb_run.py:_redirect():2426] Wrapping output streams.
+2025-10-29 03:26:03,189 INFO    MainThread:12452 [wandb_run.py:_redirect():2449] Redirects installed.
+2025-10-29 03:26:03,191 INFO    MainThread:12452 [wandb_init.py:init():1076] run started, returning control to user process
+2025-10-29 03:26:09,544 INFO    wandb-AsyncioManager-main:12452 [service_client.py:_forward_responses():80] Reached EOF.
+2025-10-29 03:26:09,544 INFO    wandb-AsyncioManager-main:12452 [mailbox.py:close():137] Closing mailbox, abandoning 1 handles.

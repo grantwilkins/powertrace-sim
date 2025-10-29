@@ -1,0 +1,135 @@
+_wandb:
+    value:
+        cli_version: 0.22.2
+        e:
+            lcxu9fymnwmnottwywigodbzl2b8n79c:
+                args:
+                    - --data_file
+                    - data/random_gpt-oss-20b_h100.npz
+                    - --model
+                    - gpt-oss-20b
+                    - --hardware_accelerator
+                    - h100
+                    - --tp
+                    - "1"
+                    - --stage
+                    - train
+                    - --hidden_size
+                    - "64"
+                    - --lr
+                    - "2e-4"
+                    - --num_epochs
+                    - "500"
+                    - --seed
+                    - "42"
+                    - --output_dir
+                    - results/training/gpt-oss-20b_h100_tp1
+                    - --bidirectional
+                    - --save_model
+                    - --states_cache_dir
+                    - ./model/states_cache
+                    - --wandb_project
+                    - powertrace-classifier-training
+                    - --wandb_run_name
+                    - gpt-oss-20b_h100_tp1_H64_lr2e-4
+                codePath: model/train_entry.py
+                codePathLocal: model/train_entry.py
+                cpu_count: 96
+                cpu_count_logical: 96
+                cudaVersion: "12.6"
+                disk:
+                    /:
+                        total: "1065418129408"
+                        used: "66285678592"
+                email: grant.wilkins371@gmail.com
+                executable: /home/azureuser/miniconda3/envs/inference/bin/python
+                git:
+                    commit: 972ee779904c1e4c160da39035e19e21b8af0a0f
+                    remote: https://github.com/grantwilkins/powertrace-sim.git
+                gpu: NVIDIA A100-SXM4-80GB
+                gpu_count: 8
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-d46a9b35-9771-dfa6-c281-2cb639e54fc5
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-8f3598d7-56dc-ad4f-550d-61b3fe1f9d91
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-49155b77-43c3-b04b-0b16-65ac0560699c
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-2fa54c59-e7bf-e0d7-b441-01c4a91570ea
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-d9d253e2-c0c6-55ea-fd1b-96c69fedb400
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-52b13328-5a63-c5e5-fa61-8dfd2e17ff63
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-3c2ce1e1-a25b-59b0-0b7e-7b3cbcdc00cd
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-728c228d-1636-708d-7a87-ea8cba5f791d
+                host: gpu-vmss000001
+                memory:
+                    total: "1902335225856"
+                os: Linux-5.15.0-1089-azure-x86_64-with-glibc2.31
+                program: /home/azureuser/powertrace-sim/model/train_entry.py
+                python: CPython 3.12.0
+                root: /home/azureuser/powertrace-sim
+                startedAt: "2025-10-21T00:31:47.913024Z"
+                writerId: lcxu9fymnwmnottwywigodbzl2b8n79c
+        m: []
+        python_version: 3.12.0
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 2
+                - 13
+                - 16
+            "4": 3.12.0
+            "5": 0.22.2
+            "10":
+                - 20
+            "12": 0.22.2
+            "13": linux-x86_64
+bidirectional:
+    value: true
+hidden_size:
+    value: 64
+lr:
+    value: 0.0002
+num_epochs:
+    value: 500
+scheduler:
+    value: cosine
+seed:
+    value: 42
+tp:
+    value: 1

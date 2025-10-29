@@ -1,0 +1,26 @@
+Training classifier for TP=4
+Number of unique states across all TP=4 samples: 5
+Class weights: [4.4608249e-05 1.0156869e-04 5.2188948e-04 2.0212661e-03 4.9965701e+00
+ 7.4067153e-04]
+Train size: 29, Val size: 5
+Epoch 1/500:   0%|                                                                                                                | 0/4 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/azureuser/powertrace-sim/model/train_entry.py", line 272, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 632, in train_classifiers
+    loss = criterion(logits.view(-1, K), z.view(-1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/loss.py", line 1310, in forward
+    return F.cross_entropy(
+           ^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/functional.py", line 3462, in cross_entropy
+    return torch._C._nn.cross_entropy_loss(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: weight tensor should be defined either for all 5 classes or no classes but got weight tensor of shape: [6]

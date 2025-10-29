@@ -1,0 +1,11 @@
+{"time":"2025-10-20T06:14:58.879304658Z","level":"INFO","msg":"stream: starting","core version":"0.22.2"}
+{"time":"2025-10-20T06:14:59.186316892Z","level":"INFO","msg":"stream: created new stream","id":"rtm841z0"}
+{"time":"2025-10-20T06:14:59.18639426Z","level":"INFO","msg":"handler: started","stream_id":"rtm841z0"}
+{"time":"2025-10-20T06:14:59.186581554Z","level":"INFO","msg":"stream: started","id":"rtm841z0"}
+{"time":"2025-10-20T06:14:59.186606414Z","level":"INFO","msg":"writer: started","stream_id":"rtm841z0"}
+{"time":"2025-10-20T06:14:59.186626378Z","level":"INFO","msg":"sender: started","stream_id":"rtm841z0"}
+{"time":"2025-10-20T06:15:51.430249006Z","level":"INFO","msg":"stream: closing","id":"rtm841z0"}
+{"time":"2025-10-20T06:15:51.732671886Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-20T06:15:51.947145128Z","level":"INFO","msg":"handler: closed","stream_id":"rtm841z0"}
+{"time":"2025-10-20T06:15:51.947257947Z","level":"INFO","msg":"sender: closed","stream_id":"rtm841z0"}
+{"time":"2025-10-20T06:15:51.947269599Z","level":"INFO","msg":"stream: closed","id":"rtm841z0"}

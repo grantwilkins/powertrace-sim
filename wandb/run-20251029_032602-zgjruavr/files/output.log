@@ -1,0 +1,206 @@
+Training classifier for TP=8
+Number of unique states across all TP=8 samples: 6
+Class weights: [0.37651536 0.39510196 0.64124066 0.80258507 2.028902   1.7556547 ]
+Train size: 22, Val size: 3
+Epoch 1/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00,  7.58it/s, loss=2.0627]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 2/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 67.72it/s, loss=1.9301]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 3/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 67.74it/s, loss=2.0748]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 4/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 68.61it/s, loss=2.0194]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 5/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 73.36it/s, loss=1.9896]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 6/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 72.97it/s, loss=2.0245]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 7/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 76.21it/s, loss=2.0541]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 8/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.03it/s, loss=1.9937]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 9/500: 100%|██████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.48it/s, loss=1.9562]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 10/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.81it/s, loss=1.9927]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+TP 8, Epoch 10, Train Loss: 1.9775, Val Loss: 1.7946, Val Acc: 0.1439, Val F1: 0.0902, Trans MAE: 433.1973, AutoCorr R²: 0.0000, Tol.Acc(25W): 0.144, Boundary F1: 0.134
+Epoch 11/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.31it/s, loss=2.0133]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 12/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.16it/s, loss=1.9350]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 13/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.80it/s, loss=2.0431]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 14/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.54it/s, loss=1.9756]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 15/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.16it/s, loss=1.9470]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 16/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.89it/s, loss=1.9217]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 17/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.81it/s, loss=1.8900]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 18/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 77.05it/s, loss=1.9785]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 19/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.27it/s, loss=1.9559]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 20/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.48it/s, loss=1.9122]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+TP 8, Epoch 20, Train Loss: 1.8858, Val Loss: 1.6606, Val Acc: 0.5580, Val F1: 0.2130, Trans MAE: 498.8174, AutoCorr R²: 0.0000, Tol.Acc(25W): 0.558, Boundary F1: 0.132
+Epoch 21/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.13it/s, loss=1.8939]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 22/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.92it/s, loss=1.8513]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 23/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.36it/s, loss=1.7944]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 24/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.01it/s, loss=1.8929]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 25/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.24it/s, loss=1.8910]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 26/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.07it/s, loss=1.7780]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 27/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.77it/s, loss=1.8363]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 28/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.93it/s, loss=1.8481]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 29/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.89it/s, loss=1.7415]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 30/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.27it/s, loss=1.7612]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+TP 8, Epoch 30, Train Loss: 1.8192, Val Loss: 1.6075, Val Acc: 0.5411, Val F1: 0.2032, Trans MAE: 616.8045, AutoCorr R²: 0.0000, Tol.Acc(25W): 0.541, Boundary F1: 0.147
+Epoch 31/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.31it/s, loss=1.8977]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 32/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.24it/s, loss=1.7384]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 33/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.36it/s, loss=1.7496]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 34/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.28it/s, loss=1.7949]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 35/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.89it/s, loss=1.7825]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 36/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.90it/s, loss=1.7735]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 37/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.74it/s, loss=1.8095]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 38/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.59it/s, loss=1.8156]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 39/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.15it/s, loss=1.7067]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 40/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.81it/s, loss=1.7827]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+TP 8, Epoch 40, Train Loss: 1.7819, Val Loss: 1.5891, Val Acc: 0.5217, Val F1: 0.1914, Trans MAE: 686.2978, AutoCorr R²: 0.0000, Tol.Acc(25W): 0.522, Boundary F1: 0.135
+Epoch 41/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.43it/s, loss=1.8088]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 42/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.31it/s, loss=1.8040]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 43/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.56it/s, loss=1.7471]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 44/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.76it/s, loss=1.7247]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 45/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.55it/s, loss=1.7880]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 46/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.26it/s, loss=1.8038]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 47/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.29it/s, loss=1.6829]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 48/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.84it/s, loss=1.7733]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 49/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.99it/s, loss=1.7398]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 50/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.84it/s, loss=1.8358]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+TP 8, Epoch 50, Train Loss: 1.7599, Val Loss: 1.5742, Val Acc: 0.5075, Val F1: 0.1874, Trans MAE: 695.3120, AutoCorr R²: 0.0000, Tol.Acc(25W): 0.508, Boundary F1: 0.123
+Epoch 51/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.14it/s, loss=1.8368]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 52/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.51it/s, loss=1.7624]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 53/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.13it/s, loss=1.7405]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 54/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.83it/s, loss=1.7468]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 55/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.59it/s, loss=1.7627]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 56/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.55it/s, loss=1.7431]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 57/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 80.59it/s, loss=1.7403]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 58/500: 100%|█████████████████████████████████████████████████████| 3/3 [00:00<00:00, 79.98it/s, loss=1.7372]
+/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/sklearn/metrics/_classification.py:2801: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+Epoch 59/500:   0%|                                                                          | 0/3 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/azureuser/powertrace-sim/model/train_entry.py", line 147, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 792, in train_classifiers
+    loss = criterion(logits.view(-1, K), z.view(-1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/modules/loss.py", line 1310, in forward
+    return F.cross_entropy(
+           ^^^^^^^^^^^^^^^^
+  File "/home/azureuser/miniconda3/envs/inference/lib/python3.12/site-packages/torch/nn/functional.py", line 3462, in cross_entropy
+    return torch._C._nn.cross_entropy_loss(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

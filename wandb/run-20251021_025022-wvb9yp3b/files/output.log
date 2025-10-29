@@ -1,0 +1,13 @@
+Training classifier for TP=4
+Number of unique states across all TP=4 samples: 5
+Traceback (most recent call last):
+  File "/home/azureuser/powertrace-sim/model/train_entry.py", line 300, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 592, in train_classifiers
+    class_weights = compute_class_weights(tp_dataset, K, device)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/powertrace-sim/model/classifiers/train.py", line 64, in compute_class_weights
+    sum_present_weights = weights[present_classes].sum()
+                          ~~~~~~~^^^^^^^^^^^^^^^^^
+IndexError: boolean index did not match indexed array along axis 0; size of axis is 5 but size of corresponding boolean axis is 6

@@ -1,0 +1,129 @@
+_wandb:
+    value:
+        cli_version: 0.22.2
+        e:
+            plj4k9m1wiwd27lub89k18n0topw5oqj:
+                args:
+                    - --data_file
+                    - /home/azureuser/benchmark_llama-3-8b_h100.npz
+                    - --model
+                    - llama-3-8b
+                    - --hardware_accelerator
+                    - h100
+                    - --tp
+                    - "2"
+                    - --hidden_size
+                    - "64"
+                    - --lr
+                    - "5e-5"
+                    - --num_epochs
+                    - "500"
+                    - --seed
+                    - "42"
+                    - --output_dir
+                    - results/training/llama-3-8b_h100_tp2
+                    - --bidirectional
+                    - --save_model
+                    - --wandb_project
+                    - powertrace-classifier-training
+                    - --wandb_run_name
+                    - llama-3-8b_h100_tp2_H64_lr5e-5
+                cpu_count: 96
+                cpu_count_logical: 96
+                cudaVersion: "12.6"
+                disk:
+                    /:
+                        total: "1065418129408"
+                        used: "67099033600"
+                email: grant.wilkins371@gmail.com
+                executable: /home/azureuser/miniconda3/envs/inference/bin/python
+                git:
+                    commit: d9cf02e4179fa17ad3dbe56c7b1f49e22d8eed68
+                    remote: https://github.com/grantwilkins/powertrace-sim.git
+                gpu: NVIDIA A100-SXM4-80GB
+                gpu_count: 8
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-1a3c65f4-2e88-c8b0-7c7f-06a246342741
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-fa608748-0ab0-01dc-5c2d-ddd89d68edbc
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-58f09fe0-68a3-4c85-8f26-3c4c62f96c9a
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-af5d7e6b-8ad4-02e4-f00a-042c0249edee
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-7a1ae1bb-d5b3-f57e-d760-76ba2bcafbe6
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-9c1c988b-0460-6ea0-8ec4-840b0e2c75de
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-1d7b64f6-79e8-e062-c651-f840056cc395
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-6f7f3cd9-44a3-e2f9-57cb-35435404171e
+                host: gpu-vmss000001
+                memory:
+                    total: "1902335246336"
+                os: Linux-5.15.0-1089-azure-x86_64-with-glibc2.31
+                program: -m model.train_entry
+                python: CPython 3.12.0
+                root: /home/azureuser/powertrace-sim
+                startedAt: "2025-10-28T18:46:11.035503Z"
+                writerId: plj4k9m1wiwd27lub89k18n0topw5oqj
+        m: []
+        python_version: 3.12.0
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 2
+                - 13
+                - 16
+            "4": 3.12.0
+            "5": 0.22.2
+            "10":
+                - 20
+            "12": 0.22.2
+            "13": linux-x86_64
+bidirectional:
+    value: true
+hidden_size:
+    value: 64
+lr:
+    value: 5e-05
+num_epochs:
+    value: 500
+scheduler:
+    value: cosine
+seed:
+    value: 42
+tp:
+    value: 2

@@ -1,0 +1,15 @@
+{"time":"2025-10-20T06:47:02.051578408Z","level":"INFO","msg":"stream: starting","core version":"0.22.2"}
+{"time":"2025-10-20T06:47:02.366457993Z","level":"INFO","msg":"stream: created new stream","id":"uowg3wtq"}
+{"time":"2025-10-20T06:47:02.366539675Z","level":"INFO","msg":"handler: started","stream_id":"uowg3wtq"}
+{"time":"2025-10-20T06:47:02.366601069Z","level":"INFO","msg":"stream: started","id":"uowg3wtq"}
+{"time":"2025-10-20T06:47:02.366638203Z","level":"INFO","msg":"writer: started","stream_id":"uowg3wtq"}
+{"time":"2025-10-20T06:47:02.366684905Z","level":"INFO","msg":"sender: started","stream_id":"uowg3wtq"}
+{"time":"2025-10-20T06:48:03.047243828Z","level":"INFO","msg":"api: retrying HTTP error","status":429,"url":"https://api.wandb.ai/files/grantfwilkins-stanford-university/powertrace-classifier-training/uowg3wtq/file_stream","body":"{\"error\":\"rate limit exceeded\"}"}
+{"time":"2025-10-20T06:48:04.08665833Z","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading history steps 361-487, console lines 402-540","runtime_seconds":1.2633274079999999,"error_status":"retrying HTTP 429: rate limit exceeded"},{"desc":"updating run metadata","runtime_seconds":0.001193672}],"total_operations":2}}
+{"time":"2025-10-20T06:48:04.414118696Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-20T06:48:05.255668816Z","level":"INFO","msg":"api: retrying HTTP error","status":429,"url":"https://api.wandb.ai/files/grantfwilkins-stanford-university/powertrace-classifier-training/uowg3wtq/file_stream","body":"{\"error\":\"rate limit exceeded\"}"}
+{"time":"2025-10-20T06:48:09.854296406Z","level":"INFO","msg":"api: retrying HTTP error","status":429,"url":"https://api.wandb.ai/files/grantfwilkins-stanford-university/powertrace-classifier-training/uowg3wtq/file_stream","body":"{\"error\":\"rate limit exceeded\"}"}
+{"time":"2025-10-20T06:48:19.563171435Z","level":"INFO","msg":"stream: closing","id":"uowg3wtq"}
+{"time":"2025-10-20T06:48:19.563188957Z","level":"INFO","msg":"handler: closed","stream_id":"uowg3wtq"}
+{"time":"2025-10-20T06:48:19.563243979Z","level":"INFO","msg":"sender: closed","stream_id":"uowg3wtq"}
+{"time":"2025-10-20T06:48:19.563251604Z","level":"INFO","msg":"stream: closed","id":"uowg3wtq"}
