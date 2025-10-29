@@ -29,8 +29,6 @@ def train_classifiers(
 
     print(f"Training classifier for TP={tp}")
     tp_indices = [i for i, tp_i in enumerate(dataset.tp_all) if tp_i == tp]
-
-    # Split into train and validation
     n_val = int(len(tp_indices) * val_split)
     val_indices = tp_indices[:n_val]
     train_indices = tp_indices[n_val:]

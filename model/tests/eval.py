@@ -84,7 +84,7 @@ if __name__ == "__main__":
     # Store all CDF data for plotting
     cdf_data = []
 
-    for tp in [1, 2]:
+    for tp in [4]:
         print(f"\nProcessing TP={tp}")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",
