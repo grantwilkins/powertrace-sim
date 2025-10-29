@@ -66,7 +66,23 @@ def train_classifiers(
 
     x_sample, y_sample, z_sample = dataset[tp_indices[0]]
     Dx = x_sample.shape[1]
-    K = len(torch.unique(z_sample))
+
+    # Determine K from ALL samples for this TP value, not just the first one
+    all_states = []
+    for idx in tp_indices:
+        _, _, z = dataset[idx]
+        all_states.extend(torch.unique(z).tolist())
+    unique_states = sorted(set(all_states))
+    K = len(unique_states)
+
+    # Check if states are contiguous [0, 1, 2, ..., K-1]
+    if unique_states != list(range(K)):
+        print(f"WARNING: State labels are not contiguous: {unique_states}")
+        print(f"Expected: {list(range(K))}")
+        print("This may cause issues with CrossEntropyLoss. Consider remapping labels.")
+
+    print(f"Found {K} unique states across all samples for TP={tp}: {unique_states}")
+
     classifier = GRUClassifier(Dx, K, H=hidden_size).to(device)
     classifier.train()
     classifier.to(device)
