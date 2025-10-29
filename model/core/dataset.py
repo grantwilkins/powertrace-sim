@@ -4,9 +4,10 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from .utils import make_schedule_matrix
 from sklearn.mixture import GaussianMixture
 from torch.utils.data import Dataset
+
+from .utils import make_schedule_matrix
 
 
 class PowerTraceDataset(Dataset):
@@ -34,7 +35,9 @@ class PowerTraceDataset(Dataset):
             req_mask = d["request_timestamps"][i] > 0
 
             # Extract arrival rate if available
-            arrival_rate = float(poisson_rate_array[i]) if poisson_rate_array is not None else None
+            arrival_rate = (
+                float(poisson_rate_array[i]) if poisson_rate_array is not None else None
+            )
 
             trace = dict(
                 timestamps=d["timestamps"][i][bin_mask],
@@ -45,9 +48,9 @@ class PowerTraceDataset(Dataset):
                 request_ts=d["request_timestamps"][i][req_mask],
                 input_tokens=d["input_tokens"][i][req_mask],
                 output_tokens=d["output_tokens"][i][req_mask],
-                arrival_rate=arrival_rate,
+                # arrival_rate=arrival_rate,
             )
-            trace["x"] = make_schedule_matrix(trace, arrival_rate=arrival_rate)
+            trace["x"] = make_schedule_matrix(trace, arrival_rate=arrival_rate, add_diff_features=False)
             trace["y"] = trace["power"][:, None]  # (T,1)
             self.traces.append(trace)
             self.tp_all.append(int(tp_array[i]))
@@ -199,7 +202,7 @@ def extract_config_from_npz(
         state_means=dataset.mu[tp],
         state_stds=dataset.sigma[tp],
         model_weights_path=weights_path,
-        feature_dimensions=10,  # Updated: 7 base + 3 diff features
+        feature_dimensions=7,  # 6 base + 1 arrival_rate
     )
 
     return config

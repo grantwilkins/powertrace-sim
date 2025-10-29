@@ -195,7 +195,7 @@ def viterbi_decode(
 
 
 def load_classifier(
-    path, device: Optional[torch.device] = None, Dx: int = 10, K: int = 6
+    path, device: Optional[torch.device] = None, Dx: int = 7, K: int = 6
 ):
     """
     Load a classifier from a file.

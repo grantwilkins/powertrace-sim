@@ -289,6 +289,11 @@ def load_and_process_benchmark_experiments(
             print(f"Could not extract experiment info from {power_csv}, skipping")
             continue
 
+        # Filter out rate64 experiments
+        if info["rate"] == 64.0:
+            print(f"Skipping rate64 experiment: {os.path.basename(power_csv)}")
+            continue
+
         # Infer hardware from path
         info["hardware"] = infer_hardware_from_path(power_csv)
 

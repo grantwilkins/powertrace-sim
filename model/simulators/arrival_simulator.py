@@ -425,28 +425,18 @@ class ServeGenWorkloadGenerator:
             List of ServeGenRequest objects with realistic token distributions
         """
         np.random.seed(seed)
-
-        # Load ServeGen client pool
         category_enum = getattr(Category, category.upper())
         pool = ClientPool(category_enum, model_type)
-
-        # Create time window view if specified
         if time_window:
             start_sec, end_sec = self._parse_time_window(time_window)
             view = pool.span(start_sec, end_sec)
         else:
-            # Use a default productive time window (e.g., 14:00-18:00)
             view = pool.span(50400, 64800)  # 2pm-6pm
 
-        # Generate rate function
         rate_fn = get_constant_rate_fn(view, rate_requests_per_sec)
-
-        # Generate ServeGen requests
         servegen_requests = generate_workload(
             view, rate_fn, duration=duration, seed=seed
         )
-
-        # Convert to our internal format
         requests = []
         for req in servegen_requests:
             requests.append(
@@ -461,7 +451,6 @@ class ServeGenWorkloadGenerator:
         return sorted(requests, key=lambda x: x.arrival_time)
 
     def _parse_time_window(self, time_window: str) -> Tuple[int, int]:
-        """Convert time window string to seconds since midnight."""
         try:
             start_str, end_str = time_window.split("-")
             start_hour, start_min = map(int, start_str.split(":"))
@@ -478,24 +467,12 @@ class ServeGenWorkloadGenerator:
 
 
 class ServingSystemSimulator:
-    """Simulates LLM serving system behavior with batching and queueing."""
-
     def __init__(self, config: ServingConfig):
         self.config = config
 
     def simulate_request_processing(
         self, requests: List[ServeGenRequest]
     ) -> List[ServeGenRequest]:
-        """
-        Simulate how requests are processed through the serving system.
-
-        Args:
-            requests: List of requests with arrival times
-
-        Returns:
-            List of requests with computed processing timelines
-        """
-        # Sort by arrival time
         requests = sorted(requests, key=lambda x: x.arrival_time)
         processed_requests = []
         active_requests = []  # Currently processing
@@ -532,28 +509,11 @@ class ServingSystemSimulator:
     def create_system_timeline(
         self, requests: List[ServeGenRequest], time_step: float = 0.25
     ) -> Dict[str, np.ndarray]:
-        """
-        Create system-level timeline matching the training data format.
-
-        This produces the same 6D feature format as prepare_training_data.py:
-        [request_count, input_tokens, output_tokens, active_requests, prefill_tokens, decode_tokens]
-
-        Args:
-            requests: Processed requests with timing information
-            time_step: Time resolution for binning (seconds)
-
-        Returns:
-            Dictionary with timeline arrays matching training format
-        """
         if not requests:
             return {}
-
-        # Create time bins
         start_time = min(req.arrival_time for req in requests)
         end_time = max(req.decode_end for req in requests)
         time_bins = np.arange(start_time, end_time + time_step, time_step)
-
-        # Initialize result arrays
         timeline = {
             "timestamps": time_bins,
             "request_count": np.zeros(len(time_bins)),  # New requests this bin
@@ -567,9 +527,7 @@ class ServingSystemSimulator:
             "individual_output_tokens": [],  # Individual request outputs
         }
 
-        # Fill timeline bins
         for i, current_time in enumerate(time_bins):
-            # Define time interval for this bin
             if i == 0:
                 interval_start = current_time - time_step / 2
             else:
@@ -580,35 +538,26 @@ class ServingSystemSimulator:
             else:
                 interval_end = (current_time + time_bins[i + 1]) / 2
 
-            # Requests arriving in this interval
             arriving = [
                 r for r in requests if interval_start <= r.arrival_time < interval_end
             ]
             timeline["request_count"][i] = len(arriving)
             timeline["input_tokens"][i] = sum(r.input_tokens for r in arriving)
             timeline["output_tokens"][i] = sum(r.output_tokens for r in arriving)
-
-            # Requests starting prefill in this interval
             prefill_starting = [
                 r for r in requests if interval_start <= r.prefill_start < interval_end
             ]
             timeline["prefill_tokens"][i] = sum(
                 r.input_tokens for r in prefill_starting
             )
-
-            # Requests actively decoding at this time
             decoding = [
                 r for r in requests if r.decode_start <= current_time <= r.decode_end
             ]
             timeline["decode_tokens"][i] = sum(r.output_tokens for r in decoding)
-
-            # Total active requests at this time
             active = [
                 r for r in requests if r.prefill_start <= current_time <= r.decode_end
             ]
             timeline["active_requests"][i] = len(active)
-
-        # Store individual request data for histogram_requests compatibility
         timeline["request_timestamps"] = np.array([r.arrival_time for r in requests])
         timeline["individual_input_tokens"] = np.array(
             [r.input_tokens for r in requests]
@@ -619,43 +568,33 @@ class ServingSystemSimulator:
 
         return timeline
 
-    def create_feature_matrix(self, timeline: Dict[str, np.ndarray]) -> np.ndarray:
+    def create_feature_matrix(
+        self, timeline: Dict[str, np.ndarray], arrival_rate: float = None
+    ) -> np.ndarray:
         """
-        Create 6D feature matrix matching training format.
+        Create feature matrix using the same preprocessing as training.
 
-        Uses the same logic as make_schedule_matrix in core/utils.py.
+        Args:
+            timeline: System timeline dictionary
+            arrival_rate: Optional arrival rate to include as feature
 
         Returns:
-            (T, 6) array with [request_count, input_tokens, output_tokens,
-                              active_requests, prefill_tokens, decode_tokens]
+            Feature matrix (T, Dx) with Dx=10 (or 7 without diff features)
         """
-        from model.core.utils import histogram_requests
+        from model.core.utils import make_schedule_matrix
 
-        # Get histogrammed arrival data (matches training pipeline)
-        cnt, tok_in, tok_out = histogram_requests(
-            bin_ts=timeline["timestamps"],
-            req_ts=timeline["request_timestamps"],
-            in_tok=timeline["individual_input_tokens"],
-            out_tok=timeline["individual_output_tokens"],
+        trace_dict = {
+            "timestamps": timeline["timestamps"],
+            "request_ts": timeline["request_timestamps"],
+            "input_tokens": timeline["individual_input_tokens"],
+            "output_tokens": timeline["individual_output_tokens"],
+            "active_requests": timeline["active_requests"],
+            "prefill_tokens": timeline["prefill_tokens"],
+            "decode_tokens": timeline["decode_tokens"],
+        }
+        return make_schedule_matrix(
+            trace_dict, arrival_rate=arrival_rate, add_diff_features=True
         )
-
-        # Stack features (same order as training)
-        x = np.stack(
-            [
-                cnt,  # Request count
-                tok_in,  # Input tokens (histogrammed)
-                tok_out,  # Output tokens (histogrammed)
-                timeline["active_requests"],  # Active requests
-                timeline["prefill_tokens"],  # Prefill tokens
-                timeline["decode_tokens"],  # Decode tokens
-            ],
-            axis=1,
-        ).astype("float32")
-
-        # Z-score normalize (same as training)
-        mu = x.mean(0, keepdims=True)
-        sd = x.std(0, keepdims=True) + 1e-6
-        return (x - mu) / sd
 
 
 class ServeGenPowerSimulator:
@@ -704,14 +643,17 @@ class ServeGenPowerSimulator:
         # Step 3: Create system timeline
         timeline = self.system_simulator.create_system_timeline(processed_requests)
 
-        # Step 4: Create feature matrix for GRU
-        feature_matrix = self.system_simulator.create_feature_matrix(timeline)
+        # Step 4: Create feature matrix for GRU (with arrival rate)
+        feature_matrix = self.system_simulator.create_feature_matrix(
+            timeline, arrival_rate=rate_requests_per_sec
+        )
 
         return {
             "feature_matrix": feature_matrix,
             "timeline": timeline,
             "requests": processed_requests,
             "serving_config": self.serving_config,
+            "arrival_rate": rate_requests_per_sec,
         }
 
 

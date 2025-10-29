@@ -91,10 +91,13 @@ if __name__ == "__main__":
 
     for tp in tp_values:
         print(f"\nProcessing TP={tp}")
+        # Dynamically get Dx from dataset (should be 10 with new features: 7 base + 3 diff)
+        Dx = dataset.traces[0]["x"].shape[1]
+        print(f"Using Dx={Dx} features")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",
             device=device,
-            Dx=dataset.traces[0]["x"].shape[1],
+            Dx=Dx,
             K=dataset.state_labels[tp].n_components,
         )
         smoother = SmoothingSampler(dataset)

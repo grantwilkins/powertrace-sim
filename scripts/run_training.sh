@@ -6,11 +6,11 @@
 set -e
 
 # Configuration
-DATA_DIR="/home/azureuser"
+DATA_DIR="."
 RESULTS_BASE="results/training"
 HIDDEN_SIZE=64
 NUM_EPOCHS=500
-BATCH_SIZE=8
+BATCH_SIZE=1
 SEED=42
 WANDB_PROJECT="powertrace-classifier-training"
 
@@ -27,7 +27,7 @@ get_model_tps() {
 
 get_model_lr() {
     case "$1" in
-        "llama-3-8b") echo "5e-5" ;;
+        "llama-3-8b") echo "9e-4" ;;
         "llama-3-70b") echo "6e-5" ;;
         "gpt-oss-20b") echo "5e-5" ;;
         "gpt-oss-120b") echo "5e-5" ;;
@@ -72,12 +72,12 @@ main() {
     mkdir -p "${RESULTS_BASE}"
 
     # Models and hardware combinations
-    for model in "llama-3-8b" "llama-3-70b" "gpt-oss-20b" "gpt-oss-120b"; do
+    for model in "llama-3-8b"; do
         TPS=$(get_model_tps "$model")
         LR=$(get_model_lr "$model")
 
         for hardware in "h100" "a100"; do
-            data_file="${DATA_DIR}/benchmark_${model}_${hardware}.npz"
+            data_file="${DATA_DIR}/sharegpt_${model}_${hardware}.npz"
 
             # Check if data file exists
             if [ ! -f "${data_file}" ]; then

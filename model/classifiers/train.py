@@ -768,9 +768,13 @@ def train_classifiers(
     train_losses = []
     val_losses = []
     val_accs = []
+    val_balanced_accs = []
     val_f1s = []
+    val_eces = []
     val_transition_maes = []
     val_autocorr_r2s = []
+    val_tolerance_power_accs = []
+    val_boundary_f1s = []
     learning_rates = []
     best_val_f1 = 0.0
 
@@ -816,11 +820,17 @@ def train_classifiers(
 
         val_losses.append(val_metrics["loss"])
         val_accs.append(val_metrics["accuracy"])
+        val_balanced_accs.append(val_metrics["balanced_accuracy"])
         val_f1s.append(val_metrics["macro_f1"])
+        val_eces.append(val_metrics["ece"])
         if "transition_mae" in val_metrics:
             val_transition_maes.append(val_metrics["transition_mae"])
         if "autocorr_r2" in val_metrics:
             val_autocorr_r2s.append(val_metrics["autocorr_r2"])
+        if "tolerance_power_acc" in val_metrics:
+            val_tolerance_power_accs.append(val_metrics["tolerance_power_acc"])
+        if "boundary_f1" in val_metrics:
+            val_boundary_f1s.append(val_metrics["boundary_f1"])
 
         # Track best F1 for model saving
         if val_metrics["macro_f1"] > best_val_f1:
@@ -902,9 +912,13 @@ def train_classifiers(
         "train_losses": train_losses,
         "val_losses": val_losses,
         "val_accs": val_accs,
+        "val_balanced_accs": val_balanced_accs,
         "val_f1s": val_f1s,
+        "val_eces": val_eces,
         "val_transition_maes": val_transition_maes if compute_extra_metrics else None,
         "val_autocorr_r2s": val_autocorr_r2s if compute_extra_metrics else None,
+        "val_tolerance_power_accs": val_tolerance_power_accs if compute_extra_metrics else None,
+        "val_boundary_f1s": val_boundary_f1s if compute_extra_metrics else None,
         "final_val_loss": final_metrics["loss"],
         "final_val_acc": final_metrics["accuracy"],
         "final_val_balanced_acc": final_metrics["balanced_accuracy"],
@@ -956,7 +970,9 @@ def save_training_metrics_to_csv(
             "train_loss": metrics["train_losses"][epoch],
             "val_loss": metrics["val_losses"][epoch],
             "val_acc": metrics["val_accs"][epoch],
+            "val_balanced_acc": metrics["val_balanced_accs"][epoch],
             "val_f1": metrics["val_f1s"][epoch],
+            "val_ece": metrics["val_eces"][epoch],
         }
 
         # Add extra metrics if available
@@ -967,6 +983,13 @@ def save_training_metrics_to_csv(
             row["val_transition_mae"] = metrics["val_transition_maes"][epoch]
         if metrics.get("val_autocorr_r2s") and len(metrics["val_autocorr_r2s"]) > epoch:
             row["val_autocorr_r2"] = metrics["val_autocorr_r2s"][epoch]
+        if (
+            metrics.get("val_tolerance_power_accs")
+            and len(metrics["val_tolerance_power_accs"]) > epoch
+        ):
+            row["val_tolerance_power_acc"] = metrics["val_tolerance_power_accs"][epoch]
+        if metrics.get("val_boundary_f1s") and len(metrics["val_boundary_f1s"]) > epoch:
+            row["val_boundary_f1"] = metrics["val_boundary_f1s"][epoch]
 
         # Add learning rate if available
         if metrics["learning_rates"] and len(metrics["learning_rates"]) > 0:

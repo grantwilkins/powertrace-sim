@@ -643,6 +643,14 @@ if __name__ == "__main__":
         args.data_root_dir, exclude_patterns=args.exclude_patterns
     )
 
+    if len(all_power_dfs) == 0:
+        print("ERROR: No experiment pairs were successfully processed!")
+        print("Please check:")
+        print("  1. The data_root_dir contains matching power CSV and results JSON files")
+        print("  2. Files follow the expected naming pattern")
+        print("  3. Files are not empty or corrupted")
+        exit(1)
+
     timestamps = []  # from power_df
     prefill_tokens = []  # from power_df
     decode_tokens = []  # from power_df
