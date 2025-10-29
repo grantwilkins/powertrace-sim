@@ -1,0 +1,16 @@
+{"time":"2025-10-20T19:38:02.439987-07:00","level":"INFO","msg":"using version","core version":"0.18.5"}
+{"time":"2025-10-20T19:38:02.440037-07:00","level":"INFO","msg":"created symlink","path":"/Users/grantwilkins/powertrace-sim/wandb/run-20251020_193802-hz53ff9y/logs/debug-core.log"}
+{"time":"2025-10-20T19:38:02.552707-07:00","level":"INFO","msg":"created new stream","id":"hz53ff9y"}
+{"time":"2025-10-20T19:38:02.552762-07:00","level":"INFO","msg":"stream: started","id":"hz53ff9y"}
+{"time":"2025-10-20T19:38:02.552786-07:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"hz53ff9y"}}
+{"time":"2025-10-20T19:38:02.55289-07:00","level":"INFO","msg":"sender: started","stream_id":"hz53ff9y"}
+{"time":"2025-10-20T19:38:02.552836-07:00","level":"INFO","msg":"handler: started","stream_id":{"value":"hz53ff9y"}}
+{"time":"2025-10-20T19:38:02.839393-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-10-20T19:38:08.532916-07:00","level":"INFO","msg":"stream: closing","id":"hz53ff9y"}
+{"time":"2025-10-20T19:38:08.532956-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-10-20T19:38:08.533313-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-10-20T19:38:10.013098-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-20T19:38:10.140101-07:00","level":"INFO","msg":"handler: closed","stream_id":{"value":"hz53ff9y"}}
+{"time":"2025-10-20T19:38:10.140249-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":{"value":"hz53ff9y"}}
+{"time":"2025-10-20T19:38:10.1405-07:00","level":"INFO","msg":"sender: closed","stream_id":"hz53ff9y"}
+{"time":"2025-10-20T19:38:10.141413-07:00","level":"INFO","msg":"stream: closed","id":"hz53ff9y"}

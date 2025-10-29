@@ -1,0 +1,36 @@
+Training classifier for TP=1
+Number of unique states across all TP=1 samples: 6
+Class weights: [1.9070339  0.507706   0.33439282 1.5613742  0.31209442 1.3773987 ]
+Train size: 26, Val size: 4
+Epoch 1/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:03<00:00,  1.02it/s, loss=1.9697]
+Epoch 2/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:03<00:00,  1.02it/s, loss=2.0120]
+Epoch 3/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:03<00:00,  1.01it/s, loss=2.0004]
+Epoch 4/500:  25%|████████████████████████████████████▎                                                                                                            | 1/4 [00:01<00:04,  1.38s/it, loss=1.9575]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 147, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 795, in train_classifiers
+    logits = classifier(x)
+             ^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/gru.py", line 76, in forward
+    h, _ = self.gru(x)  # (B, T, H[*2])
+           ^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/rnn.py", line 1392, in forward
+    result = _VF.gru(
+             ^^^^^^^^
+KeyboardInterrupt

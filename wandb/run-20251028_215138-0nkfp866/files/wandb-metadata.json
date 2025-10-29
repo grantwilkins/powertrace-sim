@@ -1,0 +1,63 @@
+{
+  "os": "macOS-14.3.1-arm64-arm-64bit",
+  "python": "3.12.2",
+  "startedAt": "2025-10-29T04:51:38.397165Z",
+  "args": [
+    "--data_file",
+    "./sharegpt_llama-3-8b_h100.npz",
+    "--model",
+    "llama-3-8b",
+    "--hardware_accelerator",
+    "h100",
+    "--tp",
+    "1",
+    "--hidden_size",
+    "64",
+    "--lr",
+    "9e-4",
+    "--num_epochs",
+    "500",
+    "--seed",
+    "42",
+    "--output_dir",
+    "results/training/llama-3-8b_h100_tp1",
+    "--bidirectional",
+    "--save_model",
+    "--wandb_project",
+    "powertrace-classifier-training",
+    "--wandb_run_name",
+    "llama-3-8b_h100_tp1_H64_lr9e-4"
+  ],
+  "program": "-m model.train_entry",
+  "git": {
+    "remote": "https://github.com/grantwilkins/powertrace-sim",
+    "commit": "6f8a8ff05533056144755c3a3d2f6ed21d952171"
+  },
+  "email": "grant.wilkins371@gmail.com",
+  "root": "/Users/grantwilkins/powertrace-sim",
+  "host": "DN525b5h.SUNet",
+  "username": "grantwilkins",
+  "executable": "/Users/grantwilkins/anaconda3/envs/ml-inference/bin/python",
+  "cpu_count": 10,
+  "cpu_count_logical": 10,
+  "disk": {
+    "/": {
+      "total": "994662584320",
+      "used": "660656951296"
+    }
+  },
+  "memory": {
+    "total": "34359738368"
+  },
+  "cpu": {
+    "count": 10,
+    "countLogical": 10
+  },
+  "apple": {
+    "name": "Apple M1 Pro",
+    "ecpuCores": 2,
+    "pcpuCores": 8,
+    "gpuCores": 16,
+    "memoryGb": 32
+  }
+}

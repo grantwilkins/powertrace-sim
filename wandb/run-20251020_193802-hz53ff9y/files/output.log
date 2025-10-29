@@ -1,0 +1,32 @@
+Training classifier for TP=1
+Number of unique states across all TP=1 samples: 6
+Class weights: [0.11069988 0.8513178  0.76682377 1.7881393  1.9812284  0.5017905 ]
+Train size: 23, Val size: 4
+Epoch 1/500: 100%|██████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:03<00:00,  1.31s/it, loss=1.8925]
+Epoch 2/500:   0%|                                                                                                               | 0/3 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 300, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 653, in train_classifiers
+    logits = classifier(x)
+             ^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/gru.py", line 13, in forward
+    h, _ = self.gru(x)
+           ^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/nn/modules/rnn.py", line 1392, in forward
+    result = _VF.gru(
+             ^^^^^^^^
+KeyboardInterrupt

@@ -1,0 +1,18 @@
+{"time":"2025-10-28T21:50:52.114061-07:00","level":"INFO","msg":"using version","core version":"0.18.5"}
+{"time":"2025-10-28T21:50:52.114181-07:00","level":"INFO","msg":"created symlink","path":"/Users/grantwilkins/powertrace-sim/wandb/run-20251028_215052-t6uuxzae/logs/debug-core.log"}
+{"time":"2025-10-28T21:50:52.224324-07:00","level":"INFO","msg":"created new stream","id":"t6uuxzae"}
+{"time":"2025-10-28T21:50:52.224372-07:00","level":"INFO","msg":"stream: started","id":"t6uuxzae"}
+{"time":"2025-10-28T21:50:52.22439-07:00","level":"INFO","msg":"sender: started","stream_id":"t6uuxzae"}
+{"time":"2025-10-28T21:50:52.224384-07:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"t6uuxzae"}}
+{"time":"2025-10-28T21:50:52.224409-07:00","level":"INFO","msg":"handler: started","stream_id":{"value":"t6uuxzae"}}
+{"time":"2025-10-28T21:50:52.446266-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-10-28T21:51:19.085534-07:00","level":"INFO","msg":"stream: closing","id":"t6uuxzae"}
+{"time":"2025-10-28T21:51:19.085575-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-10-28T21:51:19.086121-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-10-28T21:51:19.76265-07:00","level":"WARN","msg":"No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"}
+{"time":"2025-10-28T21:51:19.76271-07:00","level":"INFO","msg":"sender: sendDefer: no job artifact to save"}
+{"time":"2025-10-28T21:51:20.102902-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-28T21:51:20.338484-07:00","level":"INFO","msg":"handler: closed","stream_id":{"value":"t6uuxzae"}}
+{"time":"2025-10-28T21:51:20.338731-07:00","level":"INFO","msg":"sender: closed","stream_id":"t6uuxzae"}
+{"time":"2025-10-28T21:51:20.33872-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":{"value":"t6uuxzae"}}
+{"time":"2025-10-28T21:51:20.339526-07:00","level":"INFO","msg":"stream: closed","id":"t6uuxzae"}

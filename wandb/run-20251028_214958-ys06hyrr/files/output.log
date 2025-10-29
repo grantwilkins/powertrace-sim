@@ -1,0 +1,26 @@
+Training classifier for TP=1
+Number of unique states across all TP=1 samples: 6
+Class weights: [1.9070339  0.507706   0.33439282 1.5613742  0.31209442 1.3773987 ]
+Train size: 26, Val size: 4
+Epoch 1/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:04<00:00,  1.02s/it, loss=2.2289]
+Epoch 2/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:04<00:00,  1.01s/it, loss=2.1533]
+Epoch 3/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:04<00:00,  1.02s/it, loss=2.0274]
+Epoch 4/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:04<00:00,  1.02s/it, loss=2.0111]
+Epoch 5/500: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:04<00:00,  1.00s/it, loss=2.1297]
+Epoch 6/500:  25%|████████████████████████████████████▎                                                                                                            | 1/4 [00:02<00:06,  2.04s/it, loss=2.0541]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 147, in <module>
+    classifier, metrics = train_classifiers(
+                          ^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 797, in train_classifiers
+    loss.backward()
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/_tensor.py", line 581, in backward
+    torch.autograd.backward(
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/autograd/__init__.py", line 347, in backward
+    _engine_run_backward(
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/autograd/graph.py", line 825, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

@@ -1,0 +1,26 @@
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Current SDK version is 0.18.5
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Configure stats pid to 35920
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Loading settings from /Users/grantwilkins/.config/wandb/settings
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Loading settings from /Users/grantwilkins/powertrace-sim/wandb/settings
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Loading settings from environment variables: {}
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Applying setup settings: {'mode': None, '_disable_service': None}
+2025-10-20 19:38:02,422 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Inferring run settings from compute environment: {'program_relpath': 'model/train_entry.py', 'program_abspath': '/Users/grantwilkins/powertrace-sim/model/train_entry.py', 'program': '/Users/grantwilkins/powertrace-sim/model/train_entry.py'}
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_setup.py:_flush():79] Applying login settings: {}
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:_log_setup():534] Logging user logs to /Users/grantwilkins/powertrace-sim/wandb/run-20251020_193802-hz53ff9y/logs/debug.log
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:_log_setup():535] Logging internal logs to /Users/grantwilkins/powertrace-sim/wandb/run-20251020_193802-hz53ff9y/logs/debug-internal.log
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:init():621] calling init triggers
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:init():628] wandb.init called with sweep_config: {}
+config: {'tp': 1, 'hidden_size': 64, 'num_epochs': 500, 'lr': 0.0002, 'scheduler': 'cosine', 'seed': 42, 'bidirectional': True}
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:init():671] starting backend
+2025-10-20 19:38:02,423 INFO    MainThread:35920 [wandb_init.py:init():675] sending inform_init request
+2025-10-20 19:38:02,424 INFO    MainThread:35920 [backend.py:_multiprocessing_setup():104] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2025-10-20 19:38:02,425 INFO    MainThread:35920 [wandb_init.py:init():688] backend started and connected
+2025-10-20 19:38:02,429 INFO    MainThread:35920 [wandb_init.py:init():783] updated telemetry
+2025-10-20 19:38:02,465 INFO    MainThread:35920 [wandb_init.py:init():816] communicating run to backend with 90.0 second timeout
+2025-10-20 19:38:02,837 INFO    MainThread:35920 [wandb_init.py:init():867] starting run threads in backend
+2025-10-20 19:38:03,080 INFO    MainThread:35920 [wandb_run.py:_console_start():2463] atexit reg
+2025-10-20 19:38:03,080 INFO    MainThread:35920 [wandb_run.py:_redirect():2311] redirect: wrap_raw
+2025-10-20 19:38:03,080 INFO    MainThread:35920 [wandb_run.py:_redirect():2376] Wrapping output streams.
+2025-10-20 19:38:03,080 INFO    MainThread:35920 [wandb_run.py:_redirect():2401] Redirects installed.
+2025-10-20 19:38:03,082 INFO    MainThread:35920 [wandb_init.py:init():911] run started, returning control to user process
+2025-10-20 19:38:08,533 WARNING MsgRouterThr:35920 [router.py:message_loop():77] message_loop has been closed
