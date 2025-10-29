@@ -2,6 +2,7 @@ from typing import Optional
 
 import numpy as np
 import torch
+
 from model.classifiers.gru import GRUClassifier
 from model.core.dataset import PowerTraceDataset
 
@@ -40,7 +41,8 @@ class SmoothingSampler:
             logits = net(torch.from_numpy(schedule_x[None]).float()).squeeze(0)  # (T,K)
             probs = torch.softmax(logits, -1).cpu().numpy()
         K = probs.shape[1]
-        chosen_states = np.array([np.random.choice(K, p=p) for p in probs])
+        # chosen_states = np.array([np.random.choice(K, p=p) for p in probs])
+        chosen_states = np.argmax(probs, axis=1)
         watts = np.random.normal(mu[chosen_states], sigma[chosen_states])
 
         t = np.arange(len(chosen_states)) * dt

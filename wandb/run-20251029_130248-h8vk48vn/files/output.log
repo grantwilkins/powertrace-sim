@@ -1,0 +1,14 @@
+Epoch 1/500: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 24/24 [00:09<00:00,  2.49it/s, loss=1.7772]
+Epoch 2/500:  29%|██████████████████████████████████████████                                                                                                      | 7/24 [00:02<00:07,  2.39it/s, loss=1.7588]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/grantwilkins/powertrace-sim/model/train_entry.py", line 97, in <module>
+    result = train_classifiers(
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/grantwilkins/powertrace-sim/model/classifiers/train.py", line 110, in train_classifiers
+    loss.backward()
+  File "/Users/grantwilkins/anaconda3/envs/ml-inference/lib/python3.12/site-packages/torch/_tensor.py", line 525, in backward
+    def backward(
+
+KeyboardInterrupt

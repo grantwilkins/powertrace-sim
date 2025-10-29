@@ -1,0 +1,13 @@
+{"time":"2025-10-29T13:02:48.332179-07:00","level":"INFO","msg":"using version","core version":"0.18.5"}
+{"time":"2025-10-29T13:02:48.332236-07:00","level":"INFO","msg":"created symlink","path":"/Users/grantwilkins/powertrace-sim/wandb/run-20251029_130248-h8vk48vn/logs/debug-core.log"}
+{"time":"2025-10-29T13:02:48.442615-07:00","level":"INFO","msg":"created new stream","id":"h8vk48vn"}
+{"time":"2025-10-29T13:02:48.442688-07:00","level":"INFO","msg":"stream: started","id":"h8vk48vn"}
+{"time":"2025-10-29T13:02:48.442743-07:00","level":"INFO","msg":"sender: started","stream_id":"h8vk48vn"}
+{"time":"2025-10-29T13:02:48.442711-07:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"h8vk48vn"}}
+{"time":"2025-10-29T13:02:48.442837-07:00","level":"INFO","msg":"handler: started","stream_id":{"value":"h8vk48vn"}}
+{"time":"2025-10-29T13:02:48.771417-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-10-29T13:03:02.565231-07:00","level":"INFO","msg":"stream: closing","id":"h8vk48vn"}
+{"time":"2025-10-29T13:03:02.565468-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-10-29T13:03:02.566094-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-10-29T13:03:02.68106-07:00","level":"WARN","msg":"No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"}
+{"time":"2025-10-29T13:03:02.681076-07:00","level":"INFO","msg":"sender: sendDefer: no job artifact to save"}

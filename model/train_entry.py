@@ -67,13 +67,22 @@ if __name__ == "__main__":
         unique_tps = list(set(dataset.tp_all))
         for tp in unique_tps:
             print(f"Training classifier for TP={tp}")
-            classifier, losses = train_classifiers(
+            result = train_classifiers(
                 dataset,
                 tp=tp,
                 device=torch.device(args.device) if args.device else None,
                 num_epochs=args.num_epochs,
                 lr=args.lr,
+                model_name=args.model,
+                hardware_name=args.hardware_accelerator,
             )
+            # Handle both old and new return signatures
+            if len(result) == 3:
+                classifier, losses, metrics = result
+            else:
+                classifier, losses = result
+                metrics = None
+
             classifier.to("cpu")
             np.save(
                 f"./training_data/losses/training_losses_{args.model}_{args.hardware_accelerator}_tp{tp}.npy",
@@ -85,13 +94,22 @@ if __name__ == "__main__":
             )
     else:
         # Train specific TP value
-        classifier, losses = train_classifiers(
+        result = train_classifiers(
             dataset,
             tp=args.tp,
             device=torch.device(args.device) if args.device else None,
             num_epochs=args.num_epochs,
             lr=args.lr,
+            model_name=args.model,
+            hardware_name=args.hardware_accelerator,
         )
+        # Handle both old and new return signatures
+        if len(result) == 3:
+            classifier, losses, metrics = result
+        else:
+            classifier, losses = result
+            metrics = None
+
         # Ensure directories exist
         classifier.to("cpu")
         np.save(

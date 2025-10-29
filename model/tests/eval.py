@@ -43,6 +43,7 @@ if __name__ == "__main__":
             "llama-3-70b",
             "deepseek-r1-distill-8b",
             "deepseek-r1-distill-70b",
+            "llama-3-405b",
         ],
         help="LLM name",
     )
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     # Store all CDF data for plotting
     cdf_data = []
 
-    for tp in [4]:
+    for tp in [8]:
         print(f"\nProcessing TP={tp}")
         classifier = load_classifier(
             args.weights_path + args.model + f"_{args.hardware_accelerator}_tp{tp}.pt",

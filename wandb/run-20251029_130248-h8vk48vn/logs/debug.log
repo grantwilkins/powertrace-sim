@@ -1,0 +1,28 @@
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Current SDK version is 0.18.5
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Configure stats pid to 72293
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Loading settings from /Users/grantwilkins/.config/wandb/settings
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Loading settings from /Users/grantwilkins/powertrace-sim/wandb/settings
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Loading settings from environment variables: {'run_name': 'llama-3-8b_a100_tp1'}
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Applying setup settings: {'mode': None, '_disable_service': None}
+2025-10-29 13:02:48,325 WARNING MainThread:72293 [wandb_setup.py:_flush():79] Could not find program at -m model.train_entry
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Inferring run settings from compute environment: {'program_relpath': None, 'program': '-m model.train_entry'}
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_setup.py:_flush():79] Applying login settings: {}
+2025-10-29 13:02:48,325 INFO    MainThread:72293 [wandb_init.py:_log_setup():534] Logging user logs to /Users/grantwilkins/powertrace-sim/wandb/run-20251029_130248-h8vk48vn/logs/debug.log
+2025-10-29 13:02:48,326 INFO    MainThread:72293 [wandb_init.py:_log_setup():535] Logging internal logs to /Users/grantwilkins/powertrace-sim/wandb/run-20251029_130248-h8vk48vn/logs/debug-internal.log
+2025-10-29 13:02:48,326 INFO    MainThread:72293 [wandb_init.py:init():621] calling init triggers
+2025-10-29 13:02:48,326 INFO    MainThread:72293 [wandb_init.py:init():628] wandb.init called with sweep_config: {}
+config: {'tp': 1, 'hidden_size': 64, 'num_epochs': 500, 'lr': 0.0001, 'device': 'cpu', 'input_dim': 6, 'num_states': 6, 'train_samples': 24, 'val_samples': 6}
+2025-10-29 13:02:48,326 INFO    MainThread:72293 [wandb_init.py:init():671] starting backend
+2025-10-29 13:02:48,326 INFO    MainThread:72293 [wandb_init.py:init():675] sending inform_init request
+2025-10-29 13:02:48,327 INFO    MainThread:72293 [backend.py:_multiprocessing_setup():104] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2025-10-29 13:02:48,328 INFO    MainThread:72293 [wandb_init.py:init():688] backend started and connected
+2025-10-29 13:02:48,331 INFO    MainThread:72293 [wandb_init.py:init():783] updated telemetry
+2025-10-29 13:02:48,360 INFO    MainThread:72293 [wandb_init.py:init():816] communicating run to backend with 90.0 second timeout
+2025-10-29 13:02:48,768 INFO    MainThread:72293 [wandb_init.py:init():867] starting run threads in backend
+2025-10-29 13:02:49,006 INFO    MainThread:72293 [wandb_run.py:_console_start():2463] atexit reg
+2025-10-29 13:02:49,006 INFO    MainThread:72293 [wandb_run.py:_redirect():2311] redirect: wrap_raw
+2025-10-29 13:02:49,006 INFO    MainThread:72293 [wandb_run.py:_redirect():2376] Wrapping output streams.
+2025-10-29 13:02:49,006 INFO    MainThread:72293 [wandb_run.py:_redirect():2401] Redirects installed.
+2025-10-29 13:02:49,008 INFO    MainThread:72293 [wandb_init.py:init():911] run started, returning control to user process
+2025-10-29 13:02:49,008 INFO    MainThread:72293 [wandb_watch.py:_watch():71] Watching
+2025-10-29 13:03:02,565 WARNING MsgRouterThr:72293 [router.py:message_loop():77] message_loop has been closed
