@@ -5,3 +5,5 @@ random_plots_training_data
 *wandb*
 *.pdf
 figures/*
+eval_results
+eval_results/*
