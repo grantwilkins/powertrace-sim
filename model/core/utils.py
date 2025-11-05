@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
+
 from model.classifiers.gru import GRUClassifier
 
 
@@ -72,5 +73,5 @@ def load_classifier(
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Loading classifier from {path} on device: {device}")
     classifier = GRUClassifier(Dx=Dx, K=K).to(device)
-    classifier.load_state_dict(torch.load(path, map_location=device))
+    classifier.load_state_dict(torch.load(path, map_location=device, weights_only=True))
     return classifier

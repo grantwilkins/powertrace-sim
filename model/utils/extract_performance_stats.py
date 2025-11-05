@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
+from sklearn.mixture import GaussianMixture
 
 
 @dataclass
@@ -24,7 +25,6 @@ class PerformanceStats:
     hardware: str
     tensor_parallelism: int
 
-    # TTFT statistics (in seconds)
     ttft_mean: float
     ttft_median: float
     ttft_std: float
@@ -171,7 +171,9 @@ def fit_ttft_heteroskedastic(input_lens: List[int], ttft_s: List[float]) -> Dict
     input_lens_bulk = input_lens[bulk_mask]
     ttft_s_bulk = ttft_s[bulk_mask]
 
-    print(f"  Filtered {(~bulk_mask).sum()} P99 outliers (>{p99_threshold:.6f}s), keeping {len(ttft_s_bulk)} samples")
+    print(
+        f"  Filtered {(~bulk_mask).sum()} P99 outliers (>{p99_threshold:.6f}s), keeping {len(ttft_s_bulk)} samples"
+    )
 
     # Log transform
     log_input = np.log(input_lens_bulk)
@@ -329,6 +331,109 @@ def parse_benchmark_file(filepath: str) -> Optional[PerformanceStats]:
         return None
 
 
+def compute_gmm_parameters(npz_file: str, K: int = 6) -> Optional[Dict]:
+    """
+    Compute GMM parameters (mu, sigma) for each tensor parallelism configuration in an NPZ file.
+
+    Args:
+        npz_file: Path to NPZ training data file
+        K: Number of GMM components (default 6)
+
+    Returns:
+        Dictionary mapping TP values to their GMM parameters (mu, sigma arrays)
+        or None if file doesn't exist or processing fails
+    """
+    try:
+        if not os.path.exists(npz_file):
+            return None
+
+        d = np.load(npz_file, allow_pickle=True)
+
+        # Extract TP values and power traces
+        tp_array = d["tensor_parallelism"]
+        n_exp = d["timestamps"].shape[0]
+
+        # Organize power traces by TP value
+        power_by_tp = {}
+        for i in range(n_exp):
+            bin_mask = d["timestamps"][i] > 0
+            power = d["power_traces"][i][bin_mask].astype("float32")
+            tp = int(tp_array[i])
+
+            if tp not in power_by_tp:
+                power_by_tp[tp] = []
+            power_by_tp[tp].append(power)
+
+        # Fit GMM for each TP value
+        gmm_params = {}
+        for tp, power_traces in power_by_tp.items():
+            # Concatenate all power values for this TP
+            y_concat = np.concatenate(power_traces).reshape(-1, 1)
+
+            # Convert to float64 for better numerical precision and add regularization
+            y_concat_64 = y_concat.astype(np.float64)
+
+            # Fit GMM
+            model = GaussianMixture(
+                n_components=K,
+                covariance_type="diag",
+                n_init=10,
+                random_state=0,
+                reg_covar=1e-6
+            ).fit(y_concat_64)
+
+            # Extract mu and sigma for each state
+            mu = np.zeros(K)
+            sigma = np.zeros(K)
+            for k in range(K):
+                mu[k] = float(model.means_[k][0])
+                sigma[k] = float(np.sqrt(model.covariances_[k][0]))
+
+            gmm_params[tp] = {
+                "mu": mu.tolist(),
+                "sigma": sigma.tolist(),
+                "num_states": K
+            }
+
+        return gmm_params
+
+    except Exception as e:
+        print(f"Error computing GMM parameters from {npz_file}: {e}")
+        return None
+
+
+def find_npz_file(model_name: str, model_size_b: int, hardware: str, training_data_dir: str) -> Optional[str]:
+    """
+    Find the corresponding NPZ training data file for a given configuration.
+
+    Args:
+        model_name: Model name (e.g., "llama-3.1", "deepseek-r1-distill")
+        model_size_b: Model size in billions
+        hardware: Hardware type ("A100", "H100")
+        training_data_dir: Directory containing NPZ files
+
+    Returns:
+        Path to NPZ file or None if not found
+    """
+    # Map model names to NPZ file naming convention
+    model_map = {
+        "llama-3.1": "llama-3",
+        "deepseek-r1-distill": "deepseek-r1"
+    }
+
+    npz_model_name = model_map.get(model_name, model_name)
+    hw_lower = hardware.lower()
+
+    # Construct expected filename: vllm-benchmark_<model>-<size>b_<hw>.npz
+    filename = f"vllm-benchmark_{npz_model_name}-{model_size_b}b_{hw_lower}.npz"
+    filepath = os.path.join(training_data_dir, filename)
+
+    if os.path.exists(filepath):
+        return filepath
+
+    return None
+
+
 def discover_benchmark_files(data_root_dir: str) -> List[str]:
     """
     Discover all benchmark JSON files in the data directory.
@@ -348,14 +453,16 @@ def discover_benchmark_files(data_root_dir: str) -> List[str]:
     return sorted(files)
 
 
-def create_performance_database(data_root_dir: str, output_file: str):
+def create_performance_database(data_root_dir: str, output_file: str, training_data_dir: Optional[str] = None):
     """
     Create a comprehensive performance database from benchmark files.
     Uses new log-linear model for TTFT and Gaussian for TPOT.
+    Also extracts GMM parameters from NPZ training data if available.
 
     Args:
         data_root_dir: Root directory containing benchmark data
         output_file: Output JSON file path
+        training_data_dir: Directory containing NPZ training data files (optional)
     """
     print(f"Searching for benchmark files in {data_root_dir}...")
     benchmark_files = discover_benchmark_files(data_root_dir)
@@ -415,7 +522,9 @@ def create_performance_database(data_root_dir: str, output_file: str):
                     # Legacy: Flatten all ITLs from all requests
                     for request_itls in itls:
                         if request_itls:  # Skip empty lists
-                            raw_data_by_config[key]["tpot_values_s"].extend(request_itls)
+                            raw_data_by_config[key]["tpot_values_s"].extend(
+                                request_itls
+                            )
                 else:
                     # New format: ITLs are already mean values per request
                     raw_data_by_config[key]["tpot_values_s"].extend(itls)
@@ -489,8 +598,52 @@ def create_performance_database(data_root_dir: str, output_file: str):
             "num_experiments": config_data["num_experiments"],
             "total_requests": len(ttft_values_s),
             "ttft_model": ttft_model,  # NEW FORMAT
-            "tpot_distribution": tpot_model
+            "tpot_distribution": tpot_model,
         }
+
+    # Add GMM parameters from NPZ files if training_data_dir is provided
+    if training_data_dir:
+        print(f"\nSearching for NPZ training data in {training_data_dir}...")
+        # Group configurations by model/hardware (NPZ files contain all TP values)
+        npz_processed = set()
+
+        for key, config in final_database.items():
+            model_name = config["model_name"]
+            model_size_b = config["model_size_b"]
+            hardware = config["hardware"]
+            tp = config["tensor_parallelism"]
+
+            # Create unique key for NPZ file (one NPZ per model/hardware combo)
+            npz_key = f"{model_name}_{model_size_b}b_{hardware.lower()}"
+
+            if npz_key not in npz_processed:
+                # Find and process NPZ file
+                npz_file = find_npz_file(model_name, model_size_b, hardware, training_data_dir)
+
+                if npz_file:
+                    print(f"  Found NPZ file for {npz_key}: {os.path.basename(npz_file)}")
+                    gmm_params = compute_gmm_parameters(npz_file, K=6)
+
+                    if gmm_params:
+                        # Add GMM parameters to all matching configurations
+                        for db_key, db_config in final_database.items():
+                            if (db_config["model_name"] == model_name and
+                                db_config["model_size_b"] == model_size_b and
+                                db_config["hardware"] == hardware):
+                                db_tp = db_config["tensor_parallelism"]
+                                if db_tp in gmm_params:
+                                    db_config["gmm_parameters"] = gmm_params[db_tp]
+                                    print(f"    Added GMM params for TP={db_tp}")
+                                else:
+                                    print(f"    Warning: No GMM params found for TP={db_tp} in NPZ file")
+                    else:
+                        print(f"    Failed to compute GMM parameters from {os.path.basename(npz_file)}")
+                else:
+                    print(f"  No NPZ file found for {npz_key}")
+
+                npz_processed.add(npz_key)
+    else:
+        print("\nNo training_data_dir provided, skipping GMM parameter extraction")
 
     # Save to JSON
     print(f"Saving performance database to {output_file}...")
@@ -563,18 +716,13 @@ def sample_ttft_tpot(
         raise ValueError(
             f"No performance data found for {model_name}-{model_size_b}B on {hardware} TP{tensor_parallelism}"
         )
-
-    # Sample TTFT from gamma distribution
     ttft_shape = params["ttft_distribution"]["shape"]
     ttft_scale = params["ttft_distribution"]["scale"]
     ttft_samples = stats.gamma.rvs(ttft_shape, scale=ttft_scale, size=size)
-
-    # Sample TPOT from Gaussian distribution
     tpot_mean = params["tpot_distribution"]["mean"]
     tpot_std = params["tpot_distribution"]["std"]
     tpot_samples = stats.norm.rvs(tpot_mean, tpot_std, size=size)
 
-    # Ensure positive values
     ttft_samples = np.maximum(ttft_samples, 0.01)  # Minimum 10ms TTFT
     tpot_samples = np.maximum(tpot_samples, 0.001)  # Minimum 1ms TPOT
 
@@ -583,7 +731,7 @@ def sample_ttft_tpot(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Extract performance statistics from benchmark data"
+        description="Extract performance statistics from benchmark data and GMM parameters from training data"
     )
     parser.add_argument(
         "--data_root_dir",
@@ -598,51 +746,12 @@ if __name__ == "__main__":
         help="Output JSON file for performance database",
     )
     parser.add_argument(
-        "--test", action="store_true", help="Run a test of the sampling functionality"
+        "--training_data_dir",
+        type=str,
+        default=None,
+        help="Directory containing NPZ training data files for GMM parameter extraction",
     )
 
     args = parser.parse_args()
 
-    if args.test and os.path.exists(args.output_file):
-        # Test sampling functionality
-        print("Testing sampling functionality...")
-        database = load_performance_database(args.output_file)
-
-        # Try sampling from an available configuration
-        for key, config in database.items():
-            print(f"\nTesting {key}:")
-            try:
-                ttft_samples, tpot_samples = sample_ttft_tpot(
-                    database,
-                    config["model_name"],
-                    config["model_size_b"],
-                    config["hardware"],
-                    config["tensor_parallelism"],
-                    size=10,
-                )
-
-                print(f"  TTFT samples (s): {ttft_samples}")
-                print(f"  TPOT samples (s): {tpot_samples}")
-                print(
-                    f"  TTFT mean: {np.mean(ttft_samples):.3f}s (expected: {config['ttft_distribution']['summary_stats']['mean_seconds']:.3f}s)"
-                )
-                print(
-                    f"  TPOT mean: {np.mean(tpot_samples):.4f}s (expected: {config['tpot_distribution']['summary_stats']['mean_seconds']:.4f}s)"
-                )
-                break
-            except Exception as e:
-                print(f"  Error: {e}")
-    else:
-        # Create the database
-        create_performance_database(args.data_root_dir, args.output_file)
-
-        if os.path.exists(args.output_file):
-            print(f"\nPerformance database created successfully!")
-            print(f"Usage example:")
-            print(
-                f"  from utils.extract_performance_stats import load_performance_database, sample_ttft_tpot"
-            )
-            print(f"  database = load_performance_database('{args.output_file}')")
-            print(
-                f"  ttft, tpot = sample_ttft_tpot(database, 'llama-3.1', 8, 'A100', 1)"
-            )
+    create_performance_database(args.data_root_dir, args.output_file, args.training_data_dir)

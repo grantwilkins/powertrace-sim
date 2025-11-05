@@ -1,0 +1,10 @@
+metric,value
+ks_statistic,0.095279347306086
+ks_pvalue,5.4564671357046065e-306
+acf_r2,0.9767034730185126
+nrmse,0.263963985262809
+p95_error_pct,0.536282158443661
+p99_error_pct,2.4518435573766317
+energy_error_pct,0.26643241422047476
+num_samples,30
+exceeds_threshold,False

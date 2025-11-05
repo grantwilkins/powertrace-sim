@@ -9,7 +9,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -104,7 +104,9 @@ class PerformanceSampler:
 
         if not self.use_fallback:
             # Try new format first, fallback to old format
-            ttft = self.entry.get("ttft_model") or self.entry.get("ttft_distribution", {})
+            ttft = self.entry.get("ttft_model") or self.entry.get(
+                "ttft_distribution", {}
+            )
             tpot = self.entry.get("tpot_distribution", {})
 
             # For clipping to observed range if present
@@ -130,7 +132,14 @@ class PerformanceSampler:
                 bin_quantiles = ttft.get("bin_quantiles", [])
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("decile_quantile", bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max)
+                self.ttft_dist = (
+                    "decile_quantile",
+                    bin_edges_z,
+                    quantile_levels,
+                    bin_quantiles,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "gamma_glm":
                 # Gamma GLM: μ = exp(β0 + β1 * log(n_in + 1)), Var = φ * μ^2
                 beta0 = float(ttft.get("beta0", 0.0))
@@ -148,7 +157,16 @@ class PerformanceSampler:
                 sigma_slope = float(ttft.get("sigma_slope", 0.0))
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("heteroskedastic_log_linear", intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max)
+                self.ttft_dist = (
+                    "heteroskedastic_log_linear",
+                    intercept,
+                    slope,
+                    sigma_base,
+                    sigma_intercept,
+                    sigma_slope,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "log_linear":
                 # Legacy log-linear model: log(TTFT) = a0 + a1 * log(input_tokens) + N(0, sigma^2)
                 intercept = float(ttft.get("intercept", 0.0))
@@ -156,7 +174,14 @@ class PerformanceSampler:
                 sigma_log = float(ttft.get("sigma_log", 0.1))
                 nin_min = int(ttft.get("nin_min", 1))
                 nin_max = int(ttft.get("nin_max", 4096))
-                self.ttft_dist = ("log_linear", intercept, slope, sigma_log, nin_min, nin_max)
+                self.ttft_dist = (
+                    "log_linear",
+                    intercept,
+                    slope,
+                    sigma_log,
+                    nin_min,
+                    nin_max,
+                )
             elif ttft_type == "gamma":
                 shape = float(ttft.get("shape", 1.0))
                 scale = float(ttft.get("scale", 0.001))
@@ -207,7 +232,9 @@ class PerformanceSampler:
         kind = self.ttft_dist[0]
         if kind == "decile_quantile":
             # Decile-conditioned quantile sampler
-            _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = self.ttft_dist
+            _, bin_edges_z, quantile_levels, bin_quantiles, nin_min, nin_max = (
+                self.ttft_dist
+            )
             if input_tokens is None:
                 input_tokens = (nin_min + nin_max) // 2
 
@@ -216,7 +243,7 @@ class PerformanceSampler:
 
             # Find which bin(s) z falls into
             bin_edges_z = np.array(bin_edges_z)
-            bin_idx = np.searchsorted(bin_edges_z, z, side='right') - 1
+            bin_idx = np.searchsorted(bin_edges_z, z, side="right") - 1
             bin_idx = np.clip(bin_idx, 0, len(bin_quantiles) - 1)
 
             # Get quantiles for this bin
@@ -250,7 +277,16 @@ class PerformanceSampler:
             val = max(val, 0.001)  # Ensure positive (min 1ms)
         elif kind == "heteroskedastic_log_linear":
             # Heteroskedastic: base variance + input-dependent variance
-            _, intercept, slope, sigma_base, sigma_intercept, sigma_slope, nin_min, nin_max = self.ttft_dist
+            (
+                _,
+                intercept,
+                slope,
+                sigma_base,
+                sigma_intercept,
+                sigma_slope,
+                nin_min,
+                nin_max,
+            ) = self.ttft_dist
             if input_tokens is None:
                 # Fallback to mean if input_tokens not provided
                 input_tokens = (nin_min + nin_max) // 2
@@ -279,7 +315,9 @@ class PerformanceSampler:
                 input_tokens = (nin_min + nin_max) // 2
             # Clamp to observed range
             nin_clamped = np.clip(input_tokens, nin_min, nin_max)
-            log_ttft = intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
+            log_ttft = (
+                intercept + slope * np.log(nin_clamped) + np.random.normal(0, sigma_log)
+            )
             val = float(np.exp(log_ttft))
             val = max(val, 0.001)  # Ensure positive (min 1ms)
         elif kind == "gamma":
@@ -371,6 +409,9 @@ class ServeGenWorkloadGenerator:
         time_window: Optional[str] = None,  # "18:00-19:00" or None for random
         rate_requests_per_sec: float = 1.0,  # Target request rate
         seed: int = 0,
+        rate_fn: Optional[
+            Callable[[float], float]
+        ] = None,  # Optional time-varying rate function
     ) -> List[ServeGenRequest]:
         """
         Generate a realistic request stream using ServeGen.
@@ -387,28 +428,33 @@ class ServeGenWorkloadGenerator:
             List of ServeGenRequest objects with realistic token distributions
         """
         np.random.seed(seed)
-
-        # Load ServeGen client pool
         category_enum = getattr(Category, category.upper())
         pool = ClientPool(category_enum, model_type)
-
-        # Create time window view if specified
         if time_window:
             start_sec, end_sec = self._parse_time_window(time_window)
             view = pool.span(start_sec, end_sec)
         else:
-            # Use a default productive time window (e.g., 14:00-18:00)
             view = pool.span(50400, 64800)  # 2pm-6pm
 
-        # Generate rate function
-        rate_fn = get_constant_rate_fn(view, rate_requests_per_sec)
+        if rate_fn is None:
+            rate_map = get_constant_rate_fn(view, rate_requests_per_sec)
+        else:
+            # Discretize callable into ServeGen's expected dict keyed by window timestamps
+            view_0 = view.span(0, int(duration))
+            windows = view_0.get()
+            ts_list = sorted(set(w.timestamp for w in windows))
+            base_rates = np.array(
+                [float(max(0.0, rate_fn(float(ts)))) for ts in ts_list], dtype=float
+            )
+            # Add gentle per-window jitter to avoid flat curves
+            rng = np.random.RandomState(seed)
+            jitter = np.clip(rng.normal(1.0, 0.05, size=len(base_rates)), 0.1, None)
+            adj_rates = np.maximum(0.0, base_rates * jitter)
+            rate_map = {int(ts): float(r) for ts, r in zip(ts_list, adj_rates)}
 
-        # Generate ServeGen requests
         servegen_requests = generate_workload(
-            view, rate_fn, duration=duration, seed=seed
+            view, rate_map, duration=int(duration), seed=seed
         )
-
-        # Convert to our internal format
         requests = []
         for req in servegen_requests:
             requests.append(
@@ -422,8 +468,92 @@ class ServeGenWorkloadGenerator:
 
         return sorted(requests, key=lambda x: x.arrival_time)
 
+
+def get_servegen_rate_cdfs(
+    category: str = "language",
+    model_type: str = "m-mid",
+    time_window: Optional[str] = None,
+) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
+    """
+    Return ServeGen rate CDFs per timestamp to inspect arrival distributions.
+    Keys are timestamps (s), values are (values, cumulative_probs).
+    """
+    if not SERVEGEN_AVAILABLE:
+        raise RuntimeError("ServeGen not available. Please install ServeGen.")
+    category_enum = getattr(Category, category.upper())
+    pool = ClientPool(category_enum, model_type)
+    if time_window:
+        start_sec, end_sec = ServeGenWorkloadGenerator()._parse_time_window(time_window)
+        view = pool.span(start_sec, end_sec)
+    else:
+        view = pool.span(50400, 64800)
+    cdfs = view.get_cdfs()
+    return cdfs.get("rate", {})
+
+
+class FastWorkloadGenerator:
+    """
+    Lightweight non-ServeGen workload generator for speed.
+
+    - Uses piecewise-constant NHPP at 1s resolution from a provided rate function
+    - Samples input/output tokens from simple log-normal distributions
+    """
+
+    def __init__(self):
+        pass
+
+    def generate_requests(
+        self,
+        duration: float,
+        rate_requests_per_sec: float = 1.0,
+        rate_fn: Optional[Callable[[float], float]] = None,
+        seed: int = 0,
+    ) -> List[ServeGenRequest]:
+        rng = np.random.RandomState(seed)
+        T = int(np.ceil(duration))
+        # Build per-second rates
+        if rate_fn is None:
+            rates = np.full(T, float(rate_requests_per_sec), dtype=float)
+        else:
+            rates = np.array(
+                [max(0.0, float(rate_fn(float(t)))) for t in range(T)], dtype=float
+            )
+
+        requests: List[ServeGenRequest] = []
+        req_id = 0
+        for t in range(T):
+            lam = rates[t]
+            if lam <= 0:
+                continue
+            # Poisson arrivals in [t, t+1)
+            n = rng.poisson(lam)
+            if n <= 0:
+                continue
+            arr = t + rng.uniform(0.0, 1.0, size=n)
+            # Sample tokens (simple log-normal heuristics)
+            # Input tokens centered ~512, Output tokens centered ~128
+            in_tok = np.clip(
+                np.exp(rng.normal(np.log(512.0), 0.8, size=n)), 1, 4096
+            ).astype(int)
+            out_tok = np.clip(
+                np.exp(rng.normal(np.log(128.0), 0.7, size=n)), 1, 2048
+            ).astype(int)
+            for a, nin, nout in zip(arr, in_tok, out_tok):
+                if a >= duration:
+                    continue
+                requests.append(
+                    ServeGenRequest(
+                        request_id=req_id,
+                        arrival_time=float(a),
+                        input_tokens=int(nin),
+                        output_tokens=int(nout),
+                    )
+                )
+                req_id += 1
+
+        return sorted(requests, key=lambda r: r.arrival_time)
+
     def _parse_time_window(self, time_window: str) -> Tuple[int, int]:
-        """Convert time window string to seconds since midnight."""
         try:
             start_str, end_str = time_window.split("-")
             start_hour, start_min = map(int, start_str.split(":"))
@@ -440,46 +570,25 @@ class ServeGenWorkloadGenerator:
 
 
 class ServingSystemSimulator:
-    """Simulates LLM serving system behavior with batching and queueing."""
-
     def __init__(self, config: ServingConfig):
         self.config = config
 
     def simulate_request_processing(
         self, requests: List[ServeGenRequest]
     ) -> List[ServeGenRequest]:
-        """
-        Simulate how requests are processed through the serving system.
-
-        Args:
-            requests: List of requests with arrival times
-
-        Returns:
-            List of requests with computed processing timelines
-        """
-        # Sort by arrival time
         requests = sorted(requests, key=lambda x: x.arrival_time)
         processed_requests = []
-
-        # Simple FIFO queue simulation with batching
         active_requests = []  # Currently processing
-
-        # Initialize performance samplers (TTFT/TPOT) based on config/database
         sampler = PerformanceSampler(self.config)
 
         for req in requests:
-            # Calculate when this request can start processing
             if len(active_requests) < self.config.batch_size:
-                # Can start immediately
                 start_time = req.arrival_time
             else:
-                # Must wait - find earliest completion time
                 earliest_completion = min(
                     r.decode_end for r in active_requests if r.decode_end
                 )
                 start_time = max(req.arrival_time, earliest_completion)
-
-            # Sample per-request TTFT/TPOT and calculate processing timeline
             sampled_ttft = sampler.sample_ttft(req.input_tokens)
             sampled_tpot = sampler.sample_tpot()
 
@@ -489,16 +598,12 @@ class ServingSystemSimulator:
             decode_start = prefill_end
             decode_duration = req.output_tokens * sampled_tpot
             decode_end = decode_start + decode_duration
-
-            # Update request with timing
             req.prefill_start = prefill_start
             req.prefill_end = prefill_end
             req.decode_start = decode_start
             req.decode_end = decode_end
 
             processed_requests.append(req)
-
-            # Clean up completed requests from active list
             active_requests = [r for r in active_requests if r.decode_end > start_time]
             active_requests.append(req)
 
@@ -507,130 +612,99 @@ class ServingSystemSimulator:
     def create_system_timeline(
         self, requests: List[ServeGenRequest], time_step: float = 0.25
     ) -> Dict[str, np.ndarray]:
-        """
-        Create system-level timeline matching the training data format.
-
-        This produces the same 6D feature format as prepare_training_data.py:
-        [request_count, input_tokens, output_tokens, active_requests, prefill_tokens, decode_tokens]
-
-        Args:
-            requests: Processed requests with timing information
-            time_step: Time resolution for binning (seconds)
-
-        Returns:
-            Dictionary with timeline arrays matching training format
-        """
         if not requests:
             return {}
 
-        # Create time bins
-        start_time = min(req.arrival_time for req in requests)
-        end_time = max(req.decode_end for req in requests)
-        time_bins = np.arange(start_time, end_time + time_step, time_step)
+        # Compute uniform bin centers and edges
+        start_time = min(r.arrival_time for r in requests)
+        end_time = max(r.decode_end for r in requests)
+        time_bins = np.arange(start_time, end_time + 1e-12, time_step)
 
-        # Initialize result arrays
-        timeline = {
-            "timestamps": time_bins,
-            "request_count": np.zeros(len(time_bins)),  # New requests this bin
-            "input_tokens": np.zeros(len(time_bins)),  # Input tokens arriving
-            "output_tokens": np.zeros(len(time_bins)),  # Output tokens arriving
-            "active_requests": np.zeros(len(time_bins)),  # Concurrent requests
-            "prefill_tokens": np.zeros(len(time_bins)),  # Tokens starting prefill
-            "decode_tokens": np.zeros(len(time_bins)),  # Tokens being decoded
-            "request_timestamps": [],  # Individual request times
-            "individual_input_tokens": [],  # Individual request inputs
-            "individual_output_tokens": [],  # Individual request outputs
-        }
-
-        # Fill timeline bins
-        for i, current_time in enumerate(time_bins):
-            # Define time interval for this bin
-            if i == 0:
-                interval_start = current_time - time_step / 2
-            else:
-                interval_start = (current_time + time_bins[i - 1]) / 2
-
-            if i == len(time_bins) - 1:
-                interval_end = current_time + time_step / 2
-            else:
-                interval_end = (current_time + time_bins[i + 1]) / 2
-
-            # Requests arriving in this interval
-            arriving = [
-                r for r in requests if interval_start <= r.arrival_time < interval_end
-            ]
-            timeline["request_count"][i] = len(arriving)
-            timeline["input_tokens"][i] = sum(r.input_tokens for r in arriving)
-            timeline["output_tokens"][i] = sum(r.output_tokens for r in arriving)
-
-            # Requests starting prefill in this interval
-            prefill_starting = [
-                r for r in requests if interval_start <= r.prefill_start < interval_end
-            ]
-            timeline["prefill_tokens"][i] = sum(
-                r.input_tokens for r in prefill_starting
+        # Edges are midpoints between centers (and half-step at boundaries)
+        if len(time_bins) == 1:
+            edges = np.array(
+                [time_bins[0] - time_step / 2, time_bins[0] + time_step / 2]
+            )
+        else:
+            mid = (time_bins[:-1] + time_bins[1:]) / 2.0
+            edges = np.concatenate(
+                ([time_bins[0] - time_step / 2], mid, [time_bins[-1] + time_step / 2])
             )
 
-            # Requests actively decoding at this time
-            decoding = [
-                r for r in requests if r.decode_start <= current_time <= r.decode_end
-            ]
-            timeline["decode_tokens"][i] = sum(r.output_tokens for r in decoding)
+        # Vectorize request fields
+        arr_ts = np.array([r.arrival_time for r in requests], dtype=float)
+        in_tok = np.array([r.input_tokens for r in requests], dtype=float)
+        out_tok = np.array([r.output_tokens for r in requests], dtype=float)
+        pre_s = np.array([r.prefill_start for r in requests], dtype=float)
+        dec_s = np.array([r.decode_start for r in requests], dtype=float)
+        dec_e = np.array([r.decode_end for r in requests], dtype=float)
 
-            # Total active requests at this time
-            active = [
-                r for r in requests if r.prefill_start <= current_time <= r.decode_end
-            ]
-            timeline["active_requests"][i] = len(active)
+        # 1) New arrivals and tokens via histograms
+        req_cnt, _ = np.histogram(arr_ts, bins=edges)
+        in_tok_hist, _ = np.histogram(arr_ts, bins=edges, weights=in_tok)
+        out_tok_hist, _ = np.histogram(arr_ts, bins=edges, weights=out_tok)
 
-        # Store individual request data for histogram_requests compatibility
-        timeline["request_timestamps"] = np.array([r.arrival_time for r in requests])
-        timeline["individual_input_tokens"] = np.array(
-            [r.input_tokens for r in requests]
+        # 2) Prefill tokens start times via histogram
+        prefill_tok_hist, _ = np.histogram(pre_s, bins=edges, weights=in_tok)
+
+        # 3) Active requests via difference array on intervals [prefill_start, decode_end]
+        n_bins = len(time_bins)
+        active_diff = np.zeros(n_bins + 1, dtype=float)
+        # Map times to bin indices (centers) inclusively
+        a_start = np.clip(np.searchsorted(time_bins, pre_s, side="left"), 0, n_bins - 1)
+        a_end = np.clip(
+            np.searchsorted(time_bins, dec_e, side="right") - 1, 0, n_bins - 1
         )
-        timeline["individual_output_tokens"] = np.array(
-            [r.output_tokens for r in requests]
-        )
+        # Apply +1/-1 for each interval
+        np.add.at(active_diff, a_start, 1.0)
+        np.add.at(active_diff, a_end + 1, -1.0)
+        active_counts = np.cumsum(active_diff[:-1])
 
-        return timeline
+        # 4) Decode tokens via difference array on intervals [decode_start, decode_end]
+        decode_diff = np.zeros(n_bins + 1, dtype=float)
+        d_start = np.clip(np.searchsorted(time_bins, dec_s, side="left"), 0, n_bins - 1)
+        d_end = np.clip(
+            np.searchsorted(time_bins, dec_e, side="right") - 1, 0, n_bins - 1
+        )
+        np.add.at(decode_diff, d_start, out_tok)
+        np.add.at(decode_diff, d_end + 1, -out_tok)
+        decode_tok = np.cumsum(decode_diff[:-1])
+
+        return {
+            "timestamps": time_bins,
+            "request_count": req_cnt.astype(float),
+            "input_tokens": in_tok_hist.astype(float),
+            "output_tokens": out_tok_hist.astype(float),
+            "active_requests": active_counts,
+            "prefill_tokens": prefill_tok_hist.astype(float),
+            "decode_tokens": decode_tok,
+            "request_timestamps": arr_ts,
+            "individual_input_tokens": in_tok,
+            "individual_output_tokens": out_tok,
+        }
 
     def create_feature_matrix(self, timeline: Dict[str, np.ndarray]) -> np.ndarray:
         """
-        Create 6D feature matrix matching training format.
+        Create feature matrix using the same preprocessing as training.
 
-        Uses the same logic as make_schedule_matrix in core/utils.py.
+        Args:
+            timeline: System timeline dictionary
 
         Returns:
-            (T, 6) array with [request_count, input_tokens, output_tokens,
-                              active_requests, prefill_tokens, decode_tokens]
+            Feature matrix (T, Dx) with Dx=6 matching trained GRUs
         """
-        from core.utils import histogram_requests
+        from model.core.utils import make_schedule_matrix
 
-        # Get histogrammed arrival data (matches training pipeline)
-        cnt, tok_in, tok_out = histogram_requests(
-            bin_ts=timeline["timestamps"],
-            req_ts=timeline["request_timestamps"],
-            in_tok=timeline["individual_input_tokens"],
-            out_tok=timeline["individual_output_tokens"],
-        )
-
-        # Stack features (same order as training)
-        x = np.stack(
-            [
-                cnt,  # Request count
-                tok_in,  # Input tokens (histogrammed)
-                tok_out,  # Output tokens (histogrammed)
-                timeline["active_requests"],  # Active requests
-                timeline["prefill_tokens"],  # Prefill tokens
-                timeline["decode_tokens"],  # Decode tokens
-            ],
-            axis=1,
-        ).astype("float32")
-
-        # Z-score normalize (same as training)
-        mu = x.mean(0, keepdims=True)
-        sd = x.std(0, keepdims=True) + 1e-6
-        return (x - mu) / sd
+        trace_dict = {
+            "timestamps": timeline["timestamps"],
+            "request_ts": timeline["request_timestamps"],
+            "input_tokens": timeline["individual_input_tokens"],
+            "output_tokens": timeline["individual_output_tokens"],
+            "active_requests": timeline["active_requests"],
+            "prefill_tokens": timeline["prefill_tokens"],
+            "decode_tokens": timeline["decode_tokens"],
+        }
+        return make_schedule_matrix(trace_dict)
 
 
 class ServeGenPowerSimulator:
@@ -649,6 +723,8 @@ class ServeGenPowerSimulator:
         rate_requests_per_sec: float = 1.0,
         time_window: Optional[str] = None,
         seed: int = 0,
+        rate_fn: Optional[Callable[[float], float]] = None,
+        use_fast_workload: bool = False,
     ) -> Dict[str, np.ndarray]:
         """
         Generate complete simulation data for power prediction.
@@ -660,26 +736,29 @@ class ServeGenPowerSimulator:
         - And other metadata needed for GRU inference
         """
 
-        # Step 1: Generate realistic requests
-        requests = self.workload_generator.generate_requests(
-            category=category,
-            model_type=model_type,
-            duration=duration,
-            time_window=time_window,
-            rate_requests_per_sec=rate_requests_per_sec,
-            seed=seed,
-        )
+        if use_fast_workload:
+            fast_gen = FastWorkloadGenerator()
+            requests = fast_gen.generate_requests(
+                duration=duration,
+                rate_requests_per_sec=rate_requests_per_sec,
+                rate_fn=rate_fn,
+                seed=seed,
+            )
+        else:
+            requests = self.workload_generator.generate_requests(
+                category=category,
+                model_type=model_type,
+                duration=duration,
+                time_window=time_window,
+                rate_requests_per_sec=rate_requests_per_sec,
+                seed=seed,
+                rate_fn=rate_fn,
+            )
 
         if not requests:
             raise ValueError("No requests generated. Check ServeGen configuration.")
-
-        # Step 2: Simulate serving system processing
         processed_requests = self.system_simulator.simulate_request_processing(requests)
-
-        # Step 3: Create system timeline
         timeline = self.system_simulator.create_system_timeline(processed_requests)
-
-        # Step 4: Create feature matrix for GRU
         feature_matrix = self.system_simulator.create_feature_matrix(timeline)
 
         return {
@@ -687,6 +766,7 @@ class ServeGenPowerSimulator:
             "timeline": timeline,
             "requests": processed_requests,
             "serving_config": self.serving_config,
+            "arrival_rate": rate_requests_per_sec,
         }
 
 
