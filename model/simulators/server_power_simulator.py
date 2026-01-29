@@ -1,19 +1,35 @@
 from __future__ import annotations
 
+import functools
 import os
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 
-from model.core.utils import load_classifier
-from model.predictors.smooth_sampler import SmoothingSampler
-from model.simulators.arrival_simulator import (
-    ServeGenPowerSimulator,
-    ServingConfig,
-    _get_perf_db_path,
-    _infer_model_for_key,
-)
+try:
+    from model.core.utils import load_classifier
+    from model.predictors.smooth_sampler import SmoothingSampler
+    from model.simulators.arrival_simulator import (
+        ServeGenPowerSimulator,
+        ServeGenRequest,
+        ServingConfig,
+        _get_perf_db_path,
+        _infer_model_for_key,
+    )
+except ModuleNotFoundError:
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from core.utils import load_classifier
+    from predictors.smooth_sampler import SmoothingSampler
+    from simulators.arrival_simulator import (
+        ServeGenPowerSimulator,
+        ServeGenRequest,
+        ServingConfig,
+        _get_perf_db_path,
+        _infer_model_for_key,
+    )
 
 
 def _resolve_weights_basename(config: ServingConfig) -> str:
@@ -71,6 +87,29 @@ def _resample_series(
     return new_ts, new_vals
 
 
+@functools.lru_cache(maxsize=16)
+def _cached_load_classifier(weights_path: str, Dx: int, K: int, device_str: str):
+    device = torch.device(device_str)
+    return load_classifier(weights_path, device=device, Dx=Dx, K=K)
+
+
+@functools.lru_cache(maxsize=64)
+def _cached_sampler(
+    perf_db_path: str,
+    db_model_name: str,
+    size_b: int,
+    hardware: str,
+    tp: int,
+):
+    return SmoothingSampler.from_performance_database(
+        database_path=perf_db_path,
+        model_name=db_model_name,
+        model_size_b=size_b,
+        hardware=hardware,
+        tensor_parallelism=tp,
+    )
+
+
 class ServerPowerSimulator:
     """
     End-to-end server power simulator that composes ServeGen arrivals, system timeline
@@ -102,6 +141,7 @@ class ServerPowerSimulator:
         return_profile: bool = True,
         rate_fn: Optional[Callable[[float], float]] = None,
         use_fast_workload: bool = False,
+        precomputed_requests: Optional[List[ServeGenRequest]] = None,
     ) -> Dict[str, object]:
         """
         Generate a power time series for the configured server.
@@ -129,27 +169,39 @@ class ServerPowerSimulator:
         import time
 
         t0 = time.perf_counter()
-        sim_data = self._servegen_sim.generate_power_simulation_data(
-            category=category,
-            model_type=model_type,
-            duration=duration,
-            rate_requests_per_sec=rate_requests_per_sec,
-            time_window=time_window,
-            seed=seed,
-            rate_fn=rate_fn,
-            use_fast_workload=use_fast_workload,
-        )
-        feature_matrix: np.ndarray = sim_data["feature_matrix"]
-        timeline: Dict[str, np.ndarray] = sim_data["timeline"]
+        if precomputed_requests is not None:
+            # Bypass ServeGen workload generation when requests are provided
+            processed_requests = (
+                self._servegen_sim.system_simulator.simulate_request_processing(
+                    precomputed_requests
+                )
+            )
+            timeline = self._servegen_sim.system_simulator.create_system_timeline(
+                processed_requests
+            )
+            feature_matrix = self._servegen_sim.system_simulator.create_feature_matrix(
+                timeline
+            )
+        else:
+            sim_data = self._servegen_sim.generate_power_simulation_data(
+                category=category,
+                model_type=model_type,
+                duration=duration,
+                rate_requests_per_sec=rate_requests_per_sec,
+                time_window=time_window,
+                seed=seed,
+                rate_fn=rate_fn,
+                use_fast_workload=use_fast_workload,
+            )
+            feature_matrix: np.ndarray = sim_data["feature_matrix"]
+            timeline: Dict[str, np.ndarray] = sim_data["timeline"]
         t1 = time.perf_counter()
 
         if classifier_weights_path is None:
             classifier_weights_path = _resolve_weights_path(self.serving_config)
         Dx = int(feature_matrix.shape[1])
         K = 6  # as confirmed
-        classifier = load_classifier(
-            classifier_weights_path, device=torch.device("cpu"), Dx=Dx, K=K
-        )
+        classifier = _cached_load_classifier(classifier_weights_path, Dx, K, "cpu")
         t2 = time.perf_counter()
 
         db_model_name = _infer_model_for_key(
@@ -161,12 +213,12 @@ class ServerPowerSimulator:
                 f"Got model_name='{self.serving_config.model_name}'. "
                 "Set 'perf_db_model_name' to an explicit value (e.g., 'llama-3.1', 'deepseek-r1-distill')."
             )
-        sampler = SmoothingSampler.from_performance_database(
-            database_path=self.perf_db_path,
-            model_name=db_model_name,
-            model_size_b=self.serving_config.model_size_b,
-            hardware=self.serving_config.hardware,
-            tensor_parallelism=self.serving_config.tensor_parallelism,
+        sampler = _cached_sampler(
+            self.perf_db_path,
+            db_model_name,
+            self.serving_config.model_size_b,
+            self.serving_config.hardware,
+            self.serving_config.tensor_parallelism,
         )
         mu = sampler.mu[self.serving_config.tensor_parallelism]
         sigma = sampler.sigma[self.serving_config.tensor_parallelism]

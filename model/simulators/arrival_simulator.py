@@ -5,6 +5,7 @@ Converts ServeGen request patterns into system-level processing timelines.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import sys
@@ -22,7 +23,7 @@ try:
     from servegen.utils import get_constant_rate_fn
 
     SERVEGEN_AVAILABLE = True
-except ImportError as e:
+except Exception as e:  # broader catch so bad SciPy/Numpy envs don't crash import
     print(f"ServeGen not available: {e}")
     SERVEGEN_AVAILABLE = False
 
@@ -712,7 +713,8 @@ class ServeGenPowerSimulator:
 
     def __init__(self, serving_config: ServingConfig):
         self.serving_config = serving_config
-        self.workload_generator = ServeGenWorkloadGenerator()
+        # Lazy init ServeGen generator so fast_workload can run without ServeGen installed
+        self._workload_generator = None
         self.system_simulator = ServingSystemSimulator(serving_config)
 
     def generate_power_simulation_data(
@@ -725,6 +727,7 @@ class ServeGenPowerSimulator:
         seed: int = 0,
         rate_fn: Optional[Callable[[float], float]] = None,
         use_fast_workload: bool = False,
+        precomputed_requests: Optional[List[ServeGenRequest]] = None,
     ) -> Dict[str, np.ndarray]:
         """
         Generate complete simulation data for power prediction.
@@ -736,7 +739,11 @@ class ServeGenPowerSimulator:
         - And other metadata needed for GRU inference
         """
 
-        if use_fast_workload:
+        if precomputed_requests is not None:
+            processed_requests = self.system_simulator.simulate_request_processing(
+                precomputed_requests
+            )
+        elif use_fast_workload:
             fast_gen = FastWorkloadGenerator()
             requests = fast_gen.generate_requests(
                 duration=duration,
@@ -744,8 +751,18 @@ class ServeGenPowerSimulator:
                 rate_fn=rate_fn,
                 seed=seed,
             )
+            processed_requests = self.system_simulator.simulate_request_processing(
+                requests
+            )
         else:
-            requests = self.workload_generator.generate_requests(
+            if not SERVEGEN_AVAILABLE:
+                raise RuntimeError(
+                    "ServeGen is not available but use_fast_workload=False was requested. "
+                    "Install ServeGen dependencies or set use_fast_workload=True."
+                )
+            if self._workload_generator is None:
+                self._workload_generator = ServeGenWorkloadGenerator()
+            requests = self._workload_generator.generate_requests(
                 category=category,
                 model_type=model_type,
                 duration=duration,
@@ -754,10 +771,11 @@ class ServeGenPowerSimulator:
                 seed=seed,
                 rate_fn=rate_fn,
             )
-
-        if not requests:
-            raise ValueError("No requests generated. Check ServeGen configuration.")
-        processed_requests = self.system_simulator.simulate_request_processing(requests)
+            if not requests:
+                raise ValueError("No requests generated. Check ServeGen configuration.")
+            processed_requests = self.system_simulator.simulate_request_processing(
+                requests
+            )
         timeline = self.system_simulator.create_system_timeline(processed_requests)
         feature_matrix = self.system_simulator.create_feature_matrix(timeline)
 
@@ -768,6 +786,46 @@ class ServeGenPowerSimulator:
             "serving_config": self.serving_config,
             "arrival_rate": rate_requests_per_sec,
         }
+
+    # Cached ClientPool for integration points that need direct ServeGen access
+    @functools.lru_cache(maxsize=8)
+    def get_cached_client_pool(category: str, model_type: str):
+        if not SERVEGEN_AVAILABLE:
+            raise RuntimeError("ServeGen not available; cannot create ClientPool")
+        cat_enum = getattr(Category, category.upper())
+        return ClientPool(cat_enum, model_type)
+
+    @staticmethod
+    def build_requests_with_servegen(
+        category: str,
+        model_type: str,
+        duration: int,
+        rate_map: Dict[int, float],
+        seed: int = 0,
+    ) -> List[ServeGenRequest]:
+        """
+        Generate a list of ServeGenRequest using ServeGen directly.
+        - Use in the main process to avoid heavy imports in worker processes.
+        """
+        if not SERVEGEN_AVAILABLE:
+            raise RuntimeError("ServeGen not available; cannot generate requests.")
+        cat_enum = getattr(Category, category.upper())
+        pool = ClientPool(cat_enum, model_type)
+        sg_requests = generate_workload(pool, rate_map, duration=duration, seed=seed)
+        # Map ServeGen Request -> ServeGenRequest used in our simulator
+        out: List[ServeGenRequest] = []
+        for req in sg_requests:
+            in_tok = int(req.data.get("input_tokens", 0))
+            out_tok = int(req.data.get("output_tokens", 0))
+            out.append(
+                ServeGenRequest(
+                    request_id=req.request_id,
+                    arrival_time=float(req.timestamp),
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                )
+            )
+        return out
 
 
 # Convenience functions for easy usage

@@ -1,11 +1,14 @@
 import json
-from typing import Dict, Optional, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 import numpy as np
 import torch
 
 from model.classifiers.gru import GRUClassifier
-from model.core.dataset import PowerTraceDataset
+
+if TYPE_CHECKING:
+    # Import only for type checking to avoid heavy deps at runtime
+    from model.core.dataset import PowerTraceDataset
 
 
 class SmoothingSampler:
@@ -17,7 +20,7 @@ class SmoothingSampler:
     2. GMM parameters loaded from performance database (recommended for inference)
     """
 
-    def __init__(self, state_stats: Union[PowerTraceDataset, Dict] = None):
+    def __init__(self, state_stats: Union["PowerTraceDataset", Dict] = None):
         """
         Initialize sampler with either a dataset or GMM parameters.
 
@@ -25,18 +28,33 @@ class SmoothingSampler:
             state_stats: Either a PowerTraceDataset or a dict with GMM parameters
                         Dict format: {tp: {"mu": [...], "sigma": [...]}}
         """
-        if isinstance(state_stats, PowerTraceDataset):
-            # Legacy mode: extract from dataset
-            self.state_stats = state_stats
-            self.mu = state_stats.mu
-            self.sigma = state_stats.sigma
-        elif isinstance(state_stats, dict):
+        if isinstance(state_stats, dict):
             self.state_stats = state_stats
             self.mu = {}
             self.sigma = {}
             for tp, params in state_stats.items():
                 self.mu[tp] = np.array(params["mu"])
                 self.sigma[tp] = np.array(params["sigma"])
+        elif state_stats is not None:
+            # Lazy import to avoid pulling sklearn/scipy when not needed
+            try:
+                from model.core.dataset import (
+                    PowerTraceDataset as _PowerTraceDataset,  # type: ignore
+                )
+
+                if isinstance(state_stats, _PowerTraceDataset):
+                    self.state_stats = state_stats
+                    self.mu = state_stats.mu
+                    self.sigma = state_stats.sigma
+                else:
+                    raise ValueError(
+                        "state_stats must be either a dict or PowerTraceDataset instance"
+                    )
+            except Exception as e:
+                raise ValueError(
+                    "state_stats must be a dict with GMM parameters; "
+                    "PowerTraceDataset import failed or unavailable"
+                ) from e
         else:
             raise ValueError(
                 "state_stats must be either PowerTraceDataset or dict with GMM parameters"
