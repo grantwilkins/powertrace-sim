@@ -194,15 +194,13 @@ def save_csv(path: str, timestamps: np.ndarray, watts: np.ndarray) -> None:
 
 def main():
     # Config
-    duration = 7 * 24 * 3600.0  # 7 days in seconds
+    duration = 24 * 3600.0  # 24 hours in seconds
     output_dt = 1.0  # 1-second internal grid for accuracy; we downsample to 15 minutes
     base_seed = 20260112
     num_workers = min(16, max(1, (os.cpu_count() or 2) // 2))
 
     # Azure trace configuration
-    azure_trace_path = (
-        "/Users/grantwilkins/Downloads/AzureLLMInferenceTrace_conv_1week.csv"
-    )
+    azure_trace_path = "/Users/grantwilkins/one_day_code.csv"
     # NO SCALING - use trace at its natural rate, just reduce number of machines
     trace_scale_factor = 1.0
 
@@ -242,7 +240,7 @@ def main():
     # Build minimal topology sized for unscaled trace
     # 1 row × 4 racks = 16 nodes = 44 replicas (12 TP8 + 32 TP1)
     # Sized to handle 1-second bursts up to 147 req/s while staying under 4 QPS/replica
-    num_racks = 4
+    num_racks = 8
     rows = build_rows_for_azure_trace(num_rows=1, num_racks_per_row=num_racks)
     dc = DataCenterSimulator(rows)
 
