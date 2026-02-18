@@ -8,6 +8,7 @@ Implements:
 - Phase 2 BiGRU feature ablation (F0/F1/F2/F3)
 - Phase 3 soft-label training (KL with GMM responsibilities)
 - Phase 4 uni vs bi GRU architecture comparison (gated)
+- Phase 5 continuous autoregressive GRU (direct continuous power modeling)
 
 Outputs are written under:
 - results/diagnostics/
@@ -15,6 +16,7 @@ Outputs are written under:
 - results/feature_ablation/
 - results/soft_labels/
 - results/architecture/
+- results/continuous_gru_v2/
 """
 
 from __future__ import annotations
@@ -70,6 +72,46 @@ PHASE2_FEATURE_SETS = {
 
 LOGISTIC_FEATURES_DEFAULT = ["n_new", "active_requests", "prefill_tokens", "decode_tokens"]
 
+CONTINUOUS_VARIANTS_DEFAULT = ["AR-Δ-G-4", "AR-Δ-G-1", "AR-Δ-G-4-nonoise", "AR-Δ-M-4"]
+CONTINUOUS_VARIANT_SPECS = {
+    "AR-Δ-G-4": {
+        "features": ["p_prev", "active_requests", "log_t_arrive", "log_t_backlog"],
+        "output_mode": "gaussian",
+        "noise_std_end": 0.1,
+    },
+    "AR-Δ-G-1": {
+        "features": ["p_prev"],
+        "output_mode": "gaussian",
+        "noise_std_end": 0.1,
+    },
+    "AR-Δ-G-4-nonoise": {
+        "features": ["p_prev", "active_requests", "log_t_arrive", "log_t_backlog"],
+        "output_mode": "gaussian",
+        "noise_std_end": 0.0,
+    },
+    "AR-Δ-M-4": {
+        "features": ["p_prev", "active_requests", "log_t_arrive", "log_t_backlog"],
+        "output_mode": "mdn",
+        "noise_std_end": 0.1,
+    },
+    # Compatibility aliases from v1 naming.
+    "AR-G-4": {
+        "features": ["p_prev", "active_requests", "log_t_arrive", "log_t_backlog"],
+        "output_mode": "gaussian",
+        "noise_std_end": 0.1,
+    },
+    "AR-G-1": {
+        "features": ["p_prev"],
+        "output_mode": "gaussian",
+        "noise_std_end": 0.1,
+    },
+    "AR-M-4": {
+        "features": ["p_prev", "active_requests", "log_t_arrive", "log_t_backlog"],
+        "output_mode": "mdn",
+        "noise_std_end": 0.1,
+    },
+}
+
 
 # -----------------------------------------------------------------------------
 # Dataclasses
@@ -106,6 +148,11 @@ class TraceRecord:
     input_tokens_in_window: np.ndarray
     output_tokens_in_window: np.ndarray
     schedule_x6: np.ndarray
+    request_timestamps: np.ndarray
+    request_input_tokens: np.ndarray
+    request_output_tokens: np.ndarray
+    request_prefill_throughputs: np.ndarray
+    request_decode_throughputs: np.ndarray
 
 
 @dataclass
@@ -572,7 +619,7 @@ def _import_torch():
         import torch.nn.functional as F
     except Exception as exc:
         raise RuntimeError(
-            "PyTorch import failed. Phases 2/3/4 and BiGRU comparison in Phase 1 require PyTorch."
+            "PyTorch import failed. Phases 2/3/4/5 and BiGRU comparison in Phase 1 require PyTorch."
         ) from exc
     return torch, nn, F
 
@@ -624,9 +671,21 @@ def load_trace_groups(npz_paths: Sequence[str]) -> Tuple[Dict[str, ConfigKey], D
                 req_ts = req_ts[req_mask]
                 in_tok = np.asarray(d["input_tokens"][i]).astype(np.float64)[req_mask] if "input_tokens" in d else np.zeros_like(req_ts)
                 out_tok = np.asarray(d["output_tokens"][i]).astype(np.float64)[req_mask] if "output_tokens" in d else np.zeros_like(req_ts)
+                prefill_tp = (
+                    np.asarray(d["prefill_throughputs"][i]).astype(np.float64)[req_mask]
+                    if "prefill_throughputs" in d
+                    else np.zeros_like(req_ts)
+                )
+                decode_tp = (
+                    np.asarray(d["decode_throughputs"][i]).astype(np.float64)[req_mask]
+                    if "decode_throughputs" in d
+                    else np.zeros_like(req_ts)
+                )
             else:
                 in_tok = np.array([], dtype=np.float64)
                 out_tok = np.array([], dtype=np.float64)
+                prefill_tp = np.array([], dtype=np.float64)
+                decode_tp = np.array([], dtype=np.float64)
 
             n_new, in_hist, out_hist = _histogram_requests(
                 bin_ts=timestamps,
@@ -681,6 +740,11 @@ def load_trace_groups(npz_paths: Sequence[str]) -> Tuple[Dict[str, ConfigKey], D
                     input_tokens_in_window=np.asarray(in_hist, dtype=np.float64),
                     output_tokens_in_window=np.asarray(out_hist, dtype=np.float64),
                     schedule_x6=np.asarray(x6, dtype=np.float64),
+                    request_timestamps=np.asarray(req_ts, dtype=np.float64),
+                    request_input_tokens=np.asarray(in_tok, dtype=np.float64),
+                    request_output_tokens=np.asarray(out_tok, dtype=np.float64),
+                    request_prefill_throughputs=np.asarray(prefill_tp, dtype=np.float64),
+                    request_decode_throughputs=np.asarray(decode_tp, dtype=np.float64),
                 )
             )
             uid += 1
@@ -2008,13 +2072,1144 @@ def run_phase4(
 
 
 # -----------------------------------------------------------------------------
+# Phase 5: Continuous autoregressive GRU
+# -----------------------------------------------------------------------------
+
+
+def _median_ignore_nan(values: Sequence[float]) -> float:
+    arr = np.asarray(list(values), dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return float("nan")
+    return float(np.median(arr))
+
+
+def _median_positive(values: Sequence[np.ndarray]) -> float:
+    if not values:
+        return float("nan")
+    arr = np.concatenate([np.asarray(v, dtype=np.float64).reshape(-1) for v in values], axis=0)
+    arr = arr[np.isfinite(arr) & (arr > 0)]
+    if arr.size == 0:
+        return float("nan")
+    return float(np.median(arr))
+
+
+def _aggregate_metric_dicts(metric_rows: Sequence[Dict[str, float]]) -> Dict[str, float]:
+    if not metric_rows:
+        return {
+            "ks_statistic": float("nan"),
+            "acf_r2": float("nan"),
+            "nrmse": float("nan"),
+            "p95_error_pct": float("nan"),
+            "p99_error_pct": float("nan"),
+            "delta_energy_pct": float("nan"),
+            "abs_energy_error_pct": float("nan"),
+            "num_points": float("nan"),
+        }
+    keys = list(metric_rows[0].keys())
+    return {k: _median_ignore_nan([float(r.get(k, float("nan"))) for r in metric_rows]) for k in keys}
+
+
+def _compute_segment_nrmse(real: np.ndarray, syn: np.ndarray) -> float:
+    if len(real) == 0 or len(syn) == 0 or len(real) != len(syn):
+        return float("nan")
+    denom = float(np.max(real) - np.min(real))
+    if denom <= 0:
+        return float("nan")
+    return float(np.sqrt(np.mean((real - syn) ** 2)) / denom)
+
+
+def _compute_drift_metrics(real: np.ndarray, syn: np.ndarray) -> Dict[str, float]:
+    n = len(real)
+    if n <= 1:
+        return {
+            "first_quarter_nrmse": float("nan"),
+            "last_quarter_nrmse": float("nan"),
+            "delta_last_minus_first": float("nan"),
+        }
+    q = max(1, n // 4)
+    first = _compute_segment_nrmse(real[:q], syn[:q])
+    last = _compute_segment_nrmse(real[-q:], syn[-q:])
+    return {
+        "first_quarter_nrmse": float(first),
+        "last_quarter_nrmse": float(last),
+        "delta_last_minus_first": float(last - first) if np.isfinite(first) and np.isfinite(last) else float("nan"),
+    }
+
+
+def _build_continuous_exogenous_features(
+    T: int,
+    dt: float,
+    t0: float,
+    request_timestamps: np.ndarray,
+    input_tokens: np.ndarray,
+    output_tokens: np.ndarray,
+    prefill_rate: float,
+    decode_rate: float,
+    drop_backlog: bool,
+) -> Dict[str, np.ndarray]:
+    if T <= 0:
+        z = np.zeros((0,), dtype=np.float64)
+        return {"active_requests": z, "t_arrive": z, "t_backlog": z}
+
+    req_ts = np.asarray(request_timestamps, dtype=np.float64).reshape(-1)
+    in_tok = np.asarray(input_tokens, dtype=np.float64).reshape(-1)
+    out_tok = np.asarray(output_tokens, dtype=np.float64).reshape(-1)
+    n_req = int(min(len(req_ts), len(in_tok), len(out_tok)))
+
+    req_ts = req_ts[:n_req]
+    in_tok = in_tok[:n_req]
+    out_tok = out_tok[:n_req]
+
+    good = np.isfinite(req_ts) & np.isfinite(in_tok) & np.isfinite(out_tok)
+    req_rel = req_ts[good] - float(t0)
+    in_tok = np.clip(in_tok[good], a_min=0.0, a_max=None)
+    out_tok = np.clip(out_tok[good], a_min=0.0, a_max=None)
+
+    t_arrive = np.zeros((T,), dtype=np.float64)
+    active_diff = np.zeros((T + 1,), dtype=np.float64)
+    backlog_const_diff = np.zeros((T + 1,), dtype=np.float64)
+    backlog_slope_diff = np.zeros((T + 1,), dtype=np.float64)
+
+    prefill_rate_safe = max(float(prefill_rate), EPS)
+    decode_rate_safe = max(float(decode_rate), EPS)
+
+    if req_rel.size > 0:
+        arrive_bins = np.floor(req_rel / dt).astype(np.int64)
+        in_range = (arrive_bins >= 0) & (arrive_bins < T)
+        if np.any(in_range):
+            np.add.at(t_arrive, arrive_bins[in_range], in_tok[in_range])
+
+    for arrival, n_in, n_out in zip(req_rel, in_tok, out_tok):
+        prefill_time = n_in / prefill_rate_safe
+        decode_time = n_out / decode_rate_safe
+        prefill_end = float(arrival + prefill_time)
+        completion = float(prefill_end + decode_time)
+
+        start_idx = int(np.ceil(arrival / dt))
+        end_idx = int(np.ceil(completion / dt))
+        if end_idx <= 0 or start_idx >= T:
+            continue
+
+        l = max(0, start_idx)
+        r = min(T, end_idx)
+        if r <= l:
+            continue
+
+        active_diff[l] += 1.0
+        active_diff[r] -= 1.0
+
+        if drop_backlog:
+            continue
+
+        prefill_end_idx = int(np.ceil(prefill_end / dt))
+        prefill_r = min(r, max(l, prefill_end_idx))
+        if prefill_r > l:
+            backlog_const_diff[l] += n_out
+            backlog_const_diff[prefill_r] -= n_out
+
+        decode_l = max(l, prefill_end_idx)
+        decode_r = r
+        if decode_r > decode_l:
+            # remaining = c + m * idx
+            c = n_out + decode_rate_safe * prefill_end
+            m = -decode_rate_safe * dt
+            backlog_const_diff[decode_l] += c
+            backlog_const_diff[decode_r] -= c
+            backlog_slope_diff[decode_l] += m
+            backlog_slope_diff[decode_r] -= m
+
+    active_requests = np.clip(np.cumsum(active_diff[:-1]), a_min=0.0, a_max=None)
+    if drop_backlog:
+        t_backlog = np.zeros((T,), dtype=np.float64)
+    else:
+        c_arr = np.cumsum(backlog_const_diff[:-1])
+        m_arr = np.cumsum(backlog_slope_diff[:-1])
+        idx = np.arange(T, dtype=np.float64)
+        t_backlog = np.clip(c_arr + (m_arr * idx), a_min=0.0, a_max=None)
+
+    return {
+        "active_requests": active_requests.astype(np.float64),
+        "t_arrive": t_arrive.astype(np.float64),
+        "t_backlog": t_backlog.astype(np.float64),
+    }
+
+
+def _compute_trace_continuous_features(
+    trace: TraceRecord,
+    prefill_rate: float,
+    decode_rate: float,
+    dt: float,
+    drop_backlog: bool,
+) -> Dict[str, np.ndarray]:
+    power = np.asarray(trace.power, dtype=np.float64).reshape(-1)
+    T = len(power)
+    if T <= 1:
+        return {
+            "power_raw": np.zeros((0,), dtype=np.float64),
+            "p0_raw": np.array([], dtype=np.float64),
+            "p_prev_raw": np.zeros((0,), dtype=np.float64),
+            "delta_raw": np.zeros((0,), dtype=np.float64),
+            "active_requests": np.zeros((0,), dtype=np.float64),
+            "log_t_arrive": np.zeros((0,), dtype=np.float64),
+            "log_t_backlog": np.zeros((0,), dtype=np.float64),
+        }
+
+    t0 = float(trace.timestamps[0]) if len(trace.timestamps) else 0.0
+    exo = _build_continuous_exogenous_features(
+        T=T,
+        dt=dt,
+        t0=t0,
+        request_timestamps=trace.request_timestamps,
+        input_tokens=trace.request_input_tokens,
+        output_tokens=trace.request_output_tokens,
+        prefill_rate=prefill_rate,
+        decode_rate=decode_rate,
+        drop_backlog=drop_backlog,
+    )
+
+    p_prev = power[:-1]
+    delta = power[1:] - power[:-1]
+
+    return {
+        "power_raw": power,
+        "p0_raw": np.array([power[0]], dtype=np.float64),
+        "p_prev_raw": p_prev.astype(np.float64),
+        "delta_raw": delta.astype(np.float64),
+        "active_requests": exo["active_requests"][1:].astype(np.float64),
+        "log_t_arrive": np.log1p(exo["t_arrive"][1:]).astype(np.float64),
+        "log_t_backlog": np.log1p(exo["t_backlog"][1:]).astype(np.float64),
+    }
+
+
+def _fit_continuous_norm_params(train_features: Sequence[Dict[str, np.ndarray]]) -> Dict[str, float]:
+    def _concat(key: str) -> np.ndarray:
+        arrs = [np.asarray(f[key], dtype=np.float64).reshape(-1) for f in train_features if key in f and np.asarray(f[key]).size > 0]
+        if not arrs:
+            return np.zeros((0,), dtype=np.float64)
+        return np.concatenate(arrs, axis=0)
+
+    def _safe_mean_std(x: np.ndarray, default_mean: float = 0.0, default_std: float = 1.0) -> Tuple[float, float]:
+        if x.size == 0:
+            return float(default_mean), float(default_std)
+        return float(np.mean(x)), float(np.std(x) + 1e-6)
+
+    power = _concat("power_raw")
+    delta = _concat("delta_raw")
+    active = _concat("active_requests")
+    t_arrive = _concat("log_t_arrive")
+    t_backlog = _concat("log_t_backlog")
+
+    power_mean, power_std = _safe_mean_std(power)
+    delta_mean, delta_std = _safe_mean_std(delta)
+    active_mean, active_std = _safe_mean_std(active)
+    t_arrive_mean, t_arrive_std = _safe_mean_std(t_arrive)
+    t_backlog_mean, t_backlog_std = _safe_mean_std(t_backlog)
+
+    return {
+        "power_mean": power_mean,
+        "power_std": power_std,
+        "delta_mean": delta_mean,
+        "delta_std": delta_std,
+        "power_min": float(np.min(power)) if power.size else float("nan"),
+        "power_max": float(np.max(power)) if power.size else float("nan"),
+        "active_mean": active_mean,
+        "active_std": active_std,
+        "log_t_arrive_mean": t_arrive_mean,
+        "log_t_arrive_std": t_arrive_std,
+        "log_t_backlog_mean": t_backlog_mean,
+        "log_t_backlog_std": t_backlog_std,
+    }
+
+
+def _normalize_continuous_features(raw: Dict[str, np.ndarray], norm: Dict[str, float]) -> Dict[str, np.ndarray]:
+    p_mean = float(norm["power_mean"])
+    p_std = float(norm["power_std"])
+    d_mean = float(norm.get("delta_mean", 0.0))
+    d_std = float(norm.get("delta_std", 1.0))
+    p0_raw = float(np.asarray(raw.get("p0_raw", np.array([p_mean], dtype=np.float64))).reshape(-1)[0])
+    out = {
+        "power_raw": np.asarray(raw["power_raw"], dtype=np.float64),
+        "p0_raw": np.array([p0_raw], dtype=np.float64),
+        "p0_norm": np.array([(p0_raw - p_mean) / p_std], dtype=np.float64),
+        "p_prev": (np.asarray(raw["p_prev_raw"], dtype=np.float64) - p_mean) / p_std,
+        "delta_raw": np.asarray(raw["delta_raw"], dtype=np.float64),
+        "delta_norm": (np.asarray(raw["delta_raw"], dtype=np.float64) - d_mean) / d_std,
+        "active_requests": (
+            np.asarray(raw["active_requests"], dtype=np.float64) - float(norm["active_mean"])
+        ) / float(norm["active_std"]),
+        "log_t_arrive": (
+            np.asarray(raw["log_t_arrive"], dtype=np.float64) - float(norm["log_t_arrive_mean"])
+        ) / float(norm["log_t_arrive_std"]),
+        "log_t_backlog": (
+            np.asarray(raw["log_t_backlog"], dtype=np.float64) - float(norm["log_t_backlog_mean"])
+        ) / float(norm["log_t_backlog_std"]),
+    }
+    return out
+
+
+def _build_continuous_records(
+    traces: Sequence[TraceRecord],
+    normed_by_uid: Dict[int, Dict[str, np.ndarray]],
+    variant_id: str,
+) -> List[Dict[str, object]]:
+    spec = CONTINUOUS_VARIANT_SPECS[variant_id]
+    feat_names = spec["features"]
+
+    records: List[Dict[str, object]] = []
+    for tr in traces:
+        d = normed_by_uid[tr.trace_uid]
+        feat_cols = [np.asarray(d[f], dtype=np.float64).reshape(-1) for f in feat_names]
+        y = np.asarray(d["delta_norm"], dtype=np.float64).reshape(-1)
+        lengths = [len(y)] + [len(c) for c in feat_cols]
+        L = int(min(lengths)) if lengths else 0
+        if L <= 0:
+            continue
+        x = np.stack([c[:L] for c in feat_cols], axis=1).astype(np.float32)
+        p_raw = np.asarray(d["power_raw"], dtype=np.float64).reshape(-1)
+        p_raw = p_raw[: L + 1] if len(p_raw) >= (L + 1) else p_raw
+        if len(p_raw) <= 1:
+            continue
+        records.append(
+            {
+                "trace": tr,
+                "x_tf": x,
+                "delta_norm": y[:L].astype(np.float32),
+                "power_raw": p_raw.astype(np.float64),
+                "p0_raw": float(p_raw[0]),
+            }
+        )
+    return records
+
+
+def _pad_continuous_batch(records: Sequence[Dict[str, object]], idxs: np.ndarray, device):
+    torch, _, _ = _import_torch()
+    batch = [records[int(i)] for i in idxs]
+    lengths = [int(len(rec["delta_norm"])) for rec in batch]
+    B = len(batch)
+    L = max(lengths)
+    D = int(batch[0]["x_tf"].shape[1])
+
+    x = torch.zeros((B, L, D), dtype=torch.float32, device=device)
+    y = torch.zeros((B, L, 1), dtype=torch.float32, device=device)
+    mask = torch.zeros((B, L), dtype=torch.bool, device=device)
+
+    for b, rec in enumerate(batch):
+        l = lengths[b]
+        x[b, :l] = torch.from_numpy(rec["x_tf"]).to(device=device, dtype=torch.float32)
+        y[b, :l, 0] = torch.from_numpy(rec["delta_norm"]).to(device=device, dtype=torch.float32)
+        mask[b, :l] = True
+
+    return x, y, mask
+
+
+def _expected_sigma_from_params(params, output_mode: str) -> np.ndarray:
+    torch, _, _ = _import_torch()
+    if output_mode == "gaussian":
+        sigma = torch.exp(torch.clamp(params[:, :, 1], min=-6.0, max=2.0))
+    else:
+        M = params.shape[-1] // 3
+        logit_pi = params[:, :, :M]
+        log_sigma = torch.clamp(params[:, :, 2 * M : 3 * M], min=-6.0, max=2.0)
+        sigma_comp = torch.exp(log_sigma)
+        pi = torch.softmax(logit_pi, dim=-1)
+        sigma = torch.sum(pi * sigma_comp, dim=-1)
+    return sigma.detach().cpu().numpy()
+
+
+def _expected_mu_from_params(params, output_mode: str):
+    torch, _, _ = _import_torch()
+    if output_mode == "gaussian":
+        return params[:, :, 0]
+    M = params.shape[-1] // 3
+    pi = torch.softmax(params[:, :, :M], dim=-1)
+    mu = params[:, :, M : 2 * M]
+    return torch.sum(pi * mu, dim=-1)
+
+
+def _evaluate_continuous_loss(
+    model,
+    records: Sequence[Dict[str, object]],
+    output_mode: str,
+    batch_size: int,
+    device,
+) -> Tuple[float, float]:
+    from model.classifiers.continuous_gru import gaussian_nll_loss, mdn_nll_loss
+
+    if len(records) == 0:
+        return float("nan"), float("nan")
+
+    model.eval()
+    idx_all = np.arange(len(records))
+    total_loss = 0.0
+    total_points = 0.0
+    sigma_sum = 0.0
+    sigma_points = 0.0
+
+    with _import_torch()[0].no_grad():
+        for start in range(0, len(idx_all), max(1, batch_size)):
+            idxs = idx_all[start : start + max(1, batch_size)]
+            x, y, mask = _pad_continuous_batch(records, idxs, device=device)
+            params, _ = model(x)
+
+            if output_mode == "gaussian":
+                loss = gaussian_nll_loss(params, y, mask=mask)
+            else:
+                M = int(model.M)
+                loss = mdn_nll_loss(params, y, M=M, mask=mask)
+
+            points = float(mask.sum().item())
+            total_loss += float(loss.item()) * points
+            total_points += points
+
+            sigma_arr = _expected_sigma_from_params(params, output_mode=output_mode)
+            mask_np = mask.detach().cpu().numpy().astype(np.float64)
+            sigma_sum += float(np.sum(sigma_arr * mask_np))
+            sigma_points += float(np.sum(mask_np))
+
+    avg_loss = float(total_loss / max(1.0, total_points))
+    avg_sigma = float(sigma_sum / max(1.0, sigma_points))
+    return avg_loss, avg_sigma
+
+
+def _train_continuous_model(
+    model,
+    train_records: Sequence[Dict[str, object]],
+    val_records: Sequence[Dict[str, object]],
+    output_mode: str,
+    batch_size: int,
+    epochs: int,
+    lr: float,
+    lr_patience: int,
+    lr_factor: float,
+    early_stop_patience: int,
+    device,
+    seed: int,
+    noisy_tf=None,
+) -> Tuple[object, List[Dict[str, float]]]:
+    torch, _, _ = _import_torch()
+    from model.classifiers.continuous_gru import gaussian_nll_loss, mdn_nll_loss
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", patience=lr_patience, factor=lr_factor
+    )
+
+    history: List[Dict[str, float]] = []
+    best_val = float("inf")
+    best_state = None
+    stale_epochs = 0
+
+    idx_all = np.arange(len(train_records))
+    batch_size = max(1, int(batch_size))
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        np.random.shuffle(idx_all)
+        noise_std = float(noisy_tf.get_noise_std(epoch - 1)) if noisy_tf is not None else 0.0
+
+        train_loss_sum = 0.0
+        train_points = 0.0
+
+        for start in range(0, len(idx_all), batch_size):
+            idxs = idx_all[start : start + batch_size]
+            x, y, mask = _pad_continuous_batch(train_records, idxs, device=device)
+            if noisy_tf is not None:
+                x = x.clone()
+                x[:, :, 0:1] = noisy_tf.apply(x[:, :, 0:1], epoch_idx=(epoch - 1), training=True)
+            params, _ = model(x)
+            if output_mode == "gaussian":
+                loss = gaussian_nll_loss(params, y, mask=mask)
+            else:
+                loss = mdn_nll_loss(params, y, M=int(model.M), mask=mask)
+
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            points = float(mask.sum().item())
+            train_loss_sum += float(loss.item()) * points
+            train_points += points
+
+        train_loss = float(train_loss_sum / max(1.0, train_points))
+        val_loss, mean_sigma = _evaluate_continuous_loss(
+            model=model,
+            records=val_records,
+            output_mode=output_mode,
+            batch_size=batch_size,
+            device=device,
+        )
+        sched_loss = float(val_loss) if np.isfinite(val_loss) else float(train_loss)
+        scheduler.step(sched_loss)
+
+        lr_now = float(optimizer.param_groups[0]["lr"])
+        history.append(
+            {
+                "phase": "teacher_forcing",
+                "epoch": float(epoch),
+                "train_loss": float(train_loss),
+                "val_loss": float(val_loss),
+                "mean_pred_sigma": float(mean_sigma),
+                "lr": lr_now,
+                "scheduled_sampling_prob": 0.0,
+                "noise_std": noise_std,
+            }
+        )
+
+        if np.isfinite(val_loss) and (val_loss < (best_val - 1e-8)):
+            best_val = float(val_loss)
+            stale_epochs = 0
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        else:
+            stale_epochs += 1
+
+        if epoch == 1 or epoch % 25 == 0 or epoch == epochs:
+            print(
+                f"      epoch={epoch:4d} train_nll={train_loss:.5f} val_nll={val_loss:.5f} "
+                f"sigma={mean_sigma:.5f} noise_std={noise_std:.4f} lr={lr_now:.2e}"
+            )
+
+        if stale_epochs >= early_stop_patience:
+            print(f"      early stop at epoch={epoch} (patience={early_stop_patience})")
+            break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    return model, history
+
+
+def _finetune_continuous_scheduled_sampling(
+    model,
+    train_records: Sequence[Dict[str, object]],
+    val_records: Sequence[Dict[str, object]],
+    output_mode: str,
+    epochs: int,
+    lr: float,
+    device,
+    seed: int,
+    epoch_offset: int,
+    norm_params: Dict[str, float],
+) -> List[Dict[str, float]]:
+    from model.classifiers.continuous_gru import gaussian_nll_loss, mdn_nll_loss
+
+    torch, _, _ = _import_torch()
+    np.random.seed(seed + 17)
+    torch.manual_seed(seed + 17)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    history: List[Dict[str, float]] = []
+    idx_all = np.arange(len(train_records))
+    epochs = max(0, int(epochs))
+    if epochs == 0:
+        return history
+    power_std = max(float(norm_params.get("power_std", 1.0)), 1e-6)
+    delta_mean = float(norm_params.get("delta_mean", 0.0))
+    delta_std = float(norm_params.get("delta_std", 1.0))
+
+    for e in range(1, epochs + 1):
+        model.train()
+        np.random.shuffle(idx_all)
+        p_ss = 0.5 * (float(e) / float(epochs))
+
+        tr_loss_sum = 0.0
+        tr_points = 0.0
+
+        for i in idx_all:
+            rec = train_records[int(i)]
+            x_tf = np.asarray(rec["x_tf"], dtype=np.float32)
+            y_seq = np.asarray(rec["delta_norm"], dtype=np.float32)
+            if len(y_seq) == 0:
+                continue
+
+            h = None
+            loss_acc = None
+            prev_p_norm = None
+
+            for t in range(len(y_seq)):
+                x_vec = torch.from_numpy(x_tf[t]).to(device=device, dtype=torch.float32)
+                if t > 0 and prev_p_norm is not None and np.random.rand() < p_ss:
+                    x_vec = x_vec.clone()
+                    x_vec[0] = prev_p_norm
+                x_t = x_vec.view(1, 1, -1)
+                curr_p_prev_norm = x_t[0, 0, 0]
+
+                params, h = model(x_t, h)
+                h = h.detach()
+                target_t = torch.tensor([[[float(y_seq[t])]]], dtype=torch.float32, device=device)
+
+                if output_mode == "gaussian":
+                    loss_t = gaussian_nll_loss(params, target_t, mask=None)
+                    mu_delta_norm = params[0, 0, 0]
+                else:
+                    loss_t = mdn_nll_loss(params, target_t, M=int(model.M), mask=None)
+                    mu_delta_norm = _expected_mu_from_params(params, output_mode=output_mode)[0, 0]
+
+                # Convert predicted residual mean to next normalized power input.
+                delta_raw = (mu_delta_norm * delta_std) + delta_mean
+                prev_p_norm = (curr_p_prev_norm + (delta_raw / power_std)).detach()
+
+                loss_acc = loss_t if loss_acc is None else (loss_acc + loss_t)
+
+            if loss_acc is None:
+                continue
+            loss = loss_acc / float(len(y_seq))
+
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            tr_loss_sum += float(loss.item()) * float(len(y_seq))
+            tr_points += float(len(y_seq))
+
+        train_loss = float(tr_loss_sum / max(1.0, tr_points))
+        val_loss, mean_sigma = _evaluate_continuous_loss(
+            model=model,
+            records=val_records,
+            output_mode=output_mode,
+            batch_size=1,
+            device=device,
+        )
+        history.append(
+            {
+                "phase": "scheduled_sampling",
+                "epoch": float(epoch_offset + e),
+                "train_loss": float(train_loss),
+                "val_loss": float(val_loss),
+                "mean_pred_sigma": float(mean_sigma),
+                "lr": float(optimizer.param_groups[0]["lr"]),
+                "scheduled_sampling_prob": float(p_ss),
+                "noise_std": 0.0,
+            }
+        )
+        if e == 1 or e % 10 == 0 or e == epochs:
+            print(
+                f"      [ss] epoch={e:3d}/{epochs} p={p_ss:.3f} train_nll={train_loss:.5f} val_nll={val_loss:.5f}"
+            )
+
+    return history
+
+
+def _generate_autoregressive_continuous(
+    model,
+    record: Dict[str, object],
+    output_mode: str,
+    norm_params: Dict[str, float],
+    device,
+    seed: int,
+) -> np.ndarray:
+    torch, _, _ = _import_torch()
+    rng = np.random.default_rng(seed)
+
+    x_tf = np.asarray(record["x_tf"], dtype=np.float32)
+    real = np.asarray(record["power_raw"], dtype=np.float64)
+    T = int(len(real))
+    if T == 0:
+        return np.zeros((0,), dtype=np.float64)
+    if T == 1:
+        return real.copy()
+
+    power_mean = float(norm_params["power_mean"])
+    power_std = max(float(norm_params["power_std"]), EPS)
+    delta_mean = float(norm_params.get("delta_mean", 0.0))
+    delta_std = max(float(norm_params.get("delta_std", 1.0)), EPS)
+    p_min = float(norm_params.get("power_min", float("nan")))
+    p_max = float(norm_params.get("power_max", float("nan")))
+    use_clamp = np.isfinite(p_min) and np.isfinite(p_max) and (p_max > p_min)
+    clamp_margin = 0.05 * (p_max - p_min) if use_clamp else 0.0
+
+    p_prev_raw = float(real[0])
+    p_prev_norm = (p_prev_raw - power_mean) / power_std
+    h = None
+    out = np.zeros((T,), dtype=np.float64)
+    out[0] = p_prev_raw
+
+    model.eval()
+    with torch.no_grad():
+        rollout_steps = min(T - 1, int(len(x_tf)))
+        for t in range(rollout_steps):
+            x_vec = np.array(x_tf[t], copy=True)
+            x_vec[0] = p_prev_norm
+            x_t = torch.from_numpy(x_vec).to(device=device, dtype=torch.float32).view(1, 1, -1)
+            params, h = model(x_t, h)
+
+            if output_mode == "gaussian":
+                mu = float(params[0, 0, 0].item())  # delta_norm mean
+                log_sigma = float(np.clip(params[0, 0, 1].item(), -6.0, 2.0))
+                delta_norm = float(rng.normal(mu, math.exp(log_sigma)))
+            else:
+                M = int(model.M)
+                p = params[0, 0].detach().cpu().numpy()
+                logits = p[:M]
+                mus = p[M : 2 * M]
+                log_sigmas = np.clip(p[2 * M : 3 * M], -6.0, 2.0)
+                pi = np.exp(logits - np.max(logits))
+                pi = pi / np.sum(pi)
+                k = int(rng.choice(np.arange(M), p=pi))
+                delta_norm = float(rng.normal(mus[k], np.exp(log_sigmas[k])))
+
+            delta_raw = (delta_norm * delta_std) + delta_mean
+            p_t_raw = p_prev_raw + delta_raw
+            if use_clamp:
+                p_t_raw = float(np.clip(p_t_raw, p_min - clamp_margin, p_max + clamp_margin))
+
+            out[t + 1] = p_t_raw
+            p_prev_raw = p_t_raw
+            p_prev_norm = (p_prev_raw - power_mean) / power_std
+        if rollout_steps < (T - 1):
+            out[rollout_steps + 1 :] = p_prev_raw
+
+    return out
+
+
+def _plot_continuous_example_trace(
+    out_path: str,
+    title: str,
+    timestamps: np.ndarray,
+    measured: np.ndarray,
+    generated: np.ndarray,
+) -> None:
+    _ensure_dir(os.path.dirname(out_path) or ".")
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    ax.plot(timestamps, measured, label="Measured", linewidth=1.2)
+    ax.plot(timestamps, generated, label="Generated", linewidth=1.2, alpha=0.9)
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Power (W)")
+    ax.set_title(title)
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def _load_rows_if_exists(path: str) -> List[Dict[str, str]]:
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def _build_comparison_all_models(
+    continuous_rows: Sequence[Dict[str, object]],
+    semi_trace_fidelity_path: str,
+    semi_vs_bigru_path: str,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+
+    semi_rows = _load_rows_if_exists(semi_trace_fidelity_path)
+    for r in semi_rows:
+        rows.append(
+            {
+                "config_id": r.get("config_id", ""),
+                "model_name": r.get("model_name", ""),
+                "hardware": r.get("hardware", ""),
+                "tp": int(r.get("tp", "0") or 0),
+                "model_size_b": int(r.get("model_size_b", "0") or 0),
+                "model": "Semi-Markov",
+                "ks_statistic": float(r.get("ks_statistic", "nan")),
+                "acf_r2": float(r.get("acf_r2", "nan")),
+                "nrmse": float(r.get("nrmse", "nan")),
+                "p95_error_pct": float(r.get("p95_error_pct", "nan")),
+                "p99_error_pct": float(r.get("p99_error_pct", "nan")),
+                "delta_energy_pct": float(r.get("delta_energy_pct", "nan")),
+            }
+        )
+
+    bigru_rows = _load_rows_if_exists(semi_vs_bigru_path)
+    for r in bigru_rows:
+        rows.append(
+            {
+                "config_id": r.get("config_id", ""),
+                "model_name": r.get("model_name", ""),
+                "hardware": r.get("hardware", ""),
+                "tp": int(r.get("tp", "0") or 0),
+                "model_size_b": int(r.get("model_size_b", "0") or 0),
+                "model": "BiGRU",
+                "ks_statistic": float(r.get("bigru_ks_statistic", "nan")),
+                "acf_r2": float(r.get("bigru_acf_r2", "nan")),
+                "nrmse": float(r.get("bigru_nrmse", "nan")),
+                "p95_error_pct": float(r.get("bigru_p95_error_pct", "nan")),
+                "p99_error_pct": float(r.get("bigru_p99_error_pct", "nan")),
+                "delta_energy_pct": float(r.get("bigru_delta_energy_pct", "nan")),
+            }
+        )
+
+    for r in continuous_rows:
+        rows.append(
+            {
+                "config_id": r.get("config_id", ""),
+                "model_name": r.get("model_name", ""),
+                "hardware": r.get("hardware", ""),
+                "tp": int(r.get("tp", 0)),
+                "model_size_b": int(r.get("model_size_b", 0)),
+                "model": r.get("variant", ""),
+                "ks_statistic": float(r.get("ks_statistic", float("nan"))),
+                "acf_r2": float(r.get("acf_r2", float("nan"))),
+                "nrmse": float(r.get("nrmse", float("nan"))),
+                "p95_error_pct": float(r.get("p95_error_pct", float("nan"))),
+                "p99_error_pct": float(r.get("p99_error_pct", float("nan"))),
+                "delta_energy_pct": float(r.get("delta_energy_pct", float("nan"))),
+            }
+        )
+
+    return rows
+
+
+def run_phase5(
+    configs: Dict[str, ConfigKey],
+    traces_by_config: Dict[str, List[TraceRecord]],
+    out_dir: str,
+    seed: int,
+    train_frac: float,
+    val_frac: float,
+    dt: float,
+    max_lags: int,
+    device,
+    reference_model: str,
+    reference_hardware: str,
+    reference_tp: int,
+    variants: Sequence[str],
+    scope: str,
+    samples_per_trace: int,
+    hidden_dim: int,
+    num_layers: int,
+    lr: float,
+    epochs: int,
+    batch_size: int,
+    early_stop_patience: int,
+    lr_patience: int,
+    lr_factor: float,
+    use_scheduled_sampling: bool,
+    scheduled_sampling_epochs: int,
+    backlog_fallback: str,
+    results_root: str,
+) -> List[Dict[str, object]]:
+    if device is None:
+        raise RuntimeError("Phase 5 requires PyTorch. Re-run with an environment where torch imports successfully.")
+
+    torch, _, _ = _import_torch()
+    from model.classifiers.continuous_gru import NoisyTeacherForcing, ResidualAutoregressiveGRU
+
+    _ensure_dir(out_dir)
+    curves_dir = os.path.join(out_dir, "training_curves")
+    norms_dir = os.path.join(out_dir, "norm_params")
+    examples_dir = os.path.join(out_dir, "example_traces")
+    _ensure_dir(curves_dir)
+    _ensure_dir(norms_dir)
+    _ensure_dir(examples_dir)
+
+    requested_variants = [v.strip() for v in variants if v.strip()]
+    if not requested_variants:
+        requested_variants = list(CONTINUOUS_VARIANTS_DEFAULT)
+    bad = [v for v in requested_variants if v not in CONTINUOUS_VARIANT_SPECS]
+    if bad:
+        raise RuntimeError(f"Unknown continuous variants: {bad}. Valid variants: {sorted(CONTINUOUS_VARIANT_SPECS.keys())}")
+
+    ref_id = _select_reference_config_id(
+        configs=configs,
+        model_name=reference_model,
+        hardware=reference_hardware,
+        tp=reference_tp,
+    )
+
+    if scope == "reference":
+        if ref_id is None:
+            print("\n[Phase 5] Reference config not found; skipping.")
+            return []
+        target_ids = [ref_id]
+    else:
+        target_ids = sorted(traces_by_config.keys())
+        if ref_id is not None and ref_id in target_ids:
+            target_ids = [ref_id] + [cid for cid in target_ids if cid != ref_id]
+
+    trace_rows: List[Dict[str, object]] = []
+    drift_rows: List[Dict[str, object]] = []
+
+    print("\n[Phase 5] Continuous autoregressive GRU")
+    print(f"  variants={requested_variants} scope={scope} device={device}")
+
+    for config_id in target_ids:
+        cfg = configs[config_id]
+        traces = traces_by_config[config_id]
+        n = len(traces)
+        if n < 3:
+            print(f"  Skipping {cfg.slug}: not enough traces ({n})")
+            continue
+
+        split = _split_indices(n=n, train_frac=train_frac, val_frac=val_frac, seed=seed)
+        if len(split.test) == 0:
+            print(f"  Skipping {cfg.slug}: no test traces after split")
+            continue
+
+        train_traces = [traces[i] for i in split.train]
+        val_traces = [traces[i] for i in split.val]
+        test_traces = [traces[i] for i in split.test]
+
+        prefill_rate = _median_positive([tr.request_prefill_throughputs for tr in train_traces])
+        decode_rate = _median_positive([tr.request_decode_throughputs for tr in train_traces])
+        rates_missing = (not np.isfinite(prefill_rate)) or (not np.isfinite(decode_rate)) or (prefill_rate <= 0) or (decode_rate <= 0)
+
+        if rates_missing and backlog_fallback == "error":
+            raise RuntimeError(
+                f"[Phase 5] Missing throughput rates for {cfg.slug}. "
+                "Use --continuous-backlog-fallback drop_backlog to continue."
+            )
+
+        drop_backlog = bool(rates_missing and backlog_fallback == "drop_backlog")
+        if rates_missing:
+            prefill_rate = float(prefill_rate) if np.isfinite(prefill_rate) and prefill_rate > 0 else 1.0
+            decode_rate = float(decode_rate) if np.isfinite(decode_rate) and decode_rate > 0 else 1.0
+            print(f"  {cfg.slug:40s} throughput missing; using fallback rates prefill={prefill_rate:.3f} decode={decode_rate:.3f}")
+
+        raw_features_by_uid: Dict[int, Dict[str, np.ndarray]] = {}
+        for tr in traces:
+            raw_features_by_uid[tr.trace_uid] = _compute_trace_continuous_features(
+                trace=tr,
+                prefill_rate=prefill_rate,
+                decode_rate=decode_rate,
+                dt=dt,
+                drop_backlog=drop_backlog,
+            )
+
+        train_raw = [raw_features_by_uid[tr.trace_uid] for tr in train_traces]
+        norm_params = _fit_continuous_norm_params(train_raw)
+        normed_by_uid = {
+            tr.trace_uid: _normalize_continuous_features(raw_features_by_uid[tr.trace_uid], norm_params)
+            for tr in traces
+        }
+
+        print(
+            f"  {cfg.slug:40s} train={len(train_traces)} val={len(val_traces)} test={len(test_traces)} "
+            f"prefill_rate={prefill_rate:.2f} decode_rate={decode_rate:.2f} "
+            f"delta_mean={float(norm_params.get('delta_mean', float('nan'))):.4f} "
+            f"delta_std={float(norm_params.get('delta_std', float('nan'))):.4f}"
+        )
+
+        for v_idx, variant_id in enumerate(requested_variants):
+            spec = CONTINUOUS_VARIANT_SPECS[variant_id]
+            output_mode = str(spec["output_mode"])
+            feat_names = list(spec["features"])
+            noise_std_end = float(spec.get("noise_std_end", 0.1))
+            print(f"    -> {variant_id} features={feat_names} output={output_mode} noise_end={noise_std_end:.3f}")
+
+            train_records = _build_continuous_records(train_traces, normed_by_uid, variant_id=variant_id)
+            val_records = _build_continuous_records(val_traces, normed_by_uid, variant_id=variant_id)
+            test_records = _build_continuous_records(test_traces, normed_by_uid, variant_id=variant_id)
+            if len(train_records) == 0 or len(test_records) == 0:
+                print(f"       skipping {variant_id}: empty train/test records")
+                continue
+
+            model = ResidualAutoregressiveGRU(
+                input_dim=len(feat_names),
+                hidden_dim=int(hidden_dim),
+                num_layers=int(num_layers),
+                output_mode=output_mode,
+            ).to(device)
+            noisy_tf = NoisyTeacherForcing(
+                noise_std_start=0.0,
+                noise_std_end=noise_std_end,
+                warmup_epochs=100,
+                ramp_epochs=200,
+            )
+
+            model, history = _train_continuous_model(
+                model=model,
+                train_records=train_records,
+                val_records=val_records,
+                output_mode=output_mode,
+                batch_size=batch_size,
+                epochs=epochs,
+                lr=lr,
+                lr_patience=lr_patience,
+                lr_factor=lr_factor,
+                early_stop_patience=early_stop_patience,
+                device=device,
+                seed=seed,
+                noisy_tf=noisy_tf,
+            )
+
+            if use_scheduled_sampling:
+                history_ss = _finetune_continuous_scheduled_sampling(
+                    model=model,
+                    train_records=train_records,
+                    val_records=val_records,
+                    output_mode=output_mode,
+                    epochs=scheduled_sampling_epochs,
+                    lr=lr,
+                    device=device,
+                    seed=seed,
+                    epoch_offset=len(history),
+                    norm_params=norm_params,
+                )
+                history.extend(history_ss)
+
+            curve_path = os.path.join(curves_dir, f"{cfg.slug}_{variant_id}_curve.csv")
+            _write_csv(
+                curve_path,
+                history,
+                fieldnames=[
+                    "phase",
+                    "epoch",
+                    "train_loss",
+                    "val_loss",
+                    "mean_pred_sigma",
+                    "lr",
+                    "scheduled_sampling_prob",
+                    "noise_std",
+                ],
+            )
+
+            norm_dump = {
+                "config_id": config_id,
+                "variant": variant_id,
+                "features": feat_names,
+                "output_mode": output_mode,
+                "drop_backlog": int(drop_backlog),
+                "prefill_rate": float(prefill_rate),
+                "decode_rate": float(decode_rate),
+                "dt": float(dt),
+                **{k: float(v) for k, v in norm_params.items()},
+            }
+            with open(os.path.join(norms_dir, f"{cfg.slug}_{variant_id}.json"), "w") as f:
+                json.dump(norm_dump, f, indent=2)
+
+            trace_metric_rows: List[Dict[str, float]] = []
+            trace_drift_rows: List[Dict[str, float]] = []
+            example_payload = None
+
+            for rec in test_records:
+                real = np.asarray(rec["power_raw"], dtype=np.float64)
+                seed_metric_rows: List[Dict[str, float]] = []
+                seed_drift_rows: List[Dict[str, float]] = []
+
+                for s in range(max(1, int(samples_per_trace))):
+                    sample_seed = int(seed + (rec["trace"].trace_uid * 1000) + (v_idx * 100) + s)
+                    syn = _generate_autoregressive_continuous(
+                        model=model,
+                        record=rec,
+                        output_mode=output_mode,
+                        norm_params=norm_params,
+                        device=device,
+                        seed=sample_seed,
+                    )
+                    seed_metric_rows.append(_compute_fidelity_metrics([real], [syn], dt=dt, max_lags=max_lags))
+                    seed_drift_rows.append(_compute_drift_metrics(real, syn))
+
+                    if example_payload is None and s == 0:
+                        tr_obj: TraceRecord = rec["trace"]
+                        ts = np.asarray(tr_obj.timestamps, dtype=np.float64).reshape(-1)
+                        if len(ts) != len(real):
+                            ts = ts[: len(real)]
+                        example_payload = {
+                            "timestamps": ts,
+                            "real": real,
+                            "syn": syn,
+                        }
+
+                trace_metric_rows.append(_aggregate_metric_dicts(seed_metric_rows))
+                trace_drift_rows.append(
+                    {
+                        "first_quarter_nrmse": _median_ignore_nan([r["first_quarter_nrmse"] for r in seed_drift_rows]),
+                        "last_quarter_nrmse": _median_ignore_nan([r["last_quarter_nrmse"] for r in seed_drift_rows]),
+                        "delta_last_minus_first": _median_ignore_nan([r["delta_last_minus_first"] for r in seed_drift_rows]),
+                    }
+                )
+
+            metrics = _aggregate_metric_dicts(trace_metric_rows)
+            drift = {
+                "first_quarter_nrmse": _median_ignore_nan([r["first_quarter_nrmse"] for r in trace_drift_rows]),
+                "last_quarter_nrmse": _median_ignore_nan([r["last_quarter_nrmse"] for r in trace_drift_rows]),
+                "delta_last_minus_first": _median_ignore_nan([r["delta_last_minus_first"] for r in trace_drift_rows]),
+            }
+
+            trace_rows.append(
+                {
+                    "config_id": config_id,
+                    "model_name": cfg.model_name,
+                    "hardware": cfg.hardware,
+                    "tp": cfg.tp,
+                    "model_size_b": cfg.model_size_b,
+                    "variant": variant_id,
+                    "output_mode": output_mode,
+                    "features": ",".join(feat_names),
+                    "num_traces": n,
+                    "num_train_traces": int(len(split.train)),
+                    "num_val_traces": int(len(split.val)),
+                    "num_test_traces": int(len(split.test)),
+                    "samples_per_trace": int(samples_per_trace),
+                    **metrics,
+                }
+            )
+
+            drift_rows.append(
+                {
+                    "config_id": config_id,
+                    "model_name": cfg.model_name,
+                    "hardware": cfg.hardware,
+                    "tp": cfg.tp,
+                    "model_size_b": cfg.model_size_b,
+                    "variant": variant_id,
+                    "num_test_traces": int(len(split.test)),
+                    **drift,
+                }
+            )
+
+            print(
+                f"       KS={metrics['ks_statistic']:.4f} ACF_R2={metrics['acf_r2']:.4f} "
+                f"NRMSE={metrics['nrmse']:.4f} P95%={metrics['p95_error_pct']:.2f}"
+            )
+
+            if example_payload is not None:
+                plot_path = os.path.join(examples_dir, f"{cfg.slug}_{variant_id}_trace.png")
+                _plot_continuous_example_trace(
+                    out_path=plot_path,
+                    title=f"{cfg.model_name} {cfg.hardware} TP={cfg.tp} ({variant_id})",
+                    timestamps=example_payload["timestamps"],
+                    measured=example_payload["real"],
+                    generated=example_payload["syn"],
+                )
+
+    trace_filename = "trace_fidelity_reference.csv" if scope == "reference" else "trace_fidelity_all.csv"
+    trace_path = os.path.join(out_dir, trace_filename)
+    compat_trace_path = os.path.join(out_dir, "trace_fidelity.csv")
+    drift_path = os.path.join(out_dir, "drift_analysis.csv")
+    _write_csv(trace_path, trace_rows)
+    if compat_trace_path != trace_path:
+        _write_csv(compat_trace_path, trace_rows)
+    _write_csv(drift_path, drift_rows)
+
+    comparison_rows = _build_comparison_all_models(
+        continuous_rows=trace_rows,
+        semi_trace_fidelity_path=os.path.join(results_root, "semi_markov", "trace_fidelity.csv"),
+        semi_vs_bigru_path=os.path.join(results_root, "semi_markov", "comparison_vs_bigru.csv"),
+    )
+    comparison_path = os.path.join(out_dir, "comparison_all_models.csv")
+    _write_csv(comparison_path, comparison_rows)
+
+    print("\n[Phase 5] Wrote:")
+    print(f"  - {trace_path}")
+    print(f"  - {comparison_path}")
+    print(f"  - {drift_path}")
+    print(f"  - {curves_dir}")
+    print(f"  - {norms_dir}")
+    print(f"  - {examples_dir}")
+
+    return trace_rows
+
+
+# -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run revised power trace architectural investigation phases (0-4)."
+        description="Run revised power trace architectural investigation phases (0-5)."
     )
 
     parser.add_argument("--npz", action="append", default=[], help="Path to an NPZ file (repeatable).")
@@ -2025,7 +3220,7 @@ def main() -> None:
         "--phases",
         nargs="+",
         default=["0"],
-        help="Phases to run: 0 1 2 3 4 or 'all'.",
+        help="Phases to run: 0 1 2 3 4 5 or 'all'.",
     )
 
     parser.add_argument("--results-root", default="results", help="Root output directory.")
@@ -2097,11 +3292,40 @@ def main() -> None:
         help="Optional substrings to choose representative configs for Phase 1 trace plots.",
     )
 
+    parser.add_argument(
+        "--continuous-variants",
+        default=",".join(CONTINUOUS_VARIANTS_DEFAULT),
+        help="Comma-separated variants for Phase 5 (AR-Δ-G-4,AR-Δ-G-1,AR-Δ-G-4-nonoise,AR-Δ-M-4).",
+    )
+    parser.add_argument(
+        "--continuous-scope",
+        default="reference",
+        choices=["reference", "all"],
+        help="Run Phase 5 on reference config only or all configs.",
+    )
+    parser.add_argument("--continuous-samples-per-trace", type=int, default=5)
+    parser.add_argument("--continuous-hidden-dim", type=int, default=64)
+    parser.add_argument("--continuous-num-layers", type=int, default=1)
+    parser.add_argument("--continuous-lr", type=float, default=1e-3)
+    parser.add_argument("--continuous-epochs", type=int, default=500)
+    parser.add_argument("--continuous-batch-size", type=int, default=32)
+    parser.add_argument("--continuous-early-stop-patience", type=int, default=50)
+    parser.add_argument("--continuous-lr-patience", type=int, default=20)
+    parser.add_argument("--continuous-lr-factor", type=float, default=0.5)
+    parser.add_argument("--continuous-scheduled-sampling", action="store_true")
+    parser.add_argument("--continuous-scheduled-epochs", type=int, default=50)
+    parser.add_argument(
+        "--continuous-backlog-fallback",
+        default="error",
+        choices=["error", "drop_backlog"],
+        help="Behavior when throughput is missing for Phase 5.",
+    )
+
     args = parser.parse_args()
 
     phases = set(args.phases)
     if "all" in phases:
-        phases = {"0", "1", "2", "3", "4"}
+        phases = {"0", "1", "2", "3", "4", "5"}
 
     npz_dir = args.npz_dir
     if not args.npz and npz_dir is None:
@@ -2119,6 +3343,7 @@ def main() -> None:
         ("2" in phases)
         or ("3" in phases)
         or ("4" in phases)
+        or ("5" in phases)
         or (("1" in phases) and (not args.skip_bigru_compare))
     )
 
@@ -2135,6 +3360,7 @@ def main() -> None:
     ablation_dir = os.path.join(args.results_root, "feature_ablation")
     soft_dir = os.path.join(args.results_root, "soft_labels")
     arch_dir = os.path.join(args.results_root, "architecture")
+    continuous_dir = os.path.join(args.results_root, "continuous_gru_v2")
 
     bic_k_values = list(range(args.bic_k_min, args.bic_k_max + 1))
 
@@ -2355,6 +3581,38 @@ def main() -> None:
                 )
             else:
                 print("[Phase 4] Skipped.")
+
+    if "5" in phases:
+        continuous_variants = [v.strip() for v in args.continuous_variants.split(",") if v.strip()]
+        run_phase5(
+            configs=configs,
+            traces_by_config=traces_by_config,
+            out_dir=continuous_dir,
+            seed=args.seed,
+            train_frac=args.train_fraction,
+            val_frac=args.val_fraction,
+            dt=args.dt,
+            max_lags=args.max_lags,
+            device=device,
+            reference_model=args.reference_model,
+            reference_hardware=args.reference_hardware,
+            reference_tp=args.reference_tp,
+            variants=continuous_variants,
+            scope=args.continuous_scope,
+            samples_per_trace=args.continuous_samples_per_trace,
+            hidden_dim=args.continuous_hidden_dim,
+            num_layers=args.continuous_num_layers,
+            lr=args.continuous_lr,
+            epochs=args.continuous_epochs,
+            batch_size=args.continuous_batch_size,
+            early_stop_patience=args.continuous_early_stop_patience,
+            lr_patience=args.continuous_lr_patience,
+            lr_factor=args.continuous_lr_factor,
+            use_scheduled_sampling=args.continuous_scheduled_sampling,
+            scheduled_sampling_epochs=args.continuous_scheduled_epochs,
+            backlog_fallback=args.continuous_backlog_fallback,
+            results_root=args.results_root,
+        )
 
 
 if __name__ == "__main__":
