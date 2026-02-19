@@ -1,3 +1,0 @@
-abs_energy_error_pct,acf_r2,config_id,delta_energy_pct,feature_set,features,hardware,input_dim,ks_statistic,label_mode,model_name,nrmse,num_points,p95_error_pct,p99_error_pct,tp
-4.820078339532189,0.7853753818565159,model=llama-3-8b|hardware=H100|tp=1|size_b=8,-4.820078339532189,F2,"active_requests,n_new",H100,2,0.23433307024467245,hard,llama-3-8b,0.4173427539153894,12670.0,2.380394309964964,1.2592995600057333,1
-14.698616148559228,0.6563860660688997,model=llama-3-8b|hardware=H100|tp=1|size_b=8,-14.698616148559228,F2,"active_requests,n_new",H100,2,0.31436464088397786,soft,llama-3-8b,0.42035683862557005,12670.0,2.3916760894358386,0.6169132758538045,1

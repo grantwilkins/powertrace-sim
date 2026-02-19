@@ -221,12 +221,17 @@ def train_one_config(
     warmup_epochs: int = 100,
     ramp_epochs: int = 200,
     max_noise_std: float = 0.1,
+    lambda_mu: float = 0.1,
     seed: int = 42,
     device: Optional[torch.device | str] = None,
     checkpoint_path: Optional[str] = None,
     curve_path: Optional[str] = None,
 ) -> Dict[str, object]:
     del config_norm  # kept for API consistency
+
+    lambda_mu = float(lambda_mu)
+    if lambda_mu < 0.0:
+        raise ValueError(f"lambda_mu must be >= 0; got {lambda_mu}")
 
     resolved_device = _resolve_device(device)
     torch.manual_seed(int(seed))
@@ -251,7 +256,9 @@ def train_one_config(
         max_noise_std=float(max_noise_std),
     )
 
-    best_val_loss = float("inf")
+    best_val_total_loss = float("inf")
+    best_val_nll = float("inf")
+    best_val_mu_loss = float("inf")
     best_epoch = -1
     best_state = None
     patience_counter = 0
@@ -259,7 +266,9 @@ def train_one_config(
 
     for epoch in range(int(max(1, n_epochs))):
         model.train()
-        train_losses: List[float] = []
+        train_total_losses: List[float] = []
+        train_nll_losses: List[float] = []
+        train_mu_losses: List[float] = []
         sigma_accum: List[float] = []
         alpha_accum: List[float] = []
 
@@ -285,24 +294,38 @@ def train_one_config(
             p_prev_noisy = noise(p_prev.clone(), epoch=epoch)
             x = torch.cat([p_prev_noisy, features], dim=-1)
             params, _ = model(x)
-            loss = mean_reverting_nll(params, p_prev, p_target, n_mix=int(n_mix))
+            parts = mean_reverting_nll(
+                params,
+                p_prev,
+                p_target,
+                n_mix=int(n_mix),
+                lambda_mu=lambda_mu,
+                return_parts=True,
+            )
+            loss = parts["total_loss"]
 
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-            train_losses.append(float(loss.item()))
+            train_total_losses.append(float(parts["total_loss"].item()))
+            train_nll_losses.append(float(parts["nll_loss"].item()))
+            train_mu_losses.append(float(parts["mu_loss"].item()))
             with torch.no_grad():
                 sigma_accum.append(float(torch.exp(params["log_sigma"]).mean().item()))
                 alpha_accum.append(float(params["alpha"].mean().item()))
 
-        mean_train = float(np.mean(train_losses)) if train_losses else float("nan")
+        mean_train_total = float(np.mean(train_total_losses)) if train_total_losses else float("nan")
+        mean_train_nll = float(np.mean(train_nll_losses)) if train_nll_losses else float("nan")
+        mean_train_mu = float(np.mean(train_mu_losses)) if train_mu_losses else float("nan")
         mean_sigma = float(np.mean(sigma_accum)) if sigma_accum else float("nan")
         mean_alpha = float(np.mean(alpha_accum)) if alpha_accum else float("nan")
 
         model.eval()
-        val_losses: List[float] = []
+        val_total_losses: List[float] = []
+        val_nll_losses: List[float] = []
+        val_mu_losses: List[float] = []
         with torch.no_grad():
             for trace in config_data["val"]:
                 p_prev = torch.from_numpy(np.asarray(trace["p_prev_norm"], dtype=np.float32)).to(
@@ -323,10 +346,22 @@ def train_one_config(
                 p_target = p_target.unsqueeze(0)
                 x = torch.cat([p_prev, features], dim=-1)
                 params, _ = model(x)
-                val_losses.append(float(mean_reverting_nll(params, p_prev, p_target, n_mix=int(n_mix)).item()))
+                parts = mean_reverting_nll(
+                    params,
+                    p_prev,
+                    p_target,
+                    n_mix=int(n_mix),
+                    lambda_mu=lambda_mu,
+                    return_parts=True,
+                )
+                val_total_losses.append(float(parts["total_loss"].item()))
+                val_nll_losses.append(float(parts["nll_loss"].item()))
+                val_mu_losses.append(float(parts["mu_loss"].item()))
 
-        mean_val = float(np.mean(val_losses)) if val_losses else float("nan")
-        sched_metric = mean_val if np.isfinite(mean_val) else mean_train
+        mean_val_total = float(np.mean(val_total_losses)) if val_total_losses else float("nan")
+        mean_val_nll = float(np.mean(val_nll_losses)) if val_nll_losses else float("nan")
+        mean_val_mu = float(np.mean(val_mu_losses)) if val_mu_losses else float("nan")
+        sched_metric = mean_val_total if np.isfinite(mean_val_total) else mean_train_total
         if np.isfinite(sched_metric):
             scheduler.step(float(sched_metric))
 
@@ -335,8 +370,12 @@ def train_one_config(
         history.append(
             {
                 "epoch": float(epoch),
-                "train_nll": float(mean_train),
-                "val_nll": float(mean_val),
+                "train_total_loss": float(mean_train_total),
+                "train_nll": float(mean_train_nll),
+                "train_mu_loss": float(mean_train_mu),
+                "val_total_loss": float(mean_val_total),
+                "val_nll": float(mean_val_nll),
+                "val_mu_loss": float(mean_val_mu),
                 "mean_sigma": float(mean_sigma),
                 "mean_alpha": float(mean_alpha),
                 "noise_std": float(noise_std),
@@ -346,12 +385,16 @@ def train_one_config(
 
         if epoch % 25 == 0 or epoch == (int(max(1, n_epochs)) - 1):
             print(
-                f"  [{config_id}] epoch={epoch:4d} train_nll={mean_train:.5f} val_nll={mean_val:.5f} "
+                f"  [{config_id}] epoch={epoch:4d} train_total={mean_train_total:.5f} val_total={mean_val_total:.5f} "
+                f"train_nll={mean_train_nll:.5f} val_nll={mean_val_nll:.5f} "
+                f"train_mu={mean_train_mu:.5f} val_mu={mean_val_mu:.5f} "
                 f"sigma={mean_sigma:.5f} alpha={mean_alpha:.5f} noise={noise_std:.3f} lr={lr_now:.2e}"
             )
 
-        if np.isfinite(mean_val) and mean_val < best_val_loss:
-            best_val_loss = float(mean_val)
+        if np.isfinite(mean_val_total) and mean_val_total < best_val_total_loss:
+            best_val_total_loss = float(mean_val_total)
+            best_val_nll = float(mean_val_nll)
+            best_val_mu_loss = float(mean_val_mu)
             best_epoch = int(epoch)
             patience_counter = 0
             if checkpoint_path:
@@ -374,19 +417,39 @@ def train_one_config(
         _write_csv(
             curve_path,
             history,
-            fieldnames=["epoch", "train_nll", "val_nll", "mean_sigma", "mean_alpha", "noise_std", "lr"],
+            fieldnames=[
+                "epoch",
+                "train_total_loss",
+                "train_nll",
+                "train_mu_loss",
+                "val_total_loss",
+                "val_nll",
+                "val_mu_loss",
+                "mean_sigma",
+                "mean_alpha",
+                "noise_std",
+                "lr",
+            ],
         )
 
     final = history[-1] if history else {}
     return {
         "model": model,
         "history": history,
-        "best_val_loss": float(best_val_loss),
+        "best_val_loss": float(best_val_total_loss),  # legacy alias for compatibility
+        "best_val_total_loss": float(best_val_total_loss),
+        "best_val_nll": float(best_val_nll),
+        "best_val_mu_loss": float(best_val_mu_loss),
         "best_epoch": int(best_epoch),
+        "final_train_total_loss": float(final.get("train_total_loss", float("nan"))),
+        "final_val_total_loss": float(final.get("val_total_loss", float("nan"))),
         "final_train_nll": float(final.get("train_nll", float("nan"))),
         "final_val_nll": float(final.get("val_nll", float("nan"))),
+        "final_train_mu_loss": float(final.get("train_mu_loss", float("nan"))),
+        "final_val_mu_loss": float(final.get("val_mu_loss", float("nan"))),
         "final_mean_sigma": float(final.get("mean_sigma", float("nan"))),
         "final_mean_alpha": float(final.get("mean_alpha", float("nan"))),
+        "lambda_mu": float(lambda_mu),
         "checkpoint_path": checkpoint_path or "",
         "curve_path": curve_path or "",
         "device": str(resolved_device),
@@ -409,6 +472,7 @@ def run_training_from_manifest(
     warmup_epochs: int = 100,
     ramp_epochs: int = 200,
     max_noise_std: float = 0.1,
+    lambda_mu: float = 0.1,
     seed: int = 42,
     device: str = "auto",
 ) -> Dict[str, object]:
@@ -466,6 +530,7 @@ def run_training_from_manifest(
                 "n_mix": int(n_mix),
                 "hidden_dim": int(hidden_dim),
                 "num_layers": int(num_layers),
+                "lambda_mu": float(lambda_mu),
                 "seed": int(seed),
             }
         )
@@ -487,6 +552,7 @@ def run_training_from_manifest(
                 warmup_epochs=int(warmup_epochs),
                 ramp_epochs=int(ramp_epochs),
                 max_noise_std=float(max_noise_std),
+                lambda_mu=float(lambda_mu),
                 seed=int(seed),
                 device=resolved_device,
                 checkpoint_path=checkpoint_path,
@@ -497,12 +563,19 @@ def run_training_from_manifest(
                 "status": "trained",
                 "reason": "",
                 "n_mix": int(n_mix),
+                "lambda_mu": float(lambda_mu),
                 "seed": int(seed),
                 "device": resolved_device,
                 "best_epoch": int(train_result["best_epoch"]),
-                "best_val_nll": float(train_result["best_val_loss"]),
+                "best_val_total_loss": float(train_result["best_val_total_loss"]),
+                "best_val_nll": float(train_result["best_val_nll"]),
+                "best_val_mu_loss": float(train_result["best_val_mu_loss"]),
+                "final_train_total_loss": float(train_result["final_train_total_loss"]),
+                "final_val_total_loss": float(train_result["final_val_total_loss"]),
                 "final_train_nll": float(train_result["final_train_nll"]),
                 "final_val_nll": float(train_result["final_val_nll"]),
+                "final_train_mu_loss": float(train_result["final_train_mu_loss"]),
+                "final_val_mu_loss": float(train_result["final_val_mu_loss"]),
                 "final_mean_sigma": float(train_result["final_mean_sigma"]),
                 "final_mean_alpha": float(train_result["final_mean_alpha"]),
                 "num_train_traces": int(len(payload["data"]["train"])),
@@ -528,12 +601,19 @@ def run_training_from_manifest(
         "status",
         "reason",
         "n_mix",
+        "lambda_mu",
         "seed",
         "device",
         "best_epoch",
+        "best_val_total_loss",
         "best_val_nll",
+        "best_val_mu_loss",
+        "final_train_total_loss",
+        "final_val_total_loss",
         "final_train_nll",
         "final_val_nll",
+        "final_train_mu_loss",
+        "final_val_mu_loss",
         "final_mean_sigma",
         "final_mean_alpha",
         "num_train_traces",
@@ -572,6 +652,7 @@ def run_training_from_manifest(
             "warmup_epochs": int(warmup_epochs),
             "ramp_epochs": int(ramp_epochs),
             "max_noise_std": float(max_noise_std),
+            "lambda_mu": float(lambda_mu),
             "seed": int(seed),
             "device": resolved_device,
         },
@@ -624,6 +705,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-epochs", type=int, default=100)
     parser.add_argument("--ramp-epochs", type=int, default=200)
     parser.add_argument("--max-noise-std", type=float, default=0.1)
+    parser.add_argument("--lambda-mu", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--device",
@@ -650,6 +732,7 @@ def main() -> None:
         warmup_epochs=args.warmup_epochs,
         ramp_epochs=args.ramp_epochs,
         max_noise_std=args.max_noise_std,
+        lambda_mu=args.lambda_mu,
         seed=args.seed,
         device=args.device,
     )

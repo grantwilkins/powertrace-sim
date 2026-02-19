@@ -1,0 +1,37 @@
+{
+  "config_id": "llama-3-8b_H100_tp1",
+  "dt": 0.25,
+  "energy_err_pct": 33.45646791414326,
+  "inference": {
+    "T": 2503,
+    "checkpoint_path": "results/continuous_v1/checkpoints/llama-3-8b_H100_tp1_mix1_best.pt",
+    "config_id": "llama-3-8b_H100_tp1",
+    "device": "cpu",
+    "dt": 0.25,
+    "hidden_dim": 64,
+    "n_mix": 1,
+    "norm_params_path": "results/continuous_v1/norm_params/llama-3-8b_H100_tp1.json",
+    "num_layers": 1,
+    "num_requests": 75,
+    "out_csv": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_generated.csv",
+    "p0": 194.58,
+    "requests_json": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_requests.json",
+    "throughput_db": "model/config/throughput_database.json"
+  },
+  "mae_w": 156.6801382222158,
+  "nrmse": 0.5353405959700043,
+  "num_points": 2503,
+  "pair_key": "tp=1|rate=0.125|date=20250513-030841",
+  "paths": {
+    "comparison_csv": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_comparison.csv",
+    "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-8b_H100_tp1.npz",
+    "generated_csv": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_generated.csv",
+    "metrics_json": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_metrics.json",
+    "request_source_json": "data/sharegpt-benchmark-llama-3-8b-h100/vllm-0.125qps-tp1-Llama-3.1-8B-Instruct-20250513-030841.json",
+    "requests_json": "results/continuous_v1/eval/llama-3-8b_H100_tp1_trace2_requests.json",
+    "split_json": "results/experimental_continuous_v1/splits/llama-3-8b_H100_tp1.json"
+  },
+  "rmse_w": 208.4562746647605,
+  "seed": 42,
+  "trace_idx": 2
+}

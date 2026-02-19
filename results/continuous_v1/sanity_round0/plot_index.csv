@@ -1,0 +1,9 @@
+config_id,rate,trace_idx,pair_key,plot_path
+deepseek-r1-distill-70b_A100_tp4,0.125,0,tp=4|rate=0.125|date=20250518-092437,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_A100_tp4_rate-0.125_trace-0.png
+deepseek-r1-distill-70b_A100_tp4,4,15,tp=4|rate=4|date=20250518-101748,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_A100_tp4_rate-4_trace-15.png
+deepseek-r1-distill-70b_A100_tp8,0.125,0,tp=8|rate=0.125|date=20250518-134229,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_A100_tp8_rate-0.125_trace-0.png
+deepseek-r1-distill-70b_A100_tp8,4,14,tp=8|rate=4|date=20250518-133158,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_A100_tp8_rate-4_trace-14.png
+deepseek-r1-distill-70b_H100_tp4,0.125,0,tp=4|rate=0.125|date=20250527-082713,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_H100_tp4_rate-0.125_trace-0.png
+deepseek-r1-distill-70b_H100_tp4,4,25,tp=4|rate=4|date=20250527-091940,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_H100_tp4_rate-4_trace-25.png
+deepseek-r1-distill-70b_H100_tp8,0.125,0,tp=8|rate=0.125|date=20250528-064239,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_H100_tp8_rate-0.125_trace-0.png
+deepseek-r1-distill-70b_H100_tp8,4,25,tp=8|rate=4|date=20250528-073451,results/continuous_v1/sanity_round0/plots/deepseek-r1-distill-70b_H100_tp8_rate-4_trace-25.png

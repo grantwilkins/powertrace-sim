@@ -1,5 +1,5 @@
 import math
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -260,10 +260,16 @@ def mean_reverting_nll(
     p_target: torch.Tensor,
     n_mix: int = 1,
     mask: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+    lambda_mu: float = 0.0,
+    return_parts: bool = False,
+) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
     """
     NLL for P_t = (1 - alpha_t) * P_{t-1} + alpha_t * mu_t + sigma_t * epsilon_t.
     """
+    lambda_mu = float(lambda_mu)
+    if lambda_mu < 0.0:
+        raise ValueError(f"lambda_mu must be >= 0; got {lambda_mu}")
+
     if p_prev.ndim == 2:
         p_prev = p_prev.unsqueeze(-1)
     if p_target.ndim == 2:
@@ -277,15 +283,199 @@ def mean_reverting_nll(
         mu = params["mu"]
         pred_mean = ((1.0 - alpha) * p_prev) + (alpha * mu)
         nll = 0.5 * math.log(2.0 * math.pi) + log_sigma + 0.5 * ((p_target - pred_mean) / sigma) ** 2
-        return _masked_mean(nll, mask)
+        nll_loss = _masked_mean(nll, mask)
+        mu_err2 = (mu - p_target) ** 2
+        mu_loss = _masked_mean(mu_err2, mask)
+    else:
+        mu = params["mu"]
+        logit_pi = params["logit_pi"]
+        pred_mean = ((1.0 - alpha) * p_prev) + (alpha * mu)
+        log_pi = torch.log_softmax(logit_pi, dim=-1)
+        log_normal = -0.5 * math.log(2.0 * math.pi) - log_sigma - 0.5 * ((p_target - pred_mean) / sigma) ** 2
+        log_prob = torch.logsumexp(log_pi + log_normal, dim=-1, keepdim=True)
+        nll_loss = _masked_mean(-log_prob, mask)
 
-    mu = params["mu"]
-    logit_pi = params["logit_pi"]
-    pred_mean = ((1.0 - alpha) * p_prev) + (alpha * mu)
-    log_pi = torch.log_softmax(logit_pi, dim=-1)
-    log_normal = -0.5 * math.log(2.0 * math.pi) - log_sigma - 0.5 * ((p_target - pred_mean) / sigma) ** 2
-    log_prob = torch.logsumexp(log_pi + log_normal, dim=-1, keepdim=True)
-    return _masked_mean(-log_prob, mask)
+        pi = torch.softmax(logit_pi, dim=-1)
+        mu_weighted = torch.sum(pi * mu, dim=-1, keepdim=True)
+        mu_err2 = (mu_weighted - p_target) ** 2
+        mu_loss = _masked_mean(mu_err2, mask)
+
+    total_loss = nll_loss + (lambda_mu * mu_loss)
+    if return_parts:
+        return {
+            "total_loss": total_loss,
+            "nll_loss": nll_loss,
+            "mu_loss": mu_loss,
+        }
+    return total_loss
+
+
+def compute_inference_features(
+    requests: Sequence[Dict[str, object]],
+    config: Dict[str, float],
+    T: Optional[int] = None,
+    dt: float = 0.25,
+) -> np.ndarray:
+    """
+    Build normalized inference features from a request schedule.
+
+    Returns:
+        (T, 2) array with columns [A_norm, T_arrive_norm]
+    """
+    dt = float(dt)
+    if not np.isfinite(dt) or dt <= 0.0:
+        raise ValueError(f"dt must be positive; got {dt}")
+
+    lambda_prefill = float(config["lambda_prefill"])
+    lambda_decode = float(config["lambda_decode"])
+    if (not np.isfinite(lambda_prefill)) or lambda_prefill <= 0.0:
+        raise ValueError(f"lambda_prefill must be positive; got {lambda_prefill}")
+    if (not np.isfinite(lambda_decode)) or lambda_decode <= 0.0:
+        raise ValueError(f"lambda_decode must be positive; got {lambda_decode}")
+
+    A_mean = float(config["A_mean"])
+    A_std = max(float(config["A_std"]), EPS)
+    t_arrive_mean = float(config["T_arrive_log_mean"])
+    t_arrive_std = max(float(config["T_arrive_log_std"]), EPS)
+
+    parsed: List[Tuple[float, float, float]] = []
+    max_est_completion = 0.0
+    for i, req in enumerate(requests):
+        if not isinstance(req, dict):
+            raise ValueError(f"request[{i}] must be a dict")
+        try:
+            arrival_time = float(req["arrival_time"])
+            input_tokens = float(req["input_tokens"])
+            output_tokens = float(req["output_tokens"])
+        except Exception as exc:
+            raise ValueError(f"request[{i}] missing/invalid required fields") from exc
+        if not (np.isfinite(arrival_time) and np.isfinite(input_tokens) and np.isfinite(output_tokens)):
+            raise ValueError(f"request[{i}] contains non-finite values")
+
+        input_tokens = max(0.0, input_tokens)
+        output_tokens = max(0.0, output_tokens)
+        prefill_time = input_tokens / lambda_prefill
+        decode_time = output_tokens / lambda_decode
+        est_completion = arrival_time + prefill_time + decode_time
+        parsed.append((arrival_time, input_tokens, est_completion))
+        if est_completion > max_est_completion:
+            max_est_completion = float(est_completion)
+
+    if T is None:
+        if len(parsed) == 0:
+            raise ValueError("Empty request schedule requires explicit T.")
+        T = int(max(0, math.ceil((max_est_completion + dt) / dt)))
+    else:
+        T = int(T)
+        if T < 0:
+            raise ValueError(f"T must be >= 0; got {T}")
+
+    t_arrive = np.zeros((T,), dtype=np.float64)
+    active_diff = np.zeros((T + 1,), dtype=np.float64)
+
+    for arrival_time, input_tokens, est_completion in parsed:
+        arrive_bin = int(math.floor(arrival_time / dt))
+        if 0 <= arrive_bin < T:
+            t_arrive[arrive_bin] += input_tokens
+
+        start_idx = int(math.ceil(arrival_time / dt))
+        end_idx = int(math.ceil(est_completion / dt))
+        if end_idx <= 0 or start_idx >= T:
+            continue
+        l = max(0, start_idx)
+        r = min(T, end_idx)
+        if r <= l:
+            continue
+        active_diff[l] += 1.0
+        active_diff[r] -= 1.0
+
+    A = np.clip(np.cumsum(active_diff[:-1]), a_min=0.0, a_max=None)
+    t_arrive_log = np.log1p(np.clip(t_arrive, a_min=0.0, a_max=None))
+
+    A_norm = (A - A_mean) / A_std
+    t_arrive_norm = (t_arrive_log - t_arrive_mean) / t_arrive_std
+    return np.stack([A_norm, t_arrive_norm], axis=-1).astype(np.float32)
+
+
+@torch.no_grad()
+def generate_mean_reverting_trace(
+    model: nn.Module,
+    features_norm: np.ndarray,
+    P_0: float,
+    config_norm: Dict[str, float],
+    n_mix: int = 1,
+    seed: Optional[int] = None,
+) -> np.ndarray:
+    """
+    Generate a synthetic power trace via mean-reverting autoregressive rollout.
+
+    Returns:
+        Generated power in watts with length == len(features_norm), excluding P_0.
+    """
+    feats = np.asarray(features_norm, dtype=np.float32)
+    if feats.ndim != 2 or feats.shape[1] != 2:
+        raise ValueError(f"features_norm must have shape (T, 2); got {feats.shape}")
+
+    power_mean = float(config_norm["power_mean"])
+    power_std = float(config_norm["power_std"])
+    power_min = float(config_norm["power_min"])
+    power_max = float(config_norm["power_max"])
+    if (not np.isfinite(power_std)) or power_std <= 0.0:
+        raise ValueError(f"power_std must be positive; got {power_std}")
+
+    use_clamp = np.isfinite(power_min) and np.isfinite(power_max) and (power_max > power_min)
+    margin = 0.05 * (power_max - power_min) if use_clamp else 0.0
+
+    rng = np.random.default_rng(seed)
+    model.eval()
+    device = next(model.parameters()).device
+
+    T = int(feats.shape[0])
+    if T <= 0:
+        return np.zeros((0,), dtype=np.float64)
+
+    p_prev_raw = float(P_0)
+    h = None
+    out = np.zeros((T,), dtype=np.float64)
+    n_mix = int(n_mix)
+    model_mix = int(getattr(model, "n_mix", n_mix))
+    if model_mix != n_mix:
+        raise ValueError(f"n_mix mismatch: requested {n_mix}, model has {model_mix}")
+
+    feats_t = torch.from_numpy(feats).to(device=device, dtype=torch.float32)
+    for t in range(T):
+        p_prev_norm = (p_prev_raw - power_mean) / power_std
+        x_t = torch.tensor(
+            [[[p_prev_norm, float(feats_t[t, 0].item()), float(feats_t[t, 1].item())]]],
+            device=device,
+            dtype=torch.float32,
+        )
+        params, h = model(x_t, h)
+        alpha = float(params["alpha"][0, 0, 0].item())
+
+        if n_mix == 1:
+            mu_norm = float(params["mu"][0, 0, 0].item())
+            sigma_norm = float(torch.exp(params["log_sigma"][0, 0, 0]).item())
+            pred_mean_norm = ((1.0 - alpha) * p_prev_norm) + (alpha * mu_norm)
+            p_t_norm = float(rng.normal(pred_mean_norm, sigma_norm))
+        else:
+            logits = params["logit_pi"][0, 0].detach().cpu().numpy()
+            mus = params["mu"][0, 0].detach().cpu().numpy()
+            sigmas = torch.exp(params["log_sigma"][0, 0]).detach().cpu().numpy()
+            pi = np.exp(logits - np.max(logits))
+            pi = pi / np.sum(pi)
+            k = int(rng.choice(np.arange(n_mix), p=pi))
+            pred_mean_norm = ((1.0 - alpha) * p_prev_norm) + (alpha * float(mus[k]))
+            p_t_norm = float(rng.normal(pred_mean_norm, float(sigmas[k])))
+
+        p_t_raw = (p_t_norm * power_std) + power_mean
+        if use_clamp:
+            p_t_raw = float(np.clip(p_t_raw, power_min - margin, power_max + margin))
+
+        out[t] = p_t_raw
+        p_prev_raw = p_t_raw
+
+    return out
 
 
 def gaussian_nll_loss(params: torch.Tensor, targets: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:

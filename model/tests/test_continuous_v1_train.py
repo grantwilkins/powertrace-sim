@@ -78,6 +78,7 @@ class TestContinuousV1Train(unittest.TestCase):
                 warmup_epochs=1,
                 ramp_epochs=2,
                 max_noise_std=0.1,
+                lambda_mu=0.1,
                 seed=7,
                 device="cpu",
                 checkpoint_path=str(checkpoint_path),
@@ -88,6 +89,27 @@ class TestContinuousV1Train(unittest.TestCase):
             self.assertTrue(curve_path.exists())
             self.assertGreaterEqual(len(out["history"]), 1)
             self.assertTrue(np.isfinite(out["best_val_loss"]))
+            self.assertTrue(np.isfinite(out["best_val_total_loss"]))
+            self.assertAlmostEqual(float(out["lambda_mu"]), 0.1, places=8)
+
+            with open(curve_path, "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertGreaterEqual(len(rows), 1)
+            expected_cols = {
+                "epoch",
+                "train_total_loss",
+                "train_nll",
+                "train_mu_loss",
+                "val_total_loss",
+                "val_nll",
+                "val_mu_loss",
+                "mean_sigma",
+                "mean_alpha",
+                "noise_std",
+                "lr",
+            }
+            self.assertTrue(expected_cols.issubset(set(rows[0].keys())))
+            self.assertTrue(np.isfinite(float(rows[-1]["val_total_loss"])))
 
     def test_run_training_from_manifest_trains_and_skips(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -200,6 +222,7 @@ class TestContinuousV1Train(unittest.TestCase):
                 warmup_epochs=1,
                 ramp_epochs=2,
                 max_noise_std=0.1,
+                lambda_mu=0.1,
                 seed=9,
                 device="cpu",
             )
@@ -221,6 +244,9 @@ class TestContinuousV1Train(unittest.TestCase):
             by_config = {r["config_id"]: r for r in rows}
             self.assertEqual(by_config[config_good]["status"], "trained")
             self.assertEqual(by_config[config_missing]["status"], "skipped")
+            self.assertTrue(np.isfinite(float(by_config[config_good]["best_val_total_loss"])))
+            self.assertAlmostEqual(float(by_config[config_good]["lambda_mu"]), 0.1, places=8)
+            self.assertAlmostEqual(float(run_manifest["defaults"]["lambda_mu"]), 0.1, places=8)
 
 
 if __name__ == "__main__":

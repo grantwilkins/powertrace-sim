@@ -1,0 +1,379 @@
+{
+  "requests": [
+    {
+      "arrival_time": 0.0,
+      "input_tokens": 13.0,
+      "output_tokens": 120.0
+    },
+    {
+      "arrival_time": 6.374038219451904,
+      "input_tokens": 25.0,
+      "output_tokens": 770.0
+    },
+    {
+      "arrival_time": 16.426167249679565,
+      "input_tokens": 27.0,
+      "output_tokens": 233.0
+    },
+    {
+      "arrival_time": 23.81865406036377,
+      "input_tokens": 10.0,
+      "output_tokens": 194.0
+    },
+    {
+      "arrival_time": 30.123404264450073,
+      "input_tokens": 329.0,
+      "output_tokens": 101.0
+    },
+    {
+      "arrival_time": 34.53536343574524,
+      "input_tokens": 29.0,
+      "output_tokens": 741.0
+    },
+    {
+      "arrival_time": 42.8454966545105,
+      "input_tokens": 399.0,
+      "output_tokens": 9.0
+    },
+    {
+      "arrival_time": 47.454872608184814,
+      "input_tokens": 328.0,
+      "output_tokens": 24.0
+    },
+    {
+      "arrival_time": 65.24660348892212,
+      "input_tokens": 4.0,
+      "output_tokens": 6.0
+    },
+    {
+      "arrival_time": 91.79443550109863,
+      "input_tokens": 205.0,
+      "output_tokens": 80.0
+    },
+    {
+      "arrival_time": 95.66614651679993,
+      "input_tokens": 16.0,
+      "output_tokens": 392.0
+    },
+    {
+      "arrival_time": 108.22917437553406,
+      "input_tokens": 372.0,
+      "output_tokens": 84.0
+    },
+    {
+      "arrival_time": 114.25696778297424,
+      "input_tokens": 403.0,
+      "output_tokens": 396.0
+    },
+    {
+      "arrival_time": 120.97622060775757,
+      "input_tokens": 9.0,
+      "output_tokens": 45.0
+    },
+    {
+      "arrival_time": 141.7833046913147,
+      "input_tokens": 12.0,
+      "output_tokens": 291.0
+    },
+    {
+      "arrival_time": 142.37412428855896,
+      "input_tokens": 770.0,
+      "output_tokens": 9.0
+    },
+    {
+      "arrival_time": 143.10273241996765,
+      "input_tokens": 227.0,
+      "output_tokens": 173.0
+    },
+    {
+      "arrival_time": 143.26551175117493,
+      "input_tokens": 8.0,
+      "output_tokens": 277.0
+    },
+    {
+      "arrival_time": 157.58056473731995,
+      "input_tokens": 14.0,
+      "output_tokens": 334.0
+    },
+    {
+      "arrival_time": 169.64164280891418,
+      "input_tokens": 390.0,
+      "output_tokens": 37.0
+    },
+    {
+      "arrival_time": 185.97789454460144,
+      "input_tokens": 659.0,
+      "output_tokens": 587.0
+    },
+    {
+      "arrival_time": 216.7652986049652,
+      "input_tokens": 59.0,
+      "output_tokens": 372.0
+    },
+    {
+      "arrival_time": 229.61777782440186,
+      "input_tokens": 76.0,
+      "output_tokens": 159.0
+    },
+    {
+      "arrival_time": 234.57571125030518,
+      "input_tokens": 744.0,
+      "output_tokens": 135.0
+    },
+    {
+      "arrival_time": 246.71938681602478,
+      "input_tokens": 619.0,
+      "output_tokens": 34.0
+    },
+    {
+      "arrival_time": 247.72605228424072,
+      "input_tokens": 279.0,
+      "output_tokens": 45.0
+    },
+    {
+      "arrival_time": 255.90728497505188,
+      "input_tokens": 344.0,
+      "output_tokens": 450.0
+    },
+    {
+      "arrival_time": 257.1444387435913,
+      "input_tokens": 9.0,
+      "output_tokens": 118.0
+    },
+    {
+      "arrival_time": 280.32201504707336,
+      "input_tokens": 10.0,
+      "output_tokens": 226.0
+    },
+    {
+      "arrival_time": 286.2302665710449,
+      "input_tokens": 45.0,
+      "output_tokens": 4.0
+    },
+    {
+      "arrival_time": 290.5200126171112,
+      "input_tokens": 11.0,
+      "output_tokens": 5.0
+    },
+    {
+      "arrival_time": 292.98110151290894,
+      "input_tokens": 4.0,
+      "output_tokens": 146.0
+    },
+    {
+      "arrival_time": 304.8993706703186,
+      "input_tokens": 80.0,
+      "output_tokens": 59.0
+    },
+    {
+      "arrival_time": 309.7785782814026,
+      "input_tokens": 768.0,
+      "output_tokens": 11.0
+    },
+    {
+      "arrival_time": 316.50781416893005,
+      "input_tokens": 317.0,
+      "output_tokens": 567.0
+    },
+    {
+      "arrival_time": 316.658385515213,
+      "input_tokens": 40.0,
+      "output_tokens": 192.0
+    },
+    {
+      "arrival_time": 324.35546922683716,
+      "input_tokens": 619.0,
+      "output_tokens": 520.0
+    },
+    {
+      "arrival_time": 331.9342803955078,
+      "input_tokens": 8.0,
+      "output_tokens": 130.0
+    },
+    {
+      "arrival_time": 339.6182622909546,
+      "input_tokens": 298.0,
+      "output_tokens": 13.0
+    },
+    {
+      "arrival_time": 362.6535174846649,
+      "input_tokens": 16.0,
+      "output_tokens": 223.0
+    },
+    {
+      "arrival_time": 371.82330322265625,
+      "input_tokens": 17.0,
+      "output_tokens": 188.0
+    },
+    {
+      "arrival_time": 375.3928186893463,
+      "input_tokens": 696.0,
+      "output_tokens": 16.0
+    },
+    {
+      "arrival_time": 379.99343967437744,
+      "input_tokens": 575.0,
+      "output_tokens": 35.0
+    },
+    {
+      "arrival_time": 389.5705556869507,
+      "input_tokens": 11.0,
+      "output_tokens": 276.0
+    },
+    {
+      "arrival_time": 390.0672800540924,
+      "input_tokens": 7.0,
+      "output_tokens": 202.0
+    },
+    {
+      "arrival_time": 398.8689179420471,
+      "input_tokens": 281.0,
+      "output_tokens": 492.0
+    },
+    {
+      "arrival_time": 407.7586205005646,
+      "input_tokens": 12.0,
+      "output_tokens": 239.0
+    },
+    {
+      "arrival_time": 409.64889454841614,
+      "input_tokens": 147.0,
+      "output_tokens": 129.0
+    },
+    {
+      "arrival_time": 410.7548668384552,
+      "input_tokens": 481.0,
+      "output_tokens": 26.0
+    },
+    {
+      "arrival_time": 413.7913041114807,
+      "input_tokens": 770.0,
+      "output_tokens": 231.0
+    },
+    {
+      "arrival_time": 417.4098870754242,
+      "input_tokens": 336.0,
+      "output_tokens": 17.0
+    },
+    {
+      "arrival_time": 424.17311930656433,
+      "input_tokens": 6.0,
+      "output_tokens": 204.0
+    },
+    {
+      "arrival_time": 428.7967574596405,
+      "input_tokens": 331.0,
+      "output_tokens": 11.0
+    },
+    {
+      "arrival_time": 464.4678165912628,
+      "input_tokens": 9.0,
+      "output_tokens": 207.0
+    },
+    {
+      "arrival_time": 465.32844042778015,
+      "input_tokens": 45.0,
+      "output_tokens": 78.0
+    },
+    {
+      "arrival_time": 467.20593309402466,
+      "input_tokens": 222.0,
+      "output_tokens": 340.0
+    },
+    {
+      "arrival_time": 468.6152458190918,
+      "input_tokens": 802.0,
+      "output_tokens": 768.0
+    },
+    {
+      "arrival_time": 477.0883114337921,
+      "input_tokens": 481.0,
+      "output_tokens": 9.0
+    },
+    {
+      "arrival_time": 479.42654967308044,
+      "input_tokens": 93.0,
+      "output_tokens": 123.0
+    },
+    {
+      "arrival_time": 484.4566230773926,
+      "input_tokens": 641.0,
+      "output_tokens": 6.0
+    },
+    {
+      "arrival_time": 486.70078921318054,
+      "input_tokens": 22.0,
+      "output_tokens": 559.0
+    },
+    {
+      "arrival_time": 488.0852291584015,
+      "input_tokens": 15.0,
+      "output_tokens": 5.0
+    },
+    {
+      "arrival_time": 489.02125120162964,
+      "input_tokens": 16.0,
+      "output_tokens": 316.0
+    },
+    {
+      "arrival_time": 497.5738706588745,
+      "input_tokens": 77.0,
+      "output_tokens": 26.0
+    },
+    {
+      "arrival_time": 498.7649323940277,
+      "input_tokens": 32.0,
+      "output_tokens": 417.0
+    },
+    {
+      "arrival_time": 500.51823234558105,
+      "input_tokens": 689.0,
+      "output_tokens": 206.0
+    },
+    {
+      "arrival_time": 504.20029187202454,
+      "input_tokens": 178.0,
+      "output_tokens": 151.0
+    },
+    {
+      "arrival_time": 517.9758503437042,
+      "input_tokens": 9.0,
+      "output_tokens": 42.0
+    },
+    {
+      "arrival_time": 518.7957012653351,
+      "input_tokens": 628.0,
+      "output_tokens": 25.0
+    },
+    {
+      "arrival_time": 533.3694081306458,
+      "input_tokens": 480.0,
+      "output_tokens": 18.0
+    },
+    {
+      "arrival_time": 534.1773040294647,
+      "input_tokens": 42.0,
+      "output_tokens": 159.0
+    },
+    {
+      "arrival_time": 564.2010521888733,
+      "input_tokens": 336.0,
+      "output_tokens": 20.0
+    },
+    {
+      "arrival_time": 569.2645349502563,
+      "input_tokens": 24.0,
+      "output_tokens": 25.0
+    },
+    {
+      "arrival_time": 599.3924994468689,
+      "input_tokens": 515.0,
+      "output_tokens": 267.0
+    },
+    {
+      "arrival_time": 606.827862739563,
+      "input_tokens": 761.0,
+      "output_tokens": 139.0
+    }
+  ]
+}
