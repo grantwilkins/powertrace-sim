@@ -251,6 +251,32 @@ def _derive_decode_time(itl_value: object, output_tokens: float) -> Optional[flo
     return float(scalar) * float(max(int(round(out_tok)) - 1, 1))
 
 
+def _synthesize_request_timestamps(
+    payload: Dict[str, object],
+    n: int,
+) -> Tuple[Optional[List[float]], Optional[str]]:
+    if n <= 0:
+        return [], "synthetic_empty"
+
+    duration = _finite_float(payload.get("duration"))
+    if duration is not None and duration > 0:
+        step = float(duration) / float(max(n, 1))
+        if step > 0:
+            # Center synthetic arrivals inside uniform bins over the run duration.
+            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
+            return [float(x) for x in values], "synthetic_duration_uniform"
+
+    request_rate = _finite_float(payload.get("request_rate"))
+    poisson_rate = _finite_float(payload.get("poisson_rate"))
+    rate = request_rate if request_rate is not None else poisson_rate
+    if rate is not None and rate > 0:
+        step = 1.0 / float(rate)
+        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
+        return [float(x) for x in values], "synthetic_rate_uniform"
+
+    return None, None
+
+
 def _extract_request_log(
     json_path: str,
 ) -> Tuple[Optional[List[Dict[str, float]]], Optional[str], Dict[str, int]]:
@@ -259,6 +285,7 @@ def _extract_request_log(
         "num_requests_aligned": 0,
         "num_requests_used": 0,
         "num_requests_dropped_invalid": 0,
+        "timestamp_source": "unknown",
     }
     try:
         with open(json_path, "r") as f:
@@ -269,7 +296,7 @@ def _extract_request_log(
     if not isinstance(payload, dict):
         return None, "json_not_object", stats
 
-    required = ["input_lens", "output_lens", "ttfts", "itls", "request_timestamps"]
+    required = ["input_lens", "output_lens", "ttfts", "itls"]
     if any(not isinstance(payload.get(k), list) for k in required):
         return None, "missing_request_timestamps", stats
 
@@ -277,9 +304,23 @@ def _extract_request_log(
     output_lens = payload["output_lens"]
     ttfts = payload["ttfts"]
     itls = payload["itls"]
-    request_timestamps = payload["request_timestamps"]
-    n = int(min(len(input_lens), len(output_lens), len(ttfts), len(itls), len(request_timestamps)))
-    stats["num_requests_total"] = int(min(len(input_lens), len(output_lens), len(ttfts), len(itls)))
+    n_base = int(min(len(input_lens), len(output_lens), len(ttfts), len(itls)))
+    stats["num_requests_total"] = int(n_base)
+
+    request_timestamps_raw = payload.get("request_timestamps")
+    request_timestamps: Optional[List[object]] = None
+    if isinstance(request_timestamps_raw, list):
+        n = int(min(n_base, len(request_timestamps_raw)))
+        request_timestamps = list(request_timestamps_raw[:n])
+        stats["timestamp_source"] = "recorded"
+    else:
+        n = int(n_base)
+        synth_ts, source = _synthesize_request_timestamps(payload, n=n)
+        if synth_ts is None:
+            return None, "missing_request_timestamps", stats
+        request_timestamps = synth_ts
+        stats["timestamp_source"] = str(source or "synthetic")
+
     stats["num_requests_aligned"] = n
     if n <= 0:
         return None, "request_arrays_empty", stats

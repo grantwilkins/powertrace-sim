@@ -1,12 +1,12 @@
 {
-  "active_mean": 3.4598051521128443,
-  "active_std": 3.9170811832032757,
+  "active_mean": 25.93403243665733,
+  "active_std": 99.78734643582483,
   "config_id": "llama-3-70b_H100_tp8",
   "dt": 0.25,
-  "power_max": 3430.0299999999997,
-  "power_mean": 2504.0445880899724,
-  "power_min": 938.0799999999999,
-  "power_std": 829.0342696328509,
-  "t_arrive_log_mean": 1.0060447321623085,
-  "t_arrive_log_std": 2.0004091469912826
+  "power_max": 5283.870000000001,
+  "power_mean": 2702.8424164007033,
+  "power_min": 941.14,
+  "power_std": 958.862048118462,
+  "t_arrive_log_mean": 1.563553631345245,
+  "t_arrive_log_std": 2.622729573058796
 }

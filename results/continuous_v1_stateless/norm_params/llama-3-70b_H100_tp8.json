@@ -1,0 +1,19 @@
+{
+  "active_mean": 3.4598051521128443,
+  "active_std": 3.9170811832032757,
+  "config_id": "llama-3-70b_H100_tp8",
+  "delta_A_mean": -0.0003986207721284356,
+  "delta_A_std": 0.7400717952662033,
+  "dt": 0.25,
+  "hidden_dim": 16,
+  "lambda_mu": 0.1,
+  "model_kind": "stateless",
+  "power_max": 3430.0299999999997,
+  "power_mean": 2504.0445880899724,
+  "power_min": 938.0799999999999,
+  "power_std": 829.0342696328509,
+  "seed": 42,
+  "source_norm_path": "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp8.json",
+  "t_arrive_log_mean": 1.0060447321623085,
+  "t_arrive_log_std": 2.0004091469912826
+}

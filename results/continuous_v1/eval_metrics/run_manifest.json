@@ -540,7 +540,7 @@
     "out_dir": "results/continuous_v1/eval_metrics",
     "plots": true
   },
-  "generated_at_utc": "2026-02-19T03:09:39Z",
+  "generated_at_utc": "2026-02-19T03:45:10Z",
   "inputs": {
     "experimental_manifest": "results/experimental_continuous_v1/manifest.json",
     "pair_manifest_csv": "results/stage0/pair_manifest.csv",

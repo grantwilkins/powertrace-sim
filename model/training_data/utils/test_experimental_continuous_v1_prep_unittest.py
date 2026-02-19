@@ -107,7 +107,29 @@ class TestExperimentalContinuousV1Prep(unittest.TestCase):
             self.assertAlmostEqual(records[0]["total_latency"], 1.0, places=6)
             self.assertAlmostEqual(records[1]["total_latency"], 0.7, places=6)
 
-    def test_missing_request_timestamps_drops_trace(self):
+    def test_missing_request_timestamps_uses_duration_and_rate_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = Path(tmp) / "requests.json"
+            _write_json(
+                json_path,
+                {
+                    "input_lens": [10, 20],
+                    "output_lens": [3, 4],
+                    "ttfts": [0.5, 0.4],
+                    "itls": [[0.2], [0.1]],
+                    "duration": 4.0,
+                    "request_rate": 0.5,
+                },
+            )
+            records, err, stats = _extract_request_log(str(json_path))
+            self.assertIsNone(err)
+            self.assertEqual(stats["timestamp_source"], "synthetic_duration_uniform")
+            self.assertIsNotNone(records)
+            self.assertEqual(len(records), 2)
+            self.assertGreater(records[0]["arrival_epoch_s"], 0.0)
+            self.assertGreater(records[1]["arrival_epoch_s"], records[0]["arrival_epoch_s"])
+
+    def test_missing_request_timestamps_without_fallback_fields_drops_trace(self):
         with tempfile.TemporaryDirectory() as tmp:
             json_path = Path(tmp) / "requests.json"
             _write_json(
@@ -258,6 +280,47 @@ class TestExperimentalContinuousV1Prep(unittest.TestCase):
                     }
                 )
 
+            # Fallback config: missing request_timestamps but has duration + request_rate.
+            for i in range(3):
+                p_csv = root / f"c_power_{i}.csv"
+                j_json = root / f"c_req_{i}.json"
+                _write_power_csv(
+                    p_csv,
+                    groups=[
+                        (3000.00, [100.0, 10.0]),
+                        (3000.25, [115.0, 10.0]),
+                        (3000.50, [130.0, 10.0]),
+                    ],
+                )
+                _write_json(
+                    j_json,
+                    {
+                        "input_lens": [10, 5],
+                        "output_lens": [3, 2],
+                        "ttfts": [0.1, 0.1],
+                        "itls": [[0.1, 0.1], [0.2]],
+                        "duration": 3.0,
+                        "request_rate": 1.0,
+                    },
+                )
+                rows.append(
+                    {
+                        "family": "benchmark",
+                        "dataset_dir": str(root),
+                        "dataset_name": "ds",
+                        "status": "matched",
+                        "model_name": "model-c",
+                        "hardware": "H100",
+                        "tensor_parallelism": "1",
+                        "rate": "1",
+                        "iteration": str(i + 1),
+                        "date_key": "k",
+                        "pair_key": f"c|{i}",
+                        "power_csv_path": str(p_csv),
+                        "json_path": str(j_json),
+                    }
+                )
+
             # Invalid config: missing request_timestamps in JSON.
             for i in range(3):
                 p_csv = root / f"b_power_{i}.csv"
@@ -327,10 +390,12 @@ class TestExperimentalContinuousV1Prep(unittest.TestCase):
                 dt=0.25,
             )
 
-            self.assertEqual(manifest["summary"]["num_configs_written"], 1)
+            self.assertEqual(manifest["summary"]["num_configs_written"], 2)
             self.assertIn("model-a_H100_tp1", manifest["configs"])
             self.assertIn("model-b_H100_tp1", manifest["configs"])
+            self.assertIn("model-c_H100_tp1", manifest["configs"])
             self.assertTrue(manifest["configs"]["model-a_H100_tp1"]["written"])
+            self.assertTrue(manifest["configs"]["model-c_H100_tp1"]["written"])
             self.assertFalse(manifest["configs"]["model-b_H100_tp1"]["written"])
 
             cfg_a = manifest["configs"]["model-a_H100_tp1"]
