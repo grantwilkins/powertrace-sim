@@ -8,9 +8,15 @@ class GRUClassifier(nn.Module):
     and outputs a classification over K power states.
     """
 
-    def __init__(self, Dx, K, H=64):
+    def __init__(self, Dx, K, H=64, num_layers=1):
         super().__init__()
-        self.gru = nn.GRU(Dx, H, batch_first=True, bidirectional=True)
+        self.gru = nn.GRU(
+            Dx,
+            H,
+            num_layers=max(1, int(num_layers)),
+            batch_first=True,
+            bidirectional=True,
+        )
         self.fc = nn.Linear(2 * H, K)
 
     def forward(self, x):

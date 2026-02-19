@@ -210,6 +210,38 @@ def _nanmedian(values: Iterable[float]) -> float:
     return float(np.median(finite))
 
 
+def _finite_float(value: object) -> Optional[float]:
+    try:
+        out = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(out):
+        return None
+    return out
+
+
+def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
+    if n <= 0:
+        return []
+
+    duration = _finite_float(payload.get("duration"))
+    if duration is not None and duration > 0:
+        step = float(duration) / float(max(n, 1))
+        if step > 0:
+            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
+            return [float(x) for x in values]
+
+    request_rate = _finite_float(payload.get("request_rate"))
+    poisson_rate = _finite_float(payload.get("poisson_rate"))
+    rate = request_rate if request_rate is not None else poisson_rate
+    if rate is not None and rate > 0:
+        step = 1.0 / float(rate)
+        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
+        return [float(x) for x in values]
+
+    return None
+
+
 def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
     out: Dict[str, str] = {}
     base_dir = str(Path(pair_manifest_csv).resolve().parent)
@@ -236,15 +268,24 @@ def _build_requests_from_stage0_json(
     dt: float,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
-    required = ("request_timestamps", "input_lens", "output_lens")
+    required = ("input_lens", "output_lens")
     missing = [k for k in required if not isinstance(payload.get(k), list)]
     if missing:
         raise ValueError(f"request json missing arrays: {missing}")
 
-    request_timestamps = payload["request_timestamps"]
     input_lens = payload["input_lens"]
     output_lens = payload["output_lens"]
-    n = int(min(len(request_timestamps), len(input_lens), len(output_lens)))
+    n_base = int(min(len(input_lens), len(output_lens)))
+    request_timestamps_raw = payload.get("request_timestamps")
+    if isinstance(request_timestamps_raw, list):
+        n = int(min(n_base, len(request_timestamps_raw)))
+        request_timestamps = request_timestamps_raw[:n]
+    else:
+        n = int(n_base)
+        synth = _synthesize_request_timestamps(payload, n)
+        if synth is None:
+            raise ValueError("request json missing arrays: ['request_timestamps']")
+        request_timestamps = synth
     if n <= 0:
         raise ValueError("request arrays are empty after alignment")
 

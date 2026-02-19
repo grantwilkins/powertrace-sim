@@ -35,6 +35,38 @@ def _load_json(path: str) -> Dict[str, object]:
     return payload
 
 
+def _finite_float(value: object) -> Optional[float]:
+    try:
+        out = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(out):
+        return None
+    return out
+
+
+def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
+    if n <= 0:
+        return []
+
+    duration = _finite_float(payload.get("duration"))
+    if duration is not None and duration > 0:
+        step = float(duration) / float(max(n, 1))
+        if step > 0:
+            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
+            return [float(x) for x in values]
+
+    request_rate = _finite_float(payload.get("request_rate"))
+    poisson_rate = _finite_float(payload.get("poisson_rate"))
+    rate = request_rate if request_rate is not None else poisson_rate
+    if rate is not None and rate > 0:
+        step = 1.0 / float(rate)
+        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
+        return [float(x) for x in values]
+
+    return None
+
+
 def _resolve_trace_index(
     split_path: str,
     test_pick: int,
@@ -94,16 +126,27 @@ def _build_requests_from_json(
     dt: float,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
-    required = ("request_timestamps", "input_lens", "output_lens")
+    required = ("input_lens", "output_lens")
     if any(not isinstance(payload.get(k), list) for k in required):
         raise ValueError(
             f"Request JSON missing required arrays {required}: {request_json_path}"
         )
 
-    req_ts = payload["request_timestamps"]
     in_lens = payload["input_lens"]
     out_lens = payload["output_lens"]
-    n = int(min(len(req_ts), len(in_lens), len(out_lens)))
+    n_base = int(min(len(in_lens), len(out_lens)))
+    req_ts_raw = payload.get("request_timestamps")
+    if isinstance(req_ts_raw, list):
+        n = int(min(n_base, len(req_ts_raw)))
+        req_ts = req_ts_raw[:n]
+    else:
+        n = int(n_base)
+        synth = _synthesize_request_timestamps(payload, n)
+        if synth is None:
+            raise ValueError(
+                f"Request JSON missing required arrays ('request_timestamps',): {request_json_path}"
+            )
+        req_ts = synth
     if n <= 0:
         raise ValueError(f"No aligned request rows found in {request_json_path}")
 

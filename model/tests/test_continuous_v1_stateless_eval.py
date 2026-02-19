@@ -81,7 +81,13 @@ class TestContinuousV1StatelessEval(unittest.TestCase):
         self.assertAlmostEqual(float(metrics["delta_energy_pct"]), 0.0, places=8)
         self.assertAlmostEqual(float(metrics["acf_r2"]), 1.0, places=8)
 
-    def _build_fixture(self, root: Path, *, include_throughput: bool = True):
+    def _build_fixture(
+        self,
+        root: Path,
+        *,
+        include_throughput: bool = True,
+        include_request_timestamps: bool = True,
+    ):
         cfg = "toy_H100_tp1"
         pair_key = "tp=1|rate=1|date=20260101-000000"
 
@@ -189,14 +195,16 @@ class TestContinuousV1StatelessEval(unittest.TestCase):
         )
 
         requests_path = root / "data" / "requests.json"
-        _write_json(
-            requests_path,
-            {
-                "request_timestamps": [1000.0, 1000.5],
-                "input_lens": [32, 48],
-                "output_lens": [20, 12],
-            },
-        )
+        request_payload = {
+            "input_lens": [32, 48],
+            "output_lens": [20, 12],
+        }
+        if include_request_timestamps:
+            request_payload["request_timestamps"] = [1000.0, 1000.5]
+        else:
+            request_payload["duration"] = 2.0
+            request_payload["request_rate"] = 1.0
+        _write_json(requests_path, request_payload)
 
         pair_manifest_path = root / "results" / "stage0" / "pair_manifest.csv"
         _write_pair_manifest(
@@ -281,6 +289,35 @@ class TestContinuousV1StatelessEval(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["status"], "failed")
             self.assertIn("throughput", rows[0]["reason"])
+
+    def test_evaluate_from_artifacts_missing_request_timestamps_uses_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fx = self._build_fixture(
+                root,
+                include_throughput=True,
+                include_request_timestamps=False,
+            )
+            out_dir = root / "results" / "continuous_v1_stateless" / "eval_metrics"
+
+            run = evaluate_from_artifacts(
+                run_manifest=str(fx["run_manifest"]),
+                experimental_manifest=str(fx["experimental_manifest"]),
+                throughput_db=str(fx["throughput_db"]),
+                pair_manifest_csv=str(fx["pair_manifest"]),
+                out_dir=str(out_dir),
+                config_ids=[fx["config_id"]],
+                num_seeds=1,
+                base_seed=11,
+                device="cpu",
+                plots=False,
+            )
+
+            self.assertEqual(int(run["summary"]["num_evaluated_configs"]), 1)
+            with open(out_dir / "config_summary.csv", "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["status"], "evaluated")
 
 
 if __name__ == "__main__":
