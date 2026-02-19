@@ -1,0 +1,199 @@
+{
+  "artifacts": {
+    "config_summary_csv": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/config_summary.csv",
+    "per_seed_metrics_csv": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
+    "per_trace_metrics_csv": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv",
+    "plots_dir": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/plots"
+  },
+  "configs": {
+    "deepseek-r1-distill-70b_A100_tp4": {
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_A100_tp8": {
+      "config_id": "deepseek-r1-distill-70b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_H100_tp4": {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_H100_tp8": {
+      "config_id": "deepseek-r1-distill-70b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp1": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp2": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp4": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp8": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp1": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp2": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp4": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp8": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-120b_A100_tp4": {
+      "config_id": "gpt-oss-120b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-120b_A100_tp8": {
+      "config_id": "gpt-oss-120b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-120b_H100_tp4": {
+      "config_id": "gpt-oss-120b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-120b_H100_tp8": {
+      "config_id": "gpt-oss-120b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-20b_A100_tp1": {
+      "config_id": "gpt-oss-20b_A100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-20b_A100_tp2": {
+      "config_id": "gpt-oss-20b_A100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-20b_H100_tp1": {
+      "config_id": "gpt-oss-20b_H100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-20b_H100_tp2": {
+      "config_id": "gpt-oss-20b_H100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-405b_H100_tp8": {
+      "config_id": "llama-3-405b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_A100_tp4": {
+      "config_id": "llama-3-70b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_A100_tp8": {
+      "config_id": "llama-3-70b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_H100_tp4": {
+      "config_id": "llama-3-70b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_H100_tp8": {
+      "config_id": "llama-3-70b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp1": {
+      "config_id": "llama-3-8b_A100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp2": {
+      "config_id": "llama-3-8b_A100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp4": {
+      "config_id": "llama-3-8b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp8": {
+      "config_id": "llama-3-8b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp1": {
+      "config_id": "llama-3-8b_H100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp2": {
+      "config_id": "llama-3-8b_H100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp4": {
+      "config_id": "llama-3-8b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp8": {
+      "config_id": "llama-3-8b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    }
+  },
+  "defaults": {
+    "acf_max_lag": 50,
+    "base_seed": 42,
+    "decode_mode": "stochastic",
+    "device": "cuda",
+    "median_filter_window": 1,
+    "num_seeds": 5,
+    "out_dir": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics",
+    "plots": true
+  },
+  "generated_at_utc": "2026-02-19T08:17:39Z",
+  "inputs": {
+    "experimental_manifest": "results/experimental_continuous_v1/manifest.json",
+    "pair_manifest_csv": "results/stage0/pair_manifest.csv",
+    "run_manifest": "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    "throughput_db": "model/config/throughput_database.json"
+  },
+  "schema_version": "continuous-v1-gmm-bigru-eval-run-v1",
+  "summary": {
+    "num_evaluated_configs": 0,
+    "num_failed_configs": 33,
+    "num_skipped_configs": 0,
+    "num_target_configs": 33
+  }
+}
