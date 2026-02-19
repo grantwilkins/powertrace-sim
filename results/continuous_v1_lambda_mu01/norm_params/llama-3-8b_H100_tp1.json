@@ -1,0 +1,18 @@
+{
+  "active_mean": 2.1991864484464223,
+  "active_std": 2.5985631713584936,
+  "config_id": "llama-3-8b_H100_tp1",
+  "dt": 0.25,
+  "hidden_dim": 64,
+  "lambda_mu": 0.1,
+  "n_mix": 1,
+  "num_layers": 1,
+  "power_max": 506.71,
+  "power_mean": 336.6300532341539,
+  "power_min": 70.19,
+  "power_std": 144.0742948727701,
+  "seed": 42,
+  "source_norm_path": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp1.json",
+  "t_arrive_log_mean": 1.2408154121290371,
+  "t_arrive_log_std": 2.2522665229523358
+}
