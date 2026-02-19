@@ -1,5 +1,5 @@
 import math
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -182,6 +182,110 @@ class NoisyTeacherForcing:
         if (not training) or std <= 0.0:
             return p_prev_norm
         return p_prev_norm + (torch.randn_like(p_prev_norm) * std)
+
+
+class MeanRevertingGRU(nn.Module):
+    def __init__(self, input_dim: int = 3, hidden_dim: int = 64, num_layers: int = 1, n_mix: int = 1):
+        """
+        Args:
+            input_dim: features per timestep (default: P_{t-1}, A_t, T_arrive_t)
+            hidden_dim: GRU hidden size
+            num_layers: GRU depth
+            n_mix: number of mixture components (1 = single Gaussian)
+        """
+        super().__init__()
+        self.n_mix = int(n_mix)
+        if self.n_mix < 1:
+            raise ValueError(f"n_mix must be >= 1; got {n_mix}")
+
+        self.gru = nn.GRU(
+            input_size=input_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=False,
+        )
+        if self.n_mix == 1:
+            # (mu, raw_alpha, log_sigma)
+            self.output_head = nn.Linear(hidden_dim, 3)
+        else:
+            # 1 (alpha) + M (pi logits) + M (mu) + M (log_sigma)
+            self.output_head = nn.Linear(hidden_dim, 1 + (3 * self.n_mix))
+
+    def forward(
+        self, x: torch.Tensor, h_0: Optional[torch.Tensor] = None
+    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+        h, h_n = self.gru(x, h_0)
+        raw = self.output_head(h)
+
+        if self.n_mix == 1:
+            mu = raw[:, :, 0:1]
+            alpha = torch.sigmoid(raw[:, :, 1:2])
+            log_sigma = torch.clamp(raw[:, :, 2:3], min=-6.0, max=2.0)
+            return {"mu": mu, "alpha": alpha, "log_sigma": log_sigma}, h_n
+
+        M = int(self.n_mix)
+        alpha = torch.sigmoid(raw[:, :, 0:1])
+        logit_pi = raw[:, :, 1 : 1 + M]
+        mu = raw[:, :, 1 + M : 1 + (2 * M)]
+        log_sigma = torch.clamp(raw[:, :, 1 + (2 * M) : 1 + (3 * M)], min=-6.0, max=2.0)
+        return {"mu": mu, "alpha": alpha, "log_sigma": log_sigma, "logit_pi": logit_pi}, h_n
+
+
+class PowerNoiseInjector:
+    """Corrupt P_{t-1} input during training to simulate rollout-time error."""
+
+    def __init__(self, warmup_epochs: int = 100, ramp_epochs: int = 200, max_noise_std: float = 0.1):
+        self.warmup_epochs = int(max(0, warmup_epochs))
+        self.ramp_epochs = int(max(1, ramp_epochs))
+        self.max_noise_std = float(max(0.0, max_noise_std))
+
+    def get_std(self, epoch: int) -> float:
+        epoch = int(max(0, epoch))
+        if epoch < self.warmup_epochs:
+            return 0.0
+        progress = min(1.0, float(epoch - self.warmup_epochs) / float(self.ramp_epochs))
+        return float(self.max_noise_std * progress)
+
+    def __call__(self, p_prev: torch.Tensor, epoch: int) -> torch.Tensor:
+        std = self.get_std(epoch)
+        if std <= 0.0:
+            return p_prev
+        return p_prev + (torch.randn_like(p_prev) * std)
+
+
+def mean_reverting_nll(
+    params: Dict[str, torch.Tensor],
+    p_prev: torch.Tensor,
+    p_target: torch.Tensor,
+    n_mix: int = 1,
+    mask: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """
+    NLL for P_t = (1 - alpha_t) * P_{t-1} + alpha_t * mu_t + sigma_t * epsilon_t.
+    """
+    if p_prev.ndim == 2:
+        p_prev = p_prev.unsqueeze(-1)
+    if p_target.ndim == 2:
+        p_target = p_target.unsqueeze(-1)
+
+    alpha = params["alpha"]
+    log_sigma = params["log_sigma"]
+    sigma = torch.exp(log_sigma)
+
+    if int(n_mix) == 1:
+        mu = params["mu"]
+        pred_mean = ((1.0 - alpha) * p_prev) + (alpha * mu)
+        nll = 0.5 * math.log(2.0 * math.pi) + log_sigma + 0.5 * ((p_target - pred_mean) / sigma) ** 2
+        return _masked_mean(nll, mask)
+
+    mu = params["mu"]
+    logit_pi = params["logit_pi"]
+    pred_mean = ((1.0 - alpha) * p_prev) + (alpha * mu)
+    log_pi = torch.log_softmax(logit_pi, dim=-1)
+    log_normal = -0.5 * math.log(2.0 * math.pi) - log_sigma - 0.5 * ((p_target - pred_mean) / sigma) ** 2
+    log_prob = torch.logsumexp(log_pi + log_normal, dim=-1, keepdim=True)
+    return _masked_mean(-log_prob, mask)
 
 
 def gaussian_nll_loss(params: torch.Tensor, targets: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:

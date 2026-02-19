@@ -1,0 +1,328 @@
+{
+  "configs": {
+    "deepseek-r1-distill-70b_A100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-70b_A100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp4.json",
+      "num_manifest_rows": 18,
+      "num_test_traces": 2,
+      "num_train_traces": 13,
+      "num_val_traces": 3,
+      "num_valid_traces": 18,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-70b_A100_tp4.json",
+      "written": true
+    },
+    "deepseek-r1-distill-70b_A100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-70b_A100_tp8.npz",
+      "drops": {
+        "power_unresolved_gap": 1
+      },
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp8.json",
+      "num_manifest_rows": 18,
+      "num_test_traces": 2,
+      "num_train_traces": 12,
+      "num_val_traces": 3,
+      "num_valid_traces": 17,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-70b_A100_tp8.json",
+      "written": true
+    },
+    "deepseek-r1-distill-70b_H100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-70b_H100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp4.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-70b_H100_tp4.json",
+      "written": true
+    },
+    "deepseek-r1-distill-70b_H100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-70b_H100_tp8.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-70b_H100_tp8.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_A100_tp1": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_A100_tp1.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp1.json",
+      "num_manifest_rows": 22,
+      "num_test_traces": 4,
+      "num_train_traces": 15,
+      "num_val_traces": 3,
+      "num_valid_traces": 22,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_A100_tp1.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_A100_tp2": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_A100_tp2.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp2.json",
+      "num_manifest_rows": 18,
+      "num_test_traces": 2,
+      "num_train_traces": 13,
+      "num_val_traces": 3,
+      "num_valid_traces": 18,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_A100_tp2.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_A100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_A100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp4.json",
+      "num_manifest_rows": 18,
+      "num_test_traces": 2,
+      "num_train_traces": 13,
+      "num_val_traces": 3,
+      "num_valid_traces": 18,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_A100_tp4.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_A100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_A100_tp8.npz",
+      "drops": {
+        "power_unresolved_gap": 2
+      },
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp8.json",
+      "num_manifest_rows": 18,
+      "num_test_traces": 3,
+      "num_train_traces": 11,
+      "num_val_traces": 2,
+      "num_valid_traces": 16,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_A100_tp8.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_H100_tp1": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_H100_tp1.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp1.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_H100_tp1.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_H100_tp2": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_H100_tp2.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp2.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_H100_tp2.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_H100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_H100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp4.json",
+      "num_manifest_rows": 29,
+      "num_test_traces": 5,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
+      "num_valid_traces": 29,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_H100_tp4.json",
+      "written": true
+    },
+    "deepseek-r1-distill-8b_H100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/deepseek-r1-distill-8b_H100_tp8.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/deepseek-r1-distill-8b_H100_tp8.json",
+      "written": true
+    },
+    "llama-3-405b_H100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-405b_H100_tp8.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-405b_H100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-405b_H100_tp8.json",
+      "written": true
+    },
+    "llama-3-70b_A100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-70b_A100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp4.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-70b_A100_tp4.json",
+      "written": true
+    },
+    "llama-3-70b_A100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-70b_A100_tp8.npz",
+      "drops": {
+        "power_unresolved_gap": 3
+      },
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 4,
+      "num_train_traces": 19,
+      "num_val_traces": 4,
+      "num_valid_traces": 27,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-70b_A100_tp8.json",
+      "written": true
+    },
+    "llama-3-70b_H100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-70b_H100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp4.json",
+      "num_manifest_rows": 29,
+      "num_test_traces": 5,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
+      "num_valid_traces": 29,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-70b_H100_tp4.json",
+      "written": true
+    },
+    "llama-3-70b_H100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-70b_H100_tp8.npz",
+      "drops": {
+        "power_unresolved_gap": 1
+      },
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
+      "num_valid_traces": 29,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-70b_H100_tp8.json",
+      "written": true
+    },
+    "llama-3-8b_A100_tp1": {
+      "drops": {
+        "config_too_few_traces": 1,
+        "missing_request_timestamps": 30
+      },
+      "num_manifest_rows": 30,
+      "num_valid_traces": 0,
+      "written": false
+    },
+    "llama-3-8b_A100_tp2": {
+      "drops": {
+        "config_too_few_traces": 1,
+        "missing_request_timestamps": 29,
+        "power_unresolved_gap": 1
+      },
+      "num_manifest_rows": 30,
+      "num_valid_traces": 0,
+      "written": false
+    },
+    "llama-3-8b_A100_tp4": {
+      "drops": {
+        "config_too_few_traces": 1,
+        "missing_request_timestamps": 29,
+        "power_unresolved_gap": 1
+      },
+      "num_manifest_rows": 30,
+      "num_valid_traces": 0,
+      "written": false
+    },
+    "llama-3-8b_A100_tp8": {
+      "drops": {
+        "config_too_few_traces": 1,
+        "missing_request_timestamps": 21,
+        "power_unresolved_gap": 9
+      },
+      "num_manifest_rows": 30,
+      "num_valid_traces": 0,
+      "written": false
+    },
+    "llama-3-8b_H100_tp1": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-8b_H100_tp1.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp1.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-8b_H100_tp1.json",
+      "written": true
+    },
+    "llama-3-8b_H100_tp2": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-8b_H100_tp2.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp2.json",
+      "num_manifest_rows": 29,
+      "num_test_traces": 5,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
+      "num_valid_traces": 29,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-8b_H100_tp2.json",
+      "written": true
+    },
+    "llama-3-8b_H100_tp4": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-8b_H100_tp4.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp4.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-8b_H100_tp4.json",
+      "written": true
+    },
+    "llama-3-8b_H100_tp8": {
+      "dataset_npz": "results/experimental_continuous_v1/datasets/llama-3-8b_H100_tp8.npz",
+      "drops": {},
+      "norm_params_json": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp8.json",
+      "num_manifest_rows": 30,
+      "num_test_traces": 5,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "num_valid_traces": 30,
+      "split_json": "results/experimental_continuous_v1/splits/llama-3-8b_H100_tp8.json",
+      "written": true
+    }
+  },
+  "defaults": {
+    "dt": 0.25,
+    "max_interp_gap_steps": 3,
+    "min_traces_per_config": 3,
+    "power_group_window_s": 0.05,
+    "seed": 42,
+    "train_fraction": 0.7,
+    "val_fraction": 0.15
+  },
+  "generated_at_utc": "2026-02-18T23:26:45Z",
+  "inputs": {
+    "pair_manifest_csv": "results/stage0/pair_manifest.csv"
+  },
+  "schema_version": "experimental-continuous-v1",
+  "summary": {
+    "drop_reasons": {
+      "config_too_few_traces": 4,
+      "missing_request_timestamps": 109,
+      "power_unresolved_gap": 18
+    },
+    "num_configs_seen": 25,
+    "num_configs_written": 21,
+    "num_manifest_rows": 679,
+    "num_traces_written": 552
+  }
+}
