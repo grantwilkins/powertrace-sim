@@ -1,0 +1,21 @@
+{
+  "active_mean": 1.630557091907768,
+  "active_std": 2.303704410711289,
+  "config_id": "deepseek-r1-distill-8b_H100_tp1",
+  "delta_A_mean": -0.0004006716019232237,
+  "delta_A_std": 0.6709009070075805,
+  "dt": 0.25,
+  "feature_set": "f3",
+  "hidden_dim": 64,
+  "input_dim": 3,
+  "k": 10,
+  "num_layers": 1,
+  "power_max": 506.63,
+  "power_mean": 297.02174479812334,
+  "power_min": 70.8,
+  "power_std": 154.3118225683257,
+  "seed": 42,
+  "source_norm_path": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp1.json",
+  "t_arrive_log_mean": 0.9230745215085558,
+  "t_arrive_log_std": 1.996985105601993
+}
