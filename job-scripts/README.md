@@ -22,6 +22,12 @@ bash job-scripts/gpt-oss-20b.sh
 bash job-scripts/gpt-oss-120b.sh
 ```
 
+Enable shell tracing during troubleshooting:
+
+```bash
+DEBUG=1 bash job-scripts/gpt-oss-20b.sh
+```
+
 ### Script behavior and grid
 
 - `gpt-oss-20b.sh`
