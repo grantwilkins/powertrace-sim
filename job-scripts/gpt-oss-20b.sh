@@ -156,6 +156,7 @@ for TENSOR_PARALLEL_SIZE in "${TENSOR_PARALLEL_SIZES[@]}"; do
             DATE_KEY="$(date '+%Y%m%d-%H%M%S')"
             JSON_FILE="vllm-${ARRIVAL_RATE}qps-tp${TENSOR_PARALLEL_SIZE}-gpt-oss-20b-${DATE_KEY}.json"
             CSV_FILE="gpt-oss-20b_tp${TENSOR_PARALLEL_SIZE}_p${ARRIVAL_RATE}_d${DATE_KEY}.csv"
+            RUN_LOG="${OUTPUT_DIR}/run-gpt-oss-20b-tp${TENSOR_PARALLEL_SIZE}-rate${ARRIVAL_RATE}-iter${ITERATION}-${DATE_KEY}.log"
             CSV_PATH="${OUTPUT_DIR}/${CSV_FILE}"
             CURRENT_JSON_FILE="${OUTPUT_DIR}/${JSON_FILE}"
             CURRENT_CSV_PATH="${CSV_PATH}"
@@ -163,12 +164,13 @@ for TENSOR_PARALLEL_SIZE in "${TENSOR_PARALLEL_SIZES[@]}"; do
             echo "TP=${TENSOR_PARALLEL_SIZE} rate=${ARRIVAL_RATE} iter=${ITERATION}/${ITERATIONS} prompts=${NUM_PROMPTS}"
             echo "  -> json: ${CURRENT_JSON_FILE}"
             echo "  -> csv:  ${CURRENT_CSV_PATH}"
+            echo "  -> log:  ${RUN_LOG}"
 
             touch "${CSV_PATH}"
             nvidia-smi --query-gpu=timestamp,power.draw,utilization.gpu,memory.used --format=csv -lms 250 >> "${CSV_PATH}" &
             NVIDIA_SMI_PID=$!
 
-            python3 benchmark_serving.py \
+            if ! python3 benchmark_serving.py \
                 --model openai/gpt-oss-20b \
                 --backend vllm \
                 --dataset-name sharegpt \
@@ -180,7 +182,12 @@ for TENSOR_PARALLEL_SIZE in "${TENSOR_PARALLEL_SIZES[@]}"; do
                 --save-result \
                 --save-detailed \
                 --result-dir "${OUTPUT_DIR}" \
-                --result-filename "${JSON_FILE}"
+                --result-filename "${JSON_FILE}" 2>&1 | tee "${RUN_LOG}"; then
+                echo "Error: benchmark_serving.py failed for TP=${TENSOR_PARALLEL_SIZE}, rate=${ARRIVAL_RATE}, iter=${ITERATION}"
+                echo "Tail of run log (${RUN_LOG}):"
+                tail -n 120 "${RUN_LOG}" || true
+                return 1
+            fi
 
             stop_nvidia_smi
         done
