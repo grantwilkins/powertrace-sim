@@ -34,9 +34,15 @@ from transformers import PreTrainedTokenizerBase
 from vllm.lora.request import LoRARequest
 from vllm.lora.utils import get_adapter_absolute_path
 from vllm.multimodal import MultiModalDataDict
-from vllm.transformers_utils.tokenizer import AnyTokenizer, get_lora_tokenizer
+from vllm.transformers_utils.tokenizer import AnyTokenizer
+
+try:
+    from vllm.transformers_utils.tokenizer import get_lora_tokenizer
+except ImportError:
+    get_lora_tokenizer = None
 
 logger = logging.getLogger(__name__)
+_warned_missing_lora_tokenizer = False
 
 # -----------------------------------------------------------------------------
 # Data Classes
@@ -147,6 +153,15 @@ class BenchmarkDataset(ABC):
             lora_int_id=lora_id,
             lora_path=lora_path_on_disk(lora_path),
         )
+        if get_lora_tokenizer is None:
+            global _warned_missing_lora_tokenizer
+            if not _warned_missing_lora_tokenizer:
+                logger.warning(
+                    "vLLM tokenizer API does not expose get_lora_tokenizer; "
+                    "falling back to base tokenizer for LoRA requests."
+                )
+                _warned_missing_lora_tokenizer = True
+            return lora_request, tokenizer
         if lora_id not in lora_tokenizer_cache:
             lora_tokenizer_cache[lora_id] = get_lora_tokenizer(lora_request)
         # Return lora_request and the cached tokenizer if available; otherwise,
