@@ -1,0 +1,32 @@
+{
+  "config_id": "deepseek-r1-distill-70b_H100_tp4",
+  "counts": {
+    "evaluated_nodes": 240,
+    "failed_nodes": 0
+  },
+  "generation": {
+    "base_seed": 42,
+    "batch_size": 8,
+    "decode_mode": "stochastic",
+    "device": "cpu",
+    "median_filter_window": 1,
+    "ours_logit_temperature": 1.0,
+    "ours_std_scale": 1.0,
+    "uses_ar1": false
+  },
+  "layout": {
+    "n_nodes": 240,
+    "nodes_per_rack": 4,
+    "racks_per_row": 6,
+    "rows": 10
+  },
+  "node_stream_dir": "/Users/grantwilkins/powertrace-sim/data/azure_facility/node_streams",
+  "out_dir": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces",
+  "status": "ok",
+  "timing": {
+    "dt": 0.25,
+    "duration_s": 86400.0,
+    "timesteps": 345600
+  },
+  "trace_manifest_csv": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces/trace_manifest.csv"
+}

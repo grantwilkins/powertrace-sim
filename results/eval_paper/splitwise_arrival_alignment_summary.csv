@@ -1,0 +1,3 @@
+config_id,trace_index,pair_key,selected_rate,dt,n_requests,lag_req_to_split_bins,lag_req_to_split_seconds,corr_req_to_split,lag_req_to_deltaA_bins,lag_req_to_deltaA_seconds,corr_req_to_deltaA,plot_pdf
+deepseek-r1-distill-70b_H100_tp4,1,tp=4|rate=0.125|date=20250527-093008,0.125,0.25,75,1,0.25,0.23478401445422617,1,0.25,0.9595750220414854,figures/splitwise_arrival_alignment_deepseek_h100_trace1.pdf
+llama-3-70b_H100_tp4,36,tp=4|rate=0.25|date=20250514-094252,0.25,0.25,150,1,0.25,0.24404149327736518,1,0.25,0.9594360976750489,figures/splitwise_arrival_alignment_llama3_h100_trace36.pdf

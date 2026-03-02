@@ -1,0 +1,5 @@
+config_id,method,status,reason,num_test_traces,num_eval_traces,num_failed_traces,num_seeds,ks_stat,acf_r2,nrmse,p95_error_pct,p99_error_pct,delta_energy_pct,acf_note,dt,feature_set,k,decode_mode,median_filter_window
+deepseek-r1-distill-70b_H100_tp4,tdp,evaluated,,5,5,0,1,1.0,nan,3.913981155001509,266.393906758302,257.32478727941066,618.474608040925,N/A_constant_trace,0.25,f2,10,,0
+deepseek-r1-distill-70b_H100_tp4,mean,evaluated,,5,5,0,1,0.716447630426125,nan,0.6209274101164685,10.239998483131101,12.461771725443628,76.01352183546908,N/A_constant_trace,0.25,f2,10,,0
+deepseek-r1-distill-70b_H100_tp4,marginal_gmm,evaluated,,5,5,0,1,0.6067729083665339,-1.3986852155906218,0.7100921528469674,10.51430295926862,12.074525781716225,75.46790781299698,,0.25,f2,10,,0
+deepseek-r1-distill-70b_H100_tp4,ours,evaluated,,5,5,0,1,0.4563918757467145,0.8185250232903736,0.2572639461531372,2.426375731013538,2.422889865249853,5.093110513290556,,0.25,f2,10,stochastic,1

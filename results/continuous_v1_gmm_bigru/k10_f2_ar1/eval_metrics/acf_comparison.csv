@@ -1,0 +1,7 @@
+Config,K10-F2 (i.i.d.) ACF,K10-F2-AR1 ACF,φ_median,Notes
+gpt-oss-20b_A100_tp2,-1.474243,0.458040,0.700088,ACF improved (+1.932)
+gpt-oss-120b_H100_tp8,0.366224,0.150095,0.927784,ACF regressed (-0.216)
+gpt-oss-120b_A100_tp4,-3.524962,-0.278422,0.803328,ACF improved (+3.247)
+gpt-oss-20b_H100_tp1,-0.110540,0.562393,0.868101,ACF improved (+0.673)
+deepseek-r1-distill-8b_H100_tp8,0.923596,0.852236,0.516136,ACF regressed (-0.071)
+deepseek-r1-distill-70b_H100_tp4,0.975956,0.945627,0.543184,ACF near baseline (-0.030)

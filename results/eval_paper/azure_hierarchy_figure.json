@@ -1,0 +1,70 @@
+{
+  "inputs": {
+    "aggregated_dir": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated",
+    "node_trace_dir": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces",
+    "node_trace_path": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces/node_0_0_0.npy",
+    "rack_trace_path": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated/rack_0_0.npy",
+    "row_trace_path": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated/row_0.npy",
+    "site_trace_path": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated/site_it_1s.npy"
+  },
+  "metrics_by_level": {
+    "rack": {
+      "cov": 0.17598945673314234,
+      "mean_kw": 7.5570423803089275,
+      "n_samples_15min": 96,
+      "n_samples_1s": 86400,
+      "par_15min": 1.2177496249150774,
+      "par_1s": 1.4936561790743283,
+      "std_kw": 1.329959783019901
+    },
+    "row": {
+      "cov": 0.13483138254711963,
+      "mean_kw": 45.339929984176074,
+      "n_samples_15min": 96,
+      "n_samples_1s": 86400,
+      "par_15min": 1.214601472374695,
+      "par_1s": 1.4087759024670388,
+      "std_kw": 6.113245444356064
+    },
+    "server": {
+      "cov": 0.583258744226953,
+      "mean_kw": 0.888794984696971,
+      "n_samples_15min": 96,
+      "n_samples_1s": 86400,
+      "par_15min": 1.5062383520553773,
+      "par_1s": 2.1244069717682392,
+      "std_kw": 0.5183974466495692
+    },
+    "site": {
+      "cov": 0.12679554494739928,
+      "mean_kw": 453.65412103804977,
+      "n_samples_15min": 96,
+      "n_samples_1s": 86400,
+      "par_15min": 1.2131338908572902,
+      "par_1s": 1.3037154245324136,
+      "std_kw": 57.521321494652945
+    }
+  },
+  "output_mode": "separate",
+  "outputs": {
+    "csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_hierarchy_figure.csv",
+    "json": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_hierarchy_figure.json"
+  },
+  "panel_files": {
+    "rack": "/Users/grantwilkins/powertrace-sim/figures/azure_hierarchy_rack.pdf",
+    "row": "/Users/grantwilkins/powertrace-sim/figures/azure_hierarchy_row.pdf",
+    "server": "/Users/grantwilkins/powertrace-sim/figures/azure_hierarchy_server.pdf",
+    "site": "/Users/grantwilkins/powertrace-sim/figures/azure_hierarchy_site.pdf"
+  },
+  "selected_ids": {
+    "node_id": "0_0_0",
+    "rack_id": "0_0",
+    "row_id": 0
+  },
+  "status": "ok",
+  "timing": {
+    "n_samples_1s": 86400,
+    "server_downsample_factor": 4,
+    "trend_window_s": 900
+  }
+}

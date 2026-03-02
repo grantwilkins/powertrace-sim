@@ -14,7 +14,11 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.classifiers.gru import GRUClassifier
-from model.scripts.continuous_v1_gmm_bigru_eval import evaluate_from_artifacts
+from model.scripts.continuous_v1_gmm_bigru_eval import (
+    estimate_ar1_params,
+    evaluate_from_artifacts,
+    generate_gmm_bigru_trace_ar1_thresholded,
+)
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -247,9 +251,23 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
                 rows = list(csv.DictReader(f))
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["status"], "evaluated")
+            self.assertEqual(rows[0]["generation_mode"], "ar1_thresholded")
             self.assertEqual(rows[0]["feature_set"], "f2")
             self.assertEqual(rows[0]["decode_mode"], "stochastic")
             self.assertTrue(np.isfinite(float(rows[0]["nrmse_median"])))
+            self.assertTrue(np.isfinite(float(rows[0]["phi_median"])))
+            self.assertTrue(Path(rows[0]["ar1_params_json"]).exists())
+            with open(rows[0]["ar1_params_json"], "r") as f:
+                ar1_payload = json.load(f)
+            self.assertEqual(int(ar1_payload["min_run_length"]), 5)
+            self.assertAlmostEqual(float(ar1_payload["phi_threshold"]), 0.3, places=8)
+            self.assertIn("phi_above_threshold", ar1_payload)
+
+            ar1_dir = Path(run["artifacts"]["ar1_params_dir"])
+            self.assertTrue(ar1_dir.exists())
+            self.assertTrue(any(ar1_dir.glob("*_ar1_params.json")))
+
+            self.assertEqual(str(run["schema_version"]), "continuous-v1-gmm-bigru-eval-run-v2")
 
     def test_evaluate_from_artifacts_missing_throughput_fails_config(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -278,6 +296,122 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["status"], "failed")
             self.assertIn("throughput", rows[0]["reason"])
+
+    def test_estimate_ar1_params_clamp_and_fallback(self):
+        gmm = {
+            "k": 3,
+            "means": np.array([10.0, 20.0, 30.0], dtype=np.float64),
+            "variances": np.array([4.0, 9.0, 16.0], dtype=np.float64),
+            "weights": np.array([0.3, 0.4, 0.3], dtype=np.float64),
+        }
+        training_power_traces = [
+            np.array([10.0, 12.0, 13.0, 14.0, 15.0, 16.0], dtype=np.float64),
+            np.array([21.0, 19.0, 21.0, 19.0], dtype=np.float64),
+        ]
+        training_labels_traces = [
+            np.array([0, 0, 0, 0, 0, 0], dtype=np.int64),
+            np.array([1, 1, 1, 1], dtype=np.int64),
+        ]
+
+        phi, sigma_innov, sigma_marginal = estimate_ar1_params(
+            gmm_params=gmm,
+            training_power_traces=training_power_traces,
+            training_labels_traces=training_labels_traces,
+            K=3,
+            min_run_length=5,
+        )
+
+        self.assertAlmostEqual(float(phi[0]), 0.99, places=10)
+        self.assertAlmostEqual(float(phi[1]), 0.0, places=10)
+        self.assertAlmostEqual(float(phi[2]), 0.0, places=10)
+
+        self.assertTrue(np.allclose(sigma_marginal, np.array([2.0, 3.0, 4.0], dtype=np.float64)))
+        expected_sigma0 = 2.0 * np.sqrt(max(1e-12, 1.0 - (0.99**2)))
+        self.assertAlmostEqual(float(sigma_innov[0]), float(expected_sigma0), places=10)
+        self.assertAlmostEqual(float(sigma_innov[1]), 3.0, places=10)
+        self.assertAlmostEqual(float(sigma_innov[2]), 4.0, places=10)
+
+    def test_generate_ar1_deterministic_rollout_and_seed(self):
+        gmm = {
+            "k": 2,
+            "means": np.array([100.0, 200.0], dtype=np.float64),
+            "variances": np.array([1.0, 1.0], dtype=np.float64),
+            "weights": np.array([0.5, 0.5], dtype=np.float64),
+        }
+
+        deterministic_logits = np.array([[10.0, -10.0], [10.0, -10.0], [10.0, -10.0]], dtype=np.float64)
+        deterministic = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=deterministic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.5, 0.0], dtype=np.float64),
+            sigma_innov=np.array([0.0, 0.0], dtype=np.float64),
+            sigma_marginal=np.array([0.0, 0.0], dtype=np.float64),
+            p0=50.0,
+            seed=7,
+            decode_mode="argmax",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=None,
+        )
+        self.assertTrue(
+            np.allclose(
+                np.asarray(deterministic["power_w"], dtype=np.float64),
+                np.array([75.0, 87.5, 93.75], dtype=np.float64),
+            )
+        )
+
+        iid_logits = np.array([[10.0, -10.0], [10.0, -10.0], [10.0, -10.0]], dtype=np.float64)
+        iid_like = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=iid_logits,
+            gmm_params=gmm,
+            phi=np.array([0.2, 0.0], dtype=np.float64),
+            sigma_innov=np.array([2.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([0.0, 0.0], dtype=np.float64),
+            p0=180.0,
+            seed=9,
+            decode_mode="argmax",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=None,
+        )
+        self.assertTrue(
+            np.allclose(
+                np.asarray(iid_like["power_w"], dtype=np.float64),
+                np.array([100.0, 100.0, 100.0], dtype=np.float64),
+            )
+        )
+
+        stochastic_logits = np.zeros((6, 2), dtype=np.float64)
+        out_a = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=stochastic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.8, 0.7], dtype=np.float64),
+            sigma_innov=np.array([1.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([3.0, 4.0], dtype=np.float64),
+            p0=180.0,
+            seed=123,
+            decode_mode="stochastic",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=(150.0, 260.0),
+        )
+        out_b = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=stochastic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.8, 0.7], dtype=np.float64),
+            sigma_innov=np.array([1.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([3.0, 4.0], dtype=np.float64),
+            p0=180.0,
+            seed=123,
+            decode_mode="stochastic",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=(150.0, 260.0),
+        )
+        p_a = np.asarray(out_a["power_w"], dtype=np.float64)
+        p_b = np.asarray(out_b["power_w"], dtype=np.float64)
+        self.assertEqual(p_a.shape[0], 6)
+        self.assertTrue(np.allclose(p_a, p_b))
 
 
 if __name__ == "__main__":

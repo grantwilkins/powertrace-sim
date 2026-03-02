@@ -1,0 +1,68 @@
+{
+  "aggregated_dir": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated",
+  "allow_nonmonotonic": false,
+  "annotations": {
+    "ups_1s_par": 1.3037154036726597,
+    "utility_15min_par": 1.213133851682954
+  },
+  "monotonic_nonincreasing": true,
+  "outputs": {
+    "csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_par_vs_resolution.csv",
+    "json": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_par_vs_resolution.json",
+    "plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/azure_par_vs_resolution.pdf"
+  },
+  "resolutions_s": [
+    0.25,
+    1.0,
+    10.0,
+    60.0,
+    300.0,
+    900.0
+  ],
+  "rows": [
+    {
+      "mean_w": 589750.3573085757,
+      "n_samples": 345600,
+      "par": 1.311444097345956,
+      "peak_w": 773424.625,
+      "resolution_s": 0.25
+    },
+    {
+      "mean_w": 589750.3571976273,
+      "n_samples": 86400,
+      "par": 1.3037154036726597,
+      "peak_w": 768866.625,
+      "resolution_s": 1.0
+    },
+    {
+      "mean_w": 589750.3571976273,
+      "n_samples": 8640,
+      "par": 1.268958197085448,
+      "peak_w": 748368.55,
+      "resolution_s": 10.0
+    },
+    {
+      "mean_w": 589750.3577907986,
+      "n_samples": 1440,
+      "par": 1.2435744892929044,
+      "peak_w": 733398.5,
+      "resolution_s": 60.0
+    },
+    {
+      "mean_w": 589750.3571976273,
+      "n_samples": 288,
+      "par": 1.2237986038355952,
+      "peak_w": 721735.66375,
+      "resolution_s": 300.0
+    },
+    {
+      "mean_w": 589750.359375,
+      "n_samples": 96,
+      "par": 1.213133851682954,
+      "peak_w": 715446.125,
+      "resolution_s": 900.0
+    }
+  ],
+  "status": "ok",
+  "violations": []
+}

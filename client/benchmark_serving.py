@@ -170,6 +170,7 @@ def calculate_metrics(
     e2els: list[float] = []
     timestamps: list[float] = []
     for i in range(len(outputs)):
+        timestamps.append(outputs[i].request_timestamp)
         if outputs[i].success:
             output_len = outputs[i].output_tokens
 
@@ -198,7 +199,6 @@ def calculate_metrics(
                 itls.append(np.mean(outputs[i].itl))
             ttfts.append(outputs[i].ttft)
             e2els.append(outputs[i].latency)
-            timestamps.append(outputs[i].request_timestamp)
             completed += 1
         else:
             actual_output_lens.append(0)

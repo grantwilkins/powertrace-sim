@@ -414,6 +414,47 @@ def _fit_candidate_scores(
     return out
 
 
+def _select_optimal_k(
+    bic_scores: Dict[str, Dict[str, float]],
+    *,
+    max_k: int = 20,
+    min_k: int = 4,
+) -> Tuple[int, str]:
+    """
+    Select optimal K based on BIC scores.
+
+    Returns:
+        Tuple of (selected_k, selection_reason)
+    """
+    valid_scores: Dict[int, float] = {}
+    for k_str, scores in bic_scores.items():
+        k_val = int(k_str)
+        bic_val = scores.get("bic", float("nan"))
+        if np.isfinite(bic_val) and min_k <= k_val <= max_k:
+            valid_scores[k_val] = bic_val
+
+    if not valid_scores:
+        return max(min_k, 10), "no_valid_bic_scores_fallback"
+
+    # Find K with minimum BIC
+    best_k = min(valid_scores, key=lambda k: valid_scores[k])
+    best_bic = valid_scores[best_k]
+
+    # Check if BIC is still decreasing at max tested K (suggests higher K might be better)
+    sorted_ks = sorted(valid_scores.keys())
+    if len(sorted_ks) >= 2:
+        max_tested_k = sorted_ks[-1]
+        second_max_k = sorted_ks[-2]
+        if best_k == max_tested_k and valid_scores[max_tested_k] < valid_scores[second_max_k]:
+            reason = f"bic_minimum_at_max_k={best_k}_may_need_higher"
+        else:
+            reason = f"bic_minimum_at_k={best_k}"
+    else:
+        reason = f"bic_minimum_at_k={best_k}"
+
+    return best_k, reason
+
+
 def train_one_config(
     *,
     config_id: str,
@@ -598,10 +639,12 @@ def run_training_from_manifest(
     patience: int = 50,
     scheduler_patience: int = 20,
     scheduler_factor: float = 0.5,
-    bic_candidates: Sequence[int] = (6, 8, 10, 12),
+    bic_candidates: Sequence[int] = (6, 8, 10, 12, 14, 16, 18, 20),
     seed: int = 42,
     device: str = "auto",
     force_all_configs: bool = False,
+    auto_k: bool = False,
+    max_k: int = 20,
 ) -> Dict[str, object]:
     feature_set = str(feature_set).strip().lower()
     if feature_set not in {"f2", "f3"}:
@@ -635,7 +678,10 @@ def run_training_from_manifest(
         else:
             targets = sorted([cid for cid, entry in config_map.items() if bool(entry.get("written", False))])
 
-    variant = f"k{int(k)}_{feature_set}"
+    if auto_k:
+        variant = f"kauto_max{int(max_k)}_{feature_set}"
+    else:
+        variant = f"k{int(k)}_{feature_set}"
     out_dir = os.path.join(out_root, variant)
     checkpoints_dir = os.path.join(out_dir, "checkpoints")
     curves_dir = os.path.join(out_dir, "training_curves")
@@ -675,13 +721,13 @@ def run_training_from_manifest(
             delta_mean, delta_std = delta_stats
 
             norm_payload = dict(payload["norm_payload"])
+            # Note: k will be updated after BIC selection if auto_k is enabled
             norm_payload.update(
                 {
                     "config_id": cid,
                     "source_norm_path": payload["norm_path"],
                     "delta_A_mean": float(delta_mean),
                     "delta_A_std": float(delta_std),
-                    "k": int(k),
                     "feature_set": feature_set,
                     "input_dim": int(2 if feature_set == "f2" else 3),
                     "hidden_dim": int(hidden_dim),
@@ -735,18 +781,32 @@ def run_training_from_manifest(
             if train_power.size < int(k):
                 raise ValueError(f"insufficient_train_points_for_gmm_k{int(k)}")
 
-            gmm_fit = fit_power_gmm(
-                power_values=train_power,
-                k=int(k),
-                random_state=int(seed),
-                n_init=10,
-                max_iter=300,
-                reg_covar=1e-6,
-            )
+            # Run BIC sweep first to evaluate all candidate K values
             bic_scan = _fit_candidate_scores(
                 train_power,
                 k_candidates=[int(v) for v in bic_candidates],
                 seed=int(seed),
+            )
+
+            # Select K: either auto-select based on BIC or use provided fixed K
+            if auto_k:
+                selected_k, k_selection_reason = _select_optimal_k(
+                    bic_scan,
+                    max_k=int(max_k),
+                    min_k=4,
+                )
+                print(f"  [{cid}] auto-k selected K={selected_k} ({k_selection_reason})")
+            else:
+                selected_k = int(k)
+                k_selection_reason = "fixed"
+
+            gmm_fit = fit_power_gmm(
+                power_values=train_power,
+                k=selected_k,
+                random_state=int(seed),
+                n_init=10,
+                max_iter=300,
+                reg_covar=1e-6,
             )
 
             train_data = _prepare_split(
@@ -775,11 +835,15 @@ def run_training_from_manifest(
                 raise ValueError("empty_test_after_label_build")
 
             slug = _safe_slug(cid)
-            checkpoint_path = os.path.join(checkpoints_dir, f"{slug}_k{int(k)}_{feature_set}_best.pt")
-            curve_path = os.path.join(curves_dir, f"{slug}_k{int(k)}_{feature_set}.csv")
+            checkpoint_path = os.path.join(checkpoints_dir, f"{slug}_k{selected_k}_{feature_set}_best.pt")
+            curve_path = os.path.join(curves_dir, f"{slug}_k{selected_k}_{feature_set}.csv")
             norm_out_path = os.path.join(norms_dir, f"{slug}.json")
-            gmm_out_path = os.path.join(gmms_dir, f"{slug}_k{int(k)}.json")
+            gmm_out_path = os.path.join(gmms_dir, f"{slug}_k{selected_k}.json")
 
+            # Update norm_payload with selected K before writing
+            norm_payload["k"] = selected_k
+            norm_payload["k_selection_reason"] = k_selection_reason
+            norm_payload["auto_k"] = bool(auto_k)
             _write_json(norm_out_path, norm_payload)
             _write_json(
                 gmm_out_path,
@@ -797,7 +861,7 @@ def run_training_from_manifest(
                     "val": val_data,
                     "test": test_data,
                 },
-                k=int(k),
+                k=selected_k,
                 input_dim=int(2 if feature_set == "f2" else 3),
                 hidden_dim=int(hidden_dim),
                 num_layers=int(max(1, num_layers)),
@@ -816,7 +880,9 @@ def run_training_from_manifest(
                 "config_id": cid,
                 "status": "trained",
                 "reason": "",
-                "k": int(k),
+                "k": selected_k,
+                "k_selection_reason": k_selection_reason,
+                "auto_k": bool(auto_k),
                 "feature_set": feature_set,
                 "input_dim": int(2 if feature_set == "f2" else 3),
                 "seed": int(seed),
@@ -858,6 +924,8 @@ def run_training_from_manifest(
         "status",
         "reason",
         "k",
+        "k_selection_reason",
+        "auto_k",
         "feature_set",
         "input_dim",
         "seed",
@@ -898,6 +966,8 @@ def run_training_from_manifest(
             "out_dir": out_dir,
             "variant": variant,
             "k": int(k),
+            "auto_k": bool(auto_k),
+            "max_k": int(max_k),
             "feature_set": feature_set,
             "hidden_dim": int(hidden_dim),
             "num_layers": int(max(1, num_layers)),
@@ -946,9 +1016,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--patience", type=int, default=50)
     parser.add_argument("--scheduler-patience", type=int, default=20)
     parser.add_argument("--scheduler-factor", type=float, default=0.5)
-    parser.add_argument("--bic-candidates", default="6,8,10,12")
+    parser.add_argument("--bic-candidates", default="6,8,10,12,14,16,18,20")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
+    parser.add_argument(
+        "--auto-k",
+        action="store_true",
+        help="Automatically select K per config based on BIC minimum (up to --max-k).",
+    )
+    parser.add_argument(
+        "--max-k",
+        type=int,
+        default=20,
+        help="Maximum K to consider when using --auto-k (default: 20).",
+    )
     parser.add_argument(
         "--all-configs",
         action="store_true",
@@ -976,6 +1057,8 @@ def main() -> None:
         seed=args.seed,
         device=args.device,
         force_all_configs=bool(args.all_configs),
+        auto_k=bool(args.auto_k),
+        max_k=args.max_k,
     )
     print("[continuous_v1_gmm_bigru_train] Summary:")
     for k, v in run_manifest.get("summary", {}).items():

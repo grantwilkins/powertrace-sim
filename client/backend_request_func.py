@@ -73,6 +73,7 @@ async def async_request_tgi(
         }
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        output.request_timestamp = time.time()
         if request_func_input.ignore_eos:
             output.output_tokens = request_func_input.output_len
         else:
@@ -147,6 +148,7 @@ async def async_request_trt_llm(
             payload["min_length"] = request_func_input.output_len
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        output.request_timestamp = time.time()
 
         ttft = 0.0
         st = time.perf_counter()
@@ -208,6 +210,7 @@ async def async_request_deepspeed_mii(
         }
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        output.request_timestamp = time.time()
 
         # NOTE: DeepSpeed-MII doesn't support streaming as of Jan 28 2024,
         # will use 0 as placeholder.
@@ -282,6 +285,7 @@ async def async_request_openai_completions(
 
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        output.request_timestamp = time.time()
 
         generated_text = ""
         st = time.perf_counter()
@@ -291,7 +295,6 @@ async def async_request_openai_completions(
                 url=api_url, json=payload, headers=headers
             ) as response:
                 if response.status == 200:
-                    output.request_timestamp = time.time()
                     first_chunk_received = False
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -389,6 +392,7 @@ async def async_request_openai_chat_completions(
 
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        output.request_timestamp = time.time()
 
         generated_text = ""
         ttft = 0.0
@@ -494,6 +498,7 @@ async def async_request_openai_audio(
 
             output = RequestFuncOutput()
             output.prompt_len = request_func_input.prompt_len
+            output.request_timestamp = time.time()
 
             generated_text = ""
             ttft = 0.0

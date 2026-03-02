@@ -25,11 +25,13 @@ import torch
 
 from model.classifiers.gmm_bigru import (
     build_rollout_features_from_requests,
-    generate_gmm_bigru_trace,
     load_gmm_params_json_dict,
 )
 from model.classifiers.gru import GRUClassifier
 from model.scripts.continuous_v1_eval import compute_power_metrics
+
+AR1_MIN_RUN_LENGTH = 5
+AR1_PHI_THRESHOLD = 0.3
 
 
 def _ensure_dir(path: str) -> None:
@@ -328,6 +330,227 @@ def _load_model(
     return model
 
 
+def _softmax_np(logits: np.ndarray) -> np.ndarray:
+    z = np.asarray(logits, dtype=np.float64)
+    z = z - np.max(z, axis=-1, keepdims=True)
+    exp_z = np.exp(z)
+    denom = np.sum(exp_z, axis=-1, keepdims=True)
+    return exp_z / np.clip(denom, a_min=1e-12, a_max=None)
+
+
+def _median_filter_states(states: np.ndarray, window: int) -> np.ndarray:
+    z = np.asarray(states, dtype=np.int64).reshape(-1)
+    n = int(z.size)
+    if n == 0:
+        return z.copy()
+
+    w = int(max(1, window))
+    if w < 3:
+        return z.copy()
+    if w % 2 == 0:
+        w += 1
+    half = w // 2
+
+    out = np.zeros_like(z)
+    for i in range(n):
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        out[i] = int(np.median(z[lo:hi]))
+    return out
+
+
+def predict_sorted_gmm_labels_from_params(power_values: np.ndarray, gmm_params: Dict[str, object]) -> np.ndarray:
+    y = np.asarray(power_values, dtype=np.float64).reshape(-1)
+    if y.size == 0:
+        return np.zeros((0,), dtype=np.int64)
+
+    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
+    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
+    weights = np.asarray(gmm_params.get("weights", np.ones_like(means)), dtype=np.float64).reshape(-1)
+    if means.size == 0:
+        raise ValueError("GMM means are empty")
+    if variances.size != means.size or weights.size != means.size:
+        raise ValueError("GMM parameter shape mismatch")
+
+    weights = np.clip(weights, a_min=1e-12, a_max=None)
+    weights = weights / np.sum(weights)
+
+    x = y.reshape(-1, 1)
+    log_norm = -0.5 * (np.log(2.0 * np.pi * variances).reshape(1, -1) + ((x - means.reshape(1, -1)) ** 2) / variances.reshape(1, -1))
+    log_prob = log_norm + np.log(weights).reshape(1, -1)
+    return np.argmax(log_prob, axis=1).astype(np.int64)
+
+
+def estimate_ar1_params(
+    gmm_params: Dict[str, object],
+    training_power_traces: Sequence[np.ndarray],
+    training_labels_traces: Sequence[np.ndarray],
+    K: int,
+    min_run_length: int = AR1_MIN_RUN_LENGTH,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
+    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
+    if means.size != int(K) or variances.size != int(K):
+        raise ValueError(f"GMM parameter size mismatch for K={K}")
+
+    state_run_residuals: Dict[int, List[np.ndarray]] = {k: [] for k in range(int(K))}
+    run_min = int(max(2, min_run_length))
+    for power, labels in zip(training_power_traces, training_labels_traces):
+        p = np.asarray(power, dtype=np.float64).reshape(-1)
+        s = np.asarray(labels, dtype=np.int64).reshape(-1)
+        n = int(min(len(p), len(s)))
+        if n < 2:
+            continue
+        p = p[:n]
+        s = s[:n]
+
+        run_start = 0
+        for i in range(1, n + 1):
+            if i == n or s[i] != s[run_start]:
+                state = int(s[run_start])
+                run_len = int(i - run_start)
+                if run_len >= run_min and 0 <= state < int(K):
+                    run_power = p[run_start:i]
+                    run_residuals = run_power - float(means[state])
+                    state_run_residuals[state].append(run_residuals.astype(np.float64))
+                run_start = i
+
+    phi = np.zeros((int(K),), dtype=np.float64)
+    sigma_marginal = np.sqrt(variances).astype(np.float64)
+    sigma_innov = np.zeros((int(K),), dtype=np.float64)
+
+    for k in range(int(K)):
+        runs = state_run_residuals[k]
+        if len(runs) == 0:
+            phi[k] = 0.0
+            sigma_innov[k] = sigma_marginal[k]
+            continue
+
+        numer = 0.0
+        denom = 0.0
+        for r in runs:
+            if r.size < 2:
+                continue
+            numer += float(np.sum(r[:-1] * r[1:]))
+            denom += float(np.sum(r[:-1] ** 2))
+
+        if denom > 1e-12:
+            phi_raw = numer / denom
+            phi[k] = float(np.clip(phi_raw, 0.0, 0.99))
+        else:
+            phi[k] = 0.0
+
+        sigma_innov[k] = float(sigma_marginal[k] * np.sqrt(max(1e-12, 1.0 - (phi[k] ** 2))))
+
+    return phi, sigma_innov, sigma_marginal
+
+
+def generate_gmm_bigru_trace_ar1_thresholded(
+    *,
+    logits: np.ndarray | torch.Tensor,
+    gmm_params: Dict[str, object],
+    phi: np.ndarray,
+    sigma_innov: np.ndarray,
+    sigma_marginal: np.ndarray,
+    p0: float,
+    seed: Optional[int] = None,
+    decode_mode: str = "stochastic",
+    median_filter_window: int = 1,
+    phi_threshold: float = AR1_PHI_THRESHOLD,
+    clamp_range: Optional[Tuple[float, float]] = None,
+) -> Dict[str, np.ndarray]:
+    if isinstance(logits, torch.Tensor):
+        z = logits.detach().cpu().numpy()
+    else:
+        z = np.asarray(logits, dtype=np.float64)
+    if z.ndim == 3 and z.shape[0] == 1:
+        z = z[0]
+    if z.ndim != 2:
+        raise ValueError(f"logits must have shape (T,K) or (1,T,K); got {z.shape}")
+
+    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
+    K = int(means.size)
+    if K <= 0:
+        raise ValueError("GMM means are empty")
+    if z.shape[1] != K:
+        raise ValueError(f"logits K mismatch: got {z.shape[1]} but GMM has {K}")
+
+    phi_arr = np.asarray(phi, dtype=np.float64).reshape(-1)
+    sigma_innov_arr = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
+    sigma_marginal_arr = np.asarray(sigma_marginal, dtype=np.float64).reshape(-1)
+    if phi_arr.size != K or sigma_innov_arr.size != K or sigma_marginal_arr.size != K:
+        raise ValueError(f"phi/sigma arrays size mismatch for K={K}")
+
+    use_ar1 = phi_arr >= float(phi_threshold)
+    phi_gen = np.where(use_ar1, phi_arr, 0.0).astype(np.float64)
+    sigma_gen = np.where(use_ar1, sigma_innov_arr, sigma_marginal_arr).astype(np.float64)
+
+    probs = _softmax_np(z)
+    mode = str(decode_mode).strip().lower()
+    if mode not in {"stochastic", "argmax"}:
+        raise ValueError(f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}")
+
+    rng = np.random.default_rng(seed)
+    if mode == "argmax":
+        states_raw = np.argmax(probs, axis=-1).astype(np.int64)
+    else:
+        states_raw = np.array([rng.choice(K, p=probs_t) for probs_t in probs], dtype=np.int64)
+    states = _median_filter_states(states_raw, int(median_filter_window))
+
+    T = int(z.shape[0])
+    power = np.zeros((T,), dtype=np.float64)
+    p_prev = float(p0)
+    for t in range(T):
+        s = int(states[t])
+        mu = float(means[s])
+        p_t = float(mu + (phi_gen[s] * (p_prev - mu)) + float(rng.normal(0.0, sigma_gen[s])))
+        if clamp_range is not None:
+            lo, hi = float(clamp_range[0]), float(clamp_range[1])
+            if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
+                margin = 0.05 * (hi - lo)
+                p_t = float(np.clip(p_t, lo - margin, hi + margin))
+        power[t] = p_t
+        p_prev = p_t
+
+    return {
+        "power_w": power.astype(np.float64),
+        "states": states.astype(np.int64),
+        "states_raw": states_raw.astype(np.int64),
+        "probs": probs.astype(np.float64),
+        "use_ar1": use_ar1.astype(bool),
+        "phi_gen": phi_gen.astype(np.float64),
+        "sigma_gen": sigma_gen.astype(np.float64),
+    }
+
+
+def generate_gmm_bigru_trace_ar1(
+    *,
+    logits: np.ndarray | torch.Tensor,
+    gmm_params: Dict[str, object],
+    phi: np.ndarray,
+    sigma_innov: np.ndarray,
+    p0: float,
+    seed: Optional[int] = None,
+    decode_mode: str = "stochastic",
+    median_filter_window: int = 1,
+    clamp_range: Optional[Tuple[float, float]] = None,
+) -> Dict[str, np.ndarray]:
+    sigma_marginal = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
+    return generate_gmm_bigru_trace_ar1_thresholded(
+        logits=logits,
+        gmm_params=gmm_params,
+        phi=phi,
+        sigma_innov=sigma_innov,
+        sigma_marginal=sigma_marginal,
+        p0=p0,
+        seed=seed,
+        decode_mode=decode_mode,
+        median_filter_window=median_filter_window,
+        phi_threshold=0.0,
+        clamp_range=clamp_range,
+    )
+
+
 def _plot_overlay(path: str, *, dt: float, gt: np.ndarray, pred: np.ndarray, title: str) -> None:
     n = int(min(len(gt), len(pred)))
     t = np.arange(n, dtype=np.float64) * float(dt)
@@ -339,6 +562,54 @@ def _plot_overlay(path: str, *, dt: float, gt: np.ndarray, pred: np.ndarray, tit
     ax.set_ylabel("Power (W)")
     ax.legend(loc="best")
     ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+
+
+def _plot_ar1_params(
+    path: str,
+    *,
+    gmm_means: np.ndarray,
+    phi: np.ndarray,
+    sigma_marginal: np.ndarray,
+    sigma_innov: np.ndarray,
+    title: str,
+    phi_threshold: float = AR1_PHI_THRESHOLD,
+) -> None:
+    means = np.asarray(gmm_means, dtype=np.float64).reshape(-1)
+    phi_arr = np.asarray(phi, dtype=np.float64).reshape(-1)
+    sigma_m = np.asarray(sigma_marginal, dtype=np.float64).reshape(-1)
+    sigma_i = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
+    K = int(means.size)
+    if phi_arr.size != K or sigma_m.size != K or sigma_i.size != K:
+        raise ValueError("AR(1) plot parameter size mismatch")
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    x = np.arange(K, dtype=np.int64)
+
+    threshold = float(phi_threshold)
+    colors = ["#d62728" if p >= threshold else "#2ca02c" for p in phi_arr]
+    ax1.bar(x, phi_arr, color=colors, alpha=0.8)
+    ax1.set_xlabel("GMM State (sorted by mean power)")
+    ax1.set_ylabel("phi (AR(1) persistence)")
+    ax1.set_title("Within-state persistence")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([f"{int(m)}W" for m in means], rotation=45, fontsize=8)
+    ax1.axhline(y=threshold, color="gray", linestyle="--", alpha=0.5, label=f"phi={threshold:.1f} threshold")
+    ax1.legend(fontsize=8)
+    ax1.set_ylim(0.0, 1.0)
+
+    ax2.bar(x - 0.15, sigma_m, width=0.3, label="sigma_marginal", alpha=0.8)
+    ax2.bar(x + 0.15, sigma_i, width=0.3, label="sigma_innovation", alpha=0.8)
+    ax2.set_xlabel("GMM State")
+    ax2.set_ylabel("Std Dev (W)")
+    ax2.set_title("Marginal vs Innovation Noise")
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f"{int(m)}W" for m in means], rotation=45, fontsize=8)
+    ax2.legend(fontsize=8)
+
+    fig.suptitle(title, fontsize=11)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
@@ -415,6 +686,8 @@ def evaluate_from_artifacts(
     _ensure_dir(out_dir)
     plots_dir = os.path.join(out_dir, "plots")
     _ensure_dir(plots_dir)
+    ar1_params_dir = os.path.join(str(Path(out_dir).parent), "ar1_params")
+    _ensure_dir(ar1_params_dir)
 
     per_seed_rows: List[Dict[str, object]] = []
     per_trace_rows: List[Dict[str, object]] = []
@@ -472,6 +745,7 @@ def evaluate_from_artifacts(
             )
             split_payload = _load_json(split_path)
             test_indices = [int(x) for x in split_payload.get("test_indices", [])]
+            train_indices = [int(x) for x in split_payload.get("train_indices", [])]
             if len(test_indices) == 0:
                 raise ValueError("empty test split")
 
@@ -486,9 +760,47 @@ def evaluate_from_artifacts(
             dt = float(dt_arr[0])
             if (not np.isfinite(dt)) or dt <= 0.0:
                 raise ValueError(f"invalid dt in dataset: {dt}")
+            n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
+
+            training_power_traces: List[np.ndarray] = []
+            training_labels_traces: List[np.ndarray] = []
+            for idx in train_indices:
+                if idx < 0 or idx >= n_total:
+                    continue
+                p_train = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
+                if p_train.size == 0:
+                    continue
+                labels_train = predict_sorted_gmm_labels_from_params(p_train, gmm_cfg)
+                training_power_traces.append(p_train.astype(np.float64))
+                training_labels_traces.append(labels_train.astype(np.int64))
+
+            phi, sigma_innov, sigma_marginal = estimate_ar1_params(
+                gmm_params=gmm_cfg,
+                training_power_traces=training_power_traces,
+                training_labels_traces=training_labels_traces,
+                K=int(k),
+                min_run_length=AR1_MIN_RUN_LENGTH,
+            )
+            phi_above_threshold = phi >= float(AR1_PHI_THRESHOLD)
+            slug = _safe_slug(config_id)
+            ar1_params_path = os.path.join(ar1_params_dir, f"{slug}_ar1_params.json")
+            _write_json(
+                ar1_params_path,
+                {
+                    "config_id": config_id,
+                    "phi": phi.tolist(),
+                    "phi_threshold": float(AR1_PHI_THRESHOLD),
+                    "phi_above_threshold": [bool(v) for v in phi_above_threshold.tolist()],
+                    "num_ar1_states": int(np.sum(phi_above_threshold)),
+                    "num_iid_states": int(np.sum(~phi_above_threshold)),
+                    "sigma_innov": sigma_innov.tolist(),
+                    "sigma_marginal": sigma_marginal.tolist(),
+                    "gmm_means": np.asarray(gmm_cfg["means"], dtype=np.float64).reshape(-1).tolist(),
+                    "min_run_length": int(AR1_MIN_RUN_LENGTH),
+                },
+            )
 
             trace_records: List[Dict[str, Any]] = []
-            n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
             for idx in test_indices:
                 if idx < 0 or idx >= n_total:
                     per_trace_rows.append(
@@ -577,12 +889,17 @@ def evaluate_from_artifacts(
                     seed_rows: List[Dict[str, object]] = []
                     pred_by_seed: Dict[int, np.ndarray] = {}
                     for seed_value in seeds:
-                        gen = generate_gmm_bigru_trace(
+                        gen = generate_gmm_bigru_trace_ar1_thresholded(
                             logits=logits,
                             gmm_params=gmm_cfg,
+                            phi=phi,
+                            sigma_innov=sigma_innov,
+                            sigma_marginal=sigma_marginal,
+                            p0=float(tr["p0"]),
                             seed=int(seed_value),
                             decode_mode=decode_mode,
                             median_filter_window=int(median_filter_window),
+                            phi_threshold=float(AR1_PHI_THRESHOLD),
                             clamp_range=(norm_cfg["power_min"], norm_cfg["power_max"]),
                         )
                         pred = np.asarray(gen["power_w"], dtype=np.float64).reshape(-1)
@@ -655,8 +972,8 @@ def evaluate_from_artifacts(
                 raise ValueError("all test traces failed or were skipped")
 
             plot_paths: Dict[str, str] = {}
+            ar1_params_plot_path = ""
             if plots and representative_gt is not None and representative_pred is not None:
-                slug = _safe_slug(config_id)
                 stem = f"{slug}_trace{representative_trace_idx}"
                 overlay_path = os.path.join(plots_dir, f"{stem}_overlay.png")
                 _plot_overlay(
@@ -669,11 +986,23 @@ def evaluate_from_artifacts(
                 plot_paths = {
                     "overlay_plot": overlay_path,
                 }
+            if plots:
+                ar1_params_plot_path = os.path.join(plots_dir, f"{slug}_ar1_params.png")
+                _plot_ar1_params(
+                    ar1_params_plot_path,
+                    gmm_means=np.asarray(gmm_cfg["means"], dtype=np.float64).reshape(-1),
+                    phi=phi,
+                    sigma_marginal=sigma_marginal,
+                    sigma_innov=sigma_innov,
+                    title=f"{config_id} AR(1) parameter diagnostics",
+                    phi_threshold=float(AR1_PHI_THRESHOLD),
+                )
 
             cfg_row = {
                 "config_id": config_id,
                 "status": "evaluated",
                 "reason": "",
+                "generation_mode": "ar1_thresholded",
                 "k": int(k),
                 "feature_set": feature_set,
                 "decode_mode": decode_mode,
@@ -689,8 +1018,11 @@ def evaluate_from_artifacts(
                 "p95_error_pct_median": _nanmedian(r["p95_error_pct_median"] for r in eval_trace_rows),
                 "p99_error_pct_median": _nanmedian(r["p99_error_pct_median"] for r in eval_trace_rows),
                 "delta_energy_pct_median": _nanmedian(r["delta_energy_pct_median"] for r in eval_trace_rows),
+                "phi_median": _nanmedian(phi),
                 "representative_trace_idx": int(representative_trace_idx),
                 "representative_seed": int(representative_seed),
+                "ar1_params_json": ar1_params_path,
+                "ar1_params_plot": ar1_params_plot_path,
                 **plot_paths,
             }
             config_rows.append(cfg_row)
@@ -754,6 +1086,7 @@ def evaluate_from_artifacts(
         "config_id",
         "status",
         "reason",
+        "generation_mode",
         "k",
         "feature_set",
         "decode_mode",
@@ -769,8 +1102,11 @@ def evaluate_from_artifacts(
         "p95_error_pct_median",
         "p99_error_pct_median",
         "delta_energy_pct_median",
+        "phi_median",
         "representative_trace_idx",
         "representative_seed",
+        "ar1_params_json",
+        "ar1_params_plot",
         "overlay_plot",
     ]
     for r in config_rows:
@@ -780,7 +1116,7 @@ def evaluate_from_artifacts(
     _write_csv(config_csv, config_rows, config_fields)
 
     run_manifest_payload = {
-        "schema_version": "continuous-v1-gmm-bigru-eval-run-v1",
+        "schema_version": "continuous-v1-gmm-bigru-eval-run-v2",
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inputs": {
             "run_manifest": run_manifest,
@@ -797,6 +1133,9 @@ def evaluate_from_artifacts(
             "median_filter_window": int(median_filter_window),
             "device": str(resolved_device),
             "plots": bool(plots),
+            "generation_mode": "ar1_thresholded",
+            "phi_threshold": float(AR1_PHI_THRESHOLD),
+            "min_run_length": int(AR1_MIN_RUN_LENGTH),
         },
         "summary": {
             "num_target_configs": int(len(targets)),
@@ -809,6 +1148,7 @@ def evaluate_from_artifacts(
             "per_trace_metrics_csv": per_trace_csv,
             "config_summary_csv": config_csv,
             "plots_dir": plots_dir,
+            "ar1_params_dir": ar1_params_dir,
         },
         "configs": config_results,
     }
