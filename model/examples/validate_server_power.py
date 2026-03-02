@@ -1,14 +1,10 @@
 import csv
 import os
-import sys
 
 import numpy as np
 
-# Ensure package imports resolve when running this file directly
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from simulators.arrival_simulator import create_llama_config
-from simulators.server_power_simulator import ServerPowerSimulator
+from model.simulators.arrival_simulator import create_llama_config
+from model.simulators.server_power_simulator import ServerPowerSimulator
 
 
 def save_csv(path: str, timestamps: np.ndarray, watts: np.ndarray):

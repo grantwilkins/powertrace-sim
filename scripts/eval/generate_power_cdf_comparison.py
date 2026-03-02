@@ -40,13 +40,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model.classifiers.continuous_gru import compute_inference_features  # noqa: E402
-from model.classifiers.gru import GRUClassifier  # noqa: E402
-from model.classifiers.stateless_mean_reverting import (  # noqa: E402
+from model.classifiers.feature_utils import (  # noqa: E402
     compute_delta_active_requests,
+    compute_inference_features,
     normalize_delta_active_requests,
 )
-from model.scripts.continuous_v1_eval import compute_power_metrics  # noqa: E402
+from model.classifiers.gru import GRUClassifier  # noqa: E402
+from model.classifiers.metrics import compute_power_metrics  # noqa: E402
 
 AR1_MIN_RUN_LENGTH = 5
 AR1_PHI_THRESHOLD = 0.3

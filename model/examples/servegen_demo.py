@@ -4,16 +4,12 @@ Shows how to generate realistic workloads and convert them to power traces.
 """
 
 import os
-import sys
 from unittest.mock import MagicMock
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from simulators.arrival_simulator import (
+from model.simulators.arrival_simulator import (
     ServeGenPowerSimulator,
     ServeGenRequest,
     ServingSystemSimulator,

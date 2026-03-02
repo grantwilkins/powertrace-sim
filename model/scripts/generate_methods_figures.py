@@ -31,7 +31,7 @@ from model.classifiers.gmm_bigru import (
     load_gmm_params_json_dict,
 )
 from model.classifiers.gru import GRUClassifier
-from model.scripts.continuous_v1_gmm_bigru_eval import (
+from model.scripts.eval_gmm_bigru import (
     generate_gmm_bigru_trace_ar1_thresholded,
 )
 

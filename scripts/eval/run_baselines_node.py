@@ -24,7 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.classifiers.gru import GRUClassifier
-from model.scripts.continuous_v1_eval import compute_power_metrics
+from model.classifiers.metrics import compute_power_metrics
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
     load_gmm_params_json_dict,

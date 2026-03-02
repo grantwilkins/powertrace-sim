@@ -1,13 +1,9 @@
 import csv
 import os
-import sys
 
 import numpy as np
 
-# Ensure package imports resolve when running this file directly
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from simulators.datacenter_simulator import DataCenterSimulator, RowSpec
+from model.simulators.datacenter_simulator import DataCenterSimulator, RowSpec
 
 
 def save_row_csvs(base_dir: str, ts: np.ndarray, per_row: dict, dc: np.ndarray):

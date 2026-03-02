@@ -1,19 +1,13 @@
 import csv
 import os
 
-# Ensure package imports resolve when running this file directly
-import sys
 from datetime import datetime
 from typing import Dict, List, Tuple
 
 import numpy as np
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from simulators.arrival_simulator import (  # noqa: E402
-    ServeGenRequest,
-)
-from simulators.datacenter_simulator import DataCenterSimulator, RowSpec  # noqa: E402
+from model.simulators.arrival_simulator import ServeGenRequest
+from model.simulators.datacenter_simulator import DataCenterSimulator, RowSpec
 
 
 def build_rows_10mw(

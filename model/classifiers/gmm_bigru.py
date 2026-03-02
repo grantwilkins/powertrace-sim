@@ -6,9 +6,9 @@ import numpy as np
 import torch
 from sklearn.mixture import GaussianMixture
 
-from model.classifiers.continuous_gru import compute_inference_features
-from model.classifiers.stateless_mean_reverting import (
+from model.classifiers.feature_utils import (
     compute_delta_active_requests,
+    compute_inference_features,
     normalize_delta_active_requests,
 )
 

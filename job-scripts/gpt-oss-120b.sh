@@ -58,6 +58,8 @@ require_command awk
 require_command python3
 require_command setsid
 require_command ps
+require_command find
+require_command wc
 
 echo "Starting GPT-OSS-120B ShareGPT benchmark script"
 echo "Repo root: ${REPO_ROOT}"
@@ -102,7 +104,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 wait_for_server() {
-    local max_attempts=90
+    local max_attempts=500
     local attempt=1
     while ! curl -s -f http://localhost:8000/health >/dev/null; do
         if (( attempt >= max_attempts )); then
@@ -134,6 +136,13 @@ start_server() {
     echo "Server is healthy for TP=${tp}"
 }
 
+count_completed_json() {
+    local tp="$1"
+    local rate="$2"
+    local pattern="vllm-${rate}qps-tp${tp}-gpt-oss-120b-*.json"
+    find "${OUTPUT_DIR}" -maxdepth 1 -type f -name "${pattern}" | wc -l | awk '{print $1}'
+}
+
 for TENSOR_PARALLEL_SIZE in "${TENSOR_PARALLEL_SIZES[@]}"; do
     echo "Starting gpt-oss-120b benchmark at TP=${TENSOR_PARALLEL_SIZE}"
     start_server "${TENSOR_PARALLEL_SIZE}"
@@ -141,7 +150,14 @@ for TENSOR_PARALLEL_SIZE in "${TENSOR_PARALLEL_SIZES[@]}"; do
     pushd "${REPO_ROOT}/client" >/dev/null
     for ARRIVAL_RATE in "${ARRIVAL_RATES[@]}"; do
         NUM_PROMPTS="$(awk -v r="${ARRIVAL_RATE}" 'BEGIN {printf "%.0f", 600 * r}')"
-        for ITERATION in $(seq 1 "${ITERATIONS}"); do
+        COMPLETED_RUNS="$(count_completed_json "${TENSOR_PARALLEL_SIZE}" "${ARRIVAL_RATE}")"
+        if (( COMPLETED_RUNS >= ITERATIONS )); then
+            echo "Skipping TP=${TENSOR_PARALLEL_SIZE} rate=${ARRIVAL_RATE}: found ${COMPLETED_RUNS}/${ITERATIONS} JSON files."
+            continue
+        fi
+        echo "Resuming TP=${TENSOR_PARALLEL_SIZE} rate=${ARRIVAL_RATE}: completed ${COMPLETED_RUNS}/${ITERATIONS}, running remaining."
+
+        for ((ITERATION=COMPLETED_RUNS + 1; ITERATION<=ITERATIONS; ITERATION++)); do
             DATE_KEY="$(date '+%Y%m%d-%H%M%S')"
             JSON_FILE="vllm-${ARRIVAL_RATE}qps-tp${TENSOR_PARALLEL_SIZE}-gpt-oss-120b-${DATE_KEY}.json"
             CSV_FILE="gpt-oss-120b_tp${TENSOR_PARALLEL_SIZE}_p${ARRIVAL_RATE}_d${DATE_KEY}.csv"

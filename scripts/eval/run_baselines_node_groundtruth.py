@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model.scripts.continuous_v1_eval import compute_power_metrics
+from model.classifiers.metrics import compute_power_metrics
 from scripts.eval.baselines import (
     build_splitwise_lut_params,
     generate_mean,
@@ -38,6 +38,7 @@ from scripts.eval.pipeline_utils import (
 )
 from scripts.eval.run_baselines_node import (
     _build_requests_from_stage0_json,
+    _ensure_dir,
     _estimate_splitwise_phase_targets_from_indices,
     _extract_norm_for_eval,
     _is_70b_tp4_config,
@@ -46,10 +47,12 @@ from scripts.eval.run_baselines_node import (
     _load_model,
     _load_or_estimate_ar1_params,
     _load_pair_manifest_map,
+    _nanmedian,
     _resolve_checkpoint_norm_gmm_paths,
     _resolve_device,
     _resolve_experimental_paths,
     _resolve_throughput,
+    _write_csv,
 )
 
 METHODS = ("tdp", "mean", "splitwise_lut", "ours")
@@ -100,19 +103,6 @@ STYLE = {
         "alpha": 0.9,
     },
 }
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _write_csv(path: str, rows: List[Dict[str, object]], fieldnames: List[str]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
 
 
 def _parse_rate(value: object) -> float:
@@ -173,14 +163,6 @@ def _select_test_trace_index(
         "selected_rate": float(selected[1]),
         "selection": "closest_rate_in_test_split",
     }
-
-
-def _nanmedian(values: List[float]) -> float:
-    arr = np.asarray(values, dtype=np.float64)
-    finite = arr[np.isfinite(arr)]
-    if finite.size == 0:
-        return float("nan")
-    return float(np.median(finite))
 
 
 def _select_plot_prediction(
