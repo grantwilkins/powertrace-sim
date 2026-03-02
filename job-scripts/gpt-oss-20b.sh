@@ -63,21 +63,9 @@ echo "Starting GPT-OSS-20B ShareGPT benchmark script"
 echo "Repo root: ${REPO_ROOT}"
 echo "ShareGPT dataset: ${SHAREGPT_DATASET_PATH}"
 
-GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)"
-if [[ "${GPU_NAME}" == *"H100"* ]]; then
-    HARDWARE_SUFFIX="h100"
-elif [[ "${GPU_NAME}" == *"A100"* ]]; then
-    HARDWARE_SUFFIX="a100"
-else
-    echo "Error: Unsupported GPU for this script: ${GPU_NAME}"
-    echo "Expected an A100 or H100 host."
-    exit 1
-fi
-
+HARDWARE_SUFFIX="a100"
 OUTPUT_DIR="${REPO_ROOT}/data/sharegpt-benchmark-gpt-oss-20b-${HARDWARE_SUFFIX}"
 mkdir -p "${OUTPUT_DIR}"
-echo "Detected GPU: ${GPU_NAME}"
-echo "Output directory: ${OUTPUT_DIR}"
 
 SERVING_PGID=""
 SERVING_PID=""
