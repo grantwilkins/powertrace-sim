@@ -1,0 +1,300 @@
+{
+  "artifacts": {
+    "checkpoints_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/checkpoints",
+    "gmms_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/gmms",
+    "norm_params_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/norm_params",
+    "run_summary_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/run_summary.csv",
+    "training_curves_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/training_curves"
+  },
+  "configs": {
+    "gpt-oss-120b_A100_tp4": {
+      "auto_k": false,
+      "best_epoch": 136,
+      "best_val_loss": 2.0738834142684937,
+      "bic_candidates": {
+        "10": {
+          "aic": 656675.1845089837,
+          "bic": 656933.4652129759
+        },
+        "12": {
+          "aic": 637149.9821415441,
+          "bic": 637461.700232569
+        },
+        "14": {
+          "aic": 635656.8478857038,
+          "bic": 636022.0033637616
+        },
+        "16": {
+          "aic": 644419.5789293078,
+          "bic": 644838.1717943983
+        },
+        "18": {
+          "aic": 635314.4828273136,
+          "bic": 635786.5130794371
+        },
+        "20": {
+          "aic": 634097.0704606068,
+          "bic": 634622.5380997631
+        },
+        "6": {
+          "aic": 674182.4687265337,
+          "bic": 674333.8746564601
+        },
+        "8": {
+          "aic": 661134.408531292,
+          "bic": 661339.2518482512
+        }
+      },
+      "checkpoint_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/checkpoints/gpt-oss-120b_A100_tp4_k10_f2_best.pt",
+      "config_id": "gpt-oss-120b_A100_tp4",
+      "curve_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/training_curves/gpt-oss-120b_A100_tp4_k10_f2.csv",
+      "device": "cuda",
+      "feature_set": "f2",
+      "final_train_loss": 2.1023801338104975,
+      "final_val_loss": 2.0745560824871063,
+      "gmm_aic": 656675.1845089837,
+      "gmm_bic": 656933.4652129759,
+      "gmm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/gmms/gpt-oss-120b_A100_tp4_k10.json",
+      "hidden_dim": 64,
+      "input_dim": 2,
+      "k": 10,
+      "k_selection_reason": "fixed",
+      "norm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/norm_params/gpt-oss-120b_A100_tp4.json",
+      "num_layers": 1,
+      "num_test_traces": 5,
+      "num_train_points": 54515,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "reason": "",
+      "seed": 42,
+      "status": "trained"
+    },
+    "gpt-oss-120b_A100_tp8": {
+      "auto_k": false,
+      "best_epoch": 88,
+      "best_val_loss": 2.080312967300415,
+      "bic_candidates": {
+        "10": {
+          "aic": 401840.7161123379,
+          "bic": 402086.18750821933
+        },
+        "12": {
+          "aic": 400538.09175933345,
+          "bic": 400834.3503405696
+        },
+        "14": {
+          "aic": 400270.96152316005,
+          "bic": 400618.007289751
+        },
+        "16": {
+          "aic": 399936.3154649537,
+          "bic": 400334.1484168995
+        },
+        "18": {
+          "aic": 399735.1087006097,
+          "bic": 400183.7288379102
+        },
+        "20": {
+          "aic": 400064.04282636463,
+          "bic": 400563.45014901995
+        },
+        "6": {
+          "aic": 409532.85533263127,
+          "bic": 409676.7523578031
+        },
+        "8": {
+          "aic": 403149.366703926,
+          "bic": 403344.05091445264
+        }
+      },
+      "checkpoint_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/checkpoints/gpt-oss-120b_A100_tp8_k10_f2_best.pt",
+      "config_id": "gpt-oss-120b_A100_tp8",
+      "curve_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/training_curves/gpt-oss-120b_A100_tp8_k10_f2.csv",
+      "device": "cuda",
+      "feature_set": "f2",
+      "final_train_loss": 2.07158815293085,
+      "final_val_loss": 2.0817398130893707,
+      "gmm_aic": 401840.7161123379,
+      "gmm_bic": 402086.18750821933,
+      "gmm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/gmms/gpt-oss-120b_A100_tp8_k10.json",
+      "hidden_dim": 64,
+      "input_dim": 2,
+      "k": 10,
+      "k_selection_reason": "fixed",
+      "norm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/norm_params/gpt-oss-120b_A100_tp8.json",
+      "num_layers": 1,
+      "num_test_traces": 5,
+      "num_train_points": 35050,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "reason": "",
+      "seed": 42,
+      "status": "trained"
+    },
+    "gpt-oss-20b_A100_tp1": {
+      "auto_k": false,
+      "best_epoch": 2,
+      "best_val_loss": 2.1938425302505493,
+      "bic_candidates": {
+        "10": {
+          "aic": 568929.0227915524,
+          "bic": 569194.3461704674
+        },
+        "12": {
+          "aic": 551986.7528709595,
+          "bic": 552306.9707420638
+        },
+        "14": {
+          "aic": 551655.8233717466,
+          "bic": 552030.9357350402
+        },
+        "16": {
+          "aic": 551069.359001498,
+          "bic": 551499.3658569809
+        },
+        "18": {
+          "aic": 550270.8720394192,
+          "bic": 550755.7733870916
+        },
+        "20": {
+          "aic": 542323.2776066846,
+          "bic": 542863.0734465462
+        },
+        "6": {
+          "aic": 598675.6563492352,
+          "bic": 598831.1907437716
+        },
+        "8": {
+          "aic": 569046.9422066387,
+          "bic": 569257.3710933644
+        }
+      },
+      "checkpoint_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/checkpoints/gpt-oss-20b_A100_tp1_k10_f2_best.pt",
+      "config_id": "gpt-oss-20b_A100_tp1",
+      "curve_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/training_curves/gpt-oss-20b_A100_tp1_k10_f2.csv",
+      "device": "cuda",
+      "feature_set": "f2",
+      "final_train_loss": 2.095354574067252,
+      "final_val_loss": 2.203660547733307,
+      "gmm_aic": 568929.0227915524,
+      "gmm_bic": 569194.3461704674,
+      "gmm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/gmms/gpt-oss-20b_A100_tp1_k10.json",
+      "hidden_dim": 64,
+      "input_dim": 2,
+      "k": 10,
+      "k_selection_reason": "fixed",
+      "norm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/norm_params/gpt-oss-20b_A100_tp1.json",
+      "num_layers": 1,
+      "num_test_traces": 6,
+      "num_train_points": 69500,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "reason": "",
+      "seed": 42,
+      "status": "trained"
+    },
+    "gpt-oss-20b_A100_tp2": {
+      "auto_k": false,
+      "best_epoch": 139,
+      "best_val_loss": 2.133027136325836,
+      "bic_candidates": {
+        "10": {
+          "aic": 613047.4577218438,
+          "bic": 613310.1573013725
+        },
+        "12": {
+          "aic": 612904.739287205,
+          "bic": 613221.7905038776
+        },
+        "14": {
+          "aic": 611949.0081193026,
+          "bic": 612320.410973119
+        },
+        "16": {
+          "aic": 613036.5021730805,
+          "bic": 613462.2566640407
+        },
+        "18": {
+          "aic": 609782.0040918498,
+          "bic": 610262.1102199539
+        },
+        "20": {
+          "aic": 606960.460235365,
+          "bic": 607494.918000613
+        },
+        "6": {
+          "aic": 680159.3159762421,
+          "bic": 680313.312281483
+        },
+        "8": {
+          "aic": 637180.2036506026,
+          "bic": 637388.5515929874
+        }
+      },
+      "checkpoint_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/checkpoints/gpt-oss-20b_A100_tp2_k10_f2_best.pt",
+      "config_id": "gpt-oss-20b_A100_tp2",
+      "curve_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/training_curves/gpt-oss-20b_A100_tp2_k10_f2.csv",
+      "device": "cuda",
+      "feature_set": "f2",
+      "final_train_loss": 2.176797480810256,
+      "final_val_loss": 2.2004013061523438,
+      "gmm_aic": 613047.4577218438,
+      "gmm_bic": 613310.1573013725,
+      "gmm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/gmms/gpt-oss-20b_A100_tp2_k10.json",
+      "hidden_dim": 64,
+      "input_dim": 2,
+      "k": 10,
+      "k_selection_reason": "fixed",
+      "norm_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2/norm_params/gpt-oss-20b_A100_tp2.json",
+      "num_layers": 1,
+      "num_test_traces": 5,
+      "num_train_points": 63488,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
+      "reason": "",
+      "seed": 42,
+      "status": "trained"
+    }
+  },
+  "defaults": {
+    "auto_k": false,
+    "bic_candidates": [
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20
+    ],
+    "device": "cuda",
+    "epochs": 500,
+    "feature_set": "f2",
+    "force_all_configs": false,
+    "hidden_dim": 64,
+    "k": 10,
+    "lr": 0.001,
+    "max_k": 20,
+    "num_layers": 1,
+    "out_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/k10_f2",
+    "out_root": "results/continuous_v1_gmm_bigru_gptoss_a100",
+    "patience": 50,
+    "scheduler_factor": 0.5,
+    "scheduler_patience": 20,
+    "seed": 42,
+    "variant": "k10_f2"
+  },
+  "generated_at_utc": "2026-03-03T07:11:59Z",
+  "inputs": {
+    "manifest_path": "results/experimental_continuous_v1_gptoss_a100/manifest.json"
+  },
+  "schema_version": "continuous-v1-gmm-bigru-train-run-v1",
+  "summary": {
+    "num_failed": 0,
+    "num_requested_configs": 4,
+    "num_skipped": 0,
+    "num_target_configs": 4,
+    "num_trained": 4
+  }
+}
