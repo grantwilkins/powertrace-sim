@@ -1,0 +1,30 @@
+config_id,status,reason,generation_mode,k,feature_set,decode_mode,median_filter_window,gmm_covariance_type,num_test_traces,num_eval_traces,num_skipped_or_failed_traces,num_seeds,ks_stat_median,acf_r2_median,nrmse_median,p95_error_pct_median,p99_error_pct_median,delta_energy_pct_median,phi_median,representative_trace_idx,representative_seed,ar1_params_json,ar1_params_plot,overlay_plot
+deepseek-r1-distill-70b_A100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-70b_A100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-70b_H100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-70b_H100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_A100_tp1,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_A100_tp2,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_A100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_A100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_H100_tp1,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_H100_tp2,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_H100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+deepseek-r1-distill-8b_H100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+gpt-oss-120b_A100_tp4,evaluated,,ar1_thresholded,12,f2,stochastic,1,full,5,5,0,5,0.6469472885855139,0.3465236182092859,0.4713089608034881,18.249988801704642,24.841574796599346,45.97685056234479,0.5381573586349389,4,43,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/ar1_params/gpt-oss-120b_A100_tp4_ar1_params.json,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-120b_A100_tp4_ar1_params.png,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-120b_A100_tp4_trace4_overlay.png
+gpt-oss-120b_A100_tp8,evaluated,,ar1_thresholded,12,f2,stochastic,1,full,5,5,0,5,0.5996376811594204,-0.1133470233322571,0.5673966337061591,12.344913696267605,16.865814594044103,39.34910291091776,0.48022977790433197,4,45,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/ar1_params/gpt-oss-120b_A100_tp8_ar1_params.json,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-120b_A100_tp8_ar1_params.png,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-120b_A100_tp8_trace4_overlay.png
+gpt-oss-20b_A100_tp1,evaluated,,ar1_thresholded,12,f2,stochastic,1,full,6,6,0,5,0.5212731515737321,0.28344923225466384,0.4960480329157111,14.799491441035903,18.047032373085887,67.09473650662835,0.497738150612254,2,42,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/ar1_params/gpt-oss-20b_A100_tp1_ar1_params.json,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-20b_A100_tp1_ar1_params.png,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-20b_A100_tp1_trace2_overlay.png
+gpt-oss-20b_A100_tp2,evaluated,,ar1_thresholded,12,f2,stochastic,1,full,5,5,0,5,0.3651155222909209,0.4473167875041163,0.39069934969466363,3.3905288517880625,2.9243063762969372,25.512175577223683,0.5355372424735225,4,46,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/ar1_params/gpt-oss-20b_A100_tp2_ar1_params.json,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-20b_A100_tp2_ar1_params.png,results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/plots/gpt-oss-20b_A100_tp2_trace4_overlay.png
+llama-3-405b_H100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-70b_A100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-70b_A100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-70b_H100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-70b_H100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_A100_tp1,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_A100_tp2,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_A100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_A100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_H100_tp1,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_H100_tp2,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_H100_tp4,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
+llama-3-8b_H100_tp8,failed,ValueError:all test traces failed or were skipped,,,,,,,,,,,,,,,,,,,,,,
