@@ -1,0 +1,271 @@
+{
+  "artifacts": {
+    "ar1_params_dir": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
+    "config_summary_csv": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/config_summary.csv",
+    "per_seed_metrics_csv": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+    "per_trace_metrics_csv": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv",
+    "plots_dir": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots"
+  },
+  "configs": {
+    "deepseek-r1-distill-70b_A100_tp4": {
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_A100_tp8": {
+      "config_id": "deepseek-r1-distill-70b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_H100_tp4": {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-70b_H100_tp8": {
+      "config_id": "deepseek-r1-distill-70b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp1": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp2": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp4": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_A100_tp8": {
+      "config_id": "deepseek-r1-distill-8b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp1": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp2": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp4": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "deepseek-r1-distill-8b_H100_tp8": {
+      "config_id": "deepseek-r1-distill-8b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "gpt-oss-120b_A100_tp4": {
+      "acf_r2_median": 0.3465236182092859,
+      "ar1_params_json": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params/gpt-oss-120b_A100_tp4_ar1_params.json",
+      "ar1_params_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-120b_A100_tp4_ar1_params.png",
+      "config_id": "gpt-oss-120b_A100_tp4",
+      "decode_mode": "stochastic",
+      "delta_energy_pct_median": 45.97685056234479,
+      "feature_set": "f2",
+      "generation_mode": "ar1_thresholded",
+      "gmm_covariance_type": "full",
+      "k": 12,
+      "ks_stat_median": 0.6469472885855139,
+      "median_filter_window": 1,
+      "nrmse_median": 0.4713089608034881,
+      "num_eval_traces": 5,
+      "num_seeds": 5,
+      "num_skipped_or_failed_traces": 0,
+      "num_test_traces": 5,
+      "overlay_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-120b_A100_tp4_trace4_overlay.png",
+      "p95_error_pct_median": 18.249988801704642,
+      "p99_error_pct_median": 24.841574796599346,
+      "phi_median": 0.5381573586349389,
+      "reason": "",
+      "representative_seed": 43,
+      "representative_trace_idx": 4,
+      "status": "evaluated"
+    },
+    "gpt-oss-120b_A100_tp8": {
+      "acf_r2_median": -0.1133470233322571,
+      "ar1_params_json": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params/gpt-oss-120b_A100_tp8_ar1_params.json",
+      "ar1_params_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-120b_A100_tp8_ar1_params.png",
+      "config_id": "gpt-oss-120b_A100_tp8",
+      "decode_mode": "stochastic",
+      "delta_energy_pct_median": 39.34910291091776,
+      "feature_set": "f2",
+      "generation_mode": "ar1_thresholded",
+      "gmm_covariance_type": "full",
+      "k": 12,
+      "ks_stat_median": 0.5996376811594204,
+      "median_filter_window": 1,
+      "nrmse_median": 0.5673966337061591,
+      "num_eval_traces": 5,
+      "num_seeds": 5,
+      "num_skipped_or_failed_traces": 0,
+      "num_test_traces": 5,
+      "overlay_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-120b_A100_tp8_trace4_overlay.png",
+      "p95_error_pct_median": 12.344913696267605,
+      "p99_error_pct_median": 16.865814594044103,
+      "phi_median": 0.48022977790433197,
+      "reason": "",
+      "representative_seed": 45,
+      "representative_trace_idx": 4,
+      "status": "evaluated"
+    },
+    "gpt-oss-20b_A100_tp1": {
+      "acf_r2_median": 0.28344923225466384,
+      "ar1_params_json": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params/gpt-oss-20b_A100_tp1_ar1_params.json",
+      "ar1_params_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-20b_A100_tp1_ar1_params.png",
+      "config_id": "gpt-oss-20b_A100_tp1",
+      "decode_mode": "stochastic",
+      "delta_energy_pct_median": 67.09473650662835,
+      "feature_set": "f2",
+      "generation_mode": "ar1_thresholded",
+      "gmm_covariance_type": "full",
+      "k": 12,
+      "ks_stat_median": 0.5212731515737321,
+      "median_filter_window": 1,
+      "nrmse_median": 0.4960480329157111,
+      "num_eval_traces": 6,
+      "num_seeds": 5,
+      "num_skipped_or_failed_traces": 0,
+      "num_test_traces": 6,
+      "overlay_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-20b_A100_tp1_trace2_overlay.png",
+      "p95_error_pct_median": 14.799491441035903,
+      "p99_error_pct_median": 18.047032373085887,
+      "phi_median": 0.497738150612254,
+      "reason": "",
+      "representative_seed": 42,
+      "representative_trace_idx": 2,
+      "status": "evaluated"
+    },
+    "gpt-oss-20b_A100_tp2": {
+      "acf_r2_median": 0.4473167875041163,
+      "ar1_params_json": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params/gpt-oss-20b_A100_tp2_ar1_params.json",
+      "ar1_params_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-20b_A100_tp2_ar1_params.png",
+      "config_id": "gpt-oss-20b_A100_tp2",
+      "decode_mode": "stochastic",
+      "delta_energy_pct_median": 25.512175577223683,
+      "feature_set": "f2",
+      "generation_mode": "ar1_thresholded",
+      "gmm_covariance_type": "full",
+      "k": 12,
+      "ks_stat_median": 0.3651155222909209,
+      "median_filter_window": 1,
+      "nrmse_median": 0.39069934969466363,
+      "num_eval_traces": 5,
+      "num_seeds": 5,
+      "num_skipped_or_failed_traces": 0,
+      "num_test_traces": 5,
+      "overlay_plot": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/plots/gpt-oss-20b_A100_tp2_trace4_overlay.png",
+      "p95_error_pct_median": 3.3905288517880625,
+      "p99_error_pct_median": 2.9243063762969372,
+      "phi_median": 0.5355372424735225,
+      "reason": "",
+      "representative_seed": 46,
+      "representative_trace_idx": 4,
+      "status": "evaluated"
+    },
+    "llama-3-405b_H100_tp8": {
+      "config_id": "llama-3-405b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_A100_tp4": {
+      "config_id": "llama-3-70b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_A100_tp8": {
+      "config_id": "llama-3-70b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_H100_tp4": {
+      "config_id": "llama-3-70b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-70b_H100_tp8": {
+      "config_id": "llama-3-70b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp1": {
+      "config_id": "llama-3-8b_A100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp2": {
+      "config_id": "llama-3-8b_A100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp4": {
+      "config_id": "llama-3-8b_A100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_A100_tp8": {
+      "config_id": "llama-3-8b_A100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp1": {
+      "config_id": "llama-3-8b_H100_tp1",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp2": {
+      "config_id": "llama-3-8b_H100_tp2",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp4": {
+      "config_id": "llama-3-8b_H100_tp4",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    },
+    "llama-3-8b_H100_tp8": {
+      "config_id": "llama-3-8b_H100_tp8",
+      "reason": "ValueError:all test traces failed or were skipped",
+      "status": "failed"
+    }
+  },
+  "defaults": {
+    "acf_max_lag": 50,
+    "base_seed": 42,
+    "decode_mode": "stochastic",
+    "device": "cuda",
+    "generation_mode": "ar1_thresholded",
+    "median_filter_window": 1,
+    "min_run_length": 5,
+    "num_seeds": 5,
+    "out_dir": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
+    "phi_threshold": 0.3,
+    "plots": true
+  },
+  "generated_at_utc": "2026-03-03T23:32:43Z",
+  "inputs": {
+    "experimental_manifest": "results/experimental_continuous_v1_gru_all/manifest.json",
+    "pair_manifest_csv": "results/stage0/pair_manifest.csv",
+    "run_manifest": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+    "throughput_db": "model/config/throughput_database.json"
+  },
+  "schema_version": "continuous-v1-gmm-bigru-eval-run-v2",
+  "summary": {
+    "num_evaluated_configs": 4,
+    "num_failed_configs": 25,
+    "num_skipped_configs": 0,
+    "num_target_configs": 29
+  }
+}
