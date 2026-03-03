@@ -698,7 +698,7 @@ def _plot_facility_traces(
             linewidth=style["linewidth"],
             alpha=0.7,
         )
-    ax.set_xlim(0.0, max(duration_min, 1e-6))
+    ax.set_xlim(0.0, 15.0)
     ax.set_ylim(0.0, 200.0)
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("Facility power (kW)")
@@ -717,8 +717,8 @@ def _plot_load_duration_curves(
 ) -> None:
     _ensure_dir(os.path.dirname(out_path) or ".")
     sns.set_style("whitegrid")
-    sns.set_context("talk", font_scale=1.2)
-    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.set_context("talk", font_scale=1.0)
+    fig, ax = plt.subplots(figsize=(6, 3.5))
     for method in METHODS:
         if method not in facility_kw_by_method:
             continue
@@ -744,7 +744,7 @@ def _plot_load_duration_curves(
     ax.grid(True, alpha=0.25)
     ax.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False)
     fig.tight_layout()
-    fig.savefig(out_path)
+    fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
 
 

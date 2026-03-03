@@ -1,0 +1,120 @@
+{
+  "assumptions": {
+    "arrival_rate_definition": "lambda_emp = n_requests / (T*dt) from aligned recorded arrivals",
+    "lightweight_runtime": "no torch/sklearn imports",
+    "measured_A_t_source": "experimental dataset npz active_requests",
+    "queue_analysis": "omitted",
+    "surrogate_A_t": "arrival + throughput-based service interval accumulation"
+  },
+  "dry_run": false,
+  "generated_at_utc": "2026-03-03T05:53:36Z",
+  "inputs": {
+    "config_pool": "all_trained",
+    "experimental_manifest": "/Users/grantwilkins/powertrace-sim/results/experimental_continuous_v1/manifest.json",
+    "pair_manifest_csv": "/Users/grantwilkins/powertrace-sim/results/stage0/pair_manifest.csv",
+    "run_manifest": "/Users/grantwilkins/powertrace-sim/results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    "throughput_db": "/Users/grantwilkins/powertrace-sim/model/config/throughput_database.json"
+  },
+  "internal_checks": {
+    "single_request_active_sum": 5,
+    "two_request_active_max": 2.0
+  },
+  "output_paths": {
+    "config_summary_csv": "results/eval_paper/appendix_a1_config_summary.csv",
+    "manifest_json": "results/eval_paper/appendix_a1_manifest.json",
+    "per_config_at_figures": [
+      {
+        "config_id": "deepseek-r1-distill-70b_H100_tp4",
+        "histogram_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_H100_tp4_trace1_at_histogram.pdf",
+        "timeseries_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_H100_tp4_trace1_at_timeseries.pdf",
+        "trace_index": 1
+      },
+      {
+        "config_id": "deepseek-r1-distill-70b_H100_tp8",
+        "histogram_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_H100_tp8_trace18_at_histogram.pdf",
+        "timeseries_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_H100_tp8_trace18_at_timeseries.pdf",
+        "trace_index": 18
+      },
+      {
+        "config_id": "deepseek-r1-distill-70b_A100_tp8",
+        "histogram_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_A100_tp8_trace11_at_histogram.pdf",
+        "timeseries_file": "figures/appendix_a1_at_deepseek-r1-distill-70b_A100_tp8_trace11_at_timeseries.pdf",
+        "trace_index": 11
+      }
+    ],
+    "scatter_figure_pdf": "figures/appendix_a1_lambda_vs_mean_at.pdf",
+    "trace_metrics_csv": "results/eval_paper/appendix_a1_trace_metrics.csv"
+  },
+  "schema_version": "appendix-a1-surrogate-validity-v2",
+  "selection": {
+    "min_eligible_traces": 2,
+    "notes": {
+      "fallback_used": {
+        "high": false,
+        "low": false,
+        "mid": false
+      },
+      "selection_relaxation": {
+        "high": {
+          "corr_threshold_used": 0.8
+        },
+        "low": {
+          "corr_threshold_used": 0.8
+        },
+        "mid": {
+          "corr_threshold_used": 0.8
+        }
+      }
+    },
+    "num_representative_configs": 3,
+    "selected_configs": [
+      {
+        "bucket": "low",
+        "config_id": "deepseek-r1-distill-70b_H100_tp4",
+        "corr_threshold_used": 0.8
+      },
+      {
+        "bucket": "mid",
+        "config_id": "deepseek-r1-distill-70b_H100_tp8",
+        "corr_threshold_used": 0.8
+      },
+      {
+        "bucket": "high",
+        "config_id": "deepseek-r1-distill-70b_A100_tp8",
+        "corr_threshold_used": 0.8
+      }
+    ],
+    "stable_corr_threshold": 0.8
+  },
+  "stats": {
+    "num_per_config_figures": 3,
+    "num_selected_configs": 3,
+    "num_summary_rows": 33,
+    "num_target_configs": 33,
+    "num_trace_rows": 179
+  },
+  "surrogate_quality": {
+    "all_evaluated_traces": {
+      "mean_abs_mean_a_error": 1.7981040097839178,
+      "mean_corr_a": 0.7854559978613728,
+      "mean_mae_a": 2.049170966180004,
+      "mean_rmse_a": 2.4092914992907972,
+      "median_abs_mean_a_error": 0.04130605822187228,
+      "median_corr_a": 0.8245601450436632,
+      "median_mae_a": 0.511102139685103,
+      "median_rmse_a": 0.8294148216097994,
+      "n_evaluated": 89
+    },
+    "selected_configs_only": {
+      "mean_abs_mean_a_error": 0.20858969057653362,
+      "mean_corr_a": 0.9161784406141257,
+      "mean_mae_a": 0.5263137158820104,
+      "mean_rmse_a": 0.8316728615242467,
+      "median_abs_mean_a_error": 0.20059824357413936,
+      "median_corr_a": 0.9087884564574484,
+      "median_mae_a": 0.558526790212508,
+      "median_rmse_a": 0.887167998515355,
+      "n_evaluated": 12
+    }
+  }
+}

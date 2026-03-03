@@ -48,6 +48,29 @@ python -m scripts.eval.run_baselines_facility \
     --out-dir results/eval_paper/facility
 ```
 
+#### `appendix_surrogate_validity.py` - Appendix A1 Surrogate Validity
+
+Generate Appendix A1 sanity-check evidence for measured vs surrogate `A_t`
+without queue reconstruction. The script writes per-config `A_t` plots
+(time-series + histogram) and `\lambda` vs mean `A_t` saturation diagnostics.
+
+```bash
+python -m scripts.eval.appendix_surrogate_validity \
+    --config-pool all_trained \
+    --num-representative-configs 3 \
+    --min-eligible-traces 2 \
+    --stable-corr-threshold 0.80
+```
+
+**Output:**
+- `results/eval_paper/appendix_a1_trace_metrics.csv` - Per-trace metrics and skip reasons
+- `results/eval_paper/appendix_a1_config_summary.csv` - Per-config medians and saturation slopes
+- `figures/appendix_a1_at_{config_slug}_trace{idx}_at_timeseries.pdf` - Per-config `A_t` time-series overlay
+- `figures/appendix_a1_at_{config_slug}_trace{idx}_at_histogram.pdf` - Per-config `A_t` histogram overlay
+- `figures/appendix_a1_lambda_vs_mean_at.pdf` - `\lambda` vs mean `A_t` scatter panels
+- `results/eval_paper/appendix_a1_manifest.json` - Reproducibility manifest and selection notes
+- Manifest `surrogate_quality` section and stdout summary - Aggregate mean/median correlation, MAE, RMSE, and mean-`A_t` error
+
 #### `baselines.py` - Baseline Method Implementations
 
 Contains implementations of all baseline generation methods:
@@ -245,6 +268,35 @@ python -m scripts.eval.aggregation_resolution \
     --data-dir results/azure_facility \
     --out-file figures/aggregation_resolution.pdf
 ```
+
+#### `feature_sufficiency_figure.py`
+
+Generate the A2 feature sufficiency curve using held-out predictive
+information retention for `A`, `ΔA`, `F2`, `F3`, and `F6` versus regime
+label `z_t`.
+
+Metric definitions:
+- `IR_abs = 1 - CE_subset / CE_null`
+- `IR_vs_F6 = (CE_null - CE_subset) / (CE_null - CE_F6)` (primary line)
+
+```bash
+python -m scripts.eval.feature_sufficiency_figure \
+    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
+    --training-data-dir model/training_data \
+    --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
+    --epochs 8 \
+    --hidden-dim 32 \
+    --lr 1e-3 \
+    --out-figure figures/feature_sufficiency_curve.pdf \
+    --out-per-config-csv results/eval_paper/feature_sufficiency_per_config.csv \
+    --out-summary-csv results/eval_paper/feature_sufficiency_summary.csv \
+    --out-json results/eval_paper/feature_sufficiency_manifest.json
+```
+
+Outputs:
+- Per-config scores: `config_id, subset, ce_subset, ce_null, ce_f6, ir_abs, ir_vs_f6, info_retained_abs_pct, info_retained_vs_f6_pct, n_test_samples, n_classes, input_dim, n_train_traces, n_test_traces`
+- Summary rows: `subset, median_ir_vs_f6, ci95_low_ir_vs_f6, ci95_high_ir_vs_f6, median_ir_abs, ci95_low_ir_abs, ci95_high_ir_abs, median_info_retained_vs_f6_pct, median_info_retained_abs_pct, n_configs`
+- Figure PDF and manifest JSON with selected/skipped configs, CE retention formulas, and sequence-model settings
 
 ### 5. Utility Module
 

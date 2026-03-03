@@ -1,0 +1,51 @@
+{
+  "artifacts": {
+    "checkpoints_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/checkpoints",
+    "gmms_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/gmms",
+    "norm_params_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/norm_params",
+    "run_summary_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/run_summary.csv",
+    "training_curves_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/training_curves"
+  },
+  "configs": {},
+  "defaults": {
+    "auto_k": true,
+    "bic_candidates": [
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20
+    ],
+    "device": "mps",
+    "epochs": 500,
+    "feature_set": "f2",
+    "force_all_configs": false,
+    "hidden_dim": 64,
+    "k": 10,
+    "lr": 0.001,
+    "max_k": 20,
+    "num_layers": 1,
+    "out_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2",
+    "out_root": "results/continuous_v1_gmm_bigru_gptoss_a100",
+    "patience": 50,
+    "scheduler_factor": 0.5,
+    "scheduler_patience": 20,
+    "seed": 42,
+    "variant": "kauto_max20_f2"
+  },
+  "generated_at_utc": "2026-03-02T21:45:27Z",
+  "inputs": {
+    "manifest_path": "results/experimental_continuous_v1_gptoss_a100/manifest.json"
+  },
+  "schema_version": "continuous-v1-gmm-bigru-train-run-v1",
+  "summary": {
+    "num_failed": 0,
+    "num_requested_configs": 2,
+    "num_skipped": 0,
+    "num_target_configs": 0,
+    "num_trained": 0
+  }
+}

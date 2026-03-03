@@ -422,7 +422,7 @@ def _plot_figure_1_diurnal_overlay(
     arrival_rate_req_per_s: np.ndarray,
 ) -> Dict[str, object]:
     sns.set_style("whitegrid")
-    sns.set_context("talk", font_scale=1.1)
+    sns.set_context("talk", font_scale=1.0)
     fig, ax1 = plt.subplots(figsize=(10, 4))
     l1 = ax1.plot(
         power_hours,

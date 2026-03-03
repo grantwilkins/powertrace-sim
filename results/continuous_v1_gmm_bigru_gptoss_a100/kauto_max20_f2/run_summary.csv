@@ -1,0 +1,1 @@
+config_id,status,reason,k,k_selection_reason,auto_k,feature_set,input_dim,seed,device,best_epoch,best_val_loss,final_train_loss,final_val_loss,num_train_traces,num_val_traces,num_test_traces,num_train_points,gmm_aic,gmm_bic,bic_candidates,checkpoint_path,curve_path,norm_params_path,gmm_params_path
