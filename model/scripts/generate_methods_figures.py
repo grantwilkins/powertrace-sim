@@ -1045,13 +1045,13 @@ class MethodsFigureGenerator:
         out_dir: str,
         dry_run: bool,
         device: str = "auto",
-        experimental_manifest_path: str = "results/experimental_continuous_v1/manifest.json",
+        experimental_manifest_path: str = "results/experimental_continuous_v1_gru_all/manifest.json",
         pair_manifest_csv_path: str = "results/stage0/pair_manifest.csv",
-        run_manifest_path: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv",
-        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
-        per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
-        ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        run_manifest_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_trace_metrics.csv",
+        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_seed_metrics.csv",
+        per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+        ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         throughput_db_path: str = "model/config/throughput_database.json",
         validation_source_dir: str = "model/tests/validation_results",
         dense_config_id: str = DENSE_CONFIG_ID,
@@ -2468,7 +2468,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--experimental-manifest",
-        default="results/experimental_continuous_v1/manifest.json",
+        default="results/experimental_continuous_v1_gru_all/manifest.json",
     )
     parser.add_argument(
         "--pair-manifest-csv",
@@ -2476,23 +2476,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--run-manifest",
-        default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
     )
     parser.add_argument(
         "--per-trace-csv",
-        default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_trace_metrics.csv",
     )
     parser.add_argument(
         "--per-seed-csv",
-        default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_seed_metrics.csv",
     )
     parser.add_argument(
         "--per-seed-ar1-csv",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
     )
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     )
     parser.add_argument(
         "--throughput-db", default="model/config/throughput_database.json"

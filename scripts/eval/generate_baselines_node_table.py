@@ -373,11 +373,11 @@ def generate_baselines_node_table(
     ),
     label: str = "tab:baselines-node",
     recompute_node_metrics: bool = False,
-    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-    experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
+    run_manifest: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+    experimental_manifest: str = "results/experimental_continuous_v1_gru_all/manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     num_seeds: int = 5,
     base_seed: int = 42,
     device: str = "auto",
@@ -607,13 +607,13 @@ def main() -> None:
         action="store_true",
         help="Recompute baselines_node_level.csv before generating table.",
     )
-    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
-    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
+    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json")
+    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1_gru_all/manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     )
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)

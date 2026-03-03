@@ -364,12 +364,12 @@ def main():
     base_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         "results",
-        "continuous_v1_gmm_bigru",
+        "continuous_v1_gmm_bigru_sharegpt_all",
     )
 
     input_files = {
-        "iid": os.path.join(base_dir, "k10_f2", "eval_metrics", "config_summary.csv"),
-        "ar1": os.path.join(base_dir, "k10_f2_ar1", "eval_metrics", "config_summary.csv"),
+        "iid": os.path.join(base_dir, "kauto_max12_f2", "eval_metrics", "config_summary.csv"),
+        "ar1": os.path.join(base_dir, "kauto_max12_f2_ar1", "eval_metrics", "config_summary.csv"),
     }
 
     output_path = os.path.join(

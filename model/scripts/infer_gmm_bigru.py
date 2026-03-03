@@ -183,7 +183,7 @@ def run_inference_from_artifacts(
     config_id: str,
     requests_json: str,
     out_csv: str,
-    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    run_manifest: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     device: str = "auto",
     seed: Optional[int] = None,
@@ -312,7 +312,7 @@ def run_inference_from_artifacts(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate traces from continuous v1 GMM+BiGRU artifacts.")
-    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
+    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--config-id", required=True)
     parser.add_argument("--requests-json", required=True)

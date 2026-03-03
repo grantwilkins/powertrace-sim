@@ -627,8 +627,8 @@ def train_one_config(
 
 def run_training_from_manifest(
     *,
-    manifest_path: str = "results/experimental_continuous_v1/manifest.json",
-    out_root: str = "results/continuous_v1_gmm_bigru",
+    manifest_path: str = "results/experimental_continuous_v1_gru_all/manifest.json",
+    out_root: str = "results/continuous_v1_gmm_bigru_sharegpt_all",
     config_ids: Optional[Sequence[str]] = None,
     k: int = 10,
     feature_set: str = "f2",
@@ -1004,8 +1004,8 @@ def run_training_from_manifest(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train continuous v1 GMM+BiGRU models from experimental manifest.")
-    parser.add_argument("--manifest", default="results/experimental_continuous_v1/manifest.json")
-    parser.add_argument("--out-root", default="results/continuous_v1_gmm_bigru")
+    parser.add_argument("--manifest", default="results/experimental_continuous_v1_gru_all/manifest.json")
+    parser.add_argument("--out-root", default="results/continuous_v1_gmm_bigru_sharegpt_all")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--feature-set", choices=["f2", "f3"], default="f2")

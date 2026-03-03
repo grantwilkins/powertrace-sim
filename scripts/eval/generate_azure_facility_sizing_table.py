@@ -383,7 +383,7 @@ def _build_default_paths() -> Dict[str, str]:
         "aggregated_dir": str(repo_root / "results" / "azure_facility" / "aggregated"),
         "node_trace_dir": str(repo_root / "results" / "azure_facility" / "node_traces"),
         "experimental_manifest": str(
-            repo_root / "results" / "experimental_continuous_v1" / "manifest.json"
+            repo_root / "results" / "experimental_continuous_v1_gru_all" / "manifest.json"
         ),
         "metrics_csv": str(repo_root / "results" / "eval_paper" / "azure_facility_metrics.csv"),
         "ldc_csv": str(repo_root / "results" / "eval_paper" / "azure_facility_ldc_15min.csv"),

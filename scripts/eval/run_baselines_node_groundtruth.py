@@ -237,11 +237,11 @@ def _plot_trace_overlay(
 
 def run_baselines_node_groundtruth(
     *,
-    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-    experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
+    run_manifest: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+    experimental_manifest: str = "results/experimental_continuous_v1_gru_all/manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     config_id: str = "deepseek-r1-distill-70b_H100_tp4",
     target_rate: float = 0.25,
     test_trace_index: Optional[int] = None,
@@ -643,11 +643,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--run-manifest",
-        default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
     )
     parser.add_argument(
         "--experimental-manifest",
-        default="results/experimental_continuous_v1/manifest.json",
+        default="results/experimental_continuous_v1_gru_all/manifest.json",
     )
     parser.add_argument(
         "--throughput-db", default="model/config/throughput_database.json"
@@ -694,7 +694,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         help="Directory containing AR(1) params JSON files (used only for MoE configs).",
     )
     parser.add_argument("--num-seeds", type=int, default=5)

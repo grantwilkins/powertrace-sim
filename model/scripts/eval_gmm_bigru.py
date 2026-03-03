@@ -645,11 +645,11 @@ def _build_trace_record(
 
 def evaluate_from_artifacts(
     *,
-    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-    experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
+    run_manifest: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+    experimental_manifest: str = "results/experimental_continuous_v1_gru_all/manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    out_dir: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics",
+    out_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
     config_ids: Optional[Sequence[str]] = None,
     num_seeds: int = 5,
     base_seed: int = 42,
@@ -1159,11 +1159,11 @@ def evaluate_from_artifacts(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate continuous v1 GMM+BiGRU models on test traces.")
-    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
-    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
+    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json")
+    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1_gru_all/manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
-    parser.add_argument("--out-dir", default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics")
+    parser.add_argument("--out-dir", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)

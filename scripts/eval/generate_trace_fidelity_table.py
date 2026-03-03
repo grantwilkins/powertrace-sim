@@ -28,7 +28,7 @@ Dependencies:
     - numpy
 
 Input:
-    results/continuous_v1_gmm_bigru/k10_f2*/eval_metrics/per_seed_metrics.csv
+    results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2*/eval_metrics/per_seed_metrics.csv
 
 Output:
     LaTeX table rows or CSV data (stdout or file)
@@ -83,18 +83,18 @@ EXCLUDED_HARDWARE_TP = [
 ]
 
 # Default input directories
-# These can be overridden via CLI or by pointing to kauto_max20_f2 runs
+# These can be overridden via CLI or by pointing to kauto_max12_f2 runs
 DEFAULT_INPUT_DIRS = {
-    "iid": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru/k10_f2_ar1/eval_metrics",
-    "ar1_thresh": "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics",
+    "iid": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
+    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1/eval_metrics",
+    "ar1_thresh": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
 }
 
 # Alternative auto-K directories (use these when running with --auto-k results)
 AUTOK_INPUT_DIRS = {
-    "iid": "results/continuous_v1_gmm_bigru/kauto_max20_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1/eval_metrics",
-    "ar1_thresh": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1_thresh/eval_metrics",
+    "iid": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
+    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1/eval_metrics",
+    "ar1_thresh": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
 }
 
 # Default inventory used to determine whether pair_key has request timestamps.

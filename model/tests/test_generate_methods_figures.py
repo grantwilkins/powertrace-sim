@@ -32,7 +32,7 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         self.assertIsNone(normalize_rate("abc"))
 
     def test_trace_selection_dense_config(self):
-        per_trace_path = Path("results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv")
+        per_trace_path = Path("results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_trace_metrics.csv")
         self.assertTrue(per_trace_path.exists(), msg=f"Missing test fixture: {per_trace_path}")
         rows = []
         import csv
@@ -46,7 +46,7 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         self.assertEqual(select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=4.0), 59)
 
     def test_seed_selection_nearest_median(self):
-        per_seed_path = Path("results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv")
+        per_seed_path = Path("results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_seed_metrics.csv")
         self.assertTrue(per_seed_path.exists(), msg=f"Missing test fixture: {per_seed_path}")
         rows = []
         import csv

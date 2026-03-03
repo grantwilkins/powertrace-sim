@@ -591,11 +591,11 @@ def _make_failed_row(
 
 def run_baselines_node(
     *,
-    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-    experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
+    run_manifest: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+    experimental_manifest: str = "results/experimental_continuous_v1_gru_all/manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     out_csv: str = "results/eval_paper/baselines_node_level.csv",
     config_ids: Optional[Sequence[str]] = None,
     num_seeds: int = 5,
@@ -1016,13 +1016,13 @@ def run_baselines_node(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Node-level baseline comparison (TDP / Mean / Splitwise LUT / Ours).")
-    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
-    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
+    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json")
+    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1_gru_all/manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         help="Directory containing AR(1) params JSON files (used only for MoE configs).",
     )
     parser.add_argument("--out-csv", default="results/eval_paper/baselines_node_level.csv")

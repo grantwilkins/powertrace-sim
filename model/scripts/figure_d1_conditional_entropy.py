@@ -88,8 +88,8 @@ def _repo_root() -> Path:
 def _default_paths() -> Dict[str, str]:
     root = _repo_root()
     return {
-        "experimental_manifest": str(root / "results" / "experimental_continuous_v1" / "manifest.json"),
-        "run_manifest": str(root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
+        "experimental_manifest": str(root / "results" / "experimental_continuous_v1_gru_all" / "manifest.json"),
+        "run_manifest": str(root / "results" / "continuous_v1_gmm_bigru_sharegpt_all" / "kauto_max12_f2" / "run_manifest.json"),
         "pair_manifest_csv": str(root / "results" / "stage0" / "pair_manifest.csv"),
         "throughput_db": str(root / "model" / "config" / "throughput_database.json"),
         "out_figure": str(root / "figures" / "figure_d1_conditional_entropy.pdf"),

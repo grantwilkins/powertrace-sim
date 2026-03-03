@@ -1490,11 +1490,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--run-manifest",
-        default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
     )
     parser.add_argument(
         "--experimental-manifest",
-        default="results/experimental_continuous_v1/manifest.json",
+        default="results/experimental_continuous_v1_gru_all/manifest.json",
     )
     parser.add_argument(
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
