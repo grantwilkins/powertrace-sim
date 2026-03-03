@@ -1,0 +1,12 @@
+{
+  "active_mean": 2.213675213675214,
+  "active_std": 2.5791233239324347,
+  "config_id": "llama-3-8b_A100_tp2",
+  "dt": 0.25,
+  "power_max": 805.0799999999999,
+  "power_mean": 318.0702111295267,
+  "power_min": 123.39,
+  "power_std": 182.14410873813256,
+  "t_arrive_log_mean": 0.12104525943516145,
+  "t_arrive_log_std": 0.28671531217545754
+}

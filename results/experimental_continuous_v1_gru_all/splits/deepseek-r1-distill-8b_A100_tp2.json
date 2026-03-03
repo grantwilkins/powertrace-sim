@@ -1,0 +1,27 @@
+{
+  "config_id": "deepseek-r1-distill-8b_A100_tp2",
+  "test_indices": [
+    15,
+    1,
+    13,
+    8
+  ],
+  "train_indices": [
+    16,
+    17,
+    12,
+    6,
+    10,
+    9,
+    7,
+    3,
+    0,
+    14,
+    5,
+    11
+  ],
+  "val_indices": [
+    2,
+    4
+  ]
+}

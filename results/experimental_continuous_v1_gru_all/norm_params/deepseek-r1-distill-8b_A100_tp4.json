@@ -1,0 +1,12 @@
+{
+  "active_mean": 0.0,
+  "active_std": 1e-06,
+  "config_id": "deepseek-r1-distill-8b_A100_tp4",
+  "dt": 0.25,
+  "power_max": 1085.14,
+  "power_mean": 564.5693444777148,
+  "power_min": 246.41,
+  "power_std": 265.4986884611785,
+  "t_arrive_log_mean": 0.0,
+  "t_arrive_log_std": 1e-06
+}

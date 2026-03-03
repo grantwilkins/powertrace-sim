@@ -348,6 +348,19 @@ def rate_is_one(value: object) -> bool:
     return rate_matches(value, 1.0)
 
 
+def is_moe_config_id(config_id: str) -> bool:
+    match = re.match(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$", str(config_id).strip())
+    if match is None:
+        return False
+    model_family = str(match.group(1)).lower()
+    model_size = int(match.group(2))
+    if "deepseek-r1-distill" in model_family:
+        return False
+    if "gpt-oss" in model_family and model_size >= 20:
+        return True
+    return False
+
+
 def select_trace_by_best_median_nrmse(
     rows: Sequence[Mapping[str, str]],
     *,
@@ -677,11 +690,28 @@ def build_requests_from_stage0_json(
     # CRITICAL: Normalize to [0, trace_duration] FIRST, then apply offset.
     # If we apply offset before normalization, the normalization will undo it
     # by shifting arrivals back to start at 0.
-    if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt)
-        or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
-    ):
-        arrivals = arrivals - float(np.min(arrivals))
+    if arrivals.size > 0:
+        arr_min = float(np.min(arrivals))
+        arr_max = float(np.max(arrivals))
+        out_of_window = arr_min < -float(dt) or arr_max > float(
+            trace_duration_s
+        ) + float(dt)
+        if out_of_window:
+            # First try correcting by an integer-hour timezone offset inferred
+            # from arrival timestamps relative to power window.
+            median_arr = float(np.median(arrivals))
+            tz_hours = int(np.round(median_arr / 3600.0))
+            arrivals_tz = arrivals - (float(tz_hours) * 3600.0)
+            tz_min = float(np.min(arrivals_tz))
+            tz_max = float(np.max(arrivals_tz))
+            if (
+                tz_hours != 0
+                and tz_min >= (-2.0 * float(dt))
+                and tz_max <= (float(trace_duration_s) + 2.0 * float(dt))
+            ):
+                arrivals = arrivals_tz
+            else:
+                arrivals = arrivals - arr_min
 
     # Apply alignment offset AFTER normalization (so it doesn't get undone)
     arrivals = arrivals + float(alignment_offset_s)
@@ -875,7 +905,7 @@ def _plot_sim_overlay(
     ax.plot(time_s, simulated, color=COLOR_RED, alpha=0.8, label="Simulated")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("GPU Power (W)")
-    ax.set_ylim(0.0, 750.0)
+    ax.set_ylim(0.0, 1250.0)
     ax.grid(True, alpha=0.25)
     if len(time_s) > 1:
         ax.set_xlim(float(time_s[0]), float(time_s[-1]))
@@ -939,32 +969,66 @@ def _load_model_from_artifacts(
 
 
 class MethodsFigureGenerator:
-    def __init__(self, *, out_dir: str, dry_run: bool, device: str = "auto"):
+    def __init__(
+        self,
+        *,
+        out_dir: str,
+        dry_run: bool,
+        device: str = "auto",
+        experimental_manifest_path: str = "results/experimental_continuous_v1/manifest.json",
+        pair_manifest_csv_path: str = "results/stage0/pair_manifest.csv",
+        run_manifest_path: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv",
+        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
+        per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+        ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+        throughput_db_path: str = "model/config/throughput_database.json",
+        validation_source_dir: str = "model/tests/validation_results",
+        dense_config_id: str = DENSE_CONFIG_ID,
+        deepseek_dense_config_id: str = DEEPSEEK_DENSE_CONFIG_ID,
+        moe_proxy_config_id: str = MOE_PROXY_CONFIG_ID,
+        moe_proxy_rate: float = MOE_PROXY_RATE,
+        figure_mode: str = "all",
+    ):
         self.out_dir = Path(out_dir)
         self.dry_run = bool(dry_run)
         self.device = _resolve_device(device)
-        self.experimental_manifest_path = Path(
-            "results/experimental_continuous_v1/manifest.json"
-        )
-        self.pair_manifest_csv_path = Path("results/stage0/pair_manifest.csv")
-        self.run_manifest_path = Path(
-            "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json"
-        )
-        self.per_trace_csv_path = Path(
-            "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv"
-        )
-        self.per_seed_csv_path = Path(
-            "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv"
-        )
-        self.per_seed_ar1_csv_path = Path(
-            "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv"
-        )
-        self.ar1_params_dir = Path(
-            "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params"
-        )
-        self.throughput_db_path = Path("model/config/throughput_database.json")
-        self.validation_source_dir = Path("model/tests/validation_results")
+        self.figure_mode = str(figure_mode).strip().lower()
+        if self.figure_mode not in {"all", "simulated-moe"}:
+            raise ValueError(
+                f"Unsupported figure_mode={figure_mode}. Expected one of ['all', 'simulated-moe']."
+            )
 
+        self.experimental_manifest_path = Path(experimental_manifest_path)
+        self.pair_manifest_csv_path = Path(pair_manifest_csv_path)
+        self.run_manifest_path = Path(run_manifest_path)
+        self.per_trace_csv_path = Path(per_trace_csv_path)
+        self.per_seed_csv_path = Path(per_seed_csv_path)
+        self.per_seed_ar1_csv_path = Path(per_seed_ar1_csv_path)
+        self.ar1_params_dir = Path(ar1_params_dir)
+        self.throughput_db_path = Path(throughput_db_path)
+        self.validation_source_dir = Path(validation_source_dir)
+
+        self.dense_config_id = str(dense_config_id).strip()
+        self.deepseek_dense_config_id = str(deepseek_dense_config_id).strip()
+        self.moe_proxy_config_id = str(moe_proxy_config_id).strip()
+        self.moe_proxy_rate = float(moe_proxy_rate)
+
+        self.experimental_manifest: Dict[str, Any] = {}
+        self.run_manifest: Dict[str, Any] = {}
+        self.throughput_payload: Dict[str, Any] = {}
+        self.pair_map: Dict[str, str] = {}
+        self.per_trace_rows: List[Dict[str, str]] = []
+        self.per_seed_rows: List[Dict[str, str]] = []
+        self.per_seed_ar1_rows: List[Dict[str, str]] = []
+
+        self._dataset_cache: Dict[str, Dict[str, Any]] = {}
+        self._model_cache: Dict[str, Dict[str, Any]] = {}
+        self._pair_has_recorded_timestamps_cache: Dict[str, bool] = {}
+
+        self._reload_inputs()
+
+    def _reload_inputs(self) -> None:
         self.experimental_manifest = _load_json(self.experimental_manifest_path)
         self.run_manifest = _load_json(self.run_manifest_path)
         self.throughput_payload = _load_json(self.throughput_db_path)
@@ -973,9 +1037,44 @@ class MethodsFigureGenerator:
         self.per_seed_rows = _read_csv_rows(self.per_seed_csv_path)
         self.per_seed_ar1_rows = _read_csv_rows(self.per_seed_ar1_csv_path)
 
-        self._dataset_cache: Dict[str, Dict[str, Any]] = {}
-        self._model_cache: Dict[str, Dict[str, Any]] = {}
-        self._pair_has_recorded_timestamps_cache: Dict[str, bool] = {}
+        self._dataset_cache.clear()
+        self._model_cache.clear()
+        self._pair_has_recorded_timestamps_cache.clear()
+
+    def _try_autoswitch_gptoss_a100_bundle(self) -> bool:
+        candidates = {
+            "experimental_manifest_path": Path(
+                "results/experimental_continuous_v1_gptoss_a100/manifest.json"
+            ),
+            "pair_manifest_csv_path": Path(
+                "results/stage0_sharegpt_gptoss_a100/pair_manifest.csv"
+            ),
+            "run_manifest_path": Path(
+                "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/run_manifest.json"
+            ),
+            "per_trace_csv_path": Path(
+                "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_trace_metrics.csv"
+            ),
+            "per_seed_csv_path": Path(
+                "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_seed_metrics.csv"
+            ),
+            "per_seed_ar1_csv_path": Path(
+                "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_seed_metrics.csv"
+            ),
+            "ar1_params_dir": Path(
+                "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/ar1_params"
+            ),
+            "throughput_db_path": Path(
+                "results/stage0_sharegpt_gptoss_a100/throughput_database.json"
+            ),
+        }
+        if not all(path.exists() for path in candidates.values()):
+            return False
+
+        for attr, path in candidates.items():
+            setattr(self, attr, path)
+        self._reload_inputs()
+        return True
 
     def _config_dataset_entry(self, config_id: str) -> Dict[str, Any]:
         configs = self.experimental_manifest.get("configs", {})
@@ -1120,20 +1219,21 @@ class MethodsFigureGenerator:
     ) -> Dict[str, Any]:
         candidates_recorded = (
             self._candidate_trace_indices_for_rate_with_recorded_timestamps(
-                DENSE_CONFIG_ID, float(rate)
+                self.dense_config_id, float(rate)
             )
         )
         if not candidates_recorded:
             raise ValueError(
                 f"No traces with recorded request_timestamps for "
-                f"config={DENSE_CONFIG_ID}, rate={rate}. "
+                f"config={self.dense_config_id}, rate={rate}. "
                 "Dense overlays require real arrivals."
             )
 
         if bool(prefer_lowest_mean_power):
             trace_idx = int(
                 select_trace_by_lowest_mean_power(
-                    self._load_dataset(DENSE_CONFIG_ID)["power"], candidates_recorded
+                    self._load_dataset(self.dense_config_id)["power"],
+                    candidates_recorded,
                 )
             )
             selection_method = "lowest_mean_power_per_rate_recorded_timestamps_only"
@@ -1141,14 +1241,14 @@ class MethodsFigureGenerator:
             try:
                 trace_idx = int(
                     self._select_trace_best_median_nrmse_recorded(
-                        DENSE_CONFIG_ID, float(rate)
+                        self.dense_config_id, float(rate)
                     )
                 )
                 selection_method = "best_median_nrmse_per_rate_recorded_timestamps_only"
             except ValueError:
                 trace_idx = int(
                     select_trace_by_lowest_mean_power(
-                        self._load_dataset(DENSE_CONFIG_ID)["power"],
+                        self._load_dataset(self.dense_config_id)["power"],
                         candidates_recorded,
                     )
                 )
@@ -1432,7 +1532,7 @@ class MethodsFigureGenerator:
             prefer_lowest_mean_power=False,
         )
         trace_idx = int(selection["trace_idx"])
-        tr = self.get_trace(DENSE_CONFIG_ID, trace_idx)
+        tr = self.get_trace(self.dense_config_id, trace_idx)
         selection_method = str(selection["selection_method"])
 
         # STEP 1: Initial pass to detect offset
@@ -1566,14 +1666,14 @@ class MethodsFigureGenerator:
             try:
                 seed = select_seed_nearest_median_nrmse(
                     self.per_seed_rows,
-                    config_id=DENSE_CONFIG_ID,
+                    config_id=self.dense_config_id,
                     trace_idx=int(trace_idx),
                 )
                 seed_selection_method = "nearest_median_nrmse"
             except ValueError:
                 seed = int(DEFAULT_SIM_SEED)
                 seed_selection_method = "fallback_default_seed_no_eval_rows"
-            tr = self.get_trace(DENSE_CONFIG_ID, int(trace_idx))
+            tr = self.get_trace(self.dense_config_id, int(trace_idx))
             simulated = self._simulate_dense_trace(tr, seed=int(seed))
             measured = np.asarray(simulated["measured_w"], dtype=np.float64).reshape(-1)
             mean_power = float(np.mean(measured)) if measured.size > 0 else float("nan")
@@ -1613,17 +1713,103 @@ class MethodsFigureGenerator:
         return out
 
     def _generate_moe_overlay(self) -> Dict[str, Any]:
-        trace_idx = select_trace_by_best_median_nrmse(
-            self.per_trace_rows,
-            config_id=MOE_PROXY_CONFIG_ID,
-            rate=float(MOE_PROXY_RATE),
+        def _candidate_rows(
+            *,
+            config_id: Optional[str],
+            rate: Optional[float],
+            require_pair_json: bool = True,
+            require_moe: bool = False,
+        ) -> List[Tuple[float, str, int, Dict[str, str]]]:
+            out: List[Tuple[float, str, int, Dict[str, str]]] = []
+            for row in self.per_trace_rows:
+                if str(row.get("status", "")) != "evaluated":
+                    continue
+                cid = str(row.get("config_id", "")).strip()
+                if cid == "":
+                    continue
+                if config_id is not None and cid != str(config_id):
+                    continue
+                if require_moe and (not is_moe_config_id(cid)):
+                    continue
+                if rate is not None and (
+                    not rate_matches(row.get("rate", ""), float(rate))
+                ):
+                    continue
+                try:
+                    trace_idx_local = int(row.get("trace_idx", "-1"))
+                except Exception:
+                    continue
+                if trace_idx_local < 0:
+                    continue
+                nrmse = _to_float(row.get("nrmse_median"))
+                if nrmse is None:
+                    continue
+                pair_key = str(row.get("pair_key", "")).strip()
+                if require_pair_json and pair_key not in self.pair_map:
+                    continue
+                ar1_path = self.ar1_params_dir / f"{_safe_slug(cid)}_ar1_params.json"
+                if not ar1_path.exists():
+                    continue
+                out.append((float(nrmse), cid, int(trace_idx_local), row))
+            out.sort(key=lambda x: (x[0], x[1], x[2]))
+            return out
+
+        selection_method = "best_median_nrmse_per_rate"
+        candidates = _candidate_rows(
+            config_id=self.moe_proxy_config_id,
+            rate=float(self.moe_proxy_rate),
+            require_pair_json=True,
+            require_moe=False,
         )
-        seed = select_seed_nearest_median_nrmse(
-            self.per_seed_ar1_rows,
-            config_id=MOE_PROXY_CONFIG_ID,
-            trace_idx=int(trace_idx),
-        )
-        tr = self.get_trace(MOE_PROXY_CONFIG_ID, int(trace_idx))
+        if not candidates:
+            selection_method = "fallback_best_median_nrmse_any_rate_pair_json"
+            candidates = _candidate_rows(
+                config_id=self.moe_proxy_config_id,
+                rate=None,
+                require_pair_json=True,
+                require_moe=False,
+            )
+        if not candidates:
+            selection_method = (
+                "fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
+            )
+            candidates = _candidate_rows(
+                config_id=None,
+                rate=None,
+                require_pair_json=True,
+                require_moe=True,
+            )
+        if not candidates:
+            if (
+                self.figure_mode == "simulated-moe"
+                and self._try_autoswitch_gptoss_a100_bundle()
+            ):
+                selection_method = "autoswitched_gptoss_a100_bundle_fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
+                candidates = _candidate_rows(
+                    config_id=None,
+                    rate=None,
+                    require_pair_json=True,
+                    require_moe=True,
+                )
+            if not candidates:
+                raise ValueError(
+                    "No MoE per-trace candidates have both request JSON paths and AR(1) params. "
+                    "Provide explicit --moe-config-id/--moe-rate and matching manifest paths."
+                )
+
+        _, selected_config_id, trace_idx, selected_row = candidates[0]
+        try:
+            seed = select_seed_nearest_median_nrmse(
+                self.per_seed_ar1_rows,
+                config_id=selected_config_id,
+                trace_idx=int(trace_idx),
+            )
+            seed_selection_method = "nearest_median_nrmse"
+        except ValueError:
+            seed = int(DEFAULT_SIM_SEED)
+            seed_selection_method = "fallback_default_seed_no_eval_rows"
+
+        tr = self.get_trace(selected_config_id, int(trace_idx))
         simulated = self._simulate_moe_proxy_trace(tr, seed=int(seed))
         out_path = self.out_dir / "simulated_power_trace_moe.pdf"
         if not self.dry_run:
@@ -1638,15 +1824,22 @@ class MethodsFigureGenerator:
             "trace_idx": int(tr.trace_idx),
             "pair_key": tr.pair_key,
             "rate": tr.rate,
-            "selection_rate": float(MOE_PROXY_RATE),
-            "selection_method": "best_median_nrmse_per_rate",
+            "selection_rate": float(
+                _to_float(selected_row.get("rate", self.moe_proxy_rate))
+                if _to_float(selected_row.get("rate", self.moe_proxy_rate)) is not None
+                else self.moe_proxy_rate
+            ),
+            "selection_method": selection_method,
             "seed": int(seed),
-            "seed_selection_method": "nearest_median_nrmse",
+            "seed_selection_method": seed_selection_method,
             "dt": float(tr.dt),
             "num_points": int(len(simulated["time_s"])),
             "duration_seconds": float(len(simulated["time_s"]) * tr.dt),
             "requests_count": int(simulated["requests_count"]),
             "ar1_params_path": str(simulated["ar1_params_path"]),
+            "requested_config_id": str(self.moe_proxy_config_id),
+            "requested_rate": float(self.moe_proxy_rate),
+            "selected_rate_from_per_trace": str(selected_row.get("rate", "")),
             "file": str(out_path),
         }
 
@@ -1751,7 +1944,7 @@ class MethodsFigureGenerator:
             "assumptions": {
                 "llama_31_alias_maps_to_llama_3_8b_ids": True,
                 "deepseek_r1_distill_treated_as_dense": True,
-                "moe_proxy": MOE_PROXY_CONFIG_ID,
+                "moe_proxy": self.moe_proxy_config_id,
                 "bic_scope_rate": 1.0,
                 "reuse_validation_pdfs": True,
                 "include_optional_moe_trace": True,
@@ -1767,17 +1960,40 @@ class MethodsFigureGenerator:
                 "throughput_db": str(self.throughput_db_path),
             },
             "resolved_policy": {
-                "dense_config_id": DENSE_CONFIG_ID,
-                "deepseek_dense_config_id": DEEPSEEK_DENSE_CONFIG_ID,
+                "dense_config_id": self.dense_config_id,
+                "deepseek_dense_config_id": self.deepseek_dense_config_id,
                 "dense_overlay_rates": DENSE_OVERLAY_RATES,
                 "at_overlay_rate": float(AT_OVERLAY_RATE),
                 "at_overlay_window_seconds": None
                 if AT_OVERLAY_WINDOW_SECONDS is None
                 else float(AT_OVERLAY_WINDOW_SECONDS),
-                "moe_proxy_rate": float(MOE_PROXY_RATE),
+                "moe_proxy_rate": float(self.moe_proxy_rate),
                 "bic_configs": BIC_CONFIGS,
             },
         }
+
+        if self.figure_mode == "simulated-moe":
+            manifest["figures"] = {
+                "simulated_moe": self._generate_moe_overlay(),
+            }
+            manifest["output_paths"] = {
+                "out_dir": str(self.out_dir),
+                "methods_figure_manifest": str(
+                    self.out_dir / "methods_figure_manifest.json"
+                ),
+            }
+            if self.dry_run:
+                summary = {
+                    "dry_run": True,
+                    "figure_mode": self.figure_mode,
+                    "moe_proxy_config_id": self.moe_proxy_config_id,
+                    "moe_proxy_rate": float(self.moe_proxy_rate),
+                    "simulated_moe": manifest["figures"]["simulated_moe"],
+                }
+                print(json.dumps(summary, indent=2, sort_keys=True))
+                return manifest
+            _write_json(self.out_dir / "methods_figure_manifest.json", manifest)
+            return manifest
 
         # Diagnostics for deterministic selection helpers (recorded timestamps only).
         dense_rates_for_diag = [
@@ -1828,8 +2044,8 @@ class MethodsFigureGenerator:
         moe_trace_idx = int(
             select_trace_by_best_median_nrmse(
                 self.per_trace_rows,
-                config_id=MOE_PROXY_CONFIG_ID,
-                rate=float(MOE_PROXY_RATE),
+                config_id=self.moe_proxy_config_id,
+                rate=float(self.moe_proxy_rate),
             )
         )
         dense_overlay_seed_by_tag: Dict[str, int] = {}
@@ -1839,7 +2055,7 @@ class MethodsFigureGenerator:
                 dense_overlay_seed_by_tag[tag] = int(
                     select_seed_nearest_median_nrmse(
                         self.per_seed_rows,
-                        config_id=DENSE_CONFIG_ID,
+                        config_id=self.dense_config_id,
                         trace_idx=int(trace_idx),
                     )
                 )
@@ -1856,7 +2072,7 @@ class MethodsFigureGenerator:
                 dense_seed_by_rate_best_nrmse[str(rate)] = int(
                     select_seed_nearest_median_nrmse(
                         self.per_seed_rows,
-                        config_id=DENSE_CONFIG_ID,
+                        config_id=self.dense_config_id,
                         trace_idx=int(trace_idx),
                     )
                 )
@@ -1871,7 +2087,7 @@ class MethodsFigureGenerator:
             moe_seed_rate_1 = int(
                 select_seed_nearest_median_nrmse(
                     self.per_seed_ar1_rows,
-                    config_id=MOE_PROXY_CONFIG_ID,
+                    config_id=self.moe_proxy_config_id,
                     trace_idx=int(moe_trace_idx),
                 )
             )
@@ -1919,7 +2135,7 @@ class MethodsFigureGenerator:
                 },
                 "dense_overlay_rates": DENSE_OVERLAY_RATES,
                 "at_overlay_rate": float(AT_OVERLAY_RATE),
-                "moe_proxy_rate": float(MOE_PROXY_RATE),
+                "moe_proxy_rate": float(self.moe_proxy_rate),
                 "helper_diagnostics": helper_dense,
             }
             print(json.dumps(summary, indent=2, sort_keys=True))
@@ -1937,13 +2153,70 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-dir", default="figures")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--device", default="auto")
+    parser.add_argument(
+        "--figure-mode", choices=["all", "simulated-moe"], default="all"
+    )
+    parser.add_argument(
+        "--experimental-manifest",
+        default="results/experimental_continuous_v1/manifest.json",
+    )
+    parser.add_argument(
+        "--pair-manifest-csv",
+        default="results/stage0/pair_manifest.csv",
+    )
+    parser.add_argument(
+        "--run-manifest",
+        default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    )
+    parser.add_argument(
+        "--per-trace-csv",
+        default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv",
+    )
+    parser.add_argument(
+        "--per-seed-csv",
+        default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
+    )
+    parser.add_argument(
+        "--per-seed-ar1-csv",
+        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+    )
+    parser.add_argument(
+        "--ar1-params-dir",
+        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    )
+    parser.add_argument(
+        "--throughput-db", default="model/config/throughput_database.json"
+    )
+    parser.add_argument(
+        "--validation-source-dir", default="model/tests/validation_results"
+    )
+    parser.add_argument("--dense-config-id", default=DENSE_CONFIG_ID)
+    parser.add_argument("--deepseek-dense-config-id", default=DEEPSEEK_DENSE_CONFIG_ID)
+    parser.add_argument("--moe-config-id", default=MOE_PROXY_CONFIG_ID)
+    parser.add_argument("--moe-rate", type=float, default=MOE_PROXY_RATE)
     return parser
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
     generator = MethodsFigureGenerator(
-        out_dir=args.out_dir, dry_run=bool(args.dry_run), device=args.device
+        out_dir=args.out_dir,
+        dry_run=bool(args.dry_run),
+        device=args.device,
+        experimental_manifest_path=args.experimental_manifest,
+        pair_manifest_csv_path=args.pair_manifest_csv,
+        run_manifest_path=args.run_manifest,
+        per_trace_csv_path=args.per_trace_csv,
+        per_seed_csv_path=args.per_seed_csv,
+        per_seed_ar1_csv_path=args.per_seed_ar1_csv,
+        ar1_params_dir=args.ar1_params_dir,
+        throughput_db_path=args.throughput_db,
+        validation_source_dir=args.validation_source_dir,
+        dense_config_id=args.dense_config_id,
+        deepseek_dense_config_id=args.deepseek_dense_config_id,
+        moe_proxy_config_id=args.moe_config_id,
+        moe_proxy_rate=float(args.moe_rate),
+        figure_mode=args.figure_mode,
     )
     run = generator.generate()
     if args.dry_run:

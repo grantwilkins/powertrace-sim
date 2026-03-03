@@ -1,0 +1,16 @@
+{
+  "selection_rule": "lowest ks_stat_median among evaluated MoE configs in config_summary.csv",
+  "selected_config_id": "gpt-oss-120b_A100_tp4",
+  "generation_mode": "ar1_thresholded",
+  "ks_stat_median": 0.33485020857034514,
+  "acf_r2_median": 0.7709207539294896,
+  "nrmse_median": 0.390623507712776,
+  "delta_energy_pct_median": 11.799163782672373,
+  "representative_trace_idx": 4,
+  "representative_seed": 46,
+  "source_overlay_plot": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/plots/gpt-oss-120b_A100_tp4_trace4_overlay.png",
+  "promoted_overlay_plot": "results/eval_paper_gptoss_a100/single_trace/best_moe_single_trace_overlay.png",
+  "source_config_summary_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/config_summary.csv",
+  "source_ar1_params_json": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/ar1_params/gpt-oss-120b_A100_tp4_ar1_params.json",
+  "promoted_ar1_params_json": "results/eval_paper_gptoss_a100/single_trace/best_moe_single_trace_ar1_params.json"
+}

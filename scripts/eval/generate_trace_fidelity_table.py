@@ -374,6 +374,10 @@ def filter_excluded_hardware_tp(
     def should_exclude(config_id: str) -> bool:
         try:
             parsed = parse_config_id(config_id)
+            model_family = str(parsed.get("model_family", "")).lower()
+            # Keep all GPT-OSS rows for GPT-OSS-specific evaluations.
+            if "gpt-oss" in model_family:
+                return False
             hw_tp = (parsed["hardware"], int(parsed["tp"]))
             return hw_tp in excluded_set
         except ValueError:

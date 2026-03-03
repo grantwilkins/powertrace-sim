@@ -1,0 +1,81 @@
+{
+  "assumptions": {
+    "bic_scope_rate": 1.0,
+    "deepseek_r1_distill_treated_as_dense": true,
+    "include_optional_moe_trace": true,
+    "llama_31_alias_maps_to_llama_3_8b_ids": true,
+    "moe_proxy": "gpt-oss-120b_A100_tp4",
+    "reuse_validation_pdfs": true
+  },
+  "figures": {
+    "simulated_moe": {
+      "ar1_params_path": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/ar1_params/gpt-oss-120b_A100_tp4_ar1_params.json",
+      "config_id": "gpt-oss-120b_A100_tp4",
+      "dt": 0.25,
+      "duration_seconds": 642.75,
+      "file": "results/eval_paper_gptoss_a100/single_trace_methods_style/simulated_power_trace_moe.pdf",
+      "num_points": 2571,
+      "pair_key": "tp=4|rate=0.25|date=20260302-204343",
+      "rate": "0.25",
+      "requested_config_id": "gpt-oss-120b_A100_tp4",
+      "requested_rate": 0.25,
+      "requests_count": 150,
+      "seed": 42,
+      "seed_selection_method": "nearest_median_nrmse",
+      "selected_rate_from_per_trace": "0.25",
+      "selection_method": "best_median_nrmse_per_rate",
+      "selection_rate": 0.25,
+      "trace_idx": 8
+    }
+  },
+  "generated_at_utc": "2026-03-03T07:05:35Z",
+  "inputs": {
+    "ar1_params_dir": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/ar1_params",
+    "experimental_manifest": "results/experimental_continuous_v1_gptoss_a100/manifest.json",
+    "pair_manifest_csv": "results/stage0_sharegpt_gptoss_a100/pair_manifest.csv",
+    "per_seed_ar1_metrics_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_seed_metrics.csv",
+    "per_seed_metrics_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_seed_metrics.csv",
+    "per_trace_metrics_csv": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/eval_metrics/per_trace_metrics.csv",
+    "run_manifest": "results/continuous_v1_gmm_bigru_gptoss_a100/kauto_max20_f2/run_manifest.json",
+    "throughput_db": "results/stage0_sharegpt_gptoss_a100/throughput_database.json"
+  },
+  "output_paths": {
+    "methods_figure_manifest": "results/eval_paper_gptoss_a100/single_trace_methods_style/methods_figure_manifest.json",
+    "out_dir": "results/eval_paper_gptoss_a100/single_trace_methods_style"
+  },
+  "resolved_policy": {
+    "at_overlay_rate": 0.25,
+    "at_overlay_window_seconds": null,
+    "bic_configs": {
+      "bic_config1": {
+        "config_id": "llama-3-8b_A100_tp1",
+        "legend": "Llama A100 TP1",
+        "title": "Llama-3.1-8B / A100 / TP=1"
+      },
+      "bic_config2": {
+        "config_id": "llama-3-8b_H100_tp2",
+        "legend": "Llama H100 TP2",
+        "title": "Llama-3.1-8B / H100 / TP=2"
+      },
+      "bic_config3": {
+        "config_id": "gpt-oss-120b_H100_tp8",
+        "legend": "GPT-OSS H100 TP8",
+        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)"
+      },
+      "bic_config4": {
+        "config_id": "deepseek-r1-distill-70b_H100_tp4",
+        "legend": "DeepSeek H100 TP4",
+        "title": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)"
+      }
+    },
+    "deepseek_dense_config_id": "deepseek-r1-distill-70b_H100_tp4",
+    "dense_config_id": "llama-3-8b_H100_tp1",
+    "dense_overlay_rates": {
+      "high": 4.0,
+      "medium": 1.0,
+      "sparse": 0.25
+    },
+    "moe_proxy_rate": 0.25
+  },
+  "schema_version": "methods-figures-v1"
+}

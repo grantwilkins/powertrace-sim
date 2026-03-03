@@ -1,6 +1,6 @@
 {
   "aggregation": {
-    "bootstrap_samples": 100,
+    "bootstrap_samples": 2000,
     "mode": "per_config_median_with_bootstrap_ci95",
     "primary_series": "ir_vs_f6",
     "seed": 42,
@@ -18,7 +18,7 @@
     "metric": "heldout_predictive_ce_reduction",
     "num_classes_source": "gmm_k_with_observed_max_fallback"
   },
-  "generated_at_utc": "2026-03-03T06:15:31Z",
+  "generated_at_utc": "2026-03-03T07:59:55Z",
   "inputs": {
     "gmm_dir": "/Users/grantwilkins/powertrace-sim/results/continuous_v1_gmm_bigru/k10_f2/gmms",
     "include_configs": null,
@@ -361,7 +361,7 @@
   ],
   "sequence_model": {
     "device": "cpu",
-    "epochs": 1,
+    "epochs": 8,
     "hidden_dim": 32,
     "lr": 0.001,
     "model": "GRUClassifier",
