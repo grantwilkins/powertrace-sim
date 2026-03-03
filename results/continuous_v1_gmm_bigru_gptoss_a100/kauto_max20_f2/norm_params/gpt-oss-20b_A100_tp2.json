@@ -1,0 +1,23 @@
+{
+  "active_mean": 0.0,
+  "active_std": 1e-06,
+  "auto_k": true,
+  "config_id": "gpt-oss-20b_A100_tp2",
+  "delta_A_mean": 0.0,
+  "delta_A_std": 1e-06,
+  "dt": 0.25,
+  "feature_set": "f2",
+  "hidden_dim": 64,
+  "input_dim": 2,
+  "k": 20,
+  "k_selection_reason": "bic_minimum_at_max_k=20_may_need_higher",
+  "num_layers": 1,
+  "power_max": 691.0899999999999,
+  "power_mean": 256.93051010862507,
+  "power_min": 113.62,
+  "power_std": 152.57995083850412,
+  "seed": 42,
+  "source_norm_path": "results/experimental_continuous_v1_gptoss_a100/norm_params/gpt-oss-20b_A100_tp2.json",
+  "t_arrive_log_mean": 0.0,
+  "t_arrive_log_std": 1e-06
+}
