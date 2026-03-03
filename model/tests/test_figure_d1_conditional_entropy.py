@@ -13,6 +13,8 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.scripts.figure_d1_conditional_entropy import (  # noqa: E402
+    _parse_csv_list,
+    _resolve_legacy_f6_checkpoint,
     build_requests_from_json,
     deterministic_pairkey_json_path,
     estimate_knn_joint_mi_nmi,
@@ -116,6 +118,22 @@ class TestFigureD1ConditionalEntropy(unittest.TestCase):
                 require_recorded_timestamps=False,
             )
             self.assertEqual(len(requests), 3)
+
+    def test_legacy_checkpoint_resolver(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = "llama-3-8b_H100_tp2"
+            ckpt = root / "new_weights" / "llama-3-8b_h100_tp2.pt"
+            ckpt.parent.mkdir(parents=True, exist_ok=True)
+            ckpt.write_bytes(b"")
+
+            resolved = _resolve_legacy_f6_checkpoint(cfg, [str(root / "new_weights")])
+            self.assertIsNotNone(resolved)
+            self.assertEqual(Path(resolved), ckpt)
+
+    def test_parse_csv_list(self):
+        out = _parse_csv_list("a,b, c ,,")
+        self.assertEqual(out, ["a", "b", "c"])
 
 
 if __name__ == "__main__":

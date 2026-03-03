@@ -155,23 +155,26 @@ python -m model.scripts.generate_methods_figures \
 
 ### `figure_d1_conditional_entropy.py`
 
-Generate Figure D1 (single-panel grouped bars) for conditional entropy / NMI feature sufficiency versus regime labels.
+Generate Figure D1 as a held-out BiGRU sequence-classification comparison for `F2` vs `Full-6D` features.
 
 ```bash
 python -m model.scripts.figure_d1_conditional_entropy \
     --experimental-manifest results/experimental_continuous_v1/manifest.json \
     --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
     --pair-manifest-csv results/stage0/pair_manifest.csv \
-    --throughput-db model/config/throughput_database.json
+    --throughput-db model/config/throughput_database.json \
+    --use-legacy-f6-init true
 ```
 
-Estimator policy:
-- `A_t`, `ΔA_t`, `F2`: equal-frequency binned plugin MI.
-- `Full-6D`: leave-one-trace-out kNN posterior MI (`I(X;z)=H(z)-CE_kNN(z|X)`).
+Model policy:
+- Trains separate BiGRU classifiers on `F2` and `Full-6D`.
+- Reports held-out test cross-entropy and test accuracy.
+- Optionally initializes the `Full-6D` model from legacy 6D checkpoints in `model/new_weights`, `model/best_weights`, and `model/gru_classifier_weights`.
 
 Notes:
 - Uses the C1 BIC config set by default, with optional `--config-ids` override.
 - `--require-recorded-timestamps=true` is the default strict policy; configs can be dropped if valid traces are filtered out.
+- Pass criteria are reported as: `Accuracy(F2)/Accuracy(F6)` and CE-retention relative to `Full-6D`.
 - Writes a per-config CSV and manifest JSON with selected/skipped config reasons for transparency.
 
 ### `simulate_server_power.py`
