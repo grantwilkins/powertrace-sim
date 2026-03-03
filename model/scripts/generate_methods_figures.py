@@ -21,6 +21,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import BoundaryNorm
 import numpy as np
 import torch
 from sklearn.mixture import GaussianMixture
@@ -92,6 +93,22 @@ GMM_STRUCTURE_CONFIGS = {
         "trace_idx": 19,
         "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
     },
+}
+
+C2_DIAGNOSTIC_PANELS = {
+    "best": {
+        "config_id": "deepseek-r1-distill-8b_H100_tp1",
+        "title": "DeepSeek-R1-Distill-8B / H100 / TP=1 (Best)",
+    },
+    "worst": {
+        "config_id": "llama-3-70b_H100_tp4",
+        "title": "Llama-3.1-70B / H100 / TP=4 (Worst)",
+    },
+}
+C2_DIAGNOSTIC_PANEL_ORDER = ["best", "worst"]
+C2_DIAGNOSTIC_OUTPUTS = {
+    "best": "diagnostic_at_vs_power_state_c2_best.pdf",
+    "worst": "diagnostic_at_vs_power_state_c2_worst.pdf",
 }
 
 VALIDATION_PDFS = [
@@ -938,6 +955,59 @@ def _plot_gmm_structure(
     save_pdf(fig, path)
 
 
+def _plot_at_vs_power_state_diagnostic(
+    path: Path,
+    *,
+    panel: Mapping[str, Any],
+    k: int,
+) -> None:
+    fig, ax = plt.subplots(figsize=(4.25, 3.5))
+    # Reserve a fixed strip on the right for the colorbar so transforms are stable.
+    fig.subplots_adjust(right=0.84)
+    cmap = plt.get_cmap("viridis", int(k))
+    bounds = np.arange(-0.5, float(k) + 0.5, 1.0, dtype=np.float64)
+    norm = BoundaryNorm(bounds, ncolors=int(k), clip=True)
+
+    a_t = np.asarray(panel["a_t"], dtype=np.float64).reshape(-1)
+    # A_t is a count and should be non-negative; guard against tiny
+    # de-normalization artifacts that can produce values slightly below zero.
+    a_t = np.clip(a_t, a_min=0.0, a_max=None)
+    power_w = np.asarray(panel["power_w"], dtype=np.float64).reshape(-1)
+    z_hat = np.asarray(panel["z_hat"], dtype=np.int64).reshape(-1)
+    scatter = ax.scatter(
+        a_t,
+        power_w,
+        c=z_hat,
+        cmap=cmap,
+        norm=norm,
+        s=6,
+        alpha=0.3,
+        linewidths=0.0,
+        clip_on=True,
+    )
+    ax.set_xlabel(r"$A_t$ (active request count)")
+    ax.set_ylabel("Measured GPU power (W)")
+
+    x_min = float(np.min(a_t))
+    x_max = float(np.max(a_t))
+    if np.isfinite(x_min) and np.isfinite(x_max) and x_max >= x_min:
+        if x_max > x_min:
+            pad = 0.02 * (x_max - x_min)
+            ax.set_xlim(0.0, x_max + pad)
+        else:
+            ax.set_xlim(0.0, x_max + 0.5)
+    ax.margins(x=0.0)
+
+    cax = fig.add_axes([0.86, 0.12, 0.03, 0.82])
+    cbar = fig.colorbar(
+        scatter,
+        cax=cax,
+        ticks=np.arange(int(k), dtype=np.int64),
+    )
+    cbar.set_label(r"Predicted state ($\hat{z}_t$)")
+    save_pdf(fig, path)
+
+
 def _load_model_from_artifacts(
     *,
     checkpoint_path: str,
@@ -1025,6 +1095,7 @@ class MethodsFigureGenerator:
         self._dataset_cache: Dict[str, Dict[str, Any]] = {}
         self._model_cache: Dict[str, Dict[str, Any]] = {}
         self._pair_has_recorded_timestamps_cache: Dict[str, bool] = {}
+        self._moe_overlay_generated: bool = False
 
         self._reload_inputs()
 
@@ -1184,12 +1255,149 @@ class MethodsFigureGenerator:
         self._pair_has_recorded_timestamps_cache[pair_key] = has_recorded
         return has_recorded
 
+    def _resolve_split_test_indices(self, config_id: str) -> List[int]:
+        row = self._config_dataset_entry(config_id)
+        split_raw = str(row.get("split_json", "")).strip()
+        split_path = _resolve_existing_path(
+            split_raw, str(self.experimental_manifest_path.parent)
+        )
+        if split_path is None:
+            raise ValueError(f"Split path missing for {config_id}: {split_raw}")
+        split_payload = _load_json(split_path)
+        test_indices_raw = split_payload.get("test_indices", [])
+        if not isinstance(test_indices_raw, list):
+            raise ValueError(f"Invalid test_indices in split for {config_id}: {split_path}")
+
+        test_indices: List[int] = []
+        for idx in test_indices_raw:
+            try:
+                test_indices.append(int(idx))
+            except Exception as exc:
+                raise ValueError(
+                    f"Non-integer test index for {config_id}: {idx!r}"
+                ) from exc
+        if not test_indices:
+            raise ValueError(f"No test indices found for {config_id}: {split_path}")
+
+        data = self._load_dataset(config_id)
+        n = int(
+            min(
+                len(data["pair_key"]),
+                len(data["power"]),
+                len(data["power_start_epoch_s"]),
+            )
+        )
+        invalid = [int(idx) for idx in test_indices if int(idx) < 0 or int(idx) >= n]
+        if invalid:
+            raise ValueError(
+                f"Test index out of range for {config_id} (n={n}): {invalid}"
+            )
+        return [int(idx) for idx in test_indices]
+
+    def _resolve_recorded_test_trace_indices(self, config_id: str) -> Dict[str, List[int]]:
+        test_indices = self._resolve_split_test_indices(config_id)
+        kept: List[int] = []
+        excluded: List[int] = []
+        excluded_missing_pair_manifest: List[int] = []
+        for idx in test_indices:
+            tr = self.get_trace(config_id, int(idx))
+            if tr.pair_key not in self.pair_map:
+                excluded_missing_pair_manifest.append(int(idx))
+                excluded.append(int(idx))
+                continue
+            if self._pair_has_recorded_request_timestamps(tr.pair_key):
+                kept.append(int(idx))
+            else:
+                excluded.append(int(idx))
+        return {
+            "test_indices": [int(x) for x in test_indices],
+            "kept_indices": [int(x) for x in kept],
+            "excluded_indices_missing_timestamps": [int(x) for x in excluded],
+            "excluded_indices_missing_pair_manifest": [
+                int(x) for x in excluded_missing_pair_manifest
+            ],
+        }
+
+    def _collect_at_power_state_points(
+        self, config_id: str, trace_indices: Sequence[int]
+    ) -> Dict[str, Any]:
+        selected = [int(x) for x in trace_indices]
+        if not selected:
+            raise ValueError(f"No trace indices provided for config={config_id}")
+
+        art = self._resolve_run_artifacts(config_id)
+        k = int(art["k"])
+        state_hist = np.zeros((k,), dtype=np.int64)
+        all_a_t: List[np.ndarray] = []
+        all_power_w: List[np.ndarray] = []
+        all_z_hat: List[np.ndarray] = []
+
+        for idx in selected:
+            tr = self.get_trace(config_id, int(idx))
+            payload = self._compute_logits_for_trace(
+                tr, require_recorded_timestamps=True
+            )
+            logits = np.asarray(payload["logits"], dtype=np.float64)
+            if logits.ndim != 2 or int(logits.shape[1]) != k:
+                raise ValueError(
+                    f"Logits shape mismatch for {config_id} trace={idx}: "
+                    f"{logits.shape} vs K={k}"
+                )
+
+            a_t = np.asarray(payload["features"]["A_raw"], dtype=np.float64).reshape(-1)
+            power_w = np.asarray(tr.power[1:], dtype=np.float64).reshape(-1)
+            z_hat = np.argmax(logits, axis=1).astype(np.int64)
+            if len(a_t) != len(power_w) or len(a_t) != len(z_hat):
+                raise ValueError(
+                    f"Alignment mismatch for {config_id} trace={idx}: "
+                    f"len(A_t)={len(a_t)} len(power)={len(power_w)} len(z_hat)={len(z_hat)}"
+                )
+            if len(a_t) <= 0:
+                raise ValueError(
+                    f"No aligned points for {config_id} trace={idx} after feature/logit build."
+                )
+            if not np.all(np.isfinite(a_t)) or not np.all(np.isfinite(power_w)):
+                raise ValueError(
+                    f"Non-finite values in panel points for {config_id} trace={idx}."
+                )
+            if np.any(z_hat < 0) or np.any(z_hat >= k):
+                raise ValueError(
+                    f"Predicted state out of range for {config_id} trace={idx}."
+                )
+
+            state_hist += np.bincount(z_hat, minlength=k).astype(np.int64)
+            all_a_t.append(a_t)
+            all_power_w.append(power_w)
+            all_z_hat.append(z_hat)
+
+        if not all_a_t:
+            raise ValueError(f"No points collected for config={config_id}")
+
+        a_cat = np.concatenate(all_a_t, axis=0).astype(np.float64)
+        power_cat = np.concatenate(all_power_w, axis=0).astype(np.float64)
+        z_cat = np.concatenate(all_z_hat, axis=0).astype(np.int64)
+        return {
+            "config_id": str(config_id),
+            "trace_indices": [int(x) for x in selected],
+            "num_traces": int(len(selected)),
+            "num_points": int(len(a_cat)),
+            "k": int(k),
+            "state_hist": state_hist.astype(np.int64).tolist(),
+            "a_t": a_cat,
+            "power_w": power_cat,
+            "z_hat": z_cat,
+        }
+
     def _candidate_trace_indices_for_rate_with_recorded_timestamps(
         self, config_id: str, rate: float
     ) -> List[int]:
         out: List[int] = []
         for idx in self._candidate_trace_indices_for_rate(config_id, rate):
             tr = self.get_trace(config_id, int(idx))
+            # Some traces in experimental datasets have no row in pair_manifest.csv.
+            # Treat those as non-recorded and skip them for recorded-only selection.
+            if tr.pair_key not in self.pair_map:
+                continue
             if self._pair_has_recorded_request_timestamps(tr.pair_key):
                 out.append(int(idx))
         return out
@@ -1843,6 +2051,22 @@ class MethodsFigureGenerator:
             "file": str(out_path),
         }
 
+    def _generate_moe_overlay_optional(self) -> Dict[str, Any]:
+        try:
+            payload = self._generate_moe_overlay()
+            self._moe_overlay_generated = True
+            return payload
+        except ValueError as exc:
+            self._moe_overlay_generated = False
+            return {
+                "status": "skipped",
+                "reason": str(exc),
+                "optional": True,
+                "requested_config_id": str(self.moe_proxy_config_id),
+                "requested_rate": float(self.moe_proxy_rate),
+                "file": str(self.out_dir / "simulated_power_trace_moe.pdf"),
+            }
+
     def _ensure_validation_pdfs(self) -> Dict[str, Any]:
         copied: List[str] = []
         for name in VALIDATION_PDFS:
@@ -1906,6 +2130,86 @@ class MethodsFigureGenerator:
             }
         return out
 
+    def _generate_at_vs_power_state_diagnostic(self) -> Dict[str, Any]:
+        panel_manifest: Dict[str, Dict[str, Any]] = {}
+        k_ref: Optional[int] = None
+
+        for tag in C2_DIAGNOSTIC_PANEL_ORDER:
+            spec = C2_DIAGNOSTIC_PANELS[tag]
+            config_id = str(spec["config_id"])
+            split_info = self._resolve_recorded_test_trace_indices(config_id)
+            kept = [int(x) for x in split_info["kept_indices"]]
+            if not kept:
+                raise ValueError(
+                    f"No recorded-timestamp held-out traces for config={config_id}"
+                )
+
+            panel = self._collect_at_power_state_points(config_id, kept)
+            panel["title"] = str(spec["title"])
+            if k_ref is None:
+                k_ref = int(panel["k"])
+            elif int(panel["k"]) != int(k_ref):
+                raise ValueError(
+                    f"K mismatch across C2 panels: {tag} has K={panel['k']} vs {k_ref}"
+                )
+
+            out_path = self.out_dir / C2_DIAGNOSTIC_OUTPUTS[tag]
+            if not self.dry_run:
+                _plot_at_vs_power_state_diagnostic(
+                    out_path,
+                    panel=panel,
+                    k=int(k_ref),
+                )
+
+            panel_manifest[tag] = {
+                "config_id": config_id,
+                "title": str(spec["title"]),
+                "test_trace_indices_all": [
+                    int(x) for x in split_info["test_indices"]
+                ],
+                "test_trace_indices_included_recorded_only": [
+                    int(x) for x in split_info["kept_indices"]
+                ],
+                "test_trace_indices_excluded_missing_timestamps": [
+                    int(x) for x in split_info["excluded_indices_missing_timestamps"]
+                ],
+                "test_trace_indices_excluded_missing_pair_manifest": [
+                    int(x)
+                    for x in split_info["excluded_indices_missing_pair_manifest"]
+                ],
+                "num_traces": int(panel["num_traces"]),
+                "num_points": int(panel["num_points"]),
+                "k": int(panel["k"]),
+                "state_hist": [int(x) for x in panel["state_hist"]],
+                "file": str(out_path),
+            }
+
+        if k_ref is None:
+            raise ValueError("No panel payloads were built for C2 diagnostic.")
+
+        return {
+            "panel_order": [str(x) for x in C2_DIAGNOSTIC_PANEL_ORDER],
+            "k": int(k_ref),
+            "files": {
+                str(tag): str(self.out_dir / C2_DIAGNOSTIC_OUTPUTS[str(tag)])
+                for tag in C2_DIAGNOSTIC_PANEL_ORDER
+            },
+            "plotting_policy": {
+                "trace_scope": "held_out_test_indices",
+                "trace_inclusion": "recorded_timestamps_only",
+                "x_axis": "independent_per_panel",
+                "y_axis": "independent_per_panel",
+                "state_decoding": "argmax_logits",
+                "marker_size": 6,
+                "alpha": 0.3,
+                "colormap": "viridis_discrete",
+                "rasterized": True,
+                "layout": "separate_files",
+                "colorbar_placement": "outside_axes_fixed_figure_axes",
+            },
+            "panels": panel_manifest,
+        }
+
     def _completion_check(self) -> None:
         required = [
             "bic_config1.pdf",
@@ -1917,12 +2221,15 @@ class MethodsFigureGenerator:
             "simulated_power_trace_sparse.pdf",
             "simulated_power_trace_medium.pdf",
             "simulated_power_trace_high.pdf",
-            "simulated_power_trace_moe.pdf",
             "validation_deepseek-r1-distill_8b_h100_tp8_ttft.pdf",
             "validation_deepseek-r1-distill_8b_h100_tp8_decode.pdf",
             "gmm_structure_dense.pdf",
             "gmm_structure_moe.pdf",
+            C2_DIAGNOSTIC_OUTPUTS["best"],
+            C2_DIAGNOSTIC_OUTPUTS["worst"],
         ]
+        if self._moe_overlay_generated:
+            required.append("simulated_power_trace_moe.pdf")
         missing = [
             str(self.out_dir / name)
             for name in required
@@ -1933,6 +2240,7 @@ class MethodsFigureGenerator:
 
     def generate(self) -> Dict[str, Any]:
         apply_publication_style()
+        self._moe_overlay_generated = False
         if not self.dry_run:
             self.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1976,6 +2284,7 @@ class MethodsFigureGenerator:
             manifest["figures"] = {
                 "simulated_moe": self._generate_moe_overlay(),
             }
+            self._moe_overlay_generated = True
             manifest["output_paths"] = {
                 "out_dir": str(self.out_dir),
                 "methods_figure_manifest": str(
@@ -2114,9 +2423,10 @@ class MethodsFigureGenerator:
             "bic": self._generate_bic_figures(),
             "at_overlay": self._generate_at_overlay(),
             "simulated_dense": self._generate_dense_overlays(),
-            "simulated_moe": self._generate_moe_overlay(),
+            "simulated_moe": self._generate_moe_overlay_optional(),
             "validation_reused": self._ensure_validation_pdfs(),
             "gmm_structure": self._generate_gmm_structure_figures(),
+            "diagnostic_at_vs_power_state_c2": self._generate_at_vs_power_state_diagnostic(),
         }
 
         manifest["output_paths"] = {

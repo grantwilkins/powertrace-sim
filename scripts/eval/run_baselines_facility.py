@@ -95,6 +95,12 @@ def _load_json(path: str) -> Dict[str, object]:
     return payload
 
 
+def _write_json(path: str, payload: Mapping[str, object]) -> None:
+    _ensure_dir(os.path.dirname(path) or ".")
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+
+
 def _write_csv(
     path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]
 ) -> None:
@@ -748,6 +754,70 @@ def _plot_load_duration_curves(
     plt.close(fig)
 
 
+def _export_facility_traces(
+    *,
+    out_dir: str,
+    facility_w_by_method: Mapping[str, np.ndarray],
+    config_id: str,
+    base_seed: int,
+    dt: float,
+    duration_s: float,
+    n_nodes: int,
+    lambda_req_per_s_per_node: float,
+    facility_power_mode: str,
+    pue: float,
+    non_gpu_overhead_w: float,
+    traffic_model: str,
+    burst_rate_per_min: float,
+    burst_mean_duration_s: float,
+    burst_peak_scale: float,
+    burst_background_sigma: float,
+    burst_node_scale_sigma: float,
+) -> Dict[str, object]:
+    _ensure_dir(out_dir)
+    saved_files: Dict[str, str] = {}
+    for method in METHODS:
+        arr = facility_w_by_method.get(method)
+        if arr is None:
+            continue
+        out_name = f"facility_power_250ms_{method}_w.npy"
+        out_path = str(Path(out_dir) / out_name)
+        np.save(out_path, np.asarray(arr, dtype=np.float64))
+        saved_files[method] = out_path
+
+    manifest_path = str(Path(out_dir) / "facility_trace_manifest.json")
+    manifest = {
+        "schema_version": "facility-trace-export-v1",
+        "config_id": str(config_id),
+        "base_seed": int(base_seed),
+        "dt": float(dt),
+        "duration_s": float(duration_s),
+        "n_nodes": int(n_nodes),
+        "lambda_req_per_s_per_node": float(lambda_req_per_s_per_node),
+        "facility_power_mode": str(facility_power_mode),
+        "pue": float(pue),
+        "non_gpu_overhead_w": float(non_gpu_overhead_w),
+        "traffic": {
+            "model": str(traffic_model),
+            "burst_rate_per_min": float(burst_rate_per_min),
+            "burst_mean_duration_s": float(burst_mean_duration_s),
+            "burst_peak_scale": float(burst_peak_scale),
+            "burst_background_sigma": float(burst_background_sigma),
+            "burst_node_scale_sigma": float(burst_node_scale_sigma),
+        },
+        "files": saved_files,
+        "missing_methods": [
+            str(method) for method in METHODS if str(method) not in saved_files
+        ],
+    }
+    _write_json(manifest_path, manifest)
+    return {
+        "out_dir": str(out_dir),
+        "manifest_path": manifest_path,
+        "files": saved_files,
+    }
+
+
 def run_baselines_facility(
     *,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
@@ -786,6 +856,8 @@ def run_baselines_facility(
     burst_peak_scale: float = 6.0,
     burst_background_sigma: float = 0.35,
     burst_node_scale_sigma: float = 0.2,
+    save_facility_traces_dir: str = "",
+    skip_plots: bool = False,
 ) -> Dict[str, object]:
     if int(n_nodes) <= 0:
         raise ValueError("n_nodes must be >= 1")
@@ -1130,6 +1202,7 @@ def run_baselines_facility(
 
     rows: List[Dict[str, object]] = []
     facility_kw_by_method: Dict[str, np.ndarray] = {}
+    facility_w_by_method: Dict[str, np.ndarray] = {}
     for method in METHODS:
         if len(traces_by_method[method]) != int(n_nodes):
             reason = (
@@ -1196,6 +1269,7 @@ def run_baselines_facility(
                 np.sum(node_stack, axis=0)
                 + (float(n_nodes) * float(non_gpu_overhead_w))
             )
+        facility_w_by_method[method] = np.asarray(facility_w, dtype=np.float64)
         facility_kw_by_method[method] = facility_w / 1000.0
         metrics = _compute_facility_metrics(
             facility_w=facility_w,
@@ -1291,7 +1365,30 @@ def run_baselines_facility(
     ]
     _write_csv(out_csv, rows, fieldnames)
 
-    if len(facility_kw_by_method) > 0:
+    export_result: Dict[str, object] | None = None
+    export_dir = str(save_facility_traces_dir).strip()
+    if export_dir != "" and len(facility_w_by_method) > 0:
+        export_result = _export_facility_traces(
+            out_dir=export_dir,
+            facility_w_by_method=facility_w_by_method,
+            config_id=config_id,
+            base_seed=int(base_seed),
+            dt=float(dt),
+            duration_s=float(duration_s),
+            n_nodes=int(n_nodes),
+            lambda_req_per_s_per_node=float(lambda_req_per_s_per_node),
+            facility_power_mode=facility_mode,
+            pue=float(pue),
+            non_gpu_overhead_w=float(non_gpu_overhead_w),
+            traffic_model=traffic_mode,
+            burst_rate_per_min=float(burst_rate_per_min),
+            burst_mean_duration_s=float(burst_mean_duration_s),
+            burst_peak_scale=float(burst_peak_scale),
+            burst_background_sigma=float(burst_background_sigma),
+            burst_node_scale_sigma=float(burst_node_scale_sigma),
+        )
+
+    if len(facility_kw_by_method) > 0 and (not bool(skip_plots)):
         _plot_facility_traces(
             out_path=traces_pdf,
             facility_kw_by_method=facility_kw_by_method,
@@ -1310,6 +1407,12 @@ def run_baselines_facility(
         "traces_pdf": traces_pdf,
         "ldc_pdf": ldc_pdf,
         "rows": rows,
+        "facility_traces_dir": (
+            None if export_result is None else str(export_result["out_dir"])
+        ),
+        "facility_trace_manifest": (
+            None if export_result is None else str(export_result["manifest_path"])
+        ),
     }
 
 
@@ -1432,6 +1535,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--traces-pdf", default="figures/baselines_facility_traces.pdf")
     parser.add_argument("--ldc-pdf", default="figures/baselines_load_duration.pdf")
+    parser.add_argument(
+        "--save-facility-traces-dir",
+        default="",
+        help="Optional output directory for per-method 250ms facility traces (.npy) and export manifest.",
+    )
+    parser.add_argument(
+        "--skip-plots",
+        action="store_true",
+        help="If set, skips writing traces/LDC plot PDFs.",
+    )
     return parser
 
 
@@ -1474,11 +1587,15 @@ def main() -> None:
         burst_peak_scale=args.burst_peak_scale,
         burst_background_sigma=args.burst_background_sigma,
         burst_node_scale_sigma=args.burst_node_scale_sigma,
+        save_facility_traces_dir=args.save_facility_traces_dir,
+        skip_plots=bool(args.skip_plots),
     )
     print("[run_baselines_facility] Done")
     print(f"  metrics_csv : {result['out_csv']}")
     print(f"  traces_pdf  : {result['traces_pdf']}")
     print(f"  ldc_pdf     : {result['ldc_pdf']}")
+    if result["facility_trace_manifest"] is not None:
+        print(f"  traces_manifest: {result['facility_trace_manifest']}")
 
 
 if __name__ == "__main__":

@@ -44,8 +44,45 @@ Evaluate at datacenter/facility scale using Azure facility traces.
 
 ```bash
 python -m scripts.eval.run_baselines_facility \
-    --facility-data results/azure_facility \
-    --out-dir results/eval_paper/facility
+    --config-id deepseek-r1-distill-70b_H100_tp4 \
+    --n-nodes 240 \
+    --duration-s 86400 \
+    --dt 0.25 \
+    --lambda-req-per-s-per-node 0.25 \
+    --out-csv results/eval_paper/baselines_facility_metrics_seed42.csv \
+    --save-facility-traces-dir results/eval_paper/appendix_b1_seeds/seed_42
+```
+
+Export 5 seeds for Appendix B1 (base seeds 42-46):
+
+```bash
+for s in 42 43 44 45 46; do
+  python -m scripts.eval.run_baselines_facility \
+    --config-id deepseek-r1-distill-70b_H100_tp4 \
+    --n-nodes 240 \
+    --duration-s 86400 \
+    --dt 0.25 \
+    --lambda-req-per-s-per-node 0.25 \
+    --base-seed ${s} \
+    --out-csv results/eval_paper/baselines_facility_metrics_seed${s}.csv \
+    --save-facility-traces-dir results/eval_paper/appendix_b1_seeds/seed_${s} \
+    --skip-plots
+done
+```
+
+Expected seed-export structure:
+
+```text
+results/eval_paper/appendix_b1_seeds/
+  seed_42/
+    facility_trace_manifest.json
+    facility_power_250ms_ours_w.npy
+    facility_power_250ms_splitwise_lut_w.npy
+    facility_power_250ms_tdp_w.npy
+    facility_power_250ms_mean_w.npy
+  seed_43/
+  ...
+  seed_46/
 ```
 
 #### `appendix_surrogate_validity.py` - Appendix A1 Surrogate Validity
@@ -70,6 +107,35 @@ python -m scripts.eval.appendix_surrogate_validity \
 - `figures/appendix_a1_lambda_vs_mean_at.pdf` - `\lambda` vs mean `A_t` scatter panels
 - `results/eval_paper/appendix_a1_manifest.json` - Reproducibility manifest and selection notes
 - Manifest `surrogate_quality` section and stdout summary - Aggregate mean/median correlation, MAE, RMSE, and mean-`A_t` error
+
+#### `appendix_decomposition_fidelity.py` - Appendix C1 Decomposition Fidelity
+
+Generate Appendix C1 decomposition evidence by separating temporal fidelity from
+state-conditional sampling quality.
+
+```bash
+python -m scripts.eval.appendix_decomposition_fidelity \
+    --config-ids deepseek-r1-distill-8b_H100_tp1 llama-3-8b_A100_tp2 llama-3-70b_H100_tp4 gpt-oss-120b_A100_tp8 \
+    --moe-config-id gpt-oss-120b_A100_tp8 \
+    --num-traces-per-config 5
+```
+
+The script rebuilds features from stage0 request JSON when available and
+falls back to dataset `x_norm` features when pair-manifest mappings are
+missing. By default it also prunes the highest `|ΔEnergy|` trace per
+`(config, strategy)` (while keeping at least 3 traces) to reduce outlier
+domination in Appendix C1 bars.
+
+**Strategies compared:**
+- **Oracle**: Measured posterior-max `z_t` + within-state sampling
+- **Predicted**: BiGRU-predicted `z_t` + within-state sampling
+- **Marginal**: i.i.d. state sampling from GMM weights + within-state sampling
+
+**Output:**
+- `results/eval_paper/appendix_c1_decomposition_per_trace.csv` - Per-trace metrics for each `(config, strategy)`
+- `results/eval_paper/appendix_c1_decomposition_summary.csv` - Median/min/max summary used for bars and error bars
+- `figures/appendix_c1_decomposition_fidelity.pdf` - Two-panel Figure C1 (`ACF R²`, `|ΔEnergy| (%)`)
+- `results/eval_paper/appendix_c1_manifest.json` - Reproducibility manifest with resolved settings and failures
 
 #### `baselines.py` - Baseline Method Implementations
 
@@ -227,6 +293,22 @@ Generate Azure-specific evaluation figures.
 python -m scripts.eval.azure_figures \
     --data-dir results/azure_facility \
     --out-dir figures/azure
+```
+
+#### `appendix_interconnection_b1.py`
+
+Generate Appendix B1 ramp-rate distribution artifact from pooled precomputed
+seed traces exported by `run_baselines_facility.py`.
+
+```bash
+python -m scripts.eval.appendix_interconnection_b1 \
+    --seed-trace-root results/eval_paper/appendix_b1_seeds \
+    --seed-glob "seed_*" \
+    --expected-seeds 5 \
+    --out-figure-pdf figures/appendix_b1_ramp_rate_cdf_15min.pdf \
+    --out-cdf-csv results/eval_paper/appendix_b1_ramp_cdf_points.csv \
+    --out-summary-csv results/eval_paper/appendix_b1_ramp_summary.csv \
+    --out-manifest-json results/eval_paper/appendix_b1_manifest.json
 ```
 
 #### `hierarchy_figure.py`

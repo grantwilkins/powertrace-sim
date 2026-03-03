@@ -32,6 +32,16 @@ COLOR_DARK = "#2c3e50"
 COLOR_RED = "#e74c3c"
 COLOR_ORANGE = "#e67e22"
 COLOR_LIGHT_GRAY = "#bdc3c7"
+COLOR_BLUE = "#1f77b4"
+COLOR_MEDIUM_GRAY = "#7f8c8d"
+
+B2_DEFAULT_SEEDS: Tuple[int, ...] = (42, 43, 44, 45, 46)
+B2_CONFIG_ID = "deepseek-r1-distill-70b_H100_tp4"
+B2_DURATION_S = 86400.0
+B2_DT = 0.25
+B2_NON_GPU_OVERHEAD_W = 1000.0
+B2_PUE = 1.3
+B2_NODES_PER_RACK = 4
 
 TRACE_KIND_ORDER = ["ours", "tdp_baseline", "mean_baseline"]
 TRACE_KIND_LABEL = {
@@ -86,6 +96,201 @@ def _safe_float(value: object, field_name: str) -> float:
     if not np.isfinite(out):
         raise ValueError(f"Non-finite float for '{field_name}': {value}")
     return out
+
+
+def _parse_seed_csv(seed_csv: str) -> Tuple[int, ...]:
+    parts = [p.strip() for p in str(seed_csv).split(",") if p.strip() != ""]
+    if len(parts) == 0:
+        raise ValueError("b2 seed list is empty; provide at least one integer seed.")
+    out: List[int] = []
+    seen = set()
+    for part in parts:
+        try:
+            seed = int(part)
+        except Exception as exc:
+            raise ValueError(f"Invalid seed '{part}' in b2 seed list: {seed_csv}") from exc
+        if seed < 0:
+            raise ValueError(f"Seed values must be >= 0; got {seed}.")
+        if seed not in seen:
+            seen.add(seed)
+            out.append(seed)
+    return tuple(out)
+
+
+def _build_b2_generation_defaults() -> Dict[str, str]:
+    repo_root = Path(__file__).resolve().parents[2]
+    return {
+        "run_manifest": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
+        "experimental_manifest": str(repo_root / "results" / "experimental_continuous_v1" / "manifest.json"),
+        "throughput_db": str(repo_root / "model" / "config" / "throughput_database.json"),
+        "ar1_params_dir": str(
+            repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2_ar1_thresh" / "ar1_params"
+        ),
+        "node_stream_dir": str(repo_root / "data" / "azure_facility" / "node_streams"),
+    }
+
+
+def _validate_seed_site_15min(seed: int, site_mw: np.ndarray, site_path: Path) -> np.ndarray:
+    arr = np.asarray(site_mw, dtype=np.float64).reshape(-1)
+    if arr.size != 96:
+        raise ValueError(
+            f"Expected 96 points in seed={int(seed)} cache '{site_path}', found {arr.size}."
+        )
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(
+            f"Non-finite values detected in seed={int(seed)} cache '{site_path}'."
+        )
+    return arr
+
+
+def _generate_b2_seed_cache(
+    *,
+    seed: int,
+    seed_dir: Path,
+    rows: int,
+    racks_per_row: int,
+) -> None:
+    # Lazy imports avoid torch-heavy module import overhead unless B2 generation is requested.
+    from scripts.eval.azure_aggregate import aggregate_facility_traces
+    from scripts.eval.azure_generate_traces import generate_node_traces
+
+    defaults = _build_b2_generation_defaults()
+    node_trace_dir = seed_dir / "node_traces"
+    aggregated_dir = seed_dir / "aggregated"
+
+    generate_node_traces(
+        run_manifest=defaults["run_manifest"],
+        experimental_manifest=defaults["experimental_manifest"],
+        throughput_db=defaults["throughput_db"],
+        ar1_params_dir=defaults["ar1_params_dir"],
+        node_stream_dir=defaults["node_stream_dir"],
+        out_dir=str(node_trace_dir),
+        config_id=B2_CONFIG_ID,
+        duration_s=float(B2_DURATION_S),
+        dt=float(B2_DT),
+        rows=int(rows),
+        racks_per_row=int(racks_per_row),
+        nodes_per_rack=int(B2_NODES_PER_RACK),
+        base_seed=int(seed),
+        device="auto",
+        decode_mode="stochastic",
+        median_filter_window=1,
+        ours_std_scale=1.0,
+        ours_logit_temperature=1.0,
+    )
+    aggregate_facility_traces(
+        node_trace_dir=str(node_trace_dir),
+        out_dir=str(aggregated_dir),
+        dt=float(B2_DT),
+        rows=int(rows),
+        racks_per_row=int(racks_per_row),
+        nodes_per_rack=int(B2_NODES_PER_RACK),
+        non_gpu_overhead_w=float(B2_NON_GPU_OVERHEAD_W),
+        pue=float(B2_PUE),
+    )
+
+
+def _load_or_generate_b2_seed_site_mw(
+    *,
+    seeds: Sequence[int],
+    seed_cache_dir: str,
+    rows: int,
+    racks_per_row: int,
+) -> Dict[str, object]:
+    seed_series: List[np.ndarray] = []
+    seed_sources: List[Dict[str, object]] = []
+    cache_root = Path(seed_cache_dir)
+    for seed in [int(x) for x in seeds]:
+        if seed < 0:
+            raise ValueError(f"Seed values must be >= 0; got {seed}.")
+        seed_dir = cache_root / f"seed_{seed}"
+        aggregated_dir = seed_dir / "aggregated"
+        site_path = aggregated_dir / "site_15min.npy"
+        source = "cache"
+        if not site_path.exists():
+            source = "generated"
+            try:
+                _generate_b2_seed_cache(
+                    seed=int(seed),
+                    seed_dir=seed_dir,
+                    rows=int(rows),
+                    racks_per_row=int(racks_per_row),
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to generate seed cache for seed={int(seed)} at '{seed_dir}'. "
+                    f"Either pre-populate '{site_path}' or ensure generation prerequisites "
+                    f"(run manifest, throughput DB, and node streams) are available. "
+                    f"Underlying error: {type(exc).__name__}: {exc}"
+                ) from exc
+        try:
+            site = _load_site_15min_mw(
+                aggregated_dir=str(aggregated_dir),
+                power_resolution_seconds=900,
+                day_seconds=86400,
+            )
+        except Exception as exc:
+            raise ValueError(
+                f"Unable to load B2 seed cache for seed={int(seed)} from '{site_path}': {exc}"
+            ) from exc
+        series = _validate_seed_site_15min(
+            int(seed), np.asarray(site["site_mw"], dtype=np.float64), site_path
+        )
+        seed_series.append(series)
+        seed_sources.append(
+            {
+                "seed": int(seed),
+                "source": source,
+                "seed_dir": str(seed_dir),
+                "aggregated_dir": str(aggregated_dir),
+                "site_15min_path": str(site_path),
+            }
+        )
+    if len(seed_series) == 0:
+        raise ValueError("No seed series available for B2.")
+    return {
+        "site_mw_by_seed": np.stack(seed_series, axis=0).astype(np.float64),
+        "seed_sources": seed_sources,
+    }
+
+
+def _compute_ldc_band_from_seed_site_mw(
+    site_mw_by_seed: np.ndarray,
+) -> Dict[str, np.ndarray | float | int]:
+    values = np.asarray(site_mw_by_seed, dtype=np.float64)
+    if values.ndim != 2:
+        raise ValueError(
+            f"site_mw_by_seed must be rank-2 [n_seeds, n_points], got shape {values.shape}"
+        )
+    if values.size == 0 or int(values.shape[1]) <= 0:
+        raise ValueError("site_mw_by_seed is empty.")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("site_mw_by_seed contains non-finite values.")
+
+    sorted_desc = np.sort(values, axis=1)[:, ::-1]
+    n_points = int(sorted_desc.shape[1])
+    fraction_exceeded = (
+        np.arange(n_points, dtype=np.float64) / float(max(1, n_points))
+    ).astype(np.float64)
+    per_seed_mean = np.mean(values, axis=1, dtype=np.float64)
+    per_seed_peak = np.max(values, axis=1)
+    mean_mw = float(np.median(per_seed_mean))
+    peak_mw = float(np.median(per_seed_peak))
+    load_factor = float(mean_mw / peak_mw) if peak_mw > 0.0 else float("nan")
+
+    return {
+        "fraction_exceeded": fraction_exceeded,
+        "ldc_median_mw": np.median(sorted_desc, axis=0).astype(np.float64),
+        "ldc_min_mw": np.min(sorted_desc, axis=0).astype(np.float64),
+        "ldc_max_mw": np.max(sorted_desc, axis=0).astype(np.float64),
+        "per_seed_mean_mw": per_seed_mean.astype(np.float64),
+        "per_seed_peak_mw": per_seed_peak.astype(np.float64),
+        "mean_mw": float(mean_mw),
+        "peak_mw": float(peak_mw),
+        "load_factor": float(load_factor),
+        "n_seeds": int(sorted_desc.shape[0]),
+        "n_points": int(n_points),
+    }
 
 
 def _downsample_mean(values: np.ndarray, factor: int) -> np.ndarray:
@@ -592,6 +797,91 @@ def _plot_figure_3_ldc(
     }
 
 
+def _plot_figure_b2_ldc_confidence(
+    *,
+    out_path: str,
+    fraction_exceeded: np.ndarray,
+    ldc_median_mw: np.ndarray,
+    ldc_min_mw: np.ndarray,
+    ldc_max_mw: np.ndarray,
+    tdp_mw: float,
+    mean_mw: float,
+    load_factor: float,
+    n_seeds: int,
+) -> Dict[str, object]:
+    sns.set_style("whitegrid")
+    sns.set_context("talk", font_scale=1.2)
+    frac = np.asarray(fraction_exceeded, dtype=np.float64).reshape(-1)
+    median = np.asarray(ldc_median_mw, dtype=np.float64).reshape(-1)
+    low = np.asarray(ldc_min_mw, dtype=np.float64).reshape(-1)
+    high = np.asarray(ldc_max_mw, dtype=np.float64).reshape(-1)
+    if not (frac.size == median.size == low.size == high.size):
+        raise ValueError("B2 LDC arrays must have identical lengths.")
+    if frac.size <= 0:
+        raise ValueError("B2 LDC arrays are empty.")
+
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    ax.fill_between(
+        frac,
+        low,
+        high,
+        color=COLOR_BLUE,
+        alpha=0.2,
+        label=f"Min-Max Envelope ({int(n_seeds)} seeds)",
+    )
+    ax.plot(
+        frac,
+        median,
+        color=COLOR_BLUE,
+        linewidth=1.9,
+        label="Median LDC",
+    )
+    ax.axhline(
+        float(tdp_mw),
+        color=COLOR_RED,
+        linestyle="--",
+        linewidth=1.6,
+        label=f"TDP ({float(tdp_mw):.2f} MW)",
+    )
+    ax.axhline(
+        float(mean_mw),
+        color=COLOR_MEDIUM_GRAY,
+        linestyle="--",
+        linewidth=1.4,
+        label=f"Mean ({float(mean_mw):.2f} MW)",
+    )
+    ax.set_xlim(0.0, 1.0)
+    ax.set_xlabel("Fraction of Time Exceeded")
+    ax.set_ylabel("Facility Power (MW)")
+    ax.grid(True, alpha=0.25)
+
+    ax.text(
+        0.015,
+        0.985,
+        f"Load factor = {float(load_factor):.2f}",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={"facecolor": "white", "alpha": 0.9, "edgecolor": "#cccccc"},
+    )
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    save_pdf(fig, out_path)
+    return {
+        "file": str(out_path),
+        "title": "Load-Duration Curve with Confidence Band (24h, 15-min)",
+        "n_points": int(frac.size),
+        "stats": {
+            "tdp_mw": float(tdp_mw),
+            "mean_mw": float(mean_mw),
+            "load_factor": float(load_factor),
+            "n_seeds": int(n_seeds),
+        },
+        "notes": "Median line with min-max seed envelope; capacity-credit annotation omitted.",
+    }
+
+
 def _plot_figure_4_heatmap(
     *,
     out_path: str,
@@ -806,11 +1096,17 @@ def generate_azure_figures(
     rows: int = 10,
     racks_per_row: int = 6,
     dry_run: bool = False,
+    include_figure_b2: bool = False,
+    b2_seeds: Sequence[int] = B2_DEFAULT_SEEDS,
+    b2_seed_cache_dir: str = "results/azure_facility/seed_runs",
 ) -> Dict[str, object]:
     if int(power_resolution_seconds) != 900:
         raise ValueError(
             "power_resolution_seconds is fixed to 900 for Experiment 2e plots."
         )
+    seeds = tuple(int(x) for x in b2_seeds)
+    if bool(include_figure_b2) and len(seeds) == 0:
+        raise ValueError("include_figure_b2=True requires at least one seed.")
 
     apply_publication_style()
     os.makedirs(out_dir, exist_ok=True)
@@ -856,6 +1152,18 @@ def generate_azure_figures(
     p99_mw_by_method = {
         k: float(metrics_rows[k]["ldc_p99_kw"]) / 1000.0 for k in TRACE_KIND_ORDER
     }
+    b2_seed_payload: Optional[Dict[str, object]] = None
+    b2_ldc_payload: Optional[Dict[str, np.ndarray | float | int]] = None
+    if bool(include_figure_b2):
+        b2_seed_payload = _load_or_generate_b2_seed_site_mw(
+            seeds=seeds,
+            seed_cache_dir=str(b2_seed_cache_dir),
+            rows=int(rows),
+            racks_per_row=int(racks_per_row),
+        )
+        b2_ldc_payload = _compute_ldc_band_from_seed_site_mw(
+            np.asarray(b2_seed_payload["site_mw_by_seed"], dtype=np.float64)
+        )
 
     paths = {
         "figure_1": str(Path(out_dir) / "azure_figure_1_diurnal_profile.pdf"),
@@ -865,6 +1173,12 @@ def generate_azure_figures(
         "figure_5": str(Path(out_dir) / "azure_figure_5_sizing_metrics.pdf"),
         "manifest": str(Path(out_dir) / "azure_figure_manifest.json"),
     }
+    if bool(include_figure_b2):
+        paths["figure_b2"] = str(
+            Path(out_dir) / "azure_figure_b2_load_duration_confidence_band.pdf"
+        )
+
+    figb2_meta: Optional[Dict[str, object]] = None
 
     if dry_run:
         fig1_meta = {
@@ -925,6 +1239,24 @@ def generate_azure_figures(
             },
             "notes": "Dry-run metadata only.",
         }
+        if bool(include_figure_b2):
+            assert b2_ldc_payload is not None
+            assert b2_seed_payload is not None
+            figb2_meta = {
+                "file": paths["figure_b2"],
+                "title": "Load-Duration Curve with Confidence Band (24h, 15-min)",
+                "n_points": int(b2_ldc_payload["n_points"]),
+                "stats": {
+                    "tdp_mw": float(metrics_rows["tdp_baseline"]["peak_kw"]) / 1000.0,
+                    "mean_mw": float(b2_ldc_payload["mean_mw"]),
+                    "load_factor": float(b2_ldc_payload["load_factor"]),
+                    "n_seeds": int(b2_ldc_payload["n_seeds"]),
+                },
+                "band_type": "min_max",
+                "seeds": [int(x) for x in seeds],
+                "seed_sources": b2_seed_payload["seed_sources"],
+                "notes": "Dry-run metadata only.",
+            }
     else:
         fig1_meta = _plot_figure_1_diurnal_overlay(
             out_path=paths["figure_1"],
@@ -959,6 +1291,25 @@ def generate_azure_figures(
             out_path=paths["figure_5"],
             sizing_metrics=sizing_metrics,
         )
+        if bool(include_figure_b2):
+            assert b2_ldc_payload is not None
+            assert b2_seed_payload is not None
+            figb2_meta = _plot_figure_b2_ldc_confidence(
+                out_path=paths["figure_b2"],
+                fraction_exceeded=np.asarray(
+                    b2_ldc_payload["fraction_exceeded"], dtype=np.float64
+                ),
+                ldc_median_mw=np.asarray(b2_ldc_payload["ldc_median_mw"], dtype=np.float64),
+                ldc_min_mw=np.asarray(b2_ldc_payload["ldc_min_mw"], dtype=np.float64),
+                ldc_max_mw=np.asarray(b2_ldc_payload["ldc_max_mw"], dtype=np.float64),
+                tdp_mw=float(metrics_rows["tdp_baseline"]["peak_kw"]) / 1000.0,
+                mean_mw=float(b2_ldc_payload["mean_mw"]),
+                load_factor=float(b2_ldc_payload["load_factor"]),
+                n_seeds=int(b2_ldc_payload["n_seeds"]),
+            )
+            figb2_meta["band_type"] = "min_max"
+            figb2_meta["seeds"] = [int(x) for x in seeds]
+            figb2_meta["seed_sources"] = b2_seed_payload["seed_sources"]
 
     manifest: Dict[str, object] = {
         "schema_version": "azure-figures-v1",
@@ -975,11 +1326,16 @@ def generate_azure_figures(
             "peak_window_hours": float(peak_window_hours),
             "rows": int(rows),
             "racks_per_row": int(racks_per_row),
+            "include_figure_b2": bool(include_figure_b2),
+            "b2_seeds": [int(x) for x in seeds],
+            "b2_seed_cache_dir": str(b2_seed_cache_dir),
             "style": {
                 "color_dark": COLOR_DARK,
                 "color_red": COLOR_RED,
                 "color_orange": COLOR_ORANGE,
                 "color_light_gray": COLOR_LIGHT_GRAY,
+                "color_blue": COLOR_BLUE,
+                "color_medium_gray": COLOR_MEDIUM_GRAY,
             },
             "dry_run": bool(dry_run),
         },
@@ -1008,6 +1364,23 @@ def generate_azure_figures(
             "manifest": paths["manifest"],
         },
     }
+    if bool(include_figure_b2):
+        if figb2_meta is None:
+            raise RuntimeError("Figure B2 was requested but metadata was not generated.")
+        manifest["figures"]["figure_b2_load_duration_confidence"] = figb2_meta
+        if b2_ldc_payload is not None:
+            manifest["derived_metrics"]["figure_b2"] = {
+                "n_seeds": int(b2_ldc_payload["n_seeds"]),
+                "n_points": int(b2_ldc_payload["n_points"]),
+                "mean_mw": float(b2_ldc_payload["mean_mw"]),
+                "peak_mw": float(b2_ldc_payload["peak_mw"]),
+                "load_factor": float(b2_ldc_payload["load_factor"]),
+                "tdp_mw": float(metrics_rows["tdp_baseline"]["peak_kw"]) / 1000.0,
+                "band_type": "min_max",
+            }
+        manifest["output_paths"]["figure_b2_load_duration_confidence"] = paths[
+            "figure_b2"
+        ]
     _write_json(paths["manifest"], manifest)
     return manifest
 
@@ -1030,8 +1403,20 @@ def main() -> None:
     parser.add_argument("--peak-window-hours", type=float, default=3.0)
     parser.add_argument("--rows", type=int, default=10)
     parser.add_argument("--racks-per-row", type=int, default=6)
+    parser.add_argument("--include-figure-b2", action="store_true")
+    parser.add_argument(
+        "--b2-seeds",
+        default=",".join([str(x) for x in B2_DEFAULT_SEEDS]),
+        help="Comma-separated seed list for Figure B2 (e.g., 42,43,44,45,46).",
+    )
+    parser.add_argument(
+        "--b2-seed-cache-dir",
+        default="results/azure_facility/seed_runs",
+        help="Cache directory for per-seed node/aggregate outputs used by Figure B2.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    b2_seeds = _parse_seed_csv(str(args.b2_seeds))
 
     run = generate_azure_figures(
         parsed_requests_csv=str(args.parsed_requests_csv),
@@ -1046,6 +1431,9 @@ def main() -> None:
         rows=int(args.rows),
         racks_per_row=int(args.racks_per_row),
         dry_run=bool(args.dry_run),
+        include_figure_b2=bool(args.include_figure_b2),
+        b2_seeds=b2_seeds,
+        b2_seed_cache_dir=str(args.b2_seed_cache_dir),
     )
     if bool(args.dry_run):
         print("[azure_figures] Dry run complete")
@@ -1060,6 +1448,11 @@ def main() -> None:
         "figure_5_sizing_metrics",
     ]:
         print(f"  {key}: {run['output_paths'][key]}")
+    if "figure_b2_load_duration_confidence" in run["output_paths"]:
+        print(
+            "  figure_b2_load_duration_confidence: "
+            f"{run['output_paths']['figure_b2_load_duration_confidence']}"
+        )
 
 
 if __name__ == "__main__":

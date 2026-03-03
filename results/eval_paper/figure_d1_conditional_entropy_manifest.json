@@ -1,0 +1,269 @@
+{
+  "config_policy": {
+    "bic_configs": {
+      "bic_config1": {
+        "config_id": "llama-3-8b_A100_tp1",
+        "title": "Llama-3.1-8B / A100 / TP=1"
+      },
+      "bic_config2": {
+        "config_id": "llama-3-8b_H100_tp2",
+        "title": "Llama-3.1-8B / H100 / TP=2"
+      },
+      "bic_config3": {
+        "config_id": "gpt-oss-120b_H100_tp8",
+        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)"
+      },
+      "bic_config4": {
+        "config_id": "deepseek-r1-distill-70b_H100_tp4",
+        "title": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)"
+      }
+    },
+    "source": "bic_configs",
+    "valid_configs_in_plot": [
+      "llama-3-8b_H100_tp2",
+      "deepseek-r1-distill-70b_H100_tp4"
+    ]
+  },
+  "estimator_policy": {
+    "a_deltaa_f2": {
+      "n_bins": 20,
+      "name": "plugin_binned"
+    },
+    "full6d": {
+      "ce_definition": "leave_one_trace_out_cross_entropy",
+      "knn_k": 15,
+      "mi_definition": "I(X;z)=H(z)-CE_kNN(z|X)",
+      "name": "knn_joint_posterior"
+    },
+    "normalization": "NMI=I/H(z)",
+    "subset_order": [
+      "A_t",
+      "\u0394A_t",
+      "F2",
+      "Full-6D"
+    ]
+  },
+  "generated_at_utc": "2026-03-03T21:16:59Z",
+  "inputs": {
+    "config_ids_requested": [
+      "llama-3-8b_A100_tp1",
+      "llama-3-8b_H100_tp2",
+      "gpt-oss-120b_H100_tp8",
+      "deepseek-r1-distill-70b_H100_tp4"
+    ],
+    "experimental_manifest": "/Users/grantwilkins/powertrace-sim/results/experimental_continuous_v1/manifest.json",
+    "pair_manifest_csv": "/Users/grantwilkins/powertrace-sim/results/stage0/pair_manifest.csv",
+    "run_manifest": "/Users/grantwilkins/powertrace-sim/results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    "throughput_db": "/Users/grantwilkins/powertrace-sim/model/config/throughput_database.json"
+  },
+  "outputs": {
+    "figure": "/Users/grantwilkins/powertrace-sim/figures/figure_d1_conditional_entropy.pdf",
+    "manifest_json": "/Users/grantwilkins/powertrace-sim/results/eval_paper/figure_d1_conditional_entropy_manifest.json",
+    "per_config_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/figure_d1_conditional_entropy_per_config.csv"
+  },
+  "pass_summary": {
+    "criterion": "NMI(F2) >= 0.95 * NMI(Full-6D) when NMI(Full-6D)>0",
+    "n_pass": 0,
+    "n_valid_configs": 2,
+    "pass_ratio": 0.0
+  },
+  "per_config_metrics": [
+    {
+      "config_id": "llama-3-8b_H100_tp2",
+      "config_label": "Llama-3.1-8B / H100 / TP=2",
+      "estimator": "plugin_binned",
+      "h_z": 1.4648852455452095,
+      "mi": 0.17918066143554542,
+      "n_classes": 6,
+      "n_samples": 49856,
+      "n_total_train_traces": 41,
+      "n_valid_traces": 20,
+      "nmi": 0.12231719991749725,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 0.4878048780487805,
+      "subset": "A_t"
+    },
+    {
+      "config_id": "llama-3-8b_H100_tp2",
+      "config_label": "Llama-3.1-8B / H100 / TP=2",
+      "estimator": "plugin_binned",
+      "h_z": 1.4648852455452095,
+      "mi": 0.06271031079551814,
+      "n_classes": 6,
+      "n_samples": 49856,
+      "n_total_train_traces": 41,
+      "n_valid_traces": 20,
+      "nmi": 0.04280902615834475,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 0.4878048780487805,
+      "subset": "\u0394A_t"
+    },
+    {
+      "config_id": "llama-3-8b_H100_tp2",
+      "config_label": "Llama-3.1-8B / H100 / TP=2",
+      "estimator": "plugin_binned",
+      "h_z": 1.4648852455452095,
+      "mi": 0.19427577450615022,
+      "n_classes": 6,
+      "n_samples": 49856,
+      "n_total_train_traces": 41,
+      "n_valid_traces": 20,
+      "nmi": 0.1326218385344195,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 0.4878048780487805,
+      "subset": "F2"
+    },
+    {
+      "config_id": "llama-3-8b_H100_tp2",
+      "config_label": "Llama-3.1-8B / H100 / TP=2",
+      "estimator": "knn_joint_posterior",
+      "h_z": 1.4648852455452095,
+      "mi": 0.0,
+      "n_classes": 6,
+      "n_samples": 49856,
+      "n_total_train_traces": 41,
+      "n_valid_traces": 20,
+      "nmi": 0.0,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 0.4878048780487805,
+      "subset": "Full-6D"
+    },
+    {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "config_label": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
+      "estimator": "plugin_binned",
+      "h_z": 1.9824971570599614,
+      "mi": 0.3774884312203117,
+      "n_classes": 10,
+      "n_samples": 52858,
+      "n_total_train_traces": 21,
+      "n_valid_traces": 21,
+      "nmi": 0.19041057883791682,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 1.0,
+      "subset": "A_t"
+    },
+    {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "config_label": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
+      "estimator": "plugin_binned",
+      "h_z": 1.9824971570599614,
+      "mi": 0.07394999597486111,
+      "n_classes": 10,
+      "n_samples": 52858,
+      "n_total_train_traces": 21,
+      "n_valid_traces": 21,
+      "nmi": 0.03730143859804005,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 1.0,
+      "subset": "\u0394A_t"
+    },
+    {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "config_label": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
+      "estimator": "plugin_binned",
+      "h_z": 1.9824971570599614,
+      "mi": 0.38867309001327816,
+      "n_classes": 10,
+      "n_samples": 52858,
+      "n_total_train_traces": 21,
+      "n_valid_traces": 21,
+      "nmi": 0.19605228114913387,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 1.0,
+      "subset": "F2"
+    },
+    {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "config_label": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
+      "estimator": "knn_joint_posterior",
+      "h_z": 1.9824971570599614,
+      "mi": 0.0,
+      "n_classes": 10,
+      "n_samples": 52858,
+      "n_total_train_traces": 21,
+      "n_valid_traces": 21,
+      "nmi": 0.0,
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 1.0,
+      "subset": "Full-6D"
+    }
+  ],
+  "schema_version": "figure-d1-conditional-entropy-v1",
+  "selected_configs": [
+    {
+      "config_id": "llama-3-8b_H100_tp2",
+      "config_label": "Llama-3.1-8B / H100 / TP=2",
+      "n_total_train_traces": 41,
+      "n_valid_traces": 20,
+      "nmi": {
+        "A_t": 0.12231719991749725,
+        "F2": 0.1326218385344195,
+        "Full-6D": 0.0,
+        "\u0394A_t": 0.04280902615834475
+      },
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 0.4878048780487805,
+      "trace_reason_counts": {
+        "insufficient_samples": 0,
+        "missing_recorded_timestamps": 21,
+        "missing_request_json": 0,
+        "request_json_invalid": 0
+      }
+    },
+    {
+      "config_id": "deepseek-r1-distill-70b_H100_tp4",
+      "config_label": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
+      "n_total_train_traces": 21,
+      "n_valid_traces": 21,
+      "nmi": {
+        "A_t": 0.19041057883791682,
+        "F2": 0.19605228114913387,
+        "Full-6D": 0.0,
+        "\u0394A_t": 0.03730143859804005
+      },
+      "passes_relative_f6": false,
+      "recorded_timestamp_fraction": 1.0,
+      "trace_reason_counts": {
+        "insufficient_samples": 0,
+        "missing_recorded_timestamps": 0,
+        "missing_request_json": 0,
+        "request_json_invalid": 0
+      }
+    }
+  ],
+  "skipped_configs": {
+    "gpt-oss-120b_H100_tp8": {
+      "config_label": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
+      "n_total_train_traces": 21,
+      "n_valid_traces": 0,
+      "reason": "insufficient_valid_traces",
+      "recorded_timestamp_fraction": 0.0,
+      "trace_reason_counts": {
+        "insufficient_samples": 0,
+        "missing_recorded_timestamps": 21,
+        "missing_request_json": 0,
+        "request_json_invalid": 0
+      }
+    },
+    "llama-3-8b_A100_tp1": {
+      "config_label": "Llama-3.1-8B / A100 / TP=1",
+      "n_total_train_traces": 42,
+      "n_valid_traces": 0,
+      "reason": "insufficient_valid_traces",
+      "recorded_timestamp_fraction": 0.0,
+      "trace_reason_counts": {
+        "insufficient_samples": 0,
+        "missing_recorded_timestamps": 42,
+        "missing_request_json": 0,
+        "request_json_invalid": 0
+      }
+    }
+  },
+  "trace_filter_policy": {
+    "drop_on_missing_recorded_timestamps": true,
+    "min_valid_traces_per_config": 1,
+    "require_recorded_timestamps": true,
+    "scope": "train_indices_only"
+  }
+}

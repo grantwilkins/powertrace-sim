@@ -1,0 +1,80 @@
+{
+  "definitions": {
+    "annual_energy_mwh_per_year": "(avg_kw(ours, 15min) / 1000) * 8760",
+    "average_facility_power_mw": "avg_kw(ours, 15min) / 1000",
+    "load_factor": "load_factor(ours, 15min)",
+    "peak_facility_power_p95_mw": "P95(site_15min_kw) / 1000",
+    "peak_to_average_ratio": "par(ours, 15min)",
+    "ramp_max_up_mw_per_15min": "max(diff(site_15min_kw)) / 1000",
+    "ramp_p95_down_mw_per_15min": "P95(abs(min(diff(site_15min_kw), 0))) / 1000",
+    "ramp_p95_up_mw_per_15min": "P95(max(diff(site_15min_kw), 0)) / 1000"
+  },
+  "formatting": {
+    "caption": "Interconnection summary statistics from the 15-minute Ours facility trace. 'P95 across seeds' is operationalized as the 95th percentile across 15-minute bins in site\\_15min.npy.",
+    "decimals_energy": 2,
+    "decimals_power": 4,
+    "decimals_ramp": 5,
+    "decimals_ratio": 4,
+    "label": "tab:interconnection-summary"
+  },
+  "inputs": {
+    "metric_basis": {
+      "resolution_s": 900.0,
+      "trace_kind": "ours"
+    },
+    "metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_metrics.csv",
+    "site_15min_npy": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated/site_15min.npy"
+  },
+  "raw_values": {
+    "annual_energy_mwh_per_year": 5166.213148125,
+    "average_mw": 0.589750359375,
+    "load_factor": 0.8243113475176066,
+    "peak_p95_mw": 0.7075036250000001,
+    "peak_to_average_ratio": 1.213133851682954,
+    "ramp_max_up_mw_per_15min": 0.026967187500000024,
+    "ramp_p95_down_mw_per_15min": 0.013726712499999983,
+    "ramp_p95_up_mw_per_15min": 0.01661002499999995
+  },
+  "table_rows": [
+    {
+      "metric": "Peak facility power (P95 across seeds)",
+      "unit": "MW",
+      "value": "0.7075"
+    },
+    {
+      "metric": "Average facility power",
+      "unit": "MW",
+      "value": "0.5898"
+    },
+    {
+      "metric": "Load factor",
+      "unit": "---",
+      "value": "0.8243"
+    },
+    {
+      "metric": "Peak-to-average ratio",
+      "unit": "---",
+      "value": "1.2131"
+    },
+    {
+      "metric": "95th-percentile 15-min ramp (up)",
+      "unit": "MW/15-min",
+      "value": "0.01661"
+    },
+    {
+      "metric": "95th-percentile 15-min ramp (down)",
+      "unit": "MW/15-min",
+      "value": "0.01373"
+    },
+    {
+      "metric": "Max 15-min ramp (up)",
+      "unit": "MW/15-min",
+      "value": "0.02697"
+    },
+    {
+      "metric": "Annual energy (extrapolated)",
+      "unit": "MWh/yr",
+      "value": "5166.21"
+    }
+  ]
+}

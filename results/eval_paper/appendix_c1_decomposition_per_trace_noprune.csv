@@ -1,0 +1,121 @@
+config_id,config_label,config_order,strategy,strategy_display,strategy_order,is_moe_proxy,trace_idx,test_order,pair_key,rate,seed,status,reason,num_points,dt,acf_r2,delta_energy_pct,abs_delta_energy_pct,ar1_source,request_source,feature_source
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,oracle,Oracle,0,False,11,0,tp=1|rate=0.5|date=20250525-212235,0.5,42,ok,,2475,0.25,0.9995689215862955,-0.3772295969450132,0.3772295969450132,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,predicted,Predicted,1,False,11,0,tp=1|rate=0.5|date=20250525-212235,0.5,142,ok,,2475,0.25,0.9551424690827768,2.036871319450123,2.036871319450123,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,marginal,Marginal,2,False,11,0,tp=1|rate=0.5|date=20250525-212235,0.5,242,ok,,2475,0.25,-0.20715109576658475,2.366131481437016,2.366131481437016,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,oracle,Oracle,0,False,15,1,tp=1|rate=1|date=20250525-203033,1,43,ok,,2487,0.25,0.9990936532792145,-0.26909140439887047,0.26909140439887047,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,predicted,Predicted,1,False,15,1,tp=1|rate=1|date=20250525-203033,1,143,ok,,2487,0.25,0.9220262827136756,0.4151596766777927,0.4151596766777927,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,marginal,Marginal,2,False,15,1,tp=1|rate=1|date=20250525-203033,1,243,ok,,2487,0.25,-0.23822539174591584,-20.582658895428757,20.582658895428757,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,oracle,Oracle,0,False,17,2,tp=1|rate=1|date=20250525-223521,1,44,ok,,2486,0.25,0.998977919705381,-0.1078566194769508,0.1078566194769508,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,predicted,Predicted,1,False,17,2,tp=1|rate=1|date=20250525-223521,1,144,ok,,2486,0.25,0.9188441283532673,0.9933432480684331,0.9933432480684331,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,marginal,Marginal,2,False,17,2,tp=1|rate=1|date=20250525-223521,1,244,ok,,2486,0.25,-0.308818972873534,-19.494054516317888,19.494054516317888,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,oracle,Oracle,0,False,26,3,tp=1|rate=4|date=20250525-215354,4,45,ok,,2542,0.25,0.9993546613235071,-0.5544855743652208,0.5544855743652208,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,predicted,Predicted,1,False,26,3,tp=1|rate=4|date=20250525-215354,4,145,ok,,2542,0.25,0.9783895902417298,-0.9478904197889942,0.9478904197889942,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,marginal,Marginal,2,False,26,3,tp=1|rate=4|date=20250525-215354,4,245,ok,,2542,0.25,-1.8728812019385024,-33.81848054801082,33.81848054801082,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,oracle,Oracle,0,False,29,4,tp=1|rate=4|date=20250526-010108,4,46,ok,,2542,0.25,0.9982631355964996,-0.3253481317933134,0.3253481317933134,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,predicted,Predicted,1,False,29,4,tp=1|rate=4|date=20250526-010108,4,146,ok,,2542,0.25,0.9388691594621504,-0.2465132408021181,0.2465132408021181,not_required,stage0_json,stage0_rebuilt_features
+deepseek-r1-distill-8b_H100_tp1,"DeepSeek-R1-Distill-8B
+H100 TP=1",0,marginal,Marginal,2,False,29,4,tp=1|rate=4|date=20250526-010108,4,246,ok,,2542,0.25,-1.848146107131408,-34.796319129751055,34.796319129751055,not_required,stage0_json,stage0_rebuilt_features
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,oracle,Oracle,0,False,7,0,llama-3-8b|tp=2|rate=0.25|iter=3|date=2025-10-23-13-51-11,0.25,1042,ok,,1246,0.25,0.9962064144586578,-1.005016827921589,1.005016827921589,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,predicted,Predicted,1,False,7,0,llama-3-8b|tp=2|rate=0.25|iter=3|date=2025-10-23-13-51-11,0.25,1142,ok,,1246,0.25,-0.22727116181511997,97.92609190518823,97.92609190518823,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,marginal,Marginal,2,False,7,0,llama-3-8b|tp=2|rate=0.25|iter=3|date=2025-10-23-13-51-11,0.25,1242,ok,,1246,0.25,-0.3187457220154093,80.2225616878956,80.2225616878956,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,oracle,Oracle,0,False,9,1,llama-3-8b|tp=2|rate=0.25|iter=5|date=2025-10-23-14-02-08,0.25,1043,ok,,1378,0.25,0.9964056474982986,-0.5323415015412959,0.5323415015412959,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,predicted,Predicted,1,False,9,1,llama-3-8b|tp=2|rate=0.25|iter=5|date=2025-10-23-14-02-08,0.25,1143,ok,,1378,0.25,-1.1990114824099396,-7.377124624678371,7.377124624678371,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,marginal,Marginal,2,False,9,1,llama-3-8b|tp=2|rate=0.25|iter=5|date=2025-10-23-14-02-08,0.25,1243,ok,,1378,0.25,-1.1983429443074294,-20.569215831073855,20.569215831073855,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,oracle,Oracle,0,False,14,2,llama-3-8b|tp=2|rate=16|iter=5|date=2025-10-23-15-28-41,16,1044,ok,,1266,0.25,0.99065148346052,-0.1536237496545952,0.1536237496545952,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,predicted,Predicted,1,False,14,2,llama-3-8b|tp=2|rate=16|iter=5|date=2025-10-23-15-28-41,16,1144,ok,,1266,0.25,-3.931118660162613,-10.973601659530527,10.973601659530527,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,marginal,Marginal,2,False,14,2,llama-3-8b|tp=2|rate=16|iter=5|date=2025-10-23-15-28-41,16,1244,ok,,1266,0.25,-3.8414348973588774,-29.80344686475955,29.80344686475955,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,oracle,Oracle,0,False,24,3,llama-3-8b|tp=2|rate=4|iter=5|date=2025-10-23-14-58-21,4,1045,ok,,1437,0.25,0.9802494481919558,0.12675863271341728,0.12675863271341728,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,predicted,Predicted,1,False,24,3,llama-3-8b|tp=2|rate=4|iter=5|date=2025-10-23-14-58-21,4,1145,ok,,1437,0.25,-4.470848138455734,-15.267190430580692,15.267190430580692,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,marginal,Marginal,2,False,24,3,llama-3-8b|tp=2|rate=4|iter=5|date=2025-10-23-14-58-21,4,1245,ok,,1437,0.25,-4.545822736914751,-33.149396118554414,33.149396118554414,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,oracle,Oracle,0,False,44,4,tp=2|rate=1|date=20250506-065653,1,1046,ok,,2500,0.25,0.9983096734092323,0.6738743346926026,0.6738743346926026,not_required,stage0_json,stage0_rebuilt_features
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,predicted,Predicted,1,False,44,4,tp=2|rate=1|date=20250506-065653,1,1146,ok,,2500,0.25,-0.35983297529528957,7.945845683822425,7.945845683822425,not_required,stage0_json,stage0_rebuilt_features
+llama-3-8b_A100_tp2,"Llama-3.1-8B
+A100 TP=2",1,marginal,Marginal,2,False,44,4,tp=2|rate=1|date=20250506-065653,1,1246,ok,,2500,0.25,-0.3637024920315557,-4.557494564526576,4.557494564526576,not_required,stage0_json,stage0_rebuilt_features
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,oracle,Oracle,0,False,3,0,llama-3-70b|tp=4|rate=0.0625|iter=4|date=2025-10-23-02-52-47,0.0625,2042,ok,,1328,0.25,0.9992140470067985,0.7189262004342625,0.7189262004342625,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,predicted,Predicted,1,False,3,0,llama-3-70b|tp=4|rate=0.0625|iter=4|date=2025-10-23-02-52-47,0.0625,2142,ok,,1328,0.25,0.5884783450195623,30.747455694611475,30.747455694611475,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,marginal,Marginal,2,False,3,0,llama-3-70b|tp=4|rate=0.0625|iter=4|date=2025-10-23-02-52-47,0.0625,2242,ok,,1328,0.25,-1.0801360007600271,25.407781584188804,25.407781584188804,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,oracle,Oracle,0,False,13,1,llama-3-70b|tp=4|rate=16|iter=4|date=2025-10-23-04-55-53,16,2043,ok,,1476,0.25,0.9922148315769781,-0.34436209973054455,0.34436209973054455,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,predicted,Predicted,1,False,13,1,llama-3-70b|tp=4|rate=16|iter=4|date=2025-10-23-04-55-53,16,2143,ok,,1476,0.25,0.899443149569833,22.247474017844365,22.247474017844365,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,marginal,Marginal,2,False,13,1,llama-3-70b|tp=4|rate=16|iter=4|date=2025-10-23-04-55-53,16,2243,ok,,1476,0.25,-4.496974738395794,-23.446944832914642,23.446944832914642,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,oracle,Oracle,0,False,26,2,llama-3-70b|tp=4|rate=64|iter=2|date=2025-10-23-05-13-48,64,2044,ok,,1324,0.25,0.9999188986578506,-0.2677922526183051,0.2677922526183051,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,predicted,Predicted,1,False,26,2,llama-3-70b|tp=4|rate=64|iter=2|date=2025-10-23-05-13-48,64,2144,ok,,1324,0.25,0.8570235119854651,-78.57519563096348,78.57519563096348,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,marginal,Marginal,2,False,26,2,llama-3-70b|tp=4|rate=64|iter=2|date=2025-10-23-05-13-48,64,2244,ok,,1324,0.25,-12.767812207512277,-35.943046339756464,35.943046339756464,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,oracle,Oracle,0,False,27,3,llama-3-70b|tp=4|rate=64|iter=3|date=2025-10-23-05-19-19,64,2045,ok,,1326,0.25,0.9997287281712082,-0.25513085620760917,0.25513085620760917,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,predicted,Predicted,1,False,27,3,llama-3-70b|tp=4|rate=64|iter=3|date=2025-10-23-05-19-19,64,2145,ok,,1326,0.25,0.9345166259190772,-78.40669554335152,78.40669554335152,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,marginal,Marginal,2,False,27,3,llama-3-70b|tp=4|rate=64|iter=3|date=2025-10-23-05-19-19,64,2245,ok,,1326,0.25,-12.845705658896376,-35.1619677883234,35.1619677883234,not_required,missing_pair_key,dataset_x_norm_fallback
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,oracle,Oracle,0,False,36,4,tp=4|rate=0.25|date=20250514-094252,0.25,2046,ok,,2481,0.25,0.9978261446192798,2.356557244088435,2.356557244088435,not_required,stage0_json,stage0_rebuilt_features
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,predicted,Predicted,1,False,36,4,tp=4|rate=0.25|date=20250514-094252,0.25,2146,ok,,2481,0.25,0.523323496068131,46.63912072771957,46.63912072771957,not_required,stage0_json,stage0_rebuilt_features
+llama-3-70b_H100_tp4,"Llama-3.1-70B
+H100 TP=4",2,marginal,Marginal,2,False,36,4,tp=4|rate=0.25|date=20250514-094252,0.25,2246,ok,,2481,0.25,-1.1083505739760873,42.79461767290183,42.79461767290183,not_required,stage0_json,stage0_rebuilt_features
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,oracle,Oracle,0,True,3,0,gpt-oss-120b|tp=8|rate=0.0625|iter=4|date=2025-10-21-19-55-49,0.0625,3042,ok,,1458,0.25,0.9639254883607541,1.4468189345354727,1.4468189345354727,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,predicted,Predicted,1,True,3,0,gpt-oss-120b|tp=8|rate=0.0625|iter=4|date=2025-10-21-19-55-49,0.0625,3142,ok,,1458,0.25,0.3520987843838954,0.4660005624509672,0.4660005624509672,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,marginal,Marginal,2,True,3,0,gpt-oss-120b|tp=8|rate=0.0625|iter=4|date=2025-10-21-19-55-49,0.0625,3242,ok,,1458,0.25,-2.1873414325636333,36.36664642445472,36.36664642445472,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,oracle,Oracle,0,True,11,1,gpt-oss-120b|tp=8|rate=16|iter=2|date=2025-10-21-21-36-14,16,3043,ok,,1397,0.25,0.994365565140575,-1.3849876755606771,1.3849876755606771,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,predicted,Predicted,1,True,11,1,gpt-oss-120b|tp=8|rate=16|iter=2|date=2025-10-21-21-36-14,16,3143,ok,,1397,0.25,0.7720292577561569,10.391546972959704,10.391546972959704,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,marginal,Marginal,2,True,11,1,gpt-oss-120b|tp=8|rate=16|iter=2|date=2025-10-21-21-36-14,16,3243,ok,,1397,0.25,-7.188853505381115,-32.29845176059151,32.29845176059151,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,oracle,Oracle,0,True,15,2,gpt-oss-120b|tp=8|rate=1|iter=1|date=2025-10-21-20-35-21,1,3044,ok,,1252,0.25,0.6290738504892003,-7.741434020656759,7.741434020656759,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,predicted,Predicted,1,True,15,2,gpt-oss-120b|tp=8|rate=1|iter=1|date=2025-10-21-20-35-21,1,3144,ok,,1252,0.25,-1.1663620646817745,3.3160067609270216,3.3160067609270216,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,marginal,Marginal,2,True,15,2,gpt-oss-120b|tp=8|rate=1|iter=1|date=2025-10-21-20-35-21,1,3244,ok,,1252,0.25,-0.21159963416589567,38.39641786928071,38.39641786928071,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,oracle,Oracle,0,True,17,3,gpt-oss-120b|tp=8|rate=1|iter=3|date=2025-10-21-20-45-49,1,3045,ok,,1354,0.25,0.9892210144463948,-0.7980345277194627,0.7980345277194627,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,predicted,Predicted,1,True,17,3,gpt-oss-120b|tp=8|rate=1|iter=3|date=2025-10-21-20-45-49,1,3145,ok,,1354,0.25,-1.4021469715013106,26.02958178677498,26.02958178677498,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,marginal,Marginal,2,True,17,3,gpt-oss-120b|tp=8|rate=1|iter=3|date=2025-10-21-20-45-49,1,3245,ok,,1354,0.25,-15.483601592796091,-14.712670572474035,14.712670572474035,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,oracle,Oracle,0,True,20,4,gpt-oss-120b|tp=8|rate=4|iter=1|date=2025-10-21-21-02-21,4,3046,ok,,1401,0.25,0.9914200671217757,-0.19562445603717368,0.19562445603717368,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,predicted,Predicted,1,True,20,4,gpt-oss-120b|tp=8|rate=4|iter=1|date=2025-10-21-21-02-21,4,3146,ok,,1401,0.25,-0.34076024025225293,17.507079312680396,17.507079312680396,estimated_from_train,missing_pair_key,dataset_x_norm_fallback
+gpt-oss-120b_A100_tp8,"GPT-OSS-120B (MoE proxy)
+A100 TP=8",3,marginal,Marginal,2,True,20,4,gpt-oss-120b|tp=8|rate=4|iter=1|date=2025-10-21-21-02-21,4,3246,ok,,1401,0.25,-11.811215322968007,-28.49450672243914,28.49450672243914,estimated_from_train,missing_pair_key,dataset_x_norm_fallback

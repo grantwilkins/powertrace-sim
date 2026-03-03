@@ -410,8 +410,9 @@ class TestFacilityBaselineSmoke(unittest.TestCase):
             out_csv = root / "results" / "eval_paper" / "baselines_facility_metrics.csv"
             traces_pdf = root / "figures" / "baselines_facility_traces.pdf"
             ldc_pdf = root / "figures" / "baselines_load_duration.pdf"
+            traces_export_dir = root / "results" / "eval_paper" / "seed_42"
 
-            run_baselines_facility(
+            run = run_baselines_facility(
                 run_manifest=str(fx["run_manifest"]),
                 experimental_manifest=str(fx["experimental_manifest"]),
                 throughput_db=str(fx["throughput_db"]),
@@ -431,13 +432,23 @@ class TestFacilityBaselineSmoke(unittest.TestCase):
                 decode_mode="stochastic",
                 median_filter_window=1,
                 splitwise_perf_model_csv=str(fx["perf_model_csv"]),
+                save_facility_traces_dir=str(traces_export_dir),
+                skip_plots=True,
             )
 
             self.assertTrue(out_csv.exists())
-            self.assertTrue(traces_pdf.exists())
-            self.assertTrue(ldc_pdf.exists())
-            self.assertGreater(traces_pdf.stat().st_size, 0)
-            self.assertGreater(ldc_pdf.stat().st_size, 0)
+            self.assertFalse(traces_pdf.exists())
+            self.assertFalse(ldc_pdf.exists())
+
+            self.assertEqual(str(traces_export_dir), run["facility_traces_dir"])
+            self.assertTrue(run["facility_trace_manifest"])
+            self.assertTrue(Path(str(run["facility_trace_manifest"])).exists())
+            for method in ["ours", "splitwise_lut", "tdp", "mean"]:
+                self.assertTrue(
+                    (
+                        traces_export_dir / f"facility_power_250ms_{method}_w.npy"
+                    ).exists()
+                )
 
             with open(out_csv, "r", newline="") as f:
                 rows = list(csv.DictReader(f))

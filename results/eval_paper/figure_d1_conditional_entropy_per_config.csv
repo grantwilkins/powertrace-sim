@@ -1,0 +1,9 @@
+config_id,config_label,subset,nmi,mi,h_z,n_samples,n_classes,estimator,n_valid_traces,n_total_train_traces,recorded_timestamp_fraction,passes_relative_f6
+llama-3-8b_H100_tp2,Llama-3.1-8B / H100 / TP=2,A_t,0.12231719991749725,0.17918066143554542,1.4648852455452095,49856,6,plugin_binned,20,41,0.4878048780487805,False
+llama-3-8b_H100_tp2,Llama-3.1-8B / H100 / TP=2,ΔA_t,0.04280902615834475,0.06271031079551814,1.4648852455452095,49856,6,plugin_binned,20,41,0.4878048780487805,False
+llama-3-8b_H100_tp2,Llama-3.1-8B / H100 / TP=2,F2,0.1326218385344195,0.19427577450615022,1.4648852455452095,49856,6,plugin_binned,20,41,0.4878048780487805,False
+llama-3-8b_H100_tp2,Llama-3.1-8B / H100 / TP=2,Full-6D,0.0,0.0,1.4648852455452095,49856,6,knn_joint_posterior,20,41,0.4878048780487805,False
+deepseek-r1-distill-70b_H100_tp4,DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense),A_t,0.19041057883791682,0.3774884312203117,1.9824971570599614,52858,10,plugin_binned,21,21,1.0,False
+deepseek-r1-distill-70b_H100_tp4,DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense),ΔA_t,0.03730143859804005,0.07394999597486111,1.9824971570599614,52858,10,plugin_binned,21,21,1.0,False
+deepseek-r1-distill-70b_H100_tp4,DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense),F2,0.19605228114913387,0.38867309001327816,1.9824971570599614,52858,10,plugin_binned,21,21,1.0,False
+deepseek-r1-distill-70b_H100_tp4,DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense),Full-6D,0.0,0.0,1.9824971570599614,52858,10,knn_joint_posterior,21,21,1.0,False

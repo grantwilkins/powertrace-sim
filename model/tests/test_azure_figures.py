@@ -6,12 +6,14 @@ import csv
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
 from azure_figures import (  # noqa: E402
+    _compute_ldc_band_from_seed_site_mw,
     _compute_baseline_comparison_stats,
     _compute_sizing_metrics_from_rows,
     _load_arrival_rate_binned,
@@ -219,6 +221,22 @@ def _build_fixture(root: str) -> dict:
     }
 
 
+def _write_b2_seed_cache(
+    seed_cache_dir: str,
+    seeds: list[int],
+    *,
+    n_points: int = 96,
+) -> None:
+    x = np.arange(n_points, dtype=np.float64)
+    base_mw = 0.58 + (0.06 * np.sin(2.0 * np.pi * x / float(max(1, n_points))))
+    for idx, seed in enumerate(seeds):
+        seed_dir = os.path.join(seed_cache_dir, f"seed_{int(seed)}", "aggregated")
+        os.makedirs(seed_dir, exist_ok=True)
+        site_mw = base_mw + (0.0025 * float(idx))
+        site_w = np.asarray(site_mw * 1e6, dtype=np.float32)
+        np.save(os.path.join(seed_dir, "site_15min.npy"), site_w)
+
+
 def test_arrival_binning_correctness():
     with tempfile.TemporaryDirectory() as td:
         parsed_csv = os.path.join(td, "parsed.csv")
@@ -319,6 +337,115 @@ def test_generate_azure_figures_smoke_outputs_and_manifest():
         assert "figures" in manifest
         assert np.isfinite(float(manifest["derived_metrics"]["tdp_over_peak_pct"]))
         assert np.isfinite(float(manifest["derived_metrics"]["tdp_over_avg_pct"]))
+
+
+def test_ldc_band_math_from_seed_site_series():
+    values = np.asarray(
+        [
+            [1.00, 0.90, 0.80, 0.70],
+            [1.10, 0.85, 0.75, 0.65],
+            [0.95, 0.90, 0.85, 0.60],
+        ],
+        dtype=np.float64,
+    )
+    out = _compute_ldc_band_from_seed_site_mw(values)
+    assert np.allclose(out["fraction_exceeded"], np.asarray([0.0, 0.25, 0.5, 0.75]))
+    assert np.allclose(out["ldc_median_mw"], np.asarray([1.00, 0.90, 0.80, 0.65]))
+    assert np.allclose(out["ldc_min_mw"], np.asarray([0.95, 0.85, 0.75, 0.60]))
+    assert np.allclose(out["ldc_max_mw"], np.asarray([1.10, 0.90, 0.85, 0.70]))
+    assert np.isclose(float(out["mean_mw"]), 0.8375)
+    assert np.isclose(float(out["peak_mw"]), 1.0)
+    assert np.isclose(float(out["load_factor"]), 0.8375)
+    assert int(out["n_seeds"]) == 3
+    assert int(out["n_points"]) == 4
+
+
+def test_generate_azure_figures_b2_with_cached_seed_runs():
+    with tempfile.TemporaryDirectory() as td:
+        fx = _build_fixture(td)
+        seed_cache_dir = os.path.join(
+            td, "results", "azure_facility", "seed_runs"
+        )
+        seeds = [42, 43, 44, 45, 46]
+        _write_b2_seed_cache(seed_cache_dir, seeds)
+
+        manifest = generate_azure_figures(
+            parsed_requests_csv=fx["parsed_csv"],
+            aggregated_dir=fx["aggregated_dir"],
+            metrics_csv=fx["metrics_csv"],
+            ldc_csv=fx["ldc_csv"],
+            out_dir=fx["out_dir"],
+            arrival_bin_seconds=300,
+            power_resolution_seconds=900,
+            heatmap_downsample_seconds=900,
+            include_figure_b2=True,
+            b2_seeds=seeds,
+            b2_seed_cache_dir=seed_cache_dir,
+        )
+
+        assert "figure_b2_load_duration_confidence" in manifest["figures"]
+        assert "figure_b2_load_duration_confidence" in manifest["output_paths"]
+        b2_path = manifest["output_paths"]["figure_b2_load_duration_confidence"]
+        assert os.path.exists(b2_path)
+        assert os.path.getsize(b2_path) > 0
+
+        b2_meta = manifest["figures"]["figure_b2_load_duration_confidence"]
+        assert b2_meta["band_type"] == "min_max"
+        assert b2_meta["seeds"] == seeds
+        assert int(b2_meta["n_points"]) == 96
+        assert int(b2_meta["stats"]["n_seeds"]) == 5
+        assert np.isfinite(float(b2_meta["stats"]["load_factor"]))
+
+
+def test_generate_azure_figures_b2_bad_cached_shape_raises():
+    with tempfile.TemporaryDirectory() as td:
+        fx = _build_fixture(td)
+        seed_cache_dir = os.path.join(
+            td, "results", "azure_facility", "seed_runs"
+        )
+        seeds = [42, 43, 44, 45, 46]
+        _write_b2_seed_cache(seed_cache_dir, seeds, n_points=95)
+        try:
+            generate_azure_figures(
+                parsed_requests_csv=fx["parsed_csv"],
+                aggregated_dir=fx["aggregated_dir"],
+                metrics_csv=fx["metrics_csv"],
+                ldc_csv=fx["ldc_csv"],
+                out_dir=fx["out_dir"],
+                include_figure_b2=True,
+                b2_seeds=seeds,
+                b2_seed_cache_dir=seed_cache_dir,
+            )
+            assert False, "Expected ValueError for invalid seed cache length"
+        except ValueError as exc:
+            msg = str(exc)
+            assert "Expected 96 points" in msg
+            assert "seed=42" in msg
+
+
+def test_generate_azure_figures_b2_missing_cache_generation_failure_actionable():
+    with tempfile.TemporaryDirectory() as td:
+        fx = _build_fixture(td)
+        seed_cache_dir = os.path.join(td, "results", "azure_facility", "seed_runs")
+        os.makedirs(seed_cache_dir, exist_ok=True)
+        with patch("azure_figures._generate_b2_seed_cache", side_effect=RuntimeError("missing inputs")):
+            try:
+                generate_azure_figures(
+                    parsed_requests_csv=fx["parsed_csv"],
+                    aggregated_dir=fx["aggregated_dir"],
+                    metrics_csv=fx["metrics_csv"],
+                    ldc_csv=fx["ldc_csv"],
+                    out_dir=fx["out_dir"],
+                    include_figure_b2=True,
+                    b2_seeds=[42],
+                    b2_seed_cache_dir=seed_cache_dir,
+                )
+                assert False, "Expected RuntimeError for B2 cache generation failure"
+            except RuntimeError as exc:
+                msg = str(exc)
+                assert "Failed to generate seed cache for seed=42" in msg
+                assert "pre-populate" in msg
+                assert "Underlying error" in msg
 
 
 def test_missing_input_validation():
