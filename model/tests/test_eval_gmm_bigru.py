@@ -15,6 +15,7 @@ os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.classifiers.gru import GRUClassifier
 from model.scripts.eval_gmm_bigru import (
+    _load_pair_manifest_map,
     estimate_ar1_params,
     evaluate_from_artifacts,
     generate_gmm_bigru_trace_ar1_thresholded,
@@ -72,6 +73,33 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
         np.random.seed(0)
+
+    def test_load_pair_manifest_map_rebases_foreign_absolute_paths(self):
+        pair_key = "tp=1|rate=1|date=20260101-000000"
+        repo_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as tmp:
+            tmp_dir = Path(tmp)
+            request_path = tmp_dir / "requests_rebase.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [8],
+                    "output_lens": [4],
+                    "request_timestamps": [1.0],
+                },
+            )
+            rel_from_repo = request_path.resolve().relative_to(repo_root)
+            foreign_abs = Path("/Users/someone") / repo_root.name / rel_from_repo
+            pair_manifest_path = tmp_dir / "pair_manifest.csv"
+            _write_pair_manifest(
+                pair_manifest_path,
+                pair_key=pair_key,
+                json_path=str(foreign_abs),
+            )
+
+            pair_map = _load_pair_manifest_map(str(pair_manifest_path))
+            self.assertIn(pair_key, pair_map)
+            self.assertEqual(Path(pair_map[pair_key]).resolve(), request_path.resolve())
 
     def _build_fixture(self, root: Path, *, include_throughput: bool = True):
         cfg = "toy_H100_tp1"

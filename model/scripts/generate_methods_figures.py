@@ -159,15 +159,30 @@ def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
     path_text = str(path_str).strip()
     if path_text == "":
         return None
+    repo_root = Path(__file__).resolve().parents[2]
+    repo_name = repo_root.name
     raw = Path(path_text)
     if raw.is_absolute():
-        return str(raw) if raw.exists() else None
+        if raw.exists():
+            return str(raw)
+        # Handle manifests copied across machines with stale absolute roots.
+        parts = raw.parts
+        if repo_name in parts:
+            i = parts.index(repo_name)
+            suffix = Path(*parts[i + 1 :]) if (i + 1) < len(parts) else Path()
+            remapped = repo_root / suffix
+            if remapped.exists():
+                return str(remapped)
+        return None
     local = Path(path_text)
     if local.exists():
         return str(local)
     from_base = Path(base_dir) / raw
     if from_base.exists():
         return str(from_base)
+    from_repo_root = repo_root / raw
+    if from_repo_root.exists():
+        return str(from_repo_root)
     return None
 
 
