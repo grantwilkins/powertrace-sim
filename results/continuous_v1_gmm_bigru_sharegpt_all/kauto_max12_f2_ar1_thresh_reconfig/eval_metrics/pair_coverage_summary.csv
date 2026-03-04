@@ -1,0 +1,30 @@
+config_id,num_test_traces,num_test_traces_in_bounds,num_pair_keys_found,num_pair_keys_missing,missing_reason_counts
+deepseek-r1-distill-70b_A100_tp4,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-70b_A100_tp8,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-70b_H100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+deepseek-r1-distill-70b_H100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+deepseek-r1-distill-8b_A100_tp1,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-8b_A100_tp2,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-8b_A100_tp4,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-8b_A100_tp8,4,4,0,4,"{""json_path_not_found"": 4}"
+deepseek-r1-distill-8b_H100_tp1,5,5,0,5,"{""json_path_not_found"": 5}"
+deepseek-r1-distill-8b_H100_tp2,5,5,0,5,"{""json_path_not_found"": 5}"
+deepseek-r1-distill-8b_H100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+deepseek-r1-distill-8b_H100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+gpt-oss-120b_A100_tp4,5,5,5,0,{}
+gpt-oss-120b_A100_tp8,5,5,5,0,{}
+gpt-oss-20b_A100_tp1,6,6,6,0,{}
+gpt-oss-20b_A100_tp2,5,5,5,0,{}
+llama-3-405b_H100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-70b_A100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-70b_A100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-70b_H100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-70b_H100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_A100_tp1,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_A100_tp2,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_A100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_A100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_H100_tp1,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_H100_tp2,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_H100_tp4,5,5,0,5,"{""json_path_not_found"": 5}"
+llama-3-8b_H100_tp8,5,5,0,5,"{""json_path_not_found"": 5}"

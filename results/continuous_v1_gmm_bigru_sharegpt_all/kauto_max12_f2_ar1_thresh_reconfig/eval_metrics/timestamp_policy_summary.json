@@ -1,0 +1,22 @@
+{
+  "allowed_json_prefix": "data/sharegpt-benchmark",
+  "generated_at_utc": "2026-03-04T01:12:13Z",
+  "num_rejected_rows_captured": 681,
+  "pair_manifest_summary": {
+    "allowed_json_prefix": "data/sharegpt-benchmark",
+    "num_duplicate_pair_keys_overwritten": 0,
+    "num_rows_kept": 121,
+    "num_rows_matched": 800,
+    "num_rows_rejected": 681,
+    "num_rows_total": 802,
+    "num_unique_pair_keys_kept": 121,
+    "pair_manifest_csv": "/home/azureuser/powertrace-sim/results/stage0/pair_manifest.csv",
+    "rejection_counts": {
+      "json_path_not_found": 679,
+      "status_not_matched": 2
+    },
+    "request_timestamp_policy": "recorded_only"
+  },
+  "request_timestamp_policy": "recorded_only",
+  "schema_version": "request-data-policy-v1"
+}
