@@ -12,12 +12,12 @@
   "k": 12,
   "k_selection_reason": "bic_minimum_at_max_k=12_may_need_higher",
   "num_layers": 1,
-  "power_max": 1390.06,
-  "power_mean": 826.1523831176556,
-  "power_min": 285.03,
-  "power_std": 364.5226883657407,
+  "power_max": 1390.0600000000002,
+  "power_mean": 878.374398206133,
+  "power_min": 478.57,
+  "power_std": 363.2664461455069,
   "seed": 42,
-  "source_norm_path": "results/experimental_continuous_v1_gru_all/norm_params/llama-3-8b_H100_tp4.json",
+  "source_norm_path": "results/experimental_continuous_v1_gru_all_reconfig/norm_params/llama-3-8b_H100_tp4.json",
   "t_arrive_log_mean": 0.0,
   "t_arrive_log_std": 1e-06
 }

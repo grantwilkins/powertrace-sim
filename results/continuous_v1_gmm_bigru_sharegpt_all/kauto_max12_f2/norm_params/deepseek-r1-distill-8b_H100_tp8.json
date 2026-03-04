@@ -13,11 +13,11 @@
   "k_selection_reason": "bic_minimum_at_max_k=12_may_need_higher",
   "num_layers": 1,
   "power_max": 2135.92,
-  "power_mean": 1449.4917757319092,
+  "power_mean": 1449.291348225346,
   "power_min": 934.11,
-  "power_std": 488.3469533113304,
+  "power_std": 488.12399557308095,
   "seed": 42,
-  "source_norm_path": "results/experimental_continuous_v1_gru_all/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
+  "source_norm_path": "results/experimental_continuous_v1_gru_all_reconfig/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
   "t_arrive_log_mean": 0.0,
   "t_arrive_log_std": 1e-06
 }
