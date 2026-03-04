@@ -2,6 +2,11 @@
 
 This directory contains scripts for evaluating power trace generation methods, comparing against baselines, processing Azure traces, and generating paper figures and tables.
 
+Default data policy for pair-manifest request JSON is strict:
+- `--request-timestamp-policy recorded_only`
+- `--allowed-json-prefix data/sharegpt-benchmark`
+Use `--request-timestamp-policy allow_synthesized` only when you intentionally want synthesized timestamp fallback.
+
 ## Script Categories
 
 ### 1. Baseline Evaluation
@@ -200,8 +205,10 @@ Generate power traces from Azure request data.
 
 ```bash
 python -m scripts.eval.azure_generate_traces \
-    --requests data/azure_trace/node_requests \
-    --checkpoint-dir results/continuous_v1_gmm_bigru/k10_f2/checkpoints \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --ar1-params-dir results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params \
+    --node-stream-dir data/azure_facility/node_streams \
     --out-dir results/azure_facility/node_traces
 ```
 
@@ -279,10 +286,14 @@ Generate power CDF comparison figures.
 
 ```bash
 python -m scripts.eval.generate_power_cdf_comparison \
-    --config-id llama-3-8b_H100_tp1 \
-    --ground-truth data/sharegpt-benchmark-llama-3-8b-h100 \
-    --generated results/eval_paper \
-    --out-dir figures/trace_power_cdf_comparison
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --pair-manifest-csv results/stage0/pair_manifest.csv \
+    --request-timestamp-policy recorded_only \
+    --allowed-json-prefix data/sharegpt-benchmark \
+    --config-ids llama-3-8b_A100_tp1 llama-3-8b_H100_tp1 \
+    --generation-mode ar1_thresholded \
+    --out-plot-dir figures/trace_power_cdf_comparison
 ```
 
 #### `azure_figures.py`
@@ -363,9 +374,9 @@ Metric definitions:
 
 ```bash
 python -m scripts.eval.feature_sufficiency_figure \
-    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
     --training-data-dir model/training_data \
-    --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
+    --gmm-dir results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/gmms \
     --epochs 8 \
     --hidden-dim 32 \
     --lr 1e-3 \
@@ -405,22 +416,25 @@ from scripts.eval.pipeline_utils import (
 ```bash
 # 1. Run node-level baselines
 python -m scripts.eval.run_baselines_node \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --pair-manifest-csv results/stage0/pair_manifest.csv \
+    --request-timestamp-policy recorded_only \
+    --allowed-json-prefix data/sharegpt-benchmark \
     --num-seeds 10 \
     --out-dir results/eval_paper
 
 # 2. Collect results
-python -m scripts.eval.collect_results \
-    --results-dir results/eval_paper \
-    --out-csv results/eval_paper/all_metrics.csv
+python -m scripts.eval.collect_results
 
 # 3. Generate tables
 python -m scripts.eval.generate_baselines_node_table \
-    --metrics-csv results/eval_paper/all_metrics.csv \
-    --out-tex figures/tables/baselines_node.tex
+    --out-csv results/eval_paper/baselines_node_table.csv \
+    --out-latex results/eval_paper/baselines_node_table.tex
 
 # 4. Generate figures
 python -m scripts.eval.generate_power_cdf_comparison \
-    --out-dir figures/trace_power_cdf_comparison
+    --out-plot-dir figures/trace_power_cdf_comparison
 ```
 
 ## Metrics Computed

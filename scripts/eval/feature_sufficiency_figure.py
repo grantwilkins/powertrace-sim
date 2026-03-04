@@ -380,9 +380,21 @@ def _resolve_run_manifest_configs(run_manifest_path: str, include_configs: Optio
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
-        "run_manifest": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
+        "run_manifest": str(
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru_sharegpt_all"
+            / "kauto_max12_f2"
+            / "run_manifest.json"
+        ),
         "training_data_dir": str(repo_root / "model" / "training_data"),
-        "gmm_dir": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "gmms"),
+        "gmm_dir": str(
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru_sharegpt_all"
+            / "kauto_max12_f2"
+            / "gmms"
+        ),
         "out_figure": str(repo_root / "figures" / "feature_sufficiency_curve.pdf"),
         "out_per_config_csv": str(repo_root / "results" / "eval_paper" / "feature_sufficiency_per_config.csv"),
         "out_summary_csv": str(repo_root / "results" / "eval_paper" / "feature_sufficiency_summary.csv"),

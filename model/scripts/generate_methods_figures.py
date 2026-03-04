@@ -21,9 +21,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import BoundaryNorm
 import numpy as np
 import torch
+from matplotlib.colors import BoundaryNorm
 from sklearn.mixture import GaussianMixture
 
 from model.classifiers.gmm_bigru import (
@@ -32,8 +32,19 @@ from model.classifiers.gmm_bigru import (
     load_gmm_params_json_dict,
 )
 from model.classifiers.gru import GRUClassifier
+from model.scripts.bic_configs import (
+    BIC_CONFIGS,
+)
 from model.scripts.eval_gmm_bigru import (
     generate_gmm_bigru_trace_ar1_thresholded,
+)
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
 )
 
 COLOR_DARK = "#2c3e50"
@@ -42,29 +53,6 @@ COLOR_ORANGE = "#e67e22"
 COLOR_GREEN = "#27ae60"
 COLOR_PURPLE = "#8e44ad"
 COLOR_LIGHT_GRAY = "#bdc3c7"
-
-BIC_CONFIGS = {
-    "bic_config1": {
-        "config_id": "llama-3-8b_A100_tp1",
-        "title": "Llama-3.1-8B / A100 / TP=1",
-        "legend": "Llama A100 TP1",
-    },
-    "bic_config2": {
-        "config_id": "llama-3-8b_H100_tp2",
-        "title": "Llama-3.1-8B / H100 / TP=2",
-        "legend": "Llama H100 TP2",
-    },
-    "bic_config3": {
-        "config_id": "gpt-oss-120b_H100_tp8",
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
-        "legend": "GPT-OSS H100 TP8",
-    },
-    "bic_config4": {
-        "config_id": "deepseek-r1-distill-70b_H100_tp4",
-        "title": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
-        "legend": "DeepSeek H100 TP4",
-    },
-}
 
 DENSE_CONFIG_ID = "llama-3-8b_H100_tp1"
 DENSE_OVERLAY_RATES = {
@@ -78,7 +66,7 @@ AT_OVERLAY_RATE = (
 # None means use the full trace for A_t overlay.
 AT_OVERLAY_WINDOW_SECONDS: Optional[float] = None
 
-MOE_PROXY_CONFIG_ID = "gpt-oss-120b_H100_tp8"
+MOE_PROXY_CONFIG_ID = "gpt-oss-120b_A100_tp4"
 MOE_PROXY_RATE = 1.0
 DEEPSEEK_DENSE_CONFIG_ID = "deepseek-r1-distill-70b_H100_tp4"
 
@@ -89,9 +77,9 @@ GMM_STRUCTURE_CONFIGS = {
         "title": "Llama-3.1-8B / A100 / TP=1",
     },
     "moe": {
-        "config_id": "gpt-oss-120b_H100_tp8",
+        "config_id": "gpt-oss-120b_A100_tp4",
         "trace_idx": 19,
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
+        "title": "GPT-OSS-120B / A100 / TP=4 (MoE Proxy)",
     },
 }
 
@@ -185,22 +173,20 @@ def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
     return None
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str,
+    allowed_json_prefix: str,
+) -> Tuple[Dict[str, str], Dict[str, object], List[Dict[str, str]]]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=True,
+    )
+    return dict(result.pair_map), dict(result.summary), list(result.rejected_rows)
 
 
 def _to_float(value: object) -> Optional[float]:
@@ -1048,17 +1034,20 @@ class MethodsFigureGenerator:
         experimental_manifest_path: str = "results/experimental_continuous_v1_gru_all/manifest.json",
         pair_manifest_csv_path: str = "results/stage0/pair_manifest.csv",
         run_manifest_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
-        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_trace_metrics.csv",
-        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_seed_metrics.csv",
+        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv",
+        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
         per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
         ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         throughput_db_path: str = "model/config/throughput_database.json",
         validation_source_dir: str = "model/tests/validation_results",
+        request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
         dense_config_id: str = DENSE_CONFIG_ID,
         deepseek_dense_config_id: str = DEEPSEEK_DENSE_CONFIG_ID,
         moe_proxy_config_id: str = MOE_PROXY_CONFIG_ID,
         moe_proxy_rate: float = MOE_PROXY_RATE,
         figure_mode: str = "all",
+        allow_legacy_gptoss_autoswitch: bool = False,
     ):
         self.out_dir = Path(out_dir)
         self.dry_run = bool(dry_run)
@@ -1078,16 +1067,26 @@ class MethodsFigureGenerator:
         self.ar1_params_dir = Path(ar1_params_dir)
         self.throughput_db_path = Path(throughput_db_path)
         self.validation_source_dir = Path(validation_source_dir)
+        self.request_timestamp_policy = normalize_request_timestamp_policy(
+            request_timestamp_policy
+        )
+        self.allowed_json_prefix = str(allowed_json_prefix).strip()
+        self.require_recorded_timestamps = bool(
+            request_timestamp_policy_requires_recorded(self.request_timestamp_policy)
+        )
 
         self.dense_config_id = str(dense_config_id).strip()
         self.deepseek_dense_config_id = str(deepseek_dense_config_id).strip()
         self.moe_proxy_config_id = str(moe_proxy_config_id).strip()
         self.moe_proxy_rate = float(moe_proxy_rate)
+        self.allow_legacy_gptoss_autoswitch = bool(allow_legacy_gptoss_autoswitch)
 
         self.experimental_manifest: Dict[str, Any] = {}
         self.run_manifest: Dict[str, Any] = {}
         self.throughput_payload: Dict[str, Any] = {}
         self.pair_map: Dict[str, str] = {}
+        self.pair_policy_summary: Dict[str, object] = {}
+        self.pair_policy_rejected_rows: List[Dict[str, str]] = []
         self.per_trace_rows: List[Dict[str, str]] = []
         self.per_seed_rows: List[Dict[str, str]] = []
         self.per_seed_ar1_rows: List[Dict[str, str]] = []
@@ -1103,7 +1102,15 @@ class MethodsFigureGenerator:
         self.experimental_manifest = _load_json(self.experimental_manifest_path)
         self.run_manifest = _load_json(self.run_manifest_path)
         self.throughput_payload = _load_json(self.throughput_db_path)
-        self.pair_map = _load_pair_manifest_map(str(self.pair_manifest_csv_path))
+        (
+            self.pair_map,
+            self.pair_policy_summary,
+            self.pair_policy_rejected_rows,
+        ) = _load_pair_manifest_map(
+            str(self.pair_manifest_csv_path),
+            request_timestamp_policy=self.request_timestamp_policy,
+            allowed_json_prefix=self.allowed_json_prefix,
+        )
         self.per_trace_rows = _read_csv_rows(self.per_trace_csv_path)
         self.per_seed_rows = _read_csv_rows(self.per_seed_csv_path)
         self.per_seed_ar1_rows = _read_csv_rows(self.per_seed_ar1_csv_path)
@@ -1144,6 +1151,11 @@ class MethodsFigureGenerator:
 
         for attr, path in candidates.items():
             setattr(self, attr, path)
+        # Legacy bundle uses non-ShareGPT prefix paths; relax strict policy only
+        # when the explicit autoswitch flag is enabled.
+        self.request_timestamp_policy = "allow_synthesized"
+        self.allowed_json_prefix = ""
+        self.require_recorded_timestamps = False
         self._reload_inputs()
         return True
 
@@ -1266,7 +1278,9 @@ class MethodsFigureGenerator:
         split_payload = _load_json(split_path)
         test_indices_raw = split_payload.get("test_indices", [])
         if not isinstance(test_indices_raw, list):
-            raise ValueError(f"Invalid test_indices in split for {config_id}: {split_path}")
+            raise ValueError(
+                f"Invalid test_indices in split for {config_id}: {split_path}"
+            )
 
         test_indices: List[int] = []
         for idx in test_indices_raw:
@@ -1294,8 +1308,17 @@ class MethodsFigureGenerator:
             )
         return [int(idx) for idx in test_indices]
 
-    def _resolve_recorded_test_trace_indices(self, config_id: str) -> Dict[str, List[int]]:
+    def _resolve_recorded_test_trace_indices(
+        self, config_id: str
+    ) -> Dict[str, List[int]]:
         test_indices = self._resolve_split_test_indices(config_id)
+        if not self.require_recorded_timestamps:
+            return {
+                "test_indices": [int(x) for x in test_indices],
+                "kept_indices": [int(x) for x in test_indices],
+                "excluded_indices_missing_timestamps": [],
+                "excluded_indices_missing_pair_manifest": [],
+            }
         kept: List[int] = []
         excluded: List[int] = []
         excluded_missing_pair_manifest: List[int] = []
@@ -1335,7 +1358,7 @@ class MethodsFigureGenerator:
         for idx in selected:
             tr = self.get_trace(config_id, int(idx))
             payload = self._compute_logits_for_trace(
-                tr, require_recorded_timestamps=True
+                tr, require_recorded_timestamps=self.require_recorded_timestamps
             )
             logits = np.asarray(payload["logits"], dtype=np.float64)
             if logits.ndim != 2 or int(logits.shape[1]) != k:
@@ -1405,12 +1428,22 @@ class MethodsFigureGenerator:
     def _select_trace_best_median_nrmse_recorded(
         self, config_id: str, rate: float
     ) -> int:
-        candidates = self._candidate_trace_indices_for_rate_with_recorded_timestamps(
-            config_id, float(rate)
-        )
+        if self.require_recorded_timestamps:
+            candidates = self._candidate_trace_indices_for_rate_with_recorded_timestamps(
+                config_id, float(rate)
+            )
+        else:
+            candidates = self._candidate_trace_indices_for_rate(
+                config_id, float(rate)
+            )
         if not candidates:
+            policy_label = (
+                "recorded request_timestamps"
+                if self.require_recorded_timestamps
+                else "policy-compatible request traces"
+            )
             raise ValueError(
-                f"No traces with recorded request_timestamps for "
+                f"No traces with {policy_label} for "
                 f"config={config_id}, rate={rate}"
             )
         return int(
@@ -1425,26 +1458,30 @@ class MethodsFigureGenerator:
     def _select_dense_trace_for_rate(
         self, rate: float, *, prefer_lowest_mean_power: bool
     ) -> Dict[str, Any]:
-        candidates_recorded = (
-            self._candidate_trace_indices_for_rate_with_recorded_timestamps(
+        if self.require_recorded_timestamps:
+            candidate_indices = self._candidate_trace_indices_for_rate_with_recorded_timestamps(
                 self.dense_config_id, float(rate)
             )
-        )
-        if not candidates_recorded:
+            policy_suffix = "recorded_timestamps_only"
+        else:
+            candidate_indices = self._candidate_trace_indices_for_rate(
+                self.dense_config_id, float(rate)
+            )
+            policy_suffix = "allow_synthesized_timestamps"
+        if not candidate_indices:
             raise ValueError(
-                f"No traces with recorded request_timestamps for "
+                f"No traces with policy-compatible request timestamps for "
                 f"config={self.dense_config_id}, rate={rate}. "
-                "Dense overlays require real arrivals."
+                "Adjust policy or verify pair-manifest coverage."
             )
 
         if bool(prefer_lowest_mean_power):
             trace_idx = int(
                 select_trace_by_lowest_mean_power(
-                    self._load_dataset(self.dense_config_id)["power"],
-                    candidates_recorded,
+                    self._load_dataset(self.dense_config_id)["power"], candidate_indices
                 )
             )
-            selection_method = "lowest_mean_power_per_rate_recorded_timestamps_only"
+            selection_method = f"lowest_mean_power_per_rate_{policy_suffix}"
         else:
             try:
                 trace_idx = int(
@@ -1452,20 +1489,21 @@ class MethodsFigureGenerator:
                         self.dense_config_id, float(rate)
                     )
                 )
-                selection_method = "best_median_nrmse_per_rate_recorded_timestamps_only"
+                selection_method = f"best_median_nrmse_per_rate_{policy_suffix}"
             except ValueError:
                 trace_idx = int(
                     select_trace_by_lowest_mean_power(
-                        self._load_dataset(self.dense_config_id)["power"],
-                        candidates_recorded,
+                        self._load_dataset(self.dense_config_id)["power"], candidate_indices
                     )
                 )
-                selection_method = "fallback_lowest_mean_power_recorded_timestamps_only_no_per_trace_metric"
+                selection_method = (
+                    f"fallback_lowest_mean_power_{policy_suffix}_no_per_trace_metric"
+                )
 
         return {
             "trace_idx": int(trace_idx),
             "selection_method": selection_method,
-            "recorded_candidate_trace_indices": [int(x) for x in candidates_recorded],
+            "recorded_candidate_trace_indices": [int(x) for x in candidate_indices],
         }
 
     def _resolve_run_artifacts(self, config_id: str) -> Dict[str, Any]:
@@ -1538,22 +1576,27 @@ class MethodsFigureGenerator:
         self,
         tr: TraceData,
         alignment_offset_s: float = 0.0,
-        require_recorded_timestamps: bool = False,
+        require_recorded_timestamps: Optional[bool] = None,
     ) -> List[Dict[str, float]]:
         json_path = self.pair_map.get(tr.pair_key)
         if json_path is None:
             raise ValueError(f"Pair key not found in pair manifest: {tr.pair_key}")
+        require_recorded = (
+            self.require_recorded_timestamps
+            if require_recorded_timestamps is None
+            else bool(require_recorded_timestamps)
+        )
         return build_requests_from_stage0_json(
             json_path,
             power_start_epoch_s=float(tr.power_start_epoch_s),
             trace_duration_s=float(max(0, len(tr.power) - 1) * tr.dt),
             dt=float(tr.dt),
             alignment_offset_s=float(alignment_offset_s),
-            require_recorded_timestamps=bool(require_recorded_timestamps),
+            require_recorded_timestamps=bool(require_recorded),
         )
 
     def _compute_logits_for_trace(
-        self, tr: TraceData, require_recorded_timestamps: bool = False
+        self, tr: TraceData, require_recorded_timestamps: Optional[bool] = None
     ) -> Dict[str, Any]:
         art = self._resolve_run_artifacts(tr.config_id)
         requests = self._load_requests_for_trace(
@@ -1621,7 +1664,9 @@ class MethodsFigureGenerator:
         }
 
     def _simulate_moe_proxy_trace(self, tr: TraceData, seed: int) -> Dict[str, Any]:
-        payload = self._compute_logits_for_trace(tr)
+        payload = self._compute_logits_for_trace(
+            tr, require_recorded_timestamps=self.require_recorded_timestamps
+        )
         slug = _safe_slug(tr.config_id)
         ar1_path = self.ar1_params_dir / f"{slug}_ar1_params.json"
         if not ar1_path.exists():
@@ -1745,7 +1790,7 @@ class MethodsFigureGenerator:
 
         # STEP 1: Initial pass to detect offset
         requests_initial = self._load_requests_for_trace(
-            tr, require_recorded_timestamps=True
+            tr, require_recorded_timestamps=self.require_recorded_timestamps
         )
         t_horizon = int(max(0, len(tr.power) - 1))
 
@@ -1779,7 +1824,7 @@ class MethodsFigureGenerator:
         requests_corrected = self._load_requests_for_trace(
             tr,
             alignment_offset_s=offset_seconds,
-            require_recorded_timestamps=True,
+            require_recorded_timestamps=self.require_recorded_timestamps,
         )
 
         # STEP 4: Compute corrected features (replaces original payload computation)
@@ -1826,7 +1871,7 @@ class MethodsFigureGenerator:
             "rate": tr.rate,
             "selection_rate": float(AT_OVERLAY_RATE),
             "selection_method": selection_method,
-            "request_timestamps_source": "recorded_only",
+            "request_timestamps_source": str(self.request_timestamp_policy),
             "window_mode": "full_trace"
             if AT_OVERLAY_WINDOW_SECONDS is None
             else "transition_dense_window",
@@ -1906,7 +1951,7 @@ class MethodsFigureGenerator:
                 "rate": tr.rate,
                 "selection_rate": float(rate),
                 "selection_method": trace_selection_method,
-                "request_timestamps_source": "recorded_only",
+                "request_timestamps_source": str(self.request_timestamp_policy),
                 "seed": int(seed),
                 "seed_selection_method": seed_selection_method,
                 "dt": float(tr.dt),
@@ -1990,6 +2035,7 @@ class MethodsFigureGenerator:
         if not candidates:
             if (
                 self.figure_mode == "simulated-moe"
+                and bool(self.allow_legacy_gptoss_autoswitch)
                 and self._try_autoswitch_gptoss_a100_bundle()
             ):
                 selection_method = "autoswitched_gptoss_a100_bundle_fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
@@ -2164,9 +2210,7 @@ class MethodsFigureGenerator:
             panel_manifest[tag] = {
                 "config_id": config_id,
                 "title": str(spec["title"]),
-                "test_trace_indices_all": [
-                    int(x) for x in split_info["test_indices"]
-                ],
+                "test_trace_indices_all": [int(x) for x in split_info["test_indices"]],
                 "test_trace_indices_included_recorded_only": [
                     int(x) for x in split_info["kept_indices"]
                 ],
@@ -2174,8 +2218,7 @@ class MethodsFigureGenerator:
                     int(x) for x in split_info["excluded_indices_missing_timestamps"]
                 ],
                 "test_trace_indices_excluded_missing_pair_manifest": [
-                    int(x)
-                    for x in split_info["excluded_indices_missing_pair_manifest"]
+                    int(x) for x in split_info["excluded_indices_missing_pair_manifest"]
                 ],
                 "num_traces": int(panel["num_traces"]),
                 "num_points": int(panel["num_points"]),
@@ -2277,6 +2320,16 @@ class MethodsFigureGenerator:
                 else float(AT_OVERLAY_WINDOW_SECONDS),
                 "moe_proxy_rate": float(self.moe_proxy_rate),
                 "bic_configs": BIC_CONFIGS,
+                "request_timestamp_policy": str(self.request_timestamp_policy),
+                "allowed_json_prefix": str(self.allowed_json_prefix),
+                "require_recorded_timestamps": bool(self.require_recorded_timestamps),
+                "pair_manifest_summary": dict(self.pair_policy_summary),
+                "pair_manifest_rejected_rows_captured": int(
+                    len(self.pair_policy_rejected_rows)
+                ),
+                "allow_legacy_gptoss_autoswitch": bool(
+                    self.allow_legacy_gptoss_autoswitch
+                ),
             },
         }
 
@@ -2480,11 +2533,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--per-trace-csv",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_trace_metrics.csv",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv",
     )
     parser.add_argument(
         "--per-seed-csv",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics/per_seed_metrics.csv",
+        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
     )
     parser.add_argument(
         "--per-seed-ar1-csv",
@@ -2498,12 +2551,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--throughput-db", default="model/config/throughput_database.json"
     )
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument(
+        "--allowed-json-prefix",
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+    )
+    parser.add_argument(
         "--validation-source-dir", default="model/tests/validation_results"
     )
     parser.add_argument("--dense-config-id", default=DENSE_CONFIG_ID)
     parser.add_argument("--deepseek-dense-config-id", default=DEEPSEEK_DENSE_CONFIG_ID)
     parser.add_argument("--moe-config-id", default=MOE_PROXY_CONFIG_ID)
     parser.add_argument("--moe-rate", type=float, default=MOE_PROXY_RATE)
+    parser.add_argument(
+        "--allow-legacy-gptoss-autoswitch",
+        choices=["true", "false"],
+        default="false",
+    )
     return parser
 
 
@@ -2521,12 +2588,17 @@ def main() -> None:
         per_seed_ar1_csv_path=args.per_seed_ar1_csv,
         ar1_params_dir=args.ar1_params_dir,
         throughput_db_path=args.throughput_db,
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
         validation_source_dir=args.validation_source_dir,
         dense_config_id=args.dense_config_id,
         deepseek_dense_config_id=args.deepseek_dense_config_id,
         moe_proxy_config_id=args.moe_config_id,
         moe_proxy_rate=float(args.moe_rate),
         figure_mode=args.figure_mode,
+        allow_legacy_gptoss_autoswitch=(
+            str(args.allow_legacy_gptoss_autoswitch).strip().lower() == "true"
+        ),
     )
     run = generator.generate()
     if args.dry_run:

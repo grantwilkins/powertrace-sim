@@ -22,6 +22,12 @@ import numpy as np
 import torch
 
 from model.classifiers.gru import GRUClassifier
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    normalize_request_timestamp_policy,
+)
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
     estimate_ar1_params,
@@ -431,6 +437,8 @@ def generate_node_traces(
     median_filter_window: int = 1,
     ours_std_scale: float = 1.0,
     ours_logit_temperature: float = 1.0,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     _validate_config_id(config_id)
     if float(duration_s) <= 0:
@@ -443,6 +451,10 @@ def generate_node_traces(
         raise ValueError("ours_std_scale must be > 0")
     if float(ours_logit_temperature) <= 0:
         raise ValueError("ours_logit_temperature must be > 0")
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    allowed_json_prefix = str(allowed_json_prefix).strip()
 
     layout = FacilityLayout(rows=int(rows), racks_per_row=int(racks_per_row), nodes_per_rack=int(nodes_per_rack))
     n_nodes = int(layout.n_nodes)
@@ -488,6 +500,28 @@ def generate_node_traces(
 
     throughput_payload = _load_json(throughput_db)
     throughput = _resolve_throughput(throughput_payload, config_id)
+    experimental_manifest_payload = _load_json(experimental_manifest)
+    exp_inputs = experimental_manifest_payload.get("inputs", {})
+    if isinstance(exp_inputs, dict):
+        manifest_policy_raw = str(exp_inputs.get("request_timestamp_policy", "")).strip()
+        if manifest_policy_raw != "":
+            manifest_policy = normalize_request_timestamp_policy(manifest_policy_raw)
+            if manifest_policy != request_timestamp_policy:
+                raise ValueError(
+                    "Experimental manifest policy mismatch: "
+                    f"{manifest_policy} != {request_timestamp_policy}"
+                )
+        manifest_prefix = str(exp_inputs.get("allowed_json_prefix", "")).strip()
+        if (
+            allowed_json_prefix != ""
+            and manifest_prefix != ""
+            and not manifest_prefix.startswith(allowed_json_prefix)
+        ):
+            raise ValueError(
+                "Experimental manifest allowed_json_prefix mismatch: "
+                f"{manifest_prefix} not under {allowed_json_prefix}"
+            )
+
     train_power_flat, train_power_traces = _load_training_power_pool(
         config_id=config_id,
         experimental_manifest_path=experimental_manifest,
@@ -695,6 +729,8 @@ def generate_node_traces(
             "ours_std_scale": float(ours_std_scale),
             "ours_logit_temperature": float(ours_logit_temperature),
             "uses_ar1": bool(use_ar1),
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
         },
         "counts": {
             "evaluated_nodes": int(success_count),
@@ -735,6 +771,15 @@ def main() -> None:
     parser.add_argument("--median-filter-window", type=int, default=1)
     parser.add_argument("--ours-std-scale", type=float, default=1.0)
     parser.add_argument("--ours-logit-temperature", type=float, default=1.0)
+    parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument(
+        "--allowed-json-prefix",
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+    )
     args = parser.parse_args()
 
     summary = generate_node_traces(
@@ -757,6 +802,8 @@ def main() -> None:
         median_filter_window=int(args.median_filter_window),
         ours_std_scale=float(args.ours_std_scale),
         ours_logit_temperature=float(args.ours_logit_temperature),
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
     )
 
     print("=" * 72)

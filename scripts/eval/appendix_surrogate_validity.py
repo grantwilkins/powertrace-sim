@@ -36,6 +36,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
+
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_70B_ALL_TP_RE = re.compile(r"^.+-70b_(A100|H100)_tp\d+$")
 SAFE_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
@@ -201,22 +210,20 @@ def _safe_slug(value: str) -> str:
     return s if s else "unknown"
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            resolved = _resolve_existing_path(json_path_raw, base_dir)
-            if resolved is not None:
-                out[key] = resolved
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
+) -> Dict[str, str]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map)
 
 
 def _list_candidate_configs(
@@ -300,12 +307,32 @@ def _resolve_dataset_split_paths(
     return dpath, spath
 
 
+def _synthesize_request_timestamps(payload: Mapping[str, object], n: int) -> Optional[List[float]]:
+    if n <= 0:
+        return []
+    duration = _safe_float(payload.get("duration"))
+    if duration is not None and duration > 0:
+        step = float(duration) / float(max(n, 1))
+        if step > 0:
+            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
+            return [float(x) for x in values]
+    request_rate = _safe_float(payload.get("request_rate"))
+    poisson_rate = _safe_float(payload.get("poisson_rate"))
+    rate = request_rate if request_rate is not None else poisson_rate
+    if rate is not None and rate > 0:
+        step = 1.0 / float(rate)
+        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
+        return [float(x) for x in values]
+    return None
+
+
 def _build_requests_from_stage0_json(
     request_json_path: str,
     *,
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> Tuple[List[Dict[str, float]], str]:
     payload = _load_json(request_json_path)
     input_lens_raw = payload.get("input_lens")
@@ -315,7 +342,13 @@ def _build_requests_from_stage0_json(
     if not isinstance(input_lens_raw, list) or not isinstance(output_lens_raw, list):
         return [], "missing_required_input_output_arrays"
     if not isinstance(ts_raw, list) or len(ts_raw) == 0:
-        return [], "missing_recorded_request_timestamps"
+        if bool(require_recorded_timestamps):
+            return [], "missing_recorded_request_timestamps"
+        n_synth = int(min(len(input_lens_raw), len(output_lens_raw)))
+        synth = _synthesize_request_timestamps(payload, n_synth)
+        if synth is None:
+            return [], "missing_recorded_request_timestamps"
+        ts_raw = synth
 
     n = int(min(len(input_lens_raw), len(output_lens_raw), len(ts_raw)))
     if n <= 0:
@@ -1095,6 +1128,8 @@ def run_appendix_surrogate_validity(
     out_figure_scatter: str,
     out_manifest_json: str,
     dry_run: bool,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(num_representative_configs) != 3:
         raise ValueError(
@@ -1106,13 +1141,23 @@ def run_appendix_surrogate_validity(
         raise ValueError("stable_corr_threshold must be in [0,1]")
     if float(time_window_s) <= 0.0:
         raise ValueError("time_window_s must be > 0")
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     checks = _self_checks()
 
     run_payload = _load_json(run_manifest)
     exp_payload = _load_json(experimental_manifest)
     throughput_payload = _load_json(throughput_db)
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
 
     target_config_ids = _list_candidate_configs(
         run_manifest=run_payload,
@@ -1264,6 +1309,7 @@ def run_appendix_surrogate_validity(
                 power_start_epoch_s=float(power_start_arr[idx]),
                 trace_duration_s=float(len(power) * dt),
                 dt=float(dt),
+                require_recorded_timestamps=require_recorded_timestamps,
             )
             if len(requests) == 0:
                 config_rows.append(
@@ -1500,6 +1546,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
     )
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
+    parser.add_argument(
         "--throughput-db", default="model/config/throughput_database.json"
     )
     parser.add_argument(
@@ -1552,6 +1604,8 @@ def main() -> None:
         out_figure_scatter=str(args.out_figure_scatter),
         out_manifest_json=str(args.out_manifest_json),
         dry_run=bool(args.dry_run),
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
     )
 
     if bool(args.dry_run):

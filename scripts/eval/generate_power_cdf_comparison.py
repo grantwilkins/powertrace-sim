@@ -47,6 +47,14 @@ from model.classifiers.feature_utils import (  # noqa: E402
 )
 from model.classifiers.gru import GRUClassifier  # noqa: E402
 from model.classifiers.metrics import compute_power_metrics  # noqa: E402
+from model.scripts.request_data_policy import (  # noqa: E402
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 
 AR1_MIN_RUN_LENGTH = 5
 AR1_PHI_THRESHOLD = 0.3
@@ -531,6 +539,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -546,6 +555,8 @@ def _build_requests_from_stage0_json(
         n = int(min(n_base, len(request_timestamps_raw)))
         request_timestamps = request_timestamps_raw[:n]
     else:
+        if bool(require_recorded_timestamps):
+            raise ValueError("request json missing arrays: ['request_timestamps']")
         n = int(n_base)
         synth = _synthesize_request_timestamps(payload, n)
         if synth is None:
@@ -579,22 +590,20 @@ def _build_requests_from_stage0_json(
     return requests
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str,
+    allowed_json_prefix: str,
+) -> Tuple[Dict[str, str], Dict[str, object]]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map), dict(result.summary)
 
 
 def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
@@ -743,8 +752,19 @@ def _display_label(config_id: str) -> str:
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
-        "run_manifest": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
-        "experimental_manifest": str(repo_root / "results" / "experimental_continuous_v1" / "manifest.json"),
+        "run_manifest": str(
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru_sharegpt_all"
+            / "kauto_max12_f2"
+            / "run_manifest.json"
+        ),
+        "experimental_manifest": str(
+            repo_root
+            / "results"
+            / "experimental_continuous_v1_gru_all"
+            / "manifest.json"
+        ),
         "throughput_db": str(repo_root / "model" / "config" / "throughput_database.json"),
         "pair_manifest_csv": str(repo_root / "results" / "stage0" / "pair_manifest.csv"),
         "out_plot_dir": str(repo_root / "figures" / "trace_power_cdf_comparison"),
@@ -767,6 +787,7 @@ def _collect_config_cdf(
     generation_mode: str,
     decode_mode: str,
     median_filter_window: int,
+    require_recorded_timestamps: bool,
     device: torch.device,
 ) -> Dict[str, object]:
     checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(run_cfg_row, run_manifest_base)
@@ -872,6 +893,7 @@ def _collect_config_cdf(
                 power_start_epoch_s=float(power_start_arr[trace_idx]),
                 trace_duration_s=float(power.size * dt),
                 dt=float(dt),
+                require_recorded_timestamps=bool(require_recorded_timestamps),
             )
             feat = build_rollout_features_from_requests(
                 requests=requests,
@@ -1071,6 +1093,8 @@ def generate_power_cdf_comparison(
     out_cdf_csv: str,
     out_summary_csv: str,
     out_json: str,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
@@ -1078,6 +1102,12 @@ def generate_power_cdf_comparison(
         raise ValueError("generation_mode must be one of {'iid', 'ar1_thresholded'}")
     if decode_mode not in {"stochastic", "argmax"}:
         raise ValueError("decode_mode must be one of {'stochastic','argmax'}")
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     run_payload = _load_json(run_manifest)
     run_cfgs = run_payload.get("configs", {})
@@ -1088,7 +1118,11 @@ def generate_power_cdf_comparison(
     experimental_payload = _load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
     throughput_payload = _load_json(throughput_db)
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map, pair_manifest_policy_summary = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
 
     seeds = [int(base_seed) + i for i in range(int(num_seeds))]
     resolved_device = _resolve_device(device)
@@ -1117,6 +1151,7 @@ def generate_power_cdf_comparison(
                 generation_mode=generation_mode,
                 decode_mode=decode_mode,
                 median_filter_window=int(median_filter_window),
+                require_recorded_timestamps=require_recorded_timestamps,
                 device=resolved_device,
             )
             results.append(cfg_result)
@@ -1220,6 +1255,9 @@ def generate_power_cdf_comparison(
             "experimental_manifest": str(experimental_manifest),
             "throughput_db": str(throughput_db),
             "pair_manifest_csv": str(pair_manifest_csv),
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
+            "pair_manifest_policy_summary": pair_manifest_policy_summary,
             "config_ids": [str(x) for x in config_ids],
             "generation_mode": str(generation_mode),
             "num_seeds": int(num_seeds),
@@ -1257,6 +1295,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
     parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument(
+        "--allowed-json-prefix",
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+    )
+    parser.add_argument(
         "--config-ids",
         nargs="*",
         default=list(DEFAULT_CONFIG_IDS),
@@ -1286,6 +1333,8 @@ def main() -> None:
         experimental_manifest=args.experimental_manifest,
         throughput_db=args.throughput_db,
         pair_manifest_csv=args.pair_manifest_csv,
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
         config_ids=config_ids,
         generation_mode=args.generation_mode,
         num_seeds=int(args.num_seeds),

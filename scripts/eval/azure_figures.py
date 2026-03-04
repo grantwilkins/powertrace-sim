@@ -120,11 +120,26 @@ def _parse_seed_csv(seed_csv: str) -> Tuple[int, ...]:
 def _build_b2_generation_defaults() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
-        "run_manifest": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
-        "experimental_manifest": str(repo_root / "results" / "experimental_continuous_v1" / "manifest.json"),
+        "run_manifest": str(
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru_sharegpt_all"
+            / "kauto_max12_f2"
+            / "run_manifest.json"
+        ),
+        "experimental_manifest": str(
+            repo_root
+            / "results"
+            / "experimental_continuous_v1_gru_all"
+            / "manifest.json"
+        ),
         "throughput_db": str(repo_root / "model" / "config" / "throughput_database.json"),
         "ar1_params_dir": str(
-            repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2_ar1_thresh" / "ar1_params"
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru_sharegpt_all"
+            / "kauto_max12_f2_ar1_thresh"
+            / "ar1_params"
         ),
         "node_stream_dir": str(repo_root / "data" / "azure_facility" / "node_streams"),
     }

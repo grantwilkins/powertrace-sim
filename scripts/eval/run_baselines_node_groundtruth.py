@@ -25,6 +25,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.classifiers.metrics import compute_power_metrics
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 from scripts.eval.baselines import (
     build_splitwise_lut_params,
     generate_mean,
@@ -264,6 +271,8 @@ def run_baselines_node_groundtruth(
     splitwise_calibration_mode: str = "train_phase_matched_v1",
     out_csv: str = "results/eval_paper/baselines_node_groundtruth_metrics.csv",
     out_plot_pdf: str = "figures/baselines_node_groundtruth_trace.pdf",
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if not _is_70b_tp4_config(config_id):
         raise ValueError(
@@ -285,6 +294,12 @@ def run_baselines_node_groundtruth(
         raise ValueError("ours_logit_temperature must be > 0")
     if int(splitwise_source_tp) != 4:
         raise ValueError("splitwise_source_tp must be 4 for 70B TP4-only comparison.")
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     run_manifest_payload = _load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -336,7 +351,11 @@ def run_baselines_node_groundtruth(
     split_payload = _load_json(split_path)
     train_indices = [int(x) for x in split_payload.get("train_indices", [])]
     test_indices = [int(x) for x in split_payload.get("test_indices", [])]
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
 
     with np.load(dataset_path, allow_pickle=True) as data:
         pair_key_arr = np.asarray(data["pair_key"], dtype=object)
@@ -438,6 +457,7 @@ def run_baselines_node_groundtruth(
         power_start_epoch_s=float(power_start_arr[trace_index]),
         trace_duration_s=float(power.size * dt),
         dt=dt,
+        require_recorded_timestamps=require_recorded_timestamps,
     )
     feat = build_rollout_features_from_requests(
         requests=requests,
@@ -655,6 +675,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
     )
+    parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
     parser.add_argument("--config-id", default="deepseek-r1-distill-70b_H100_tp4")
     parser.add_argument(
         "--target-rate",
@@ -754,6 +780,8 @@ def main() -> None:
         splitwise_calibration_mode=args.splitwise_calibration_mode,
         out_csv=args.out_csv,
         out_plot_pdf=args.out_plot_pdf,
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
     )
     print("[run_baselines_node_groundtruth] Done")
     print(f"  out_csv        : {result['out_csv']}")

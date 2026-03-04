@@ -58,9 +58,9 @@
         "title": "Llama-3.1-8B / H100 / TP=2"
       },
       "bic_config3": {
-        "config_id": "gpt-oss-120b_H100_tp8",
-        "legend": "GPT-OSS H100 TP8",
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)"
+        "config_id": "gpt-oss-120b_A100_tp4",
+        "legend": "GPT-OSS A100 TP4",
+        "title": "GPT-OSS-120B / A100 / TP=4 (MoE Proxy)"
       },
       "bic_config4": {
         "config_id": "deepseek-r1-distill-70b_H100_tp4",

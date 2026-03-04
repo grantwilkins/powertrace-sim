@@ -50,6 +50,14 @@ from model.classifiers.feature_utils import (  # noqa: E402
     compute_inference_features,
     normalize_delta_active_requests,
 )
+from model.scripts.request_data_policy import (  # noqa: E402
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 
 DEFAULT_CONFIG_IDS = (
     "deepseek-r1-distill-8b_H100_tp1",
@@ -656,22 +664,20 @@ def _build_default_paths() -> Dict[str, str]:
     }
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            resolved = _resolve_existing_path(json_path_raw, base_dir)
-            if resolved is not None:
-                out[key] = resolved
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
+) -> Dict[str, str]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map)
 
 
 def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
@@ -701,6 +707,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -713,10 +720,12 @@ def _build_requests_from_stage0_json(
     n_base = int(min(len(input_lens), len(output_lens)))
 
     request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
+    if isinstance(request_timestamps_raw, list) and len(request_timestamps_raw) > 0:
         n = int(min(n_base, len(request_timestamps_raw)))
         request_timestamps = request_timestamps_raw[:n]
     else:
+        if bool(require_recorded_timestamps):
+            raise ValueError("request json missing arrays: ['request_timestamps']")
         n = int(n_base)
         synth = _synthesize_request_timestamps(payload, n)
         if synth is None:
@@ -1097,6 +1106,8 @@ def run_appendix_decomposition_fidelity(
     out_figure_pdf: str,
     out_manifest_json: str,
     device: str,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(num_traces_per_config) <= 0:
         raise ValueError("num_traces_per_config must be >= 1")
@@ -1104,6 +1115,12 @@ def run_appendix_decomposition_fidelity(
         raise ValueError("prune_top_energy_per_group must be >= 0")
     if int(min_traces_after_prune) <= 0:
         raise ValueError("min_traces_after_prune must be >= 1")
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     run_payload = _load_json(run_manifest)
     run_cfgs = run_payload.get("configs", {})
@@ -1114,7 +1131,11 @@ def run_appendix_decomposition_fidelity(
     experimental_payload = _load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
     throughput_payload = _load_json(throughput_db)
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
 
     resolved_device = _resolve_device(device)
 
@@ -1335,6 +1356,7 @@ def run_appendix_decomposition_fidelity(
                             power_start_epoch_s=float(power_start_arr[test_idx]),
                             trace_duration_s=float(p.size * dt),
                             dt=float(dt),
+                            require_recorded_timestamps=require_recorded_timestamps,
                         )
                         feat = build_rollout_features_from_requests(
                             requests=requests,
@@ -1873,6 +1895,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
     parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
+    parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
     parser.add_argument("--ar1-params-dir", default=defaults["ar1_params_dir"])
     parser.add_argument(
         "--config-ids",
@@ -1928,6 +1956,8 @@ def main() -> None:
         out_figure_pdf=str(args.out_figure_pdf),
         out_manifest_json=str(args.out_manifest_json),
         device=str(args.device),
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
     )
 
     print("[appendix_decomposition_fidelity] Done")

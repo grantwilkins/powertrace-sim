@@ -29,6 +29,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.classifiers.gru import GRUClassifier
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+)
 from scripts.eval.baselines import (
     build_splitwise_lut_params,
     generate_mean,
@@ -224,22 +231,20 @@ def _resolve_experimental_paths(
     return dataset_path, split_path
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
+) -> Dict[str, str]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map)
 
 
 def _load_model(
@@ -858,6 +863,8 @@ def run_baselines_facility(
     burst_node_scale_sigma: float = 0.2,
     save_facility_traces_dir: str = "",
     skip_plots: bool = False,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(n_nodes) <= 0:
         raise ValueError("n_nodes must be >= 1")
@@ -905,6 +912,7 @@ def run_baselines_facility(
         raise ValueError("burst_background_sigma must be >= 0")
     if float(burst_node_scale_sigma) < 0:
         raise ValueError("burst_node_scale_sigma must be >= 0")
+    request_timestamp_policy = normalize_request_timestamp_policy(request_timestamp_policy)
 
     run_manifest_payload = _load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -962,7 +970,11 @@ def run_baselines_facility(
     if len(train_indices) == 0 and len(test_indices) == 0:
         raise ValueError("both train and test splits are empty")
 
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
     with np.load(dataset_path, allow_pickle=True) as data:
         pair_key_arr = np.asarray(data["pair_key"], dtype=object)
         power_arr = np.asarray(data["power"], dtype=object)
@@ -1437,6 +1449,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
     )
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
+    parser.add_argument(
         "--ar1-params-dir",
         default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         help="Directory containing AR(1) params JSON files (used only for MoE configs).",
@@ -1589,6 +1607,8 @@ def main() -> None:
         burst_node_scale_sigma=args.burst_node_scale_sigma,
         save_facility_traces_dir=args.save_facility_traces_dir,
         skip_plots=bool(args.skip_plots),
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
     )
     print("[run_baselines_facility] Done")
     print(f"  metrics_csv : {result['out_csv']}")

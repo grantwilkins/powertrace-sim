@@ -369,7 +369,9 @@ def main():
 
     input_files = {
         "iid": os.path.join(base_dir, "kauto_max12_f2", "eval_metrics", "config_summary.csv"),
-        "ar1": os.path.join(base_dir, "kauto_max12_f2_ar1", "eval_metrics", "config_summary.csv"),
+        "ar1": os.path.join(
+            base_dir, "kauto_max12_f2_ar1_thresh", "eval_metrics", "config_summary.csv"
+        ),
     }
 
     output_path = os.path.join(

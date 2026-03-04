@@ -3,7 +3,7 @@
 Prepare experimental manifest from Stage0 output.
 
 This script bridges the gap between Stage0 (pair_manifest.csv, throughput_database.json)
-and the GMM-BiGRU training pipeline (experimental_continuous_v1/manifest.json).
+and the GMM-BiGRU training pipeline (experimental_continuous_v1_gru_all/manifest.json).
 
 Pipeline: raw data -> Stage0 -> THIS SCRIPT -> train_gmm_bigru.py -> eval_gmm_bigru.py
 """
@@ -21,6 +21,15 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
+
 
 def _ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
@@ -34,6 +43,19 @@ def _write_json(path: str, payload: Dict[str, object]) -> None:
 
 def _safe_slug(text: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
+
+
+def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
+    raw = Path(str(path_str).strip())
+    if raw.is_absolute():
+        return str(raw) if raw.exists() else None
+    local = Path(path_str)
+    if local.exists():
+        return str(local)
+    from_base = Path(base_dir) / raw
+    if from_base.exists():
+        return str(from_base)
+    return None
 
 
 def _power_timestamp_to_epoch(ts_text: str) -> Optional[float]:
@@ -161,7 +183,11 @@ def _derive_decode_time(itl_value: object, output_tokens: object) -> Optional[fl
     return None
 
 
-def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
+def _parse_request_json(
+    json_path: str,
+    *,
+    require_recorded_timestamps: bool,
+) -> Tuple[Optional[Dict[str, object]], str]:
     """
     Parse benchmark JSON to extract request data.
 
@@ -172,7 +198,7 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
         with open(json_path, "r") as f:
             data = json.load(f)
         if not isinstance(data, dict):
-            return None
+            return None, "request_json_invalid_payload"
 
         input_lens = data.get("input_lens", [])
         output_lens = data.get("output_lens", [])
@@ -180,14 +206,18 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
         itls = data.get("itls", [])
         request_timestamps = data.get("request_timestamps", [])
 
-        if not all(isinstance(x, list) for x in [input_lens, output_lens, ttfts, itls]):
-            return None
+        if not all(
+            isinstance(x, list) for x in [input_lens, output_lens, ttfts, itls]
+        ):
+            return None, "missing_required_request_arrays"
 
         n = min(len(input_lens), len(output_lens), len(ttfts), len(itls))
         if n == 0:
-            return None
+            return None, "empty_request_arrays"
 
         has_timestamps = isinstance(request_timestamps, list) and len(request_timestamps) >= n
+        if bool(require_recorded_timestamps) and not has_timestamps:
+            return None, "missing_recorded_request_timestamps"
         if has_timestamps:
             n = min(n, len(request_timestamps))
 
@@ -225,7 +255,7 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
                 valid_ts.append(float("nan"))
 
         if len(valid_input) == 0:
-            return None
+            return None, "no_valid_requests_after_filter"
 
         return {
             "input_lens": np.array(valid_input, dtype=np.float64),
@@ -234,9 +264,9 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
             "decode_times": np.array(valid_decode, dtype=np.float64),
             "request_timestamps": np.array(valid_ts, dtype=np.float64),
             "has_timestamps": has_timestamps and np.all(np.isfinite(valid_ts)),
-        }
+        }, "ok"
     except Exception:
-        return None
+        return None, "request_json_parse_failed"
 
 
 def _compute_active_requests(
@@ -357,14 +387,32 @@ def _align_trace_to_grid(
     }
 
 
-def _load_pair_manifest_csv(csv_path: str) -> List[Dict[str, str]]:
-    """Load pair manifest CSV from Stage0."""
-    rows = []
+def _load_pair_manifest_csv(
+    csv_path: str,
+    *,
+    allowed_pair_map: Dict[str, str],
+) -> List[Dict[str, str]]:
+    """Load matched pair rows filtered to policy-approved pair_keys."""
+    rows: List[Dict[str, str]] = []
+    base_dir = str(Path(csv_path).resolve().parent)
     with open(csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if row.get("status", "").strip() == "matched":
-                rows.append(row)
+            if row.get("status", "").strip() != "matched":
+                continue
+            pair_key = str(row.get("pair_key", "")).strip()
+            if pair_key == "":
+                continue
+            resolved_json = allowed_pair_map.get(pair_key)
+            if resolved_json is None:
+                continue
+            row_copy = dict(row)
+            row_copy["json_path"] = str(resolved_json)
+            power_csv_raw = str(row_copy.get("power_csv_path", "")).strip()
+            resolved_power_csv = _resolve_existing_path(power_csv_raw, base_dir)
+            if resolved_power_csv is not None:
+                row_copy["power_csv_path"] = str(resolved_power_csv)
+            rows.append(row_copy)
     return rows
 
 
@@ -451,11 +499,13 @@ def _create_train_val_test_split(
 def run_prepare_experimental_manifest(
     *,
     pair_manifest_csv: str,
-    out_dir: str = "results/experimental_continuous_v1",
+    out_dir: str = "results/experimental_continuous_v1_gru_all",
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
     seed: int = 42,
     min_traces_per_config: int = 2,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     """
     Prepare experimental manifest from Stage0 pair manifest.
@@ -479,7 +529,24 @@ def run_prepare_experimental_manifest(
     _ensure_dir(splits_dir)
     _ensure_dir(norms_dir)
 
-    pairs = _load_pair_manifest_csv(pair_manifest_csv)
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
+    pair_policy_result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=True,
+    )
+
+    pairs = _load_pair_manifest_csv(
+        pair_manifest_csv,
+        allowed_pair_map=dict(pair_policy_result.pair_map),
+    )
     grouped = _group_pairs_by_config(pairs)
 
     manifest_configs: Dict[str, Dict[str, object]] = {}
@@ -490,6 +557,7 @@ def run_prepare_experimental_manifest(
         pair_keys: List[str] = []
         rates: List[str] = []
         skipped = 0
+        skipped_by_reason: Dict[str, int] = defaultdict(int)
         errors: List[str] = []
 
         for pair in config_pairs:
@@ -499,26 +567,38 @@ def run_prepare_experimental_manifest(
             rate = pair.get("rate", "")
             tp = int(pair.get("tensor_parallelism", 1))
 
-            if not (power_csv and json_path and os.path.exists(power_csv) and os.path.exists(json_path)):
+            if not (
+                power_csv
+                and json_path
+                and os.path.exists(power_csv)
+                and os.path.exists(json_path)
+            ):
                 skipped += 1
+                skipped_by_reason["missing_source_files"] += 1
                 continue
 
             power_data = _parse_power_csv(power_csv, tensor_parallelism=tp)
             if power_data is None:
                 errors.append(f"power_parse_failed:{pair_key}")
                 skipped += 1
+                skipped_by_reason["power_parse_failed"] += 1
                 continue
 
-            request_data = _parse_request_json(json_path)
+            request_data, request_reason = _parse_request_json(
+                json_path,
+                require_recorded_timestamps=require_recorded_timestamps,
+            )
             if request_data is None:
-                errors.append(f"json_parse_failed:{pair_key}")
+                errors.append(f"{request_reason}:{pair_key}")
                 skipped += 1
+                skipped_by_reason[str(request_reason)] += 1
                 continue
 
             aligned = _align_trace_to_grid(power_data, request_data)
             if aligned is None:
                 errors.append(f"alignment_failed:{pair_key}")
                 skipped += 1
+                skipped_by_reason["alignment_failed"] += 1
                 continue
 
             traces.append(aligned)
@@ -529,6 +609,9 @@ def run_prepare_experimental_manifest(
             "num_pairs": len(config_pairs),
             "num_traces": len(traces),
             "skipped": skipped,
+            "skipped_by_reason": {
+                str(k): int(v) for k, v in sorted(skipped_by_reason.items())
+            },
             "errors": errors[:10] if errors else [],
         }
 
@@ -594,11 +677,28 @@ def run_prepare_experimental_manifest(
             "num_test": len(split["test_indices"]),
         }
 
+    global_skipped_by_reason: Dict[str, int] = defaultdict(int)
+    for cfg_summary in processing_summary.values():
+        by_reason = cfg_summary.get("skipped_by_reason", {})
+        if not isinstance(by_reason, dict):
+            continue
+        for reason, count in by_reason.items():
+            try:
+                global_skipped_by_reason[str(reason)] += int(count)
+            except Exception:
+                continue
+
     manifest = {
         "schema_version": "experimental-continuous-v1",
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inputs": {
             "pair_manifest_csv": pair_manifest_csv,
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
+            "pair_manifest_policy_summary": dict(pair_policy_result.summary),
+            "pair_manifest_rejected_rows_captured": int(
+                len(pair_policy_result.rejected_rows)
+            ),
         },
         "defaults": {
             "out_dir": out_dir,
@@ -606,6 +706,7 @@ def run_prepare_experimental_manifest(
             "val_ratio": val_ratio,
             "seed": seed,
             "min_traces_per_config": min_traces_per_config,
+            "require_recorded_timestamps": bool(require_recorded_timestamps),
         },
         "summary": {
             "num_configs_total": len(grouped),
@@ -615,6 +716,16 @@ def run_prepare_experimental_manifest(
             "num_configs_skipped": sum(
                 1 for c in manifest_configs.values() if not c.get("written", False)
             ),
+            "num_pair_keys_kept": int(len(pair_policy_result.pair_map)),
+            "num_pair_rows_rejected": int(
+                pair_policy_result.summary.get("num_rows_rejected", 0)
+            ),
+            "pair_manifest_rejection_counts": dict(
+                pair_policy_result.summary.get("rejection_counts", {})
+            ),
+            "skipped_trace_reason_counts": {
+                str(k): int(v) for k, v in sorted(global_skipped_by_reason.items())
+            },
         },
         "configs": manifest_configs,
         "processing_summary": processing_summary,
@@ -637,8 +748,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--out-dir",
-        default="results/experimental_continuous_v1",
+        default="results/experimental_continuous_v1_gru_all",
         help="Output directory for experimental manifest and data",
+    )
+    parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+        help=(
+            "Request timestamp policy for pair-manifest JSON: "
+            "'recorded_only' (default) or 'allow_synthesized'."
+        ),
+    )
+    parser.add_argument(
+        "--allowed-json-prefix",
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+        help="Only include pair-manifest JSON rooted at this prefix.",
     )
     parser.add_argument(
         "--train-ratio",
@@ -676,6 +801,8 @@ def main() -> None:
         val_ratio=args.val_ratio,
         seed=args.seed,
         min_traces_per_config=args.min_traces,
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
     )
 
     print("[prepare_experimental_manifest] Summary:")

@@ -29,6 +29,14 @@ from model.classifiers.gmm_bigru import (
 )
 from model.classifiers.gru import GRUClassifier
 from model.classifiers.metrics import compute_power_metrics
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 
 AR1_MIN_RUN_LENGTH = 5
 AR1_PHI_THRESHOLD = 0.3
@@ -145,22 +153,24 @@ def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Option
     return None
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str,
+    allowed_json_prefix: str,
+) -> Dict[str, object]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=True,
+    )
+    return {
+        "pair_map": result.pair_map,
+        "summary": result.summary,
+        "rejected_rows": result.rejected_rows,
+    }
 
 
 def _build_requests_from_stage0_json(
@@ -169,6 +179,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -180,10 +191,12 @@ def _build_requests_from_stage0_json(
     output_lens = payload["output_lens"]
     n_base = int(min(len(input_lens), len(output_lens)))
     request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
+    if isinstance(request_timestamps_raw, list) and len(request_timestamps_raw) > 0:
         n = int(min(n_base, len(request_timestamps_raw)))
         request_timestamps = request_timestamps_raw[:n]
     else:
+        if bool(require_recorded_timestamps):
+            raise ValueError("request json missing arrays: ['request_timestamps']")
         n = int(n_base)
         synth = _synthesize_request_timestamps(payload, n)
         if synth is None:
@@ -649,7 +662,7 @@ def evaluate_from_artifacts(
     experimental_manifest: str = "results/experimental_continuous_v1_gru_all/manifest.json",
     throughput_db: str = "model/config/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    out_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
+    out_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
     config_ids: Optional[Sequence[str]] = None,
     num_seeds: int = 5,
     base_seed: int = 42,
@@ -658,11 +671,17 @@ def evaluate_from_artifacts(
     decode_mode: str = "stochastic",
     median_filter_window: int = 1,
     plots: bool = True,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
     if decode_mode not in {"stochastic", "argmax"}:
         raise ValueError(f"decode_mode must be one of {{'stochastic','argmax'}}; got {decode_mode}")
+    request_timestamp_policy = normalize_request_timestamp_policy(request_timestamp_policy)
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     run_manifest_payload = _load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -674,7 +693,20 @@ def evaluate_from_artifacts(
     experimental_base = str(Path(experimental_manifest).resolve().parent)
 
     throughput_payload = _load_json(throughput_db)
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_manifest_payload = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
+    pair_map = dict(pair_manifest_payload["pair_map"])
+    pair_policy_summary = dict(pair_manifest_payload["summary"])
+    pair_rejected_rows = list(pair_manifest_payload["rejected_rows"])
+    pair_reject_reason_by_key: Dict[str, str] = {}
+    for row in pair_rejected_rows:
+        key = str(row.get("pair_key", "")).strip()
+        reason = str(row.get("reason", "")).strip()
+        if key and reason and key not in pair_reject_reason_by_key:
+            pair_reject_reason_by_key[key] = reason
 
     requested = _parse_config_ids(config_ids)
     if requested:
@@ -692,6 +724,8 @@ def evaluate_from_artifacts(
     per_seed_rows: List[Dict[str, object]] = []
     per_trace_rows: List[Dict[str, object]] = []
     config_rows: List[Dict[str, object]] = []
+    pair_coverage_rows: List[Dict[str, object]] = []
+    missing_pair_rows: List[Dict[str, object]] = []
     config_results: Dict[str, Dict[str, object]] = {}
     seeds = [int(base_seed) + i for i in range(int(num_seeds))]
 
@@ -761,6 +795,43 @@ def evaluate_from_artifacts(
             if (not np.isfinite(dt)) or dt <= 0.0:
                 raise ValueError(f"invalid dt in dataset: {dt}")
             n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
+            in_bounds_test_indices = [idx for idx in test_indices if 0 <= idx < n_total]
+            num_pair_found = 0
+            num_pair_missing = 0
+            preflight_missing_reason_counts: Dict[str, int] = {}
+            for idx in in_bounds_test_indices:
+                pair_key = str(pair_key_arr[idx]).strip()
+                if pair_key in pair_map:
+                    num_pair_found += 1
+                else:
+                    num_pair_missing += 1
+                    reason = pair_reject_reason_by_key.get(
+                        pair_key,
+                        "pair_key_not_found_in_filtered_manifest",
+                    )
+                    preflight_missing_reason_counts[reason] = int(
+                        preflight_missing_reason_counts.get(reason, 0) + 1
+                    )
+                    missing_pair_rows.append(
+                        {
+                            "config_id": config_id,
+                            "trace_idx": int(idx),
+                            "pair_key": pair_key,
+                            "missing_reason": reason,
+                        }
+                    )
+            pair_coverage_rows.append(
+                {
+                    "config_id": config_id,
+                    "num_test_traces": int(len(test_indices)),
+                    "num_test_traces_in_bounds": int(len(in_bounds_test_indices)),
+                    "num_pair_keys_found": int(num_pair_found),
+                    "num_pair_keys_missing": int(num_pair_missing),
+                    "missing_reason_counts": json.dumps(
+                        preflight_missing_reason_counts, sort_keys=True
+                    ),
+                }
+            )
 
             training_power_traces: List[np.ndarray] = []
             training_labels_traces: List[np.ndarray] = []
@@ -838,6 +909,7 @@ def evaluate_from_artifacts(
                 raise ValueError("no valid test traces to evaluate")
 
             eval_trace_rows: List[Dict[str, object]] = []
+            trace_reason_counts: Dict[str, int] = {}
             representative_trace_idx = int(trace_records[0]["trace_idx"])
             representative_seed = int(seeds[0])
             representative_gt: Optional[np.ndarray] = None
@@ -848,13 +920,21 @@ def evaluate_from_artifacts(
                 pair_key = str(tr["pair_key"])
                 json_path = pair_map.get(pair_key)
                 if json_path is None:
+                    missing_reason = pair_reject_reason_by_key.get(
+                        pair_key,
+                        "pair_key_not_found_in_filtered_manifest",
+                    )
+                    reason_text = f"pair_key_not_found_in_pair_manifest:{missing_reason}"
+                    trace_reason_counts[reason_text] = int(
+                        trace_reason_counts.get(reason_text, 0) + 1
+                    )
                     per_trace_rows.append(
                         {
                             "config_id": config_id,
                             "trace_idx": trace_idx,
                             "pair_key": pair_key,
                             "status": "skipped",
-                            "reason": "pair_key_not_found_in_pair_manifest",
+                            "reason": reason_text,
                         }
                     )
                     continue
@@ -865,6 +945,7 @@ def evaluate_from_artifacts(
                         power_start_epoch_s=float(tr["power_start_epoch_s"]),
                         trace_duration_s=float((int(tr["num_points"]) + 1) * dt),
                         dt=dt,
+                        require_recorded_timestamps=require_recorded_timestamps,
                     )
                     feat = build_rollout_features_from_requests(
                         requests=requests,
@@ -958,18 +1039,25 @@ def evaluate_from_artifacts(
                         representative_gt = gt[: len(pred_by_seed[representative_seed])]
                         representative_pred = pred_by_seed[representative_seed]
                 except Exception as exc:
+                    reason_text = f"{type(exc).__name__}:{exc}"
+                    trace_reason_counts[reason_text] = int(
+                        trace_reason_counts.get(reason_text, 0) + 1
+                    )
                     per_trace_rows.append(
                         {
                             "config_id": config_id,
                             "trace_idx": trace_idx,
                             "pair_key": pair_key,
                             "status": "failed",
-                            "reason": f"{type(exc).__name__}:{exc}",
+                            "reason": reason_text,
                         }
                     )
 
             if len(eval_trace_rows) == 0:
-                raise ValueError("all test traces failed or were skipped")
+                raise ValueError(
+                    "all_test_traces_failed_or_skipped:"
+                    + json.dumps(trace_reason_counts, sort_keys=True)
+                )
 
             plot_paths: Dict[str, str] = {}
             ar1_params_plot_path = ""
@@ -1023,6 +1111,9 @@ def evaluate_from_artifacts(
                 "representative_seed": int(representative_seed),
                 "ar1_params_json": ar1_params_path,
                 "ar1_params_plot": ar1_params_plot_path,
+                "ar1_source": "estimated_from_train",
+                "phi_threshold": float(AR1_PHI_THRESHOLD),
+                "num_ar1_states": int(np.sum(phi_above_threshold)),
                 **plot_paths,
             }
             config_rows.append(cfg_row)
@@ -1107,6 +1198,9 @@ def evaluate_from_artifacts(
         "representative_seed",
         "ar1_params_json",
         "ar1_params_plot",
+        "ar1_source",
+        "phi_threshold",
+        "num_ar1_states",
         "overlay_plot",
     ]
     for r in config_rows:
@@ -1114,6 +1208,45 @@ def evaluate_from_artifacts(
             r.setdefault(f, "")
     config_csv = os.path.join(out_dir, "config_summary.csv")
     _write_csv(config_csv, config_rows, config_fields)
+
+    pair_coverage_fields = [
+        "config_id",
+        "num_test_traces",
+        "num_test_traces_in_bounds",
+        "num_pair_keys_found",
+        "num_pair_keys_missing",
+        "missing_reason_counts",
+    ]
+    for r in pair_coverage_rows:
+        for f in pair_coverage_fields:
+            r.setdefault(f, "")
+    pair_coverage_csv = os.path.join(out_dir, "pair_coverage_summary.csv")
+    _write_csv(pair_coverage_csv, pair_coverage_rows, pair_coverage_fields)
+
+    missing_pair_fields = [
+        "config_id",
+        "trace_idx",
+        "pair_key",
+        "missing_reason",
+    ]
+    for r in missing_pair_rows:
+        for f in missing_pair_fields:
+            r.setdefault(f, "")
+    missing_pair_csv = os.path.join(out_dir, "missing_pair_keys.csv")
+    _write_csv(missing_pair_csv, missing_pair_rows, missing_pair_fields)
+
+    timestamp_policy_summary_json = os.path.join(out_dir, "timestamp_policy_summary.json")
+    _write_json(
+        timestamp_policy_summary_json,
+        {
+            "schema_version": "request-data-policy-v1",
+            "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
+            "pair_manifest_summary": pair_policy_summary,
+            "num_rejected_rows_captured": int(len(pair_rejected_rows)),
+        },
+    )
 
     run_manifest_payload = {
         "schema_version": "continuous-v1-gmm-bigru-eval-run-v2",
@@ -1123,6 +1256,8 @@ def evaluate_from_artifacts(
             "experimental_manifest": experimental_manifest,
             "throughput_db": throughput_db,
             "pair_manifest_csv": pair_manifest_csv,
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
         },
         "defaults": {
             "out_dir": out_dir,
@@ -1136,6 +1271,8 @@ def evaluate_from_artifacts(
             "generation_mode": "ar1_thresholded",
             "phi_threshold": float(AR1_PHI_THRESHOLD),
             "min_run_length": int(AR1_MIN_RUN_LENGTH),
+            "timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
         },
         "summary": {
             "num_target_configs": int(len(targets)),
@@ -1147,6 +1284,9 @@ def evaluate_from_artifacts(
             "per_seed_metrics_csv": per_seed_csv,
             "per_trace_metrics_csv": per_trace_csv,
             "config_summary_csv": config_csv,
+            "pair_coverage_summary_csv": pair_coverage_csv,
+            "missing_pair_keys_csv": missing_pair_csv,
+            "timestamp_policy_summary_json": timestamp_policy_summary_json,
             "plots_dir": plots_dir,
             "ar1_params_dir": ar1_params_dir,
         },
@@ -1163,7 +1303,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1_gru_all/manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
-    parser.add_argument("--out-dir", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics")
+    parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument(
+        "--allowed-json-prefix",
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+    )
+    parser.add_argument("--out-dir", default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)
@@ -1182,6 +1331,8 @@ def main() -> None:
         experimental_manifest=args.experimental_manifest,
         throughput_db=args.throughput_db,
         pair_manifest_csv=args.pair_manifest_csv,
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
         out_dir=args.out_dir,
         config_ids=args.config_id,
         num_seeds=args.num_seeds,

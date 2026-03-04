@@ -2,6 +2,11 @@
 
 This directory contains the main command-line scripts for training, evaluating, and running inference with the GMM-BiGRU pipeline.
 
+Default data policy for evaluation/figure scripts is strict ShareGPT recorded timestamps:
+- `--request-timestamp-policy recorded_only`
+- `--allowed-json-prefix data/sharegpt-benchmark`
+Use `--request-timestamp-policy allow_synthesized` only when you explicitly want synthetic timestamp fallback.
+
 ## Primary Scripts
 
 ### `train_gmm_bigru.py` - Model Training
@@ -10,25 +15,27 @@ Train GMM and BiGRU classifier for power state prediction.
 
 ```bash
 python -m model.scripts.train_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --out-dir results/continuous_v1_gmm_bigru/k10_f2 \
-    --num-components 10 \
-    --feature-set f2 \
-    --config-ids llama-3-8b_H100_tp1 llama-3-70b_H100_tp4
+    --manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --out-root results/continuous_v1_gmm_bigru_sharegpt_all \
+    --auto-k \
+    --max-k 12 \
+    --feature-set f2
 ```
 
 **Arguments:**
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--stage0-manifest` | Path to data manifest JSON | Required |
-| `--out-dir` | Output directory for artifacts | Required |
-| `--num-components` | Number of GMM components (K) | 10 |
+| `--manifest` | Path to experimental manifest JSON | `results/experimental_continuous_v1_gru_all/manifest.json` |
+| `--out-root` | Output root for artifacts | `results/continuous_v1_gmm_bigru_sharegpt_all` |
+| `--k` | Fixed number of GMM components (when `--auto-k` is off) | 10 |
+| `--auto-k` | Enable BIC-based K selection | False |
+| `--max-k` | Upper bound for auto-K search | 20 |
 | `--feature-set` | Feature set: f2 or f3 | f2 |
-| `--config-ids` | Specific configs to train (space-separated) | All |
-| `--hidden-size` | GRU hidden dimension | 64 |
-| `--num-layers` | Number of GRU layers | 2 |
-| `--epochs` | Training epochs | 100 |
+| `--config-id` | Specific config IDs (repeat flag) | All written configs |
+| `--hidden-dim` | GRU hidden dimension | 64 |
+| `--num-layers` | Number of GRU layers | 1 |
+| `--epochs` | Training epochs | 500 |
 | `--lr` | Learning rate | 1e-3 |
 | `--device` | Device: cuda, mps, or cpu | Auto-detect |
 
@@ -50,11 +57,12 @@ Evaluate trained models on held-out test data.
 
 ```bash
 python -m model.scripts.eval_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --checkpoint-dir results/continuous_v1_gmm_bigru/k10_f2/checkpoints \
-    --norm-dir results/continuous_v1_gmm_bigru/k10_f2/norm_params \
-    --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
-    --out-dir results/continuous_v1_gmm_bigru/k10_f2/eval_metrics \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --pair-manifest-csv results/stage0/pair_manifest.csv \
+    --request-timestamp-policy recorded_only \
+    --allowed-json-prefix data/sharegpt-benchmark \
+    --out-dir results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics \
     --num-seeds 5
 ```
 
@@ -62,14 +70,15 @@ python -m model.scripts.eval_gmm_bigru \
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--stage0-manifest` | Path to data manifest JSON | Required |
-| `--checkpoint-dir` | Directory with model checkpoints | Required |
-| `--norm-dir` | Directory with normalization params | Required |
-| `--gmm-dir` | Directory with GMM parameters | Required |
-| `--out-dir` | Output directory for metrics | Required |
+| `--run-manifest` | Trained artifact manifest | `results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json` |
+| `--experimental-manifest` | Experimental dataset manifest | `results/experimental_continuous_v1_gru_all/manifest.json` |
+| `--pair-manifest-csv` | Stage0 pair manifest | `results/stage0/pair_manifest.csv` |
+| `--request-timestamp-policy` | `recorded_only` or `allow_synthesized` | `recorded_only` |
+| `--allowed-json-prefix` | Allowed request JSON root | `data/sharegpt-benchmark` |
+| `--out-dir` | Output directory for metrics/artifacts | `results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics` |
 | `--num-seeds` | Number of random seeds for stochastic methods | 5 |
-| `--use-ar1` | Enable AR(1) smoothing | False |
-| `--use-ar1-thresh` | Enable AR(1) with idle thresholding | False |
+| `--decode-mode` | `stochastic` or `argmax` | `stochastic` |
+| `--no-plots` | Disable plot generation | False |
 
 **Output:**
 - `eval_metrics.csv` - Per-configuration metrics
@@ -87,7 +96,7 @@ python -m model.scripts.infer_gmm_bigru \
     --norm results/.../norm_params/llama-3-8b_H100_tp1.json \
     --gmm results/.../gmms/llama-3-8b_H100_tp1.json \
     --out-csv generated_power.csv \
-    --run-manifest results/stage0/manifest.json \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
     --throughput-db data/perf_model.csv
 ```
 
@@ -159,10 +168,12 @@ Generate Figure D1 as a held-out BiGRU sequence-classification comparison for `F
 
 ```bash
 python -m model.scripts.figure_d1_conditional_entropy \
-    --experimental-manifest results/experimental_continuous_v1/manifest.json \
-    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
     --pair-manifest-csv results/stage0/pair_manifest.csv \
     --throughput-db model/config/throughput_database.json \
+    --request-timestamp-policy recorded_only \
+    --allowed-json-prefix data/sharegpt-benchmark \
     --use-legacy-f6-init true
 ```
 
@@ -211,16 +222,19 @@ python -m model.training_data.utils.prepare_training_data \
 
 # 2. Train models
 python -m model.scripts.train_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --out-dir results/my_experiment
+    --manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --out-root results/continuous_v1_gmm_bigru_sharegpt_all \
+    --auto-k \
+    --max-k 12
 
 # 3. Evaluate
 python -m model.scripts.eval_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --checkpoint-dir results/my_experiment/checkpoints \
-    --norm-dir results/my_experiment/norm_params \
-    --gmm-dir results/my_experiment/gmms \
-    --out-dir results/my_experiment/eval_metrics
+    --run-manifest results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1_gru_all/manifest.json \
+    --pair-manifest-csv results/stage0/pair_manifest.csv \
+    --request-timestamp-policy recorded_only \
+    --allowed-json-prefix data/sharegpt-benchmark \
+    --out-dir results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics
 
 # 4. Generate traces for new workloads
 python -m model.scripts.infer_gmm_bigru \

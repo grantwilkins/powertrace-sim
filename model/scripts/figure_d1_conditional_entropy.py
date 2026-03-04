@@ -41,25 +41,25 @@ from scipy.spatial import cKDTree
 import torch
 
 from model.classifiers.gru import GRUClassifier
+from model.scripts.bic_configs import (
+    BIC_CONFIGS as SHARED_BIC_CONFIGS,
+)
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 
 # Keep this in sync with methods figure BIC policy.
 BIC_CONFIGS = {
-    "bic_config1": {
-        "config_id": "llama-3-8b_A100_tp1",
-        "title": "Llama-3.1-8B / A100 / TP=1",
-    },
-    "bic_config2": {
-        "config_id": "llama-3-8b_H100_tp2",
-        "title": "Llama-3.1-8B / H100 / TP=2",
-    },
-    "bic_config3": {
-        "config_id": "gpt-oss-120b_H100_tp8",
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
-    },
-    "bic_config4": {
-        "config_id": "deepseek-r1-distill-70b_H100_tp4",
-        "title": "DeepSeek-R1-Distill-70B / H100 / TP=4 (Dense)",
-    },
+    tag: {
+        "config_id": str(spec["config_id"]),
+        "title": str(spec.get("title", spec["config_id"])),
+    }
+    for tag, spec in SHARED_BIC_CONFIGS.items()
 }
 
 SUBSET_ORDER = ["A_t", "ΔA_t", "F2", "Full-6D"]
@@ -213,22 +213,20 @@ def deterministic_pairkey_json_path(config_id: str, pair_key: str) -> Optional[P
     return None
 
 
-def load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str,
+    allowed_json_prefix: str,
+) -> Tuple[Dict[str, str], Dict[str, object]]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map), dict(result.summary)
 
 
 def _synthesize_request_timestamps(payload: Mapping[str, object], n: int) -> Optional[List[float]]:
@@ -1198,6 +1196,8 @@ def run_d1_conditional_entropy(
     config_ids: Optional[str],
     seed: int,
     require_recorded_timestamps: bool,
+    request_timestamp_policy: str,
+    allowed_json_prefix: str,
     min_valid_traces_per_config: int,
     hidden_dim: int,
     num_layers: int,
@@ -1215,11 +1215,22 @@ def run_d1_conditional_entropy(
     labels = _determine_config_labels(config_list)
     resolved_device = _resolve_device(device)
     resolved_legacy_dirs = [str((Path(d) if Path(d).is_absolute() else (_repo_root() / d)).resolve()) for d in legacy_f6_weights_dirs]
+    request_timestamp_policy = normalize_request_timestamp_policy(
+        request_timestamp_policy
+    )
+    require_recorded_timestamps = bool(
+        require_recorded_timestamps
+        or request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     exp_manifest = _load_json(experimental_manifest)
     run_manifest_payload = _load_json(run_manifest)
     throughput_payload = _load_json(throughput_db)
-    pair_map = load_pair_manifest_map(pair_manifest_csv)
+    pair_map, pair_manifest_policy_summary = load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
 
     exp_cfgs = exp_manifest.get("configs", {})
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -1336,13 +1347,12 @@ def run_d1_conditional_entropy(
                     active = _extract_trace_row(active_arr, idx)
                     power_start_epoch_s = float(power_start_arr[idx])
 
-                    json_path: Optional[Path] = None
                     stage1 = pair_map.get(pair_key)
-                    if stage1 is not None:
-                        json_path = Path(stage1)
-                    if json_path is None or (not json_path.exists()):
-                        json_path = deterministic_pairkey_json_path(config_id, pair_key)
-                    if json_path is None or (not json_path.exists()):
+                    if stage1 is None:
+                        trace_reason_counts[split_name]["missing_request_json"] += 1
+                        continue
+                    json_path = Path(stage1)
+                    if not json_path.exists():
                         trace_reason_counts[split_name]["missing_request_json"] += 1
                         continue
 
@@ -1646,6 +1656,9 @@ def run_d1_conditional_entropy(
             "run_manifest": run_manifest,
             "pair_manifest_csv": pair_manifest_csv,
             "throughput_db": throughput_db,
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
+            "pair_manifest_policy_summary": pair_manifest_policy_summary,
             "config_ids_requested": config_list,
         },
         "config_policy": {
@@ -1656,6 +1669,8 @@ def run_d1_conditional_entropy(
         "trace_filter_policy": {
             "scope": "train_val_test_indices",
             "require_recorded_timestamps": bool(require_recorded_timestamps),
+            "request_timestamp_policy": request_timestamp_policy,
+            "allowed_json_prefix": allowed_json_prefix,
             "min_valid_traces_per_config": int(max(1, min_valid_traces_per_config)),
             "drop_on_missing_recorded_timestamps": bool(require_recorded_timestamps),
         },
@@ -1702,6 +1717,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--run-manifest", default=defaults["run_manifest"])
     p.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
     p.add_argument("--throughput-db", default=defaults["throughput_db"])
+    p.add_argument(
+        "--request-timestamp-policy",
+        type=str,
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+        help=(
+            "Policy for request timestamps from pair-manifest JSON: "
+            "'recorded_only' (default) or 'allow_synthesized'."
+        ),
+    )
+    p.add_argument(
+        "--allowed-json-prefix",
+        type=str,
+        default=DEFAULT_ALLOWED_JSON_PREFIX,
+        help="Only accept pair-manifest JSON paths under this prefix.",
+    )
     p.add_argument("--config-ids", default=None, help="Comma-separated config IDs. Defaults to methods BIC set.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
@@ -1748,6 +1779,8 @@ def main() -> None:
         config_ids=args.config_ids,
         seed=int(args.seed),
         require_recorded_timestamps=(str(args.require_recorded_timestamps).lower() == "true"),
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
         min_valid_traces_per_config=int(args.min_valid_traces_per_config),
         hidden_dim=int(args.hidden_dim),
         num_layers=int(args.num_layers),

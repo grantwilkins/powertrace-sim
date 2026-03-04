@@ -30,6 +30,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+)
+
 CONFIG_ID_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
 METHOD_LABEL_MAP = {
@@ -390,6 +396,8 @@ def generate_baselines_node_table(
     splitwise_source_model: str = "llama2-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: int = 4,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if recompute_node_metrics:
         from scripts.eval.run_baselines_node import run_baselines_node
@@ -414,6 +422,8 @@ def generate_baselines_node_table(
             splitwise_source_model=str(splitwise_source_model),
             splitwise_source_hardware=str(splitwise_source_hardware),
             splitwise_source_tp=int(splitwise_source_tp),
+            request_timestamp_policy=str(request_timestamp_policy),
+            allowed_json_prefix=str(allowed_json_prefix),
         )
 
     rows_all = _load_rows(node_metrics_csv)
@@ -612,6 +622,12 @@ def main() -> None:
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
+    parser.add_argument(
         "--ar1-params-dir",
         default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
     )
@@ -670,6 +686,8 @@ def main() -> None:
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
+        request_timestamp_policy=str(args.request_timestamp_policy),
+        allowed_json_prefix=str(args.allowed_json_prefix),
     )
 
     print("[generate_baselines_node_table] Done")

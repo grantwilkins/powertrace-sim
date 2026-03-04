@@ -86,14 +86,15 @@ EXCLUDED_HARDWARE_TP = [
 # These can be overridden via CLI or by pointing to kauto_max12_f2 runs
 DEFAULT_INPUT_DIRS = {
     "iid": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1/eval_metrics",
+    # AR(1) thresholded is the canonical AR(1)-enabled run.
+    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
     "ar1_thresh": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
 }
 
 # Alternative auto-K directories (use these when running with --auto-k results)
 AUTOK_INPUT_DIRS = {
     "iid": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1/eval_metrics",
+    "ar1": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
     "ar1_thresh": "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics",
 }
 
@@ -188,7 +189,7 @@ def load_k_values_from_manifest(eval_metrics_dir: str) -> Dict[str, int]:
 
     Args:
         eval_metrics_dir: Path to eval_metrics directory
-            (e.g., "results/continuous_v1_gmm_bigru/kauto_max20_f2/eval_metrics")
+            (e.g., "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/eval_metrics")
 
     Returns:
         Dict mapping config_id -> K value
@@ -935,7 +936,7 @@ def main():
         "--use-auto-k",
         action="store_true",
         help=(
-            "Use auto-K evaluation directories (kauto_max20_f2) instead of fixed K. "
+            "Use auto-K evaluation directories (kauto_max12_f2) instead of fixed K. "
             "Reports K values used per model in the summary."
         ),
     )
@@ -968,9 +969,14 @@ def main():
     print("Loading per-seed metrics...")
     dfs_per_seed = []
     enforce_request_timestamp_filter = not bool(args.allow_missing_request_timestamps)
+    seen_csv_paths: set[str] = set()
 
     for mode, dir_path in input_dirs.items():
         csv_path = os.path.join(dir_path, "per_seed_metrics.csv")
+        csv_key = os.path.abspath(csv_path)
+        if csv_key in seen_csv_paths:
+            print(f"Skipping duplicate source for mode={mode}: {csv_path}")
+            continue
         if not os.path.exists(csv_path):
             print(f"Warning: Skipping {mode}, file not found: {csv_path}")
             continue
@@ -982,6 +988,7 @@ def main():
         )
         print(f"  Loaded {len(df)} per-seed rows from {mode}")
         dfs_per_seed.append(df)
+        seen_csv_paths.add(csv_key)
 
     if not dfs_per_seed:
         print("Error: No input files found!")

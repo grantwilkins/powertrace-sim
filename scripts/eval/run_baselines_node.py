@@ -25,6 +25,14 @@ if str(REPO_ROOT) not in sys.path:
 
 from model.classifiers.gru import GRUClassifier
 from model.classifiers.metrics import compute_power_metrics
+from model.scripts.request_data_policy import (
+    DEFAULT_ALLOWED_JSON_PREFIX,
+    DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    REQUEST_TIMESTAMP_POLICIES,
+    load_pair_manifest_map_with_policy,
+    normalize_request_timestamp_policy,
+    request_timestamp_policy_requires_recorded,
+)
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
     load_gmm_params_json_dict,
@@ -322,6 +330,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -334,10 +343,12 @@ def _build_requests_from_stage0_json(
     n_base = int(min(len(input_lens), len(output_lens)))
 
     request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
+    if isinstance(request_timestamps_raw, list) and len(request_timestamps_raw) > 0:
         n = int(min(n_base, len(request_timestamps_raw)))
         request_timestamps = request_timestamps_raw[:n]
     else:
+        if bool(require_recorded_timestamps):
+            raise ValueError("request json missing arrays: ['request_timestamps']")
         n = int(n_base)
         synth = _synthesize_request_timestamps(payload, n)
         if synth is None:
@@ -480,22 +491,20 @@ def _load_model(
     return model
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
+def _load_pair_manifest_map(
+    pair_manifest_csv: str,
+    *,
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
+) -> Dict[str, str]:
+    result = load_pair_manifest_map_with_policy(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+        resolve_existing_path_fn=_resolve_existing_path,
+        include_rejected_rows=False,
+    )
+    return dict(result.pair_map)
 
 
 def _load_or_estimate_ar1_params(
@@ -611,6 +620,8 @@ def run_baselines_node(
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: int = 4,
     splitwise_calibration_mode: str = "train_phase_matched_v1",
+    request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
+    allowed_json_prefix: str = DEFAULT_ALLOWED_JSON_PREFIX,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
@@ -620,6 +631,10 @@ def run_baselines_node(
         raise ValueError("ours_logit_temperature must be > 0")
     if int(splitwise_source_tp) != 4:
         raise ValueError("splitwise_source_tp must be 4 for 70B TP4-only comparison.")
+    request_timestamp_policy = normalize_request_timestamp_policy(request_timestamp_policy)
+    require_recorded_timestamps = bool(
+        request_timestamp_policy_requires_recorded(request_timestamp_policy)
+    )
 
     run_manifest_payload = _load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -630,7 +645,11 @@ def run_baselines_node(
     experimental_payload = _load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
     throughput_payload = _load_json(throughput_db)
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    pair_map = _load_pair_manifest_map(
+        pair_manifest_csv,
+        request_timestamp_policy=request_timestamp_policy,
+        allowed_json_prefix=allowed_json_prefix,
+    )
     parsed_targets = _parse_config_ids(config_ids) or list(DEFAULT_CONFIG_IDS)
     targets = [cid for cid in parsed_targets if _is_70b_tp4_config(cid)]
     if len(targets) == 0:
@@ -796,6 +815,7 @@ def run_baselines_node(
                     power_start_epoch_s=float(power_start_arr[test_idx]),
                     trace_duration_s=float(power.size * dt),
                     dt=dt,
+                    require_recorded_timestamps=require_recorded_timestamps,
                 )
                 feat = build_rollout_features_from_requests(
                     requests=requests,
@@ -1021,6 +1041,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
+        "--request-timestamp-policy",
+        default=DEFAULT_REQUEST_TIMESTAMP_POLICY,
+        choices=list(REQUEST_TIMESTAMP_POLICIES),
+    )
+    parser.add_argument("--allowed-json-prefix", default=DEFAULT_ALLOWED_JSON_PREFIX)
+    parser.add_argument(
         "--ar1-params-dir",
         default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
         help="Directory containing AR(1) params JSON files (used only for MoE configs).",
@@ -1065,6 +1091,8 @@ def main() -> None:
         splitwise_source_model=args.splitwise_source_model,
         splitwise_source_hardware=args.splitwise_source_hardware,
         splitwise_source_tp=args.splitwise_source_tp,
+        request_timestamp_policy=args.request_timestamp_policy,
+        allowed_json_prefix=args.allowed_json_prefix,
     )
     print("[run_baselines_node] Done")
     print(f"  rows     : {result['num_rows']}")
