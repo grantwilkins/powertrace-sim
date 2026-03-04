@@ -10,6 +10,34 @@ import numpy as np
 
 
 class TestPrepareExperimentalManifest(unittest.TestCase):
+    def test_align_trace_rebases_out_of_range_request_timestamps(self):
+        """Recorded arrivals on a different clock should be rebased to power time."""
+        from model.training_data.utils.prepare_experimental_manifest import (
+            _align_trace_to_grid,
+        )
+
+        power_data = {
+            "timestamps": np.asarray([1000.00, 1000.25, 1000.50, 1000.75, 1001.00], dtype=np.float64),
+            "power": np.asarray([220.0, 240.0, 260.0, 240.0, 220.0], dtype=np.float64),
+        }
+        # Request timestamps are on a different epoch/clock origin.
+        request_data = {
+            "request_timestamps": [10.0, 10.3, 10.6],
+            "ttfts": [0.05, 0.05, 0.05],
+            "decode_times": [0.20, 0.20, 0.20],
+            "has_timestamps": True,
+            "input_lens": [100, 120, 140],
+            "output_lens": [20, 30, 40],
+        }
+
+        aligned = _align_trace_to_grid(power_data, request_data)
+        self.assertIsNotNone(aligned)
+        active = np.asarray(aligned["active_requests"], dtype=np.float64)
+        t_arrive = np.asarray(aligned["t_arrive_log"], dtype=np.float64)
+
+        self.assertGreater(float(np.max(active)), 0.0)
+        self.assertGreater(int(np.count_nonzero(t_arrive > 0.0)), 0)
+
     def test_parse_power_csv_aggregates_fixed_8_row_groups(self):
         """Raw nvidia-smi rows should aggregate by contiguous 8-row groups."""
         from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv

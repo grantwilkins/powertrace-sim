@@ -372,6 +372,8 @@ def _align_trace_to_grid(
     request_ts = np.asarray(request_data["request_timestamps"], dtype=np.float64)
     ttfts = np.asarray(request_data["ttfts"], dtype=np.float64)
     decode_times = np.asarray(request_data["decode_times"], dtype=np.float64)
+    dt_values = np.diff(timestamps)
+    dt = float(np.median(dt_values)) if len(dt_values) > 0 else 0.25
 
     if not request_data.get("has_timestamps", False):
         power_start = float(timestamps[0])
@@ -385,15 +387,22 @@ def _align_trace_to_grid(
             request_ts = np.array([power_start + duration / 2])
         else:
             request_ts = np.array([])
+    elif request_ts.size > 0:
+        # Some benchmark JSONs use a different clock origin than nvidia-smi.
+        # If arrivals fall well outside the power window, rebase to preserve
+        # measured inter-arrival structure while aligning to power start.
+        power_start = float(timestamps[0]) + float(power_start_offset_s)
+        trace_duration = float(timestamps[-1] - timestamps[0])
+        arrivals = request_ts - power_start
+        if float(np.min(arrivals)) < -float(dt) or float(np.max(arrivals)) > trace_duration + float(dt):
+            arrivals = arrivals - float(np.min(arrivals))
+            request_ts = power_start + arrivals
 
     active = _compute_active_requests(timestamps, request_ts, ttfts, decode_times)
     t_arrive_log = _compute_t_arrive_log(timestamps, request_ts)
 
     if not (np.all(np.isfinite(power)) and np.all(np.isfinite(active))):
         return None
-
-    dt_values = np.diff(timestamps)
-    dt = float(np.median(dt_values)) if len(dt_values) > 0 else 0.25
 
     return {
         "power": power,

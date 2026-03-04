@@ -44,9 +44,9 @@ COLOR_LIGHT_GRAY = "#bdc3c7"
 
 BIC_CONFIGS = {
     "bic_config1": {
-        "config_id": "llama-3-8b_A100_tp1",
-        "title": "Llama-3.1-8B / A100 / TP=1",
-        "legend": "Llama A100 TP1",
+        "config_id": "llama-3-8b_H100_tp1",
+        "title": "Llama-3.1-8B / H100 / TP=1",
+        "legend": "Llama H100 TP1",
     },
     "bic_config2": {
         "config_id": "llama-3-8b_H100_tp2",
@@ -54,9 +54,9 @@ BIC_CONFIGS = {
         "legend": "Llama H100 TP2",
     },
     "bic_config3": {
-        "config_id": "gpt-oss-120b_H100_tp8",
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
-        "legend": "GPT-OSS H100 TP8",
+        "config_id": "gpt-oss-120b_A100_tp4",
+        "title": "GPT-OSS-120B / A100 / TP=4 (MoE Proxy)",
+        "legend": "GPT-OSS A100 TP4",
     },
     "bic_config4": {
         "config_id": "deepseek-r1-distill-70b_H100_tp4",
@@ -77,20 +77,20 @@ AT_OVERLAY_RATE = (
 # None means use the full trace for A_t overlay.
 AT_OVERLAY_WINDOW_SECONDS: Optional[float] = None
 
-MOE_PROXY_CONFIG_ID = "gpt-oss-120b_H100_tp8"
+MOE_PROXY_CONFIG_ID = "gpt-oss-120b_A100_tp4"
 MOE_PROXY_RATE = 1.0
 DEEPSEEK_DENSE_CONFIG_ID = "deepseek-r1-distill-70b_H100_tp4"
 
 GMM_STRUCTURE_CONFIGS = {
     "dense": {
-        "config_id": "llama-3-8b_A100_tp1",
+        "config_id": "llama-3-8b_H100_tp1",
         "trace_idx": 16,
         "title": "Llama-3.1-8B / A100 / TP=1",
     },
     "moe": {
-        "config_id": "gpt-oss-120b_H100_tp8",
+        "config_id": "gpt-oss-120b_A100_tp4",
         "trace_idx": 19,
-        "title": "GPT-OSS-120B / H100 / TP=8 (MoE Proxy)",
+        "title": "GPT-OSS-120B / A100 / TP=4 (MoE Proxy)",
     },
 }
 
@@ -156,10 +156,13 @@ def _read_csv_rows(path: str | Path) -> List[Dict[str, str]]:
 
 
 def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
+    path_text = str(path_str).strip()
+    if path_text == "":
+        return None
+    raw = Path(path_text)
     if raw.is_absolute():
         return str(raw) if raw.exists() else None
-    local = Path(path_str)
+    local = Path(path_text)
     if local.exists():
         return str(local)
     from_base = Path(base_dir) / raw
@@ -2045,13 +2048,20 @@ class MethodsFigureGenerator:
                 )["trace_idx"]
             ),
         }
-        moe_trace_idx = int(
-            select_trace_by_best_median_nrmse(
-                self.per_trace_rows,
-                config_id=self.moe_proxy_config_id,
-                rate=float(self.moe_proxy_rate),
+        moe_trace_idx: Optional[int] = None
+        moe_trace_idx_method = "best_median_nrmse_requested_config_rate"
+        try:
+            moe_trace_idx = int(
+                select_trace_by_best_median_nrmse(
+                    self.per_trace_rows,
+                    config_id=self.moe_proxy_config_id,
+                    rate=float(self.moe_proxy_rate),
+                )
             )
-        )
+        except ValueError:
+            moe_trace_idx_method = (
+                "missing_per_trace_candidates_for_requested_config_rate"
+            )
         dense_overlay_seed_by_tag: Dict[str, int] = {}
         dense_overlay_seed_method_by_tag: Dict[str, str] = {}
         for tag, trace_idx in dense_overlay_trace_by_tag.items():
@@ -2087,18 +2097,22 @@ class MethodsFigureGenerator:
                     "fallback_default_seed_no_eval_rows"
                 )
 
-        try:
-            moe_seed_rate_1 = int(
-                select_seed_nearest_median_nrmse(
-                    self.per_seed_ar1_rows,
-                    config_id=self.moe_proxy_config_id,
-                    trace_idx=int(moe_trace_idx),
+        if moe_trace_idx is not None:
+            try:
+                moe_seed_rate_1 = int(
+                    select_seed_nearest_median_nrmse(
+                        self.per_seed_ar1_rows,
+                        config_id=self.moe_proxy_config_id,
+                        trace_idx=int(moe_trace_idx),
+                    )
                 )
-            )
-            moe_seed_rate_1_method = "nearest_median_nrmse"
-        except ValueError:
+                moe_seed_rate_1_method = "nearest_median_nrmse"
+            except ValueError:
+                moe_seed_rate_1 = int(DEFAULT_SIM_SEED)
+                moe_seed_rate_1_method = "fallback_default_seed_no_eval_rows"
+        else:
             moe_seed_rate_1 = int(DEFAULT_SIM_SEED)
-            moe_seed_rate_1_method = "fallback_default_seed_no_eval_rows"
+            moe_seed_rate_1_method = "fallback_default_seed_missing_requested_moe_trace"
         helper_dense = {
             "dense_recorded_candidate_trace_indices_by_rate": dense_recorded_candidates_by_rate,
             "dense_trace_by_rate_best_median_nrmse": dense_trace_by_rate_best_nrmse,
@@ -2108,7 +2122,10 @@ class MethodsFigureGenerator:
             "dense_overlay_trace_by_tag": dense_overlay_trace_by_tag,
             "dense_overlay_seed_by_tag": dense_overlay_seed_by_tag,
             "dense_overlay_seed_method_by_tag": dense_overlay_seed_method_by_tag,
-            "moe_trace_idx_rate_1.0": int(moe_trace_idx),
+            "moe_trace_idx_rate_1.0": None
+            if moe_trace_idx is None
+            else int(moe_trace_idx),
+            "moe_trace_idx_rate_1.0_method": moe_trace_idx_method,
             "moe_seed_rate_1.0": int(moe_seed_rate_1),
             "moe_seed_rate_1.0_method": moe_seed_rate_1_method,
         }

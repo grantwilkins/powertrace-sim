@@ -1,12 +1,12 @@
 {
-  "active_mean": 0.0,
-  "active_std": 1e-06,
+  "active_mean": 1.5649538761397466,
+  "active_std": 2.2696199864015547,
   "config_id": "gpt-oss-120b_A100_tp4",
   "dt": 0.25,
   "power_max": 1348.9,
   "power_mean": 559.7634947334694,
   "power_min": 259.63,
   "power_std": 267.87046616338665,
-  "t_arrive_log_mean": 0.0,
-  "t_arrive_log_std": 1e-06
+  "t_arrive_log_mean": 0.12226982291369026,
+  "t_arrive_log_std": 0.32205473113684696
 }

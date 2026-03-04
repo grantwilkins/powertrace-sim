@@ -3446,6 +3446,6 @@
     "decode_fallback_policy": "constant_when_timestamps_missing_or_bins_not_selected",
     "min_bin_samples": 50
   },
-  "generated_at_utc": "2026-03-04T06:29:36Z",
+  "generated_at_utc": "2026-03-04T08:37:17Z",
   "schema_version": "stage0-throughput-v1"
 }
