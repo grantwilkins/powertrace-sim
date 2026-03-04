@@ -52,7 +52,9 @@ def _write_json(path: str, payload: Dict[str, object]) -> None:
         json.dump(payload, f, indent=2, sort_keys=True)
 
 
-def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]) -> None:
+def _write_csv(
+    path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]
+) -> None:
     _ensure_dir(os.path.dirname(path) or ".")
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(fieldnames))
@@ -164,7 +166,9 @@ def _extract_raw_trace(
         if t_arrive_log_arr is None:
             return None
         try:
-            t_arrive_log = np.asarray(t_arrive_log_arr[idx], dtype=np.float64).reshape(-1)
+            t_arrive_log = np.asarray(t_arrive_log_arr[idx], dtype=np.float64).reshape(
+                -1
+            )
         except Exception:
             return None
         if t_arrive_log.size < 2:
@@ -178,7 +182,9 @@ def _extract_raw_trace(
         "pair_key": pair_key,
         "power_w": power.astype(np.float64),
         "active_requests": active.astype(np.float64),
-        "t_arrive_log": t_arrive_log.astype(np.float64) if t_arrive_log is not None else None,
+        "t_arrive_log": t_arrive_log.astype(np.float64)
+        if t_arrive_log is not None
+        else None,
     }
 
 
@@ -214,9 +220,15 @@ def load_config_data(
     manifest_dir: str,
     feature_set: str,
 ) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
-    dataset_path = _resolve_existing_path(str(config_manifest_entry.get("dataset_npz", "")), manifest_dir)
-    split_path = _resolve_existing_path(str(config_manifest_entry.get("split_json", "")), manifest_dir)
-    norm_path = _resolve_existing_path(str(config_manifest_entry.get("norm_params_json", "")), manifest_dir)
+    dataset_path = _resolve_existing_path(
+        str(config_manifest_entry.get("dataset_npz", "")), manifest_dir
+    )
+    split_path = _resolve_existing_path(
+        str(config_manifest_entry.get("split_json", "")), manifest_dir
+    )
+    norm_path = _resolve_existing_path(
+        str(config_manifest_entry.get("norm_params_json", "")), manifest_dir
+    )
     if dataset_path is None:
         return None, "missing_dataset_npz"
     if split_path is None:
@@ -240,7 +252,9 @@ def load_config_data(
             pair_key = (
                 np.asarray(data["pair_key"], dtype=object)
                 if "pair_key" in data
-                else np.asarray([f"trace-{i}" for i in range(len(data["power"]))], dtype=object)
+                else np.asarray(
+                    [f"trace-{i}" for i in range(len(data["power"]))], dtype=object
+                )
             )
             power = np.asarray(data["power"], dtype=object)
             active = np.asarray(data["active_requests"], dtype=object)
@@ -305,10 +319,22 @@ def _compute_delta_stats(
     feature_set: str,
 ) -> Tuple[Optional[Tuple[float, float]], Optional[str]]:
     tmp_norm = {
-        "active_mean": float(source_norm.get("active_mean", source_norm.get("A_mean", 0.0))),
-        "active_std": float(source_norm.get("active_std", source_norm.get("A_std", 1.0))),
-        "t_arrive_log_mean": float(source_norm.get("t_arrive_log_mean", source_norm.get("T_arrive_log_mean", 0.0))),
-        "t_arrive_log_std": float(source_norm.get("t_arrive_log_std", source_norm.get("T_arrive_log_std", 1.0))),
+        "active_mean": float(
+            source_norm.get("active_mean", source_norm.get("A_mean", 0.0))
+        ),
+        "active_std": float(
+            source_norm.get("active_std", source_norm.get("A_std", 1.0))
+        ),
+        "t_arrive_log_mean": float(
+            source_norm.get(
+                "t_arrive_log_mean", source_norm.get("T_arrive_log_mean", 0.0)
+            )
+        ),
+        "t_arrive_log_std": float(
+            source_norm.get(
+                "t_arrive_log_std", source_norm.get("T_arrive_log_std", 1.0)
+            )
+        ),
         "delta_A_mean": 0.0,
         "delta_A_std": 1.0,
     }
@@ -319,7 +345,9 @@ def _compute_delta_stats(
         t_log = tr.get("t_arrive_log")
         built = build_features_from_active(
             active_requests=active,
-            t_arrive_log=np.asarray(t_log, dtype=np.float64) if t_log is not None else None,
+            t_arrive_log=np.asarray(t_log, dtype=np.float64)
+            if t_log is not None
+            else None,
             norm=tmp_norm,
             feature_set=feature_set,
             max_length=int(max(0, power.size - 1)),
@@ -352,7 +380,9 @@ def _prepare_split(
         t_log = tr.get("t_arrive_log")
         built = build_features_from_active(
             active_requests=active,
-            t_arrive_log=np.asarray(t_log, dtype=np.float64) if t_log is not None else None,
+            t_arrive_log=np.asarray(t_log, dtype=np.float64)
+            if t_log is not None
+            else None,
             norm=norm,
             feature_set=feature_set,
             max_length=int(max(0, power.size - 1)),
@@ -445,7 +475,10 @@ def _select_optimal_k(
     if len(sorted_ks) >= 2:
         max_tested_k = sorted_ks[-1]
         second_max_k = sorted_ks[-2]
-        if best_k == max_tested_k and valid_scores[max_tested_k] < valid_scores[second_max_k]:
+        if (
+            best_k == max_tested_k
+            and valid_scores[max_tested_k] < valid_scores[second_max_k]
+        ):
             reason = f"bic_minimum_at_max_k={best_k}_may_need_higher"
         else:
             reason = f"bic_minimum_at_k={best_k}"
@@ -463,7 +496,7 @@ def train_one_config(
     input_dim: int = 2,
     hidden_dim: int = 64,
     num_layers: int = 1,
-    n_epochs: int = 500,
+    n_epochs: int = 1000,
     lr: float = 1e-3,
     patience: int = 50,
     scheduler_patience: int = 20,
@@ -509,8 +542,12 @@ def train_one_config(
         model.train()
         train_losses: List[float] = []
         for tr in config_data["train"]:
-            x = torch.from_numpy(np.asarray(tr["features_norm"], dtype=np.float32)).to(resolved_device)
-            y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(resolved_device)
+            x = torch.from_numpy(np.asarray(tr["features_norm"], dtype=np.float32)).to(
+                resolved_device
+            )
+            y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(
+                resolved_device
+            )
             if x.ndim != 2 or y.ndim != 1:
                 continue
             if len(x) == 0 or len(y) != len(x):
@@ -537,8 +574,12 @@ def train_one_config(
         val_losses: List[float] = []
         with torch.no_grad():
             for tr in config_data["val"]:
-                x = torch.from_numpy(np.asarray(tr["features_norm"], dtype=np.float32)).to(resolved_device)
-                y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(resolved_device)
+                x = torch.from_numpy(
+                    np.asarray(tr["features_norm"], dtype=np.float32)
+                ).to(resolved_device)
+                y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(
+                    resolved_device
+                )
                 if x.ndim != 2 or y.ndim != 1:
                     continue
                 if len(x) == 0 or len(y) != len(x):
@@ -583,7 +624,9 @@ def train_one_config(
                 _ensure_dir(os.path.dirname(checkpoint_path) or ".")
                 torch.save(model.state_dict(), checkpoint_path)
             else:
-                best_state = {k0: v.detach().cpu().clone() for k0, v in model.state_dict().items()}
+                best_state = {
+                    k0: v.detach().cpu().clone() for k0, v in model.state_dict().items()
+                }
         else:
             patience_counter += 1
             if patience_counter >= int(max(1, patience)):
@@ -592,7 +635,9 @@ def train_one_config(
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         try:
-            state = torch.load(checkpoint_path, map_location=resolved_device, weights_only=True)
+            state = torch.load(
+                checkpoint_path, map_location=resolved_device, weights_only=True
+            )
         except TypeError:
             state = torch.load(checkpoint_path, map_location=resolved_device)
         model.load_state_dict(state)
@@ -634,7 +679,7 @@ def run_training_from_manifest(
     feature_set: str = "f2",
     hidden_dim: int = 64,
     num_layers: int = 1,
-    epochs: int = 500,
+    epochs: int = 1000,
     lr: float = 1e-3,
     patience: int = 50,
     scheduler_patience: int = 20,
@@ -676,7 +721,13 @@ def run_training_from_manifest(
                 if cid in config_map and bool(config_map[cid].get("written", False))
             ]
         else:
-            targets = sorted([cid for cid, entry in config_map.items() if bool(entry.get("written", False))])
+            targets = sorted(
+                [
+                    cid
+                    for cid, entry in config_map.items()
+                    if bool(entry.get("written", False))
+                ]
+            )
 
     if auto_k:
         variant = f"kauto_max{int(max_k)}_{feature_set}"
@@ -705,7 +756,11 @@ def run_training_from_manifest(
             feature_set=feature_set,
         )
         if payload is None:
-            row = {"config_id": cid, "status": "skipped", "reason": err or "load_failed"}
+            row = {
+                "config_id": cid,
+                "status": "skipped",
+                "reason": err or "load_failed",
+            }
             summary_rows.append(row)
             config_results[cid] = dict(row)
             continue
@@ -737,13 +792,21 @@ def run_training_from_manifest(
             )
 
             norm_cfg = {
-                "active_mean": float(norm_payload.get("active_mean", norm_payload.get("A_mean", 0.0))),
-                "active_std": float(norm_payload.get("active_std", norm_payload.get("A_std", 1.0))),
+                "active_mean": float(
+                    norm_payload.get("active_mean", norm_payload.get("A_mean", 0.0))
+                ),
+                "active_std": float(
+                    norm_payload.get("active_std", norm_payload.get("A_std", 1.0))
+                ),
                 "t_arrive_log_mean": float(
-                    norm_payload.get("t_arrive_log_mean", norm_payload.get("T_arrive_log_mean", 0.0))
+                    norm_payload.get(
+                        "t_arrive_log_mean", norm_payload.get("T_arrive_log_mean", 0.0)
+                    )
                 ),
                 "t_arrive_log_std": float(
-                    norm_payload.get("t_arrive_log_std", norm_payload.get("T_arrive_log_std", 1.0))
+                    norm_payload.get(
+                        "t_arrive_log_std", norm_payload.get("T_arrive_log_std", 1.0)
+                    )
                 ),
                 "delta_A_mean": float(delta_mean),
                 "delta_A_std": float(delta_std),
@@ -775,7 +838,10 @@ def run_training_from_manifest(
                 raise ValueError("empty_test_after_feature_build")
 
             train_power = np.concatenate(
-                [np.asarray(tr["target_power_w"], dtype=np.float64).reshape(-1) for tr in train_prepared],
+                [
+                    np.asarray(tr["target_power_w"], dtype=np.float64).reshape(-1)
+                    for tr in train_prepared
+                ],
                 axis=0,
             )
             if train_power.size < int(k):
@@ -795,7 +861,9 @@ def run_training_from_manifest(
                     max_k=int(max_k),
                     min_k=4,
                 )
-                print(f"  [{cid}] auto-k selected K={selected_k} ({k_selection_reason})")
+                print(
+                    f"  [{cid}] auto-k selected K={selected_k} ({k_selection_reason})"
+                )
             else:
                 selected_k = int(k)
                 k_selection_reason = "fixed"
@@ -835,8 +903,12 @@ def run_training_from_manifest(
                 raise ValueError("empty_test_after_label_build")
 
             slug = _safe_slug(cid)
-            checkpoint_path = os.path.join(checkpoints_dir, f"{slug}_k{selected_k}_{feature_set}_best.pt")
-            curve_path = os.path.join(curves_dir, f"{slug}_k{selected_k}_{feature_set}.csv")
+            checkpoint_path = os.path.join(
+                checkpoints_dir, f"{slug}_k{selected_k}_{feature_set}_best.pt"
+            )
+            curve_path = os.path.join(
+                curves_dir, f"{slug}_k{selected_k}_{feature_set}.csv"
+            )
             norm_out_path = os.path.join(norms_dir, f"{slug}.json")
             gmm_out_path = os.path.join(gmms_dir, f"{slug}_k{selected_k}.json")
 
@@ -894,7 +966,9 @@ def run_training_from_manifest(
                 "num_train_traces": int(len(train_data)),
                 "num_val_traces": int(len(val_data)),
                 "num_test_traces": int(len(test_data)),
-                "num_train_points": int(np.sum([len(t["state_labels"]) for t in train_data])),
+                "num_train_points": int(
+                    np.sum([len(t["state_labels"]) for t in train_data])
+                ),
                 "gmm_aic": float(gmm_fit["aic"]),
                 "gmm_bic": float(gmm_fit["bic"]),
                 "bic_candidates": json.dumps(bic_scan, sort_keys=True),
@@ -1003,15 +1077,19 @@ def run_training_from_manifest(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Train continuous v1 GMM+BiGRU models from experimental manifest.")
-    parser.add_argument("--manifest", default="results/experimental_continuous_v1/manifest.json")
+    parser = argparse.ArgumentParser(
+        description="Train continuous v1 GMM+BiGRU models from experimental manifest."
+    )
+    parser.add_argument(
+        "--manifest", default="results/experimental_continuous_v1/manifest.json"
+    )
     parser.add_argument("--out-root", default="results/continuous_v1_gmm_bigru")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--feature-set", choices=["f2", "f3"], default="f2")
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--patience", type=int, default=50)
     parser.add_argument("--scheduler-patience", type=int, default=20)
@@ -1063,8 +1141,12 @@ def main() -> None:
     print("[train_gmm_bigru] Summary:")
     for k, v in run_manifest.get("summary", {}).items():
         print(f"  {k}: {v}")
-    print(f"  run_manifest: {os.path.join(run_manifest['defaults']['out_dir'], 'run_manifest.json')}")
-    print(f"  run_summary : {os.path.join(run_manifest['defaults']['out_dir'], 'run_summary.csv')}")
+    print(
+        f"  run_manifest: {os.path.join(run_manifest['defaults']['out_dir'], 'run_manifest.json')}"
+    )
+    print(
+        f"  run_summary : {os.path.join(run_manifest['defaults']['out_dir'], 'run_summary.csv')}"
+    )
 
 
 if __name__ == "__main__":

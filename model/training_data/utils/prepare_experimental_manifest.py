@@ -47,11 +47,19 @@ def _power_timestamp_to_epoch(ts_text: str) -> Optional[float]:
     )
     for fmt in formats:
         try:
-            return datetime.strptime(text, fmt).timestamp()
+            dt_obj = datetime.strptime(text, fmt)
+            # Power CSV timestamps are timezone-naive wall times.
+            # Interpret them as UTC so epochs are stable across host timezones.
+            return dt_obj.replace(tzinfo=timezone.utc).timestamp()
         except ValueError:
             pass
     try:
-        return datetime.fromisoformat(text.replace("/", "-")).timestamp()
+        dt_obj = datetime.fromisoformat(text.replace("/", "-"))
+        if dt_obj.tzinfo is None:
+            dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+        else:
+            dt_obj = dt_obj.astimezone(timezone.utc)
+        return dt_obj.timestamp()
     except ValueError:
         return None
 

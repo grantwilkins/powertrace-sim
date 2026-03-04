@@ -16,6 +16,7 @@ os.environ.setdefault("KMP_USE_SHM", "0")
 from model.classifiers.gru import GRUClassifier
 from model.scripts.eval_gmm_bigru import (
     _load_pair_manifest_map,
+    _estimate_request_alignment_offset_seconds,
     estimate_ar1_params,
     evaluate_from_artifacts,
     generate_gmm_bigru_trace_ar1_thresholded,
@@ -73,6 +74,18 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
         np.random.seed(0)
+
+    def test_estimate_request_alignment_offset_seconds(self):
+        power = np.asarray([120.0, 130.0, 360.0, 370.0, 380.0], dtype=np.float64)
+        a_t = np.asarray([0.0, 0.0, 0.0, 1.0, 1.0], dtype=np.float64)
+        offset = _estimate_request_alignment_offset_seconds(
+            power_trace=power,
+            a_t=a_t,
+            dt=0.25,
+            active_threshold=250.0,
+            window_bins=3,
+        )
+        self.assertAlmostEqual(float(offset), -0.25, places=9)
 
     def test_load_pair_manifest_map_rebases_foreign_absolute_paths(self):
         pair_key = "tp=1|rate=1|date=20260101-000000"

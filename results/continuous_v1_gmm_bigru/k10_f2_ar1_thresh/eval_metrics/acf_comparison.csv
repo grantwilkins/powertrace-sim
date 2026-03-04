@@ -1,7 +1,0 @@
-Config,i.i.d. ACF,AR1-v1 ACF,AR1-thresh ACF,φ_median,num_ar1_states,num_iid_states,Notes
-gpt-oss-20b_A100_tp2,-1.474243,0.458040,0.434886,0.737448,9,1,Improved vs i.i.d (+1.909)
-gpt-oss-120b_H100_tp8,0.366224,0.150095,0.415926,0.940712,10,0,Improved vs i.i.d (+0.050)
-gpt-oss-120b_A100_tp4,-3.524962,-0.278422,0.372116,0.853575,10,0,Improved vs i.i.d (+3.897)
-gpt-oss-20b_H100_tp1,-0.110540,0.562393,0.546813,0.874057,10,0,Improved vs i.i.d (+0.657)
-deepseek-r1-distill-8b_H100_tp8,0.923596,0.852236,0.909258,0.516591,7,3,Near baseline (-0.014)
-deepseek-r1-distill-70b_H100_tp4,0.975956,0.945627,0.754572,0.631598,9,1,Below i.i.d (-0.221)

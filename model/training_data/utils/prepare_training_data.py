@@ -318,7 +318,8 @@ def parse_power_csv(csv_path: str) -> pd.DataFrame:
                 break
         if not time_col:
             raise ValueError("No timestamp column found in power CSV")
-        df[time_col] = pd.to_datetime(df[time_col])
+        # Treat timezone-naive power timestamps as UTC for host-independent epochs.
+        df[time_col] = pd.to_datetime(df[time_col], utc=True)
         df.rename(columns={time_col: "timestamp"}, inplace=True)
 
         tp_match = re.search(r"_tp(\d+)", csv_path)
@@ -344,7 +345,7 @@ def parse_power_csv(csv_path: str) -> pd.DataFrame:
         ).reset_index(drop=True)
 
         result["timestamp"] = (
-            pd.to_datetime(result["timestamp"]).astype(np.int64) / 10**9
+            pd.to_datetime(result["timestamp"], utc=True).astype(np.int64) / 10**9
         )
 
         return result

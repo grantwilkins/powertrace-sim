@@ -11,6 +11,7 @@ import numpy as np
 
 from model.scripts.generate_methods_figures import (
     bic_sweep,
+    estimate_request_alignment_correction,
     normalize_rate,
     normalize_bic_values,
     rate_is_one,
@@ -102,6 +103,15 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         ]
         idx = select_trace_by_lowest_mean_power(traces, [0, 1, 2])
         self.assertEqual(idx, 2)
+
+    def test_estimate_request_alignment_correction(self):
+        power = np.asarray([120.0, 130.0, 140.0, 350.0, 360.0, 370.0], dtype=np.float64)
+        a_t = np.asarray([0.0, 0.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
+        corr = estimate_request_alignment_correction(power_trace=power, a_t=a_t, dt=0.25)
+        self.assertEqual(int(corr["power_spike_bin"]), 3)
+        self.assertEqual(int(corr["at_spike_bin_before"]), 2)
+        self.assertEqual(int(corr["offset_bins"]), 1)
+        self.assertAlmostEqual(float(corr["offset_seconds"]), 0.25, places=9)
 
 
 if __name__ == "__main__":

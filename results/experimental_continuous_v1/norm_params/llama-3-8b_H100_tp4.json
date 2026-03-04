@@ -1,12 +1,12 @@
 {
-  "active_mean": 1.046745586036928,
-  "active_std": 1.50201750275467,
+  "active_mean": 1.0477556462365156,
+  "active_std": 1.502528100055938,
   "config_id": "llama-3-8b_H100_tp4",
   "dt": 0.25,
   "power_max": 1390.0600000000002,
   "power_mean": 878.374398206133,
   "power_min": 478.57,
   "power_std": 363.2664461455069,
-  "t_arrive_log_mean": 0.1233562694249433,
-  "t_arrive_log_std": 0.323468124209304
+  "t_arrive_log_mean": 0.1233734935617814,
+  "t_arrive_log_std": 0.3234563746285462
 }

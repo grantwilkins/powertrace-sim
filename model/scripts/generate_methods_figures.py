@@ -590,6 +590,42 @@ def detect_first_at_activation(a_t: np.ndarray) -> int:
     return int(nonzero[0]) if nonzero.size > 0 else 0
 
 
+def estimate_request_alignment_correction(
+    *,
+    power_trace: np.ndarray,
+    a_t: np.ndarray,
+    dt: float,
+    idle_threshold_w: float = 150.0,
+    active_threshold_w: float = 250.0,
+    window_bins: int = 3,
+) -> Dict[str, Any]:
+    power_arr = np.asarray(power_trace, dtype=np.float64).reshape(-1)
+    a_arr = np.asarray(a_t, dtype=np.float64).reshape(-1)
+    power_spike_bin = detect_first_power_spike(
+        power_arr,
+        dt=float(dt),
+        idle_threshold=float(idle_threshold_w),
+        active_threshold=float(active_threshold_w),
+        window_bins=int(window_bins),
+    )
+    at_spike_bin = detect_first_at_activation(a_arr)
+    offset_bins = int(power_spike_bin - at_spike_bin)
+    return {
+        "power_spike_bin": int(power_spike_bin),
+        "at_spike_bin_before": int(at_spike_bin),
+        "offset_bins": int(offset_bins),
+        "offset_seconds": float(offset_bins) * float(dt),
+        "power_at_detected_spike_w": float(power_arr[power_spike_bin])
+        if power_spike_bin < int(power_arr.size)
+        else None,
+        "detection_thresholds": {
+            "idle_threshold_w": float(idle_threshold_w),
+            "active_threshold_w": float(active_threshold_w),
+            "window_bins": int(window_bins),
+        },
+    }
+
+
 def select_transition_dense_window(
     a_t: np.ndarray, window_bins: int
 ) -> Tuple[int, int]:
@@ -1366,12 +1402,51 @@ class MethodsFigureGenerator:
             require_recorded_timestamps=bool(require_recorded_timestamps),
         )
 
-    def _compute_logits_for_trace(
+    def _estimate_request_alignment_correction(
         self, tr: TraceData, require_recorded_timestamps: bool = False
     ) -> Dict[str, Any]:
-        art = self._resolve_run_artifacts(tr.config_id)
-        requests = self._load_requests_for_trace(
+        requests_initial = self._load_requests_for_trace(
             tr, require_recorded_timestamps=bool(require_recorded_timestamps)
+        )
+        t_horizon = int(max(0, len(tr.power) - 1))
+        art = self._resolve_run_artifacts(tr.config_id)
+        feat_initial = build_rollout_features_from_requests(
+            requests=requests_initial,
+            throughput=art["throughput"],
+            norm=art["norm_cfg"],
+            T=t_horizon,
+            dt=float(tr.dt),
+            feature_set=str(art["feature_set"]),
+        )
+        a_initial = np.asarray(feat_initial["A_raw"], dtype=np.float64).reshape(-1)
+        power_for_plot = np.asarray(tr.power[1:], dtype=np.float64).reshape(-1)
+        return estimate_request_alignment_correction(
+            power_trace=power_for_plot,
+            a_t=a_initial,
+            dt=float(tr.dt),
+            idle_threshold_w=150.0,
+            active_threshold_w=250.0,
+            window_bins=3,
+        )
+
+    def _compute_logits_for_trace(
+        self,
+        tr: TraceData,
+        require_recorded_timestamps: bool = False,
+        auto_align_requests: bool = False,
+    ) -> Dict[str, Any]:
+        art = self._resolve_run_artifacts(tr.config_id)
+        alignment_correction: Optional[Dict[str, Any]] = None
+        alignment_offset_s = 0.0
+        if bool(auto_align_requests):
+            alignment_correction = self._estimate_request_alignment_correction(
+                tr, require_recorded_timestamps=bool(require_recorded_timestamps)
+            )
+            alignment_offset_s = float(alignment_correction.get("offset_seconds", 0.0))
+        requests = self._load_requests_for_trace(
+            tr,
+            alignment_offset_s=float(alignment_offset_s),
+            require_recorded_timestamps=bool(require_recorded_timestamps),
         )
         t_horizon = int(max(0, len(tr.power) - 1))
         feat = build_rollout_features_from_requests(
@@ -1400,10 +1475,15 @@ class MethodsFigureGenerator:
             "requests_count": len(requests),
             "norm_cfg": art["norm_cfg"],
             "gmm_cfg": art["gmm_cfg"],
+            "alignment_correction": alignment_correction,
         }
 
     def _simulate_dense_trace(self, tr: TraceData, seed: int) -> Dict[str, Any]:
-        payload = self._compute_logits_for_trace(tr, require_recorded_timestamps=True)
+        payload = self._compute_logits_for_trace(
+            tr,
+            require_recorded_timestamps=True,
+            auto_align_requests=True,
+        )
         generated = generate_gmm_bigru_trace(
             logits=payload["logits"],
             gmm_params=payload["gmm_cfg"],
@@ -1432,10 +1512,15 @@ class MethodsFigureGenerator:
             "measured_w": gt,
             "simulated_w": pred,
             "requests_count": int(payload["requests_count"]),
+            "alignment_correction": payload.get("alignment_correction"),
         }
 
     def _simulate_moe_proxy_trace(self, tr: TraceData, seed: int) -> Dict[str, Any]:
-        payload = self._compute_logits_for_trace(tr, require_recorded_timestamps=True)
+        payload = self._compute_logits_for_trace(
+            tr,
+            require_recorded_timestamps=True,
+            auto_align_requests=True,
+        )
         slug = _safe_slug(tr.config_id)
         ar1_path = self.ar1_params_dir / f"{slug}_ar1_params.json"
         if not ar1_path.exists():
@@ -1484,6 +1569,7 @@ class MethodsFigureGenerator:
             "simulated_w": pred,
             "requests_count": int(payload["requests_count"]),
             "ar1_params_path": str(ar1_path),
+            "alignment_correction": payload.get("alignment_correction"),
         }
 
     def _generate_bic_figures(self) -> Dict[str, Any]:
@@ -1557,46 +1643,21 @@ class MethodsFigureGenerator:
         tr = self.get_trace(self.dense_config_id, trace_idx)
         selection_method = str(selection["selection_method"])
 
-        # STEP 1: Initial pass to detect offset
-        requests_initial = self._load_requests_for_trace(
+        alignment = self._estimate_request_alignment_correction(
             tr, require_recorded_timestamps=True
         )
-        t_horizon = int(max(0, len(tr.power) - 1))
+        offset_seconds = float(alignment.get("offset_seconds", 0.0))
 
-        # Compute initial A_t without offset correction
-        art = self._resolve_run_artifacts(tr.config_id)
-        feat_initial = build_rollout_features_from_requests(
-            requests=requests_initial,
-            throughput=art["throughput"],
-            norm=art["norm_cfg"],
-            T=t_horizon,
-            dt=float(tr.dt),
-            feature_set=str(art["feature_set"]),
-        )
-        a_initial = np.asarray(feat_initial["A_raw"], dtype=np.float64).reshape(-1)
-
-        # STEP 2: Detect offset
-        # Use tr.power[1:] to match what we plot (important for alignment!)
-        power_for_plot = np.asarray(tr.power[1:], dtype=np.float64).reshape(-1)
-        power_spike_bin = detect_first_power_spike(
-            power_for_plot,
-            dt=float(tr.dt),
-            idle_threshold=150.0,
-            active_threshold=200.0,
-            window_bins=3,
-        )
-        at_spike_bin = detect_first_at_activation(a_initial)
-        offset_bins = power_spike_bin - at_spike_bin
-        offset_seconds = float(offset_bins) * float(tr.dt)
-
-        # STEP 3: Reload requests with offset correction
+        # Reload requests with offset correction
         requests_corrected = self._load_requests_for_trace(
             tr,
             alignment_offset_s=offset_seconds,
             require_recorded_timestamps=True,
         )
 
-        # STEP 4: Compute corrected features (replaces original payload computation)
+        # Compute corrected features
+        t_horizon = int(max(0, len(tr.power) - 1))
+        art = self._resolve_run_artifacts(tr.config_id)
         feat_corrected = build_rollout_features_from_requests(
             requests=requests_corrected,
             throughput=art["throughput"],
@@ -1653,20 +1714,7 @@ class MethodsFigureGenerator:
             "window_start_idx": int(start),
             "window_end_idx": int(end),
             "requests_count": int(payload["requests_count"]),
-            "alignment_correction": {
-                "power_spike_bin": int(power_spike_bin),
-                "at_spike_bin_before": int(at_spike_bin),
-                "offset_bins": int(offset_bins),
-                "offset_seconds": float(offset_seconds),
-                "power_at_detected_spike_w": float(power_for_plot[power_spike_bin])
-                if power_spike_bin < len(power_for_plot)
-                else None,
-                "detection_thresholds": {
-                    "idle_threshold_w": 150.0,
-                    "active_threshold_w": 250.0,
-                    "window_bins": 3,
-                },
-            },
+            "alignment_correction": alignment,
             "file": str(out_path),
         }
 
@@ -1727,6 +1775,7 @@ class MethodsFigureGenerator:
                 "num_points": int(len(simulated["time_s"])),
                 "duration_seconds": float(len(simulated["time_s"]) * tr.dt),
                 "requests_count": int(simulated["requests_count"]),
+                "alignment_correction": simulated.get("alignment_correction"),
                 "measured_mean_power_w": mean_power,
                 "measured_frac_above_400w": frac_hi,
                 "measured_frac_below_150w": frac_idle,
@@ -1858,6 +1907,7 @@ class MethodsFigureGenerator:
             "num_points": int(len(simulated["time_s"])),
             "duration_seconds": float(len(simulated["time_s"]) * tr.dt),
             "requests_count": int(simulated["requests_count"]),
+            "alignment_correction": simulated.get("alignment_correction"),
             "ar1_params_path": str(simulated["ar1_params_path"]),
             "requested_config_id": str(self.moe_proxy_config_id),
             "requested_rate": float(self.moe_proxy_rate),

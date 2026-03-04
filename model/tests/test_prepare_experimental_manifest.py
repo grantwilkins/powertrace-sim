@@ -4,12 +4,26 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 
 
 class TestPrepareExperimentalManifest(unittest.TestCase):
+    def test_power_timestamp_parse_treats_naive_values_as_utc(self):
+        from model.training_data.utils.prepare_experimental_manifest import (
+            _power_timestamp_to_epoch,
+        )
+
+        ts_text = "2025/05/13 01:45:16.864"
+        expected = datetime(
+            2025, 5, 13, 1, 45, 16, 864000, tzinfo=timezone.utc
+        ).timestamp()
+        parsed = _power_timestamp_to_epoch(ts_text)
+        self.assertIsNotNone(parsed)
+        self.assertAlmostEqual(float(parsed), float(expected), places=6)
+
     def test_align_trace_rebases_out_of_range_request_timestamps(self):
         """Recorded arrivals on a different clock should be rebased to power time."""
         from model.training_data.utils.prepare_experimental_manifest import (

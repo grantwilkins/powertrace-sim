@@ -189,6 +189,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    alignment_offset_s: float = 0.0,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -217,6 +218,7 @@ def _build_requests_from_stage0_json(
         float(np.min(arrivals)) < -float(dt) or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
     ):
         arrivals = arrivals - float(np.min(arrivals))
+    arrivals = arrivals + float(alignment_offset_s)
 
     requests: List[Dict[str, float]] = []
     for i in range(n):
@@ -235,6 +237,47 @@ def _build_requests_from_stage0_json(
     if len(requests) == 0:
         raise ValueError("no valid requests after filtering")
     return requests
+
+
+def _detect_first_power_spike(
+    power_trace: np.ndarray,
+    *,
+    active_threshold: float = 250.0,
+    window_bins: int = 3,
+) -> int:
+    arr = np.asarray(power_trace, dtype=np.float64).reshape(-1)
+    if arr.size < int(window_bins):
+        return 0
+    w = int(max(1, window_bins))
+    for i in range(0, int(arr.size) - w + 1):
+        if np.all(arr[i : i + w] >= float(active_threshold)):
+            return int(i)
+    above = np.where(arr >= float(active_threshold))[0]
+    return int(above[0]) if above.size > 0 else 0
+
+
+def _detect_first_at_activation(a_t: np.ndarray) -> int:
+    arr = np.asarray(a_t, dtype=np.float64).reshape(-1)
+    nonzero = np.where(arr > 1e-9)[0]
+    return int(nonzero[0]) if nonzero.size > 0 else 0
+
+
+def _estimate_request_alignment_offset_seconds(
+    *,
+    power_trace: np.ndarray,
+    a_t: np.ndarray,
+    dt: float,
+    active_threshold: float = 250.0,
+    window_bins: int = 3,
+) -> float:
+    power_spike_bin = _detect_first_power_spike(
+        power_trace,
+        active_threshold=float(active_threshold),
+        window_bins=int(window_bins),
+    )
+    at_spike_bin = _detect_first_at_activation(a_t)
+    offset_bins = int(power_spike_bin - at_spike_bin)
+    return float(offset_bins) * float(dt)
 
 
 def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
@@ -880,6 +923,10 @@ def evaluate_from_artifacts(
                     continue
 
                 try:
+                    gt = np.asarray(tr["ground_truth"], dtype=np.float64).reshape(-1)
+                    if gt.size == 0:
+                        raise ValueError("empty ground truth trace")
+
                     requests = _build_requests_from_stage0_json(
                         json_path,
                         power_start_epoch_s=float(tr["power_start_epoch_s"]),
@@ -894,6 +941,34 @@ def evaluate_from_artifacts(
                         dt=dt,
                         feature_set=feature_set,
                     )
+
+                    # Align request schedule to measured power by matching
+                    # first sustained power activation and first A_t activation.
+                    a_raw_initial = np.asarray(feat.get("A_raw", []), dtype=np.float64).reshape(-1)
+                    offset_seconds = _estimate_request_alignment_offset_seconds(
+                        power_trace=gt,
+                        a_t=a_raw_initial,
+                        dt=float(dt),
+                        active_threshold=250.0,
+                        window_bins=3,
+                    )
+                    if abs(float(offset_seconds)) >= (0.5 * float(dt)):
+                        requests = _build_requests_from_stage0_json(
+                            json_path,
+                            power_start_epoch_s=float(tr["power_start_epoch_s"]),
+                            trace_duration_s=float((int(tr["num_points"]) + 1) * dt),
+                            dt=dt,
+                            alignment_offset_s=float(offset_seconds),
+                        )
+                        feat = build_rollout_features_from_requests(
+                            requests=requests,
+                            throughput=throughput,
+                            norm=norm_cfg,
+                            T=int(tr["num_points"]),
+                            dt=dt,
+                            feature_set=feature_set,
+                        )
+
                     features_norm = np.asarray(feat["features_norm"], dtype=np.float32)
                     if features_norm.ndim != 2 or features_norm.shape[1] != input_dim:
                         raise ValueError(f"rollout feature shape mismatch: {features_norm.shape} vs input_dim={input_dim}")
@@ -901,10 +976,6 @@ def evaluate_from_artifacts(
                     with torch.no_grad():
                         x = torch.from_numpy(features_norm).to(device=resolved_device, dtype=torch.float32).unsqueeze(0)
                         logits = model(x)[0].detach().cpu().numpy()
-
-                    gt = np.asarray(tr["ground_truth"], dtype=np.float64).reshape(-1)
-                    if gt.size == 0:
-                        raise ValueError("empty ground truth trace")
 
                     seed_rows: List[Dict[str, object]] = []
                     pred_by_seed: Dict[int, np.ndarray] = {}
