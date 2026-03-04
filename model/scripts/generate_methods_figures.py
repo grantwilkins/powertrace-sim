@@ -107,6 +107,38 @@ VALIDATION_PDFS = [
 K_VALUES = list(range(2, 21))
 DEFAULT_SIM_SEED = 42
 
+DEFAULT_EXPERIMENTAL_MANIFEST = (
+    "results/experimental_continuous_v1_gru_all/manifest.json"
+)
+DEFAULT_PAIR_MANIFEST_CSV = "results/stage0/pair_manifest.csv"
+DEFAULT_RUN_MANIFEST = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json"
+)
+DEFAULT_PER_TRACE_CSV = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv"
+)
+DEFAULT_PER_SEED_CSV = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv"
+)
+DEFAULT_PER_SEED_AR1_CSV = DEFAULT_PER_SEED_CSV
+DEFAULT_AR1_PARAMS_DIR = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params"
+)
+
+RECONFIG_EXPERIMENTAL_MANIFEST = (
+    "results/experimental_continuous_v1_gru_all_reconfig/manifest.json"
+)
+RECONFIG_PER_TRACE_CSV = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh_reconfig/eval_metrics/per_trace_metrics.csv"
+)
+RECONFIG_PER_SEED_CSV = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh_reconfig/eval_metrics/per_seed_metrics.csv"
+)
+RECONFIG_PER_SEED_AR1_CSV = RECONFIG_PER_SEED_CSV
+RECONFIG_AR1_PARAMS_DIR = (
+    "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh_reconfig/ar1_params"
+)
+
 
 @dataclass
 class TraceData:
@@ -387,6 +419,50 @@ def select_trace_by_best_median_nrmse(
         raise ValueError(f"No per-trace candidates for config={config_id}, rate={rate}")
     candidates.sort(key=lambda x: (x[1], x[0]))
     return int(candidates[0][0])
+
+
+def select_trace_by_best_median_nrmse_with_rate_fallback(
+    rows: Sequence[Mapping[str, str]],
+    *,
+    config_id: str,
+    preferred_rate: float,
+) -> Dict[str, object]:
+    requested: List[Tuple[int, float, float]] = []
+    any_rate: List[Tuple[int, float, float]] = []
+    for row in rows:
+        if str(row.get("config_id", "")) != str(config_id):
+            continue
+        if str(row.get("status", "")) != "evaluated":
+            continue
+        trace_idx = int(row.get("trace_idx", "-1"))
+        nrmse = float(row.get("nrmse_median", "nan"))
+        rate_val = normalize_rate(row.get("rate", ""))
+        if trace_idx < 0 or not np.isfinite(nrmse) or rate_val is None:
+            continue
+        any_rate.append((trace_idx, nrmse, float(rate_val)))
+        if rate_matches(rate_val, float(preferred_rate)):
+            requested.append((trace_idx, nrmse, float(rate_val)))
+    if requested:
+        requested.sort(key=lambda x: (x[1], x[0]))
+        trace_idx, _nrmse, selected_rate = requested[0]
+        return {
+            "trace_idx": int(trace_idx),
+            "selected_rate": float(selected_rate),
+            "selection_method": "best_median_nrmse_preferred_rate",
+        }
+    if any_rate:
+        any_rate.sort(
+            key=lambda x: (abs(x[2] - float(preferred_rate)), x[1], x[0], x[2])
+        )
+        trace_idx, _nrmse, selected_rate = any_rate[0]
+        return {
+            "trace_idx": int(trace_idx),
+            "selected_rate": float(selected_rate),
+            "selection_method": "best_median_nrmse_nearest_available_rate",
+        }
+    raise ValueError(
+        f"No per-trace candidates for config={config_id} at any evaluated rate."
+    )
 
 
 def select_trace_by_best_median_nrmse_subset(
@@ -1031,13 +1107,13 @@ class MethodsFigureGenerator:
         out_dir: str,
         dry_run: bool,
         device: str = "auto",
-        experimental_manifest_path: str = "results/experimental_continuous_v1_gru_all/manifest.json",
-        pair_manifest_csv_path: str = "results/stage0/pair_manifest.csv",
-        run_manifest_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
-        per_trace_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv",
-        per_seed_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
-        per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
-        ar1_params_dir: str = "results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
+        experimental_manifest_path: str = DEFAULT_EXPERIMENTAL_MANIFEST,
+        pair_manifest_csv_path: str = DEFAULT_PAIR_MANIFEST_CSV,
+        run_manifest_path: str = DEFAULT_RUN_MANIFEST,
+        per_trace_csv_path: str = DEFAULT_PER_TRACE_CSV,
+        per_seed_csv_path: str = DEFAULT_PER_SEED_CSV,
+        per_seed_ar1_csv_path: str = DEFAULT_PER_SEED_AR1_CSV,
+        ar1_params_dir: str = DEFAULT_AR1_PARAMS_DIR,
         throughput_db_path: str = "model/config/throughput_database.json",
         validation_source_dir: str = "model/tests/validation_results",
         request_timestamp_policy: str = DEFAULT_REQUEST_TIMESTAMP_POLICY,
@@ -1047,6 +1123,7 @@ class MethodsFigureGenerator:
         moe_proxy_config_id: str = MOE_PROXY_CONFIG_ID,
         moe_proxy_rate: float = MOE_PROXY_RATE,
         figure_mode: str = "all",
+        allow_moe_rate_fallback: bool = False,
         allow_legacy_gptoss_autoswitch: bool = False,
     ):
         self.out_dir = Path(out_dir)
@@ -1079,6 +1156,7 @@ class MethodsFigureGenerator:
         self.deepseek_dense_config_id = str(deepseek_dense_config_id).strip()
         self.moe_proxy_config_id = str(moe_proxy_config_id).strip()
         self.moe_proxy_rate = float(moe_proxy_rate)
+        self.allow_moe_rate_fallback = bool(allow_moe_rate_fallback)
         self.allow_legacy_gptoss_autoswitch = bool(allow_legacy_gptoss_autoswitch)
 
         self.experimental_manifest: Dict[str, Any] = {}
@@ -1965,28 +2043,19 @@ class MethodsFigureGenerator:
             }
         return out
 
-    def _generate_moe_overlay(self) -> Dict[str, Any]:
-        def _candidate_rows(
+    def _select_moe_trace_for_requested_rate(self) -> Dict[str, object]:
+        def _candidate_rows_from_per_trace(
             *,
-            config_id: Optional[str],
-            rate: Optional[float],
-            require_pair_json: bool = True,
-            require_moe: bool = False,
-        ) -> List[Tuple[float, str, int, Dict[str, str]]]:
-            out: List[Tuple[float, str, int, Dict[str, str]]] = []
+            config_id: str,
+            rate: float,
+        ) -> List[Tuple[float, int, Dict[str, str]]]:
+            out: List[Tuple[float, int, Dict[str, str]]] = []
             for row in self.per_trace_rows:
-                if str(row.get("status", "")) != "evaluated":
+                if str(row.get("status", "")).strip() != "evaluated":
                     continue
-                cid = str(row.get("config_id", "")).strip()
-                if cid == "":
+                if str(row.get("config_id", "")).strip() != str(config_id):
                     continue
-                if config_id is not None and cid != str(config_id):
-                    continue
-                if require_moe and (not is_moe_config_id(cid)):
-                    continue
-                if rate is not None and (
-                    not rate_matches(row.get("rate", ""), float(rate))
-                ):
+                if not rate_matches(row.get("rate", ""), float(rate)):
                     continue
                 try:
                     trace_idx_local = int(row.get("trace_idx", "-1"))
@@ -1998,60 +2067,170 @@ class MethodsFigureGenerator:
                 if nrmse is None:
                     continue
                 pair_key = str(row.get("pair_key", "")).strip()
-                if require_pair_json and pair_key not in self.pair_map:
+                if pair_key == "" or pair_key not in self.pair_map:
                     continue
-                ar1_path = self.ar1_params_dir / f"{_safe_slug(cid)}_ar1_params.json"
+                ar1_path = self.ar1_params_dir / f"{_safe_slug(config_id)}_ar1_params.json"
                 if not ar1_path.exists():
                     continue
-                out.append((float(nrmse), cid, int(trace_idx_local), row))
-            out.sort(key=lambda x: (x[0], x[1], x[2]))
+                out.append((float(nrmse), int(trace_idx_local), row))
+            out.sort(key=lambda x: (x[0], x[1]))
             return out
 
-        selection_method = "best_median_nrmse_per_rate"
-        candidates = _candidate_rows(
-            config_id=self.moe_proxy_config_id,
-            rate=float(self.moe_proxy_rate),
-            require_pair_json=True,
-            require_moe=False,
-        )
-        if not candidates:
-            selection_method = "fallback_best_median_nrmse_any_rate_pair_json"
-            candidates = _candidate_rows(
-                config_id=self.moe_proxy_config_id,
-                rate=None,
-                require_pair_json=True,
-                require_moe=False,
-            )
-        if not candidates:
-            selection_method = (
-                "fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
-            )
-            candidates = _candidate_rows(
-                config_id=None,
-                rate=None,
-                require_pair_json=True,
-                require_moe=True,
-            )
-        if not candidates:
-            if (
-                self.figure_mode == "simulated-moe"
-                and bool(self.allow_legacy_gptoss_autoswitch)
-                and self._try_autoswitch_gptoss_a100_bundle()
-            ):
-                selection_method = "autoswitched_gptoss_a100_bundle_fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
-                candidates = _candidate_rows(
-                    config_id=None,
-                    rate=None,
-                    require_pair_json=True,
-                    require_moe=True,
+        def _candidate_rows_from_dataset_exact_rate(
+            *,
+            config_id: str,
+            rate: float,
+        ) -> List[Tuple[float, int, Dict[str, str]]]:
+            data = self._load_dataset(config_id)
+            n = int(
+                min(
+                    len(data["pair_key"]),
+                    len(data["power"]),
+                    len(data["rate"]),
                 )
-            if not candidates:
-                raise ValueError(
-                    "No MoE per-trace candidates have both request JSON paths and AR(1) params. "
-                    "Provide explicit --moe-config-id/--moe-rate and matching manifest paths."
+            )
+            ar1_path = self.ar1_params_dir / f"{_safe_slug(config_id)}_ar1_params.json"
+            if not ar1_path.exists():
+                return []
+            out: List[Tuple[float, int, Dict[str, str]]] = []
+            for idx in range(n):
+                if not rate_matches(data["rate"][idx], float(rate)):
+                    continue
+                pair_key = str(data["pair_key"][idx]).strip()
+                if pair_key == "" or pair_key not in self.pair_map:
+                    continue
+                if (
+                    self.require_recorded_timestamps
+                    and (not self._pair_has_recorded_request_timestamps(pair_key))
+                ):
+                    continue
+                try:
+                    p = np.asarray(data["power"][idx], dtype=np.float64).reshape(-1)
+                except Exception:
+                    continue
+                if p.size < 2 or not np.all(np.isfinite(p)):
+                    continue
+                out.append(
+                    (
+                        float(np.mean(p)),
+                        int(idx),
+                        {
+                            "config_id": str(config_id),
+                            "trace_idx": str(int(idx)),
+                            "pair_key": str(pair_key),
+                            "rate": str(data["rate"][idx]),
+                        },
+                    )
                 )
+            out.sort(key=lambda x: (x[0], x[1]))
+            return out
 
-        _, selected_config_id, trace_idx, selected_row = candidates[0]
+        config_id = str(self.moe_proxy_config_id)
+        requested_rate = float(self.moe_proxy_rate)
+
+        per_trace_candidates = _candidate_rows_from_per_trace(
+            config_id=config_id,
+            rate=requested_rate,
+        )
+        if per_trace_candidates:
+            _, trace_idx, selected_row = per_trace_candidates[0]
+            return {
+                "config_id": str(config_id),
+                "trace_idx": int(trace_idx),
+                "selected_row": dict(selected_row),
+                "selection_method": "best_median_nrmse_per_rate",
+                "selection_rate": float(
+                    _to_float(selected_row.get("rate", requested_rate))
+                    if _to_float(selected_row.get("rate", requested_rate)) is not None
+                    else requested_rate
+                ),
+            }
+
+        dataset_candidates = _candidate_rows_from_dataset_exact_rate(
+            config_id=config_id,
+            rate=requested_rate,
+        )
+        if dataset_candidates:
+            # Pick median-mean-power trace to avoid selecting an extreme outlier by default.
+            mid = len(dataset_candidates) // 2
+            _, trace_idx, selected_row = dataset_candidates[mid]
+            return {
+                "config_id": str(config_id),
+                "trace_idx": int(trace_idx),
+                "selected_row": dict(selected_row),
+                "selection_method": "dataset_exact_rate_median_mean_power",
+                "selection_rate": float(requested_rate),
+            }
+
+        available_eval_rates = sorted(
+            {
+                str(row.get("rate", "")).strip()
+                for row in self.per_trace_rows
+                if str(row.get("status", "")).strip() == "evaluated"
+                and str(row.get("config_id", "")).strip() == str(config_id)
+            },
+            key=lambda x: float(x) if _to_float(x) is not None else float("inf"),
+        )
+        dataset_rates = sorted(
+            {
+                str(v).strip()
+                for v in np.asarray(self._load_dataset(config_id)["rate"], dtype=object)
+            },
+            key=lambda x: float(x) if _to_float(x) is not None else float("inf"),
+        )
+        if not self.allow_moe_rate_fallback:
+            raise ValueError(
+                "No MoE trace found at requested rate "
+                f"{requested_rate} for config={config_id}. "
+                f"evaluated_rates={available_eval_rates} dataset_rates={dataset_rates}. "
+                "Set --allow-moe-rate-fallback true to permit cross-rate fallback."
+            )
+
+        # Optional explicit fallback mode (disabled by default).
+        fallback_candidates: List[Tuple[float, int, Dict[str, str]]] = []
+        for row in self.per_trace_rows:
+            if str(row.get("status", "")).strip() != "evaluated":
+                continue
+            if str(row.get("config_id", "")).strip() != str(config_id):
+                continue
+            try:
+                trace_idx_local = int(row.get("trace_idx", "-1"))
+            except Exception:
+                continue
+            if trace_idx_local < 0:
+                continue
+            nrmse = _to_float(row.get("nrmse_median"))
+            if nrmse is None:
+                continue
+            pair_key = str(row.get("pair_key", "")).strip()
+            if pair_key == "" or pair_key not in self.pair_map:
+                continue
+            fallback_candidates.append((float(nrmse), int(trace_idx_local), row))
+        fallback_candidates.sort(key=lambda x: (x[0], x[1]))
+        if not fallback_candidates:
+            raise ValueError(
+                "No MoE per-trace candidates have both request JSON paths and AR(1) params."
+            )
+        _, trace_idx, selected_row = fallback_candidates[0]
+        return {
+            "config_id": str(config_id),
+            "trace_idx": int(trace_idx),
+            "selected_row": dict(selected_row),
+            "selection_method": "fallback_best_median_nrmse_any_rate_pair_json",
+            "selection_rate": float(
+                _to_float(selected_row.get("rate", requested_rate))
+                if _to_float(selected_row.get("rate", requested_rate)) is not None
+                else requested_rate
+            ),
+        }
+
+    def _generate_moe_overlay(self) -> Dict[str, Any]:
+        selection = self._select_moe_trace_for_requested_rate()
+        selected_config_id = str(selection["config_id"])
+        trace_idx = int(selection["trace_idx"])
+        selected_row = dict(selection["selected_row"])
+        selection_method = str(selection["selection_method"])
+
         try:
             seed = select_seed_nearest_median_nrmse(
                 self.per_seed_ar1_rows,
@@ -2078,11 +2257,7 @@ class MethodsFigureGenerator:
             "trace_idx": int(tr.trace_idx),
             "pair_key": tr.pair_key,
             "rate": tr.rate,
-            "selection_rate": float(
-                _to_float(selected_row.get("rate", self.moe_proxy_rate))
-                if _to_float(selected_row.get("rate", self.moe_proxy_rate)) is not None
-                else self.moe_proxy_rate
-            ),
+            "selection_rate": float(selection["selection_rate"]),
             "selection_method": selection_method,
             "seed": int(seed),
             "seed_selection_method": seed_selection_method,
@@ -2327,6 +2502,7 @@ class MethodsFigureGenerator:
                 "pair_manifest_rejected_rows_captured": int(
                     len(self.pair_policy_rejected_rows)
                 ),
+                "allow_moe_rate_fallback": bool(self.allow_moe_rate_fallback),
                 "allow_legacy_gptoss_autoswitch": bool(
                     self.allow_legacy_gptoss_autoswitch
                 ),
@@ -2403,13 +2579,10 @@ class MethodsFigureGenerator:
                 )["trace_idx"]
             ),
         }
-        moe_trace_idx = int(
-            select_trace_by_best_median_nrmse(
-                self.per_trace_rows,
-                config_id=self.moe_proxy_config_id,
-                rate=float(self.moe_proxy_rate),
-            )
-        )
+        moe_trace_selection = self._select_moe_trace_for_requested_rate()
+        moe_trace_idx = int(moe_trace_selection["trace_idx"])
+        moe_trace_selection_method = str(moe_trace_selection["selection_method"])
+        moe_trace_selected_rate = float(moe_trace_selection["selection_rate"])
         dense_overlay_seed_by_tag: Dict[str, int] = {}
         dense_overlay_seed_method_by_tag: Dict[str, str] = {}
         for tag, trace_idx in dense_overlay_trace_by_tag.items():
@@ -2467,6 +2640,8 @@ class MethodsFigureGenerator:
             "dense_overlay_seed_by_tag": dense_overlay_seed_by_tag,
             "dense_overlay_seed_method_by_tag": dense_overlay_seed_method_by_tag,
             "moe_trace_idx_rate_1.0": int(moe_trace_idx),
+            "moe_trace_selection_method_rate_1.0": moe_trace_selection_method,
+            "moe_trace_selected_rate_for_diagnostics": moe_trace_selected_rate,
             "moe_seed_rate_1.0": int(moe_seed_rate_1),
             "moe_seed_rate_1.0_method": moe_seed_rate_1_method,
         }
@@ -2509,6 +2684,44 @@ class MethodsFigureGenerator:
         return manifest
 
 
+def _resolve_reconfig_defaults_if_applicable(
+    args: argparse.Namespace,
+) -> argparse.Namespace:
+    setattr(args, "_auto_reconfig_inputs_used", False)
+    out_dir_text = str(getattr(args, "out_dir", "")).strip().lower()
+    wants_reconfig_out = "reconfig" in out_dir_text
+    if not wants_reconfig_out:
+        return args
+
+    using_canonical_defaults = (
+        str(args.experimental_manifest) == DEFAULT_EXPERIMENTAL_MANIFEST
+        and str(args.per_trace_csv) == DEFAULT_PER_TRACE_CSV
+        and str(args.per_seed_csv) == DEFAULT_PER_SEED_CSV
+        and str(args.per_seed_ar1_csv) == DEFAULT_PER_SEED_AR1_CSV
+        and str(args.ar1_params_dir) == DEFAULT_AR1_PARAMS_DIR
+    )
+    if not using_canonical_defaults:
+        return args
+
+    required_reconfig_paths = [
+        RECONFIG_EXPERIMENTAL_MANIFEST,
+        RECONFIG_PER_TRACE_CSV,
+        RECONFIG_PER_SEED_CSV,
+        RECONFIG_AR1_PARAMS_DIR,
+    ]
+    if not all(Path(p).exists() for p in required_reconfig_paths):
+        return args
+
+    # Force a coherent `_reconfig` input bundle when output is clearly `_reconfig`.
+    args.experimental_manifest = RECONFIG_EXPERIMENTAL_MANIFEST
+    args.per_trace_csv = RECONFIG_PER_TRACE_CSV
+    args.per_seed_csv = RECONFIG_PER_SEED_CSV
+    args.per_seed_ar1_csv = RECONFIG_PER_SEED_AR1_CSV
+    args.ar1_params_dir = RECONFIG_AR1_PARAMS_DIR
+    setattr(args, "_auto_reconfig_inputs_used", True)
+    return args
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate deterministic methods figures for revised paper sections."
@@ -2521,31 +2734,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--experimental-manifest",
-        default="results/experimental_continuous_v1_gru_all/manifest.json",
+        default=DEFAULT_EXPERIMENTAL_MANIFEST,
     )
     parser.add_argument(
         "--pair-manifest-csv",
-        default="results/stage0/pair_manifest.csv",
+        default=DEFAULT_PAIR_MANIFEST_CSV,
     )
     parser.add_argument(
         "--run-manifest",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2/run_manifest.json",
+        default=DEFAULT_RUN_MANIFEST,
     )
     parser.add_argument(
         "--per-trace-csv",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_trace_metrics.csv",
+        default=DEFAULT_PER_TRACE_CSV,
     )
     parser.add_argument(
         "--per-seed-csv",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+        default=DEFAULT_PER_SEED_CSV,
     )
     parser.add_argument(
         "--per-seed-ar1-csv",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
+        default=DEFAULT_PER_SEED_AR1_CSV,
     )
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru_sharegpt_all/kauto_max12_f2_ar1_thresh/ar1_params",
+        default=DEFAULT_AR1_PARAMS_DIR,
     )
     parser.add_argument(
         "--throughput-db", default="model/config/throughput_database.json"
@@ -2567,6 +2780,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--moe-config-id", default=MOE_PROXY_CONFIG_ID)
     parser.add_argument("--moe-rate", type=float, default=MOE_PROXY_RATE)
     parser.add_argument(
+        "--allow-moe-rate-fallback",
+        choices=["true", "false"],
+        default="false",
+    )
+    parser.add_argument(
         "--allow-legacy-gptoss-autoswitch",
         choices=["true", "false"],
         default="false",
@@ -2576,6 +2794,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_arg_parser().parse_args()
+    args = _resolve_reconfig_defaults_if_applicable(args)
+    if bool(getattr(args, "_auto_reconfig_inputs_used", False)):
+        print(
+            "[generate_methods_figures] Auto-switched inputs to `_reconfig` bundle "
+            "because --out-dir includes 'reconfig' and no explicit input overrides were provided."
+        )
     generator = MethodsFigureGenerator(
         out_dir=args.out_dir,
         dry_run=bool(args.dry_run),
@@ -2596,6 +2820,9 @@ def main() -> None:
         moe_proxy_config_id=args.moe_config_id,
         moe_proxy_rate=float(args.moe_rate),
         figure_mode=args.figure_mode,
+        allow_moe_rate_fallback=(
+            str(args.allow_moe_rate_fallback).strip().lower() == "true"
+        ),
         allow_legacy_gptoss_autoswitch=(
             str(args.allow_legacy_gptoss_autoswitch).strip().lower() == "true"
         ),

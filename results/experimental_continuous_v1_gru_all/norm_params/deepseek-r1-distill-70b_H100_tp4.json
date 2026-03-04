@@ -3,10 +3,10 @@
   "active_std": 1e-06,
   "config_id": "deepseek-r1-distill-70b_H100_tp4",
   "dt": 0.25,
-  "power_max": 2283.1099999999997,
-  "power_mean": 1440.416587506858,
-  "power_min": 280.14,
-  "power_std": 593.1128936558911,
+  "power_max": 2283.11,
+  "power_mean": 1555.7127145025565,
+  "power_min": 461.62,
+  "power_std": 552.0994930800606,
   "t_arrive_log_mean": 0.0,
   "t_arrive_log_std": 1e-06
 }

@@ -1,0 +1,12 @@
+{
+  "active_mean": 0.0,
+  "active_std": 1e-06,
+  "config_id": "gpt-oss-20b_A100_tp1",
+  "dt": 0.25,
+  "power_max": 377.36,
+  "power_mean": 176.03073417132816,
+  "power_min": 60.19,
+  "power_std": 105.0232908284192,
+  "t_arrive_log_mean": 0.0,
+  "t_arrive_log_std": 1e-06
+}

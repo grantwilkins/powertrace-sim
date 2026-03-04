@@ -4,12 +4,66 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 
 
 class TestPrepareExperimentalManifest(unittest.TestCase):
+    def test_parse_power_csv_raw_per_gpu_uses_fixed_8_row_blocks(self):
+        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "toy_tp4.csv"
+            base = datetime(2024, 1, 1, 10, 0, 0)
+            rows = []
+            # Three sample windows, 8 GPUs each, with intra-window timestamp jitter.
+            for block_idx, base_power in enumerate([10.0, 20.0, 30.0]):
+                t0 = base.timestamp() + (0.25 * block_idx)
+                for gpu_idx in range(8):
+                    ts = datetime.fromtimestamp(t0 + (0.008 * gpu_idx)).strftime(
+                        "%Y/%m/%d %H:%M:%S.%f"
+                    )[:-3]
+                    rows.append((ts, f"{base_power + gpu_idx:.2f} W"))
+
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "power.draw [W]"])
+                for ts, pw in rows:
+                    writer.writerow([ts, pw])
+
+            parsed = _parse_power_csv(str(csv_path), tensor_parallelism=4, gpus_per_node=8)
+            self.assertIsNotNone(parsed)
+            power = np.asarray(parsed["power"], dtype=np.float64)
+            self.assertEqual(power.size, 3)
+            expected = np.asarray(
+                [
+                    10.0 + 11.0 + 12.0 + 13.0,
+                    20.0 + 21.0 + 22.0 + 23.0,
+                    30.0 + 31.0 + 32.0 + 33.0,
+                ],
+                dtype=np.float64,
+            )
+            np.testing.assert_allclose(power, expected, rtol=0.0, atol=1e-9)
+
+    def test_parse_power_csv_already_aggregated_keeps_single_series(self):
+        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "toy_tp1.csv"
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "power.draw [W]"])
+                for i in range(6):
+                    writer.writerow([f"2024/01/01 10:00:0{i}.000", f"{200 + i}.0 W"])
+
+            parsed = _parse_power_csv(str(csv_path), tensor_parallelism=1, gpus_per_node=8)
+            self.assertIsNotNone(parsed)
+            power = np.asarray(parsed["power"], dtype=np.float64)
+            self.assertEqual(power.size, 6)
+            np.testing.assert_allclose(power, np.arange(200.0, 206.0), rtol=0.0, atol=1e-9)
+
     def test_full_pipeline_creates_manifest_and_datasets(self):
         """Test that the full pipeline creates expected outputs."""
         from model.training_data.utils.prepare_experimental_manifest import (
@@ -91,6 +145,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
                 val_ratio=0.25,
                 seed=42,
                 min_traces_per_config=2,
+                allowed_json_prefix="",
             )
 
             self.assertEqual(manifest["summary"]["num_configs_written"], 1)
@@ -190,6 +245,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
                 pair_manifest_csv=str(pair_manifest_csv),
                 out_dir=str(out_dir),
                 min_traces_per_config=5,
+                allowed_json_prefix="",
             )
 
             self.assertEqual(manifest["summary"]["num_configs_written"], 0)

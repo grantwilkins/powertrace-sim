@@ -90,11 +90,8 @@ def _parse_power_csv(
         Dict with 'timestamps' (epoch seconds) and 'power' (watts) arrays.
     """
     try:
-        timestamps: List[float] = []
-        power_values: List[float] = []
-        current_group_ts: Optional[float] = None
-        current_group_power: List[float] = []
-        row_in_group = 0
+        raw_timestamps: List[float] = []
+        raw_powers: List[float] = []
 
         with open(csv_path, "r", newline="") as f:
             reader = csv.reader(f)
@@ -125,27 +122,54 @@ def _parse_power_csv(
                     power = float(power_str)
                 except ValueError:
                     continue
+                raw_timestamps.append(float(ts))
+                raw_powers.append(float(power))
 
-                if current_group_ts is None:
-                    current_group_ts = ts
-                    current_group_power = [power]
-                    row_in_group = 1
-                elif ts == current_group_ts:
-                    current_group_power.append(power)
-                    row_in_group += 1
-                else:
-                    if row_in_group >= tensor_parallelism:
-                        agg_power = sum(current_group_power[:tensor_parallelism])
-                        timestamps.append(current_group_ts)
-                        power_values.append(agg_power)
-                    current_group_ts = ts
-                    current_group_power = [power]
-                    row_in_group = 1
+        if len(raw_timestamps) < 2:
+            return None
 
-            if current_group_ts is not None and row_in_group >= tensor_parallelism:
-                agg_power = sum(current_group_power[:tensor_parallelism])
-                timestamps.append(current_group_ts)
-                power_values.append(agg_power)
+        tp = int(tensor_parallelism)
+        if tp <= 0:
+            return None
+        gpn = int(gpus_per_node)
+        if gpn <= 0:
+            return None
+
+        raw_t = np.asarray(raw_timestamps, dtype=np.float64)
+        raw_p = np.asarray(raw_powers, dtype=np.float64)
+        diffs = np.diff(raw_t)
+        abs_diffs = np.abs(diffs) if diffs.size > 0 else np.asarray([], dtype=np.float64)
+        # Detect raw nvidia-smi per-GPU streams (8 rows/sample, small inter-row deltas).
+        # These files often have timestamp jitter, so grouping by exact timestamp is unstable.
+        looks_raw_per_gpu = bool(
+            raw_t.size >= gpn
+            and abs_diffs.size > 0
+            and (
+                float(np.median(abs_diffs)) < 0.05
+                or float(np.mean(abs_diffs < 0.05)) >= 0.5
+            )
+        )
+
+        timestamps: List[float] = []
+        power_values: List[float] = []
+        if looks_raw_per_gpu:
+            num_rows = int(raw_t.size)
+            num_blocks = num_rows // gpn
+            if num_blocks <= 0:
+                return None
+            usable = int(num_blocks * gpn)
+            block_t = raw_t[:usable].reshape(num_blocks, gpn)
+            block_p = raw_p[:usable].reshape(num_blocks, gpn)
+            if tp > gpn:
+                return None
+            agg_t = block_t[:, 0]
+            agg_p = np.sum(block_p[:, :tp], axis=1, dtype=np.float64)
+            timestamps = agg_t.astype(np.float64).tolist()
+            power_values = agg_p.astype(np.float64).tolist()
+        else:
+            # Already-aggregated traces: keep one row per sample as-is.
+            timestamps = raw_t.astype(np.float64).tolist()
+            power_values = raw_p.astype(np.float64).tolist()
 
         if len(timestamps) < 2:
             return None
@@ -276,20 +300,37 @@ def _compute_active_requests(
     decode_times: np.ndarray,
 ) -> np.ndarray:
     """Compute active request count at each power measurement time."""
-    n_power = len(power_timestamps)
+    t_power = np.asarray(power_timestamps, dtype=np.float64).reshape(-1)
+    n_power = int(t_power.size)
     active = np.zeros(n_power, dtype=np.float64)
-
-    if len(request_timestamps) == 0:
+    if n_power == 0:
         return active
 
-    start_times = request_timestamps
-    end_times = request_timestamps + ttfts + decode_times
+    req_t = np.asarray(request_timestamps, dtype=np.float64).reshape(-1)
+    ttft = np.asarray(ttfts, dtype=np.float64).reshape(-1)
+    dec = np.asarray(decode_times, dtype=np.float64).reshape(-1)
+    n = int(min(req_t.size, ttft.size, dec.size))
+    if n <= 0:
+        return active
 
-    for i, t in enumerate(power_timestamps):
-        count = np.sum((start_times <= t) & (t <= end_times))
-        active[i] = float(count)
+    req_t = req_t[:n]
+    ttft = ttft[:n]
+    dec = dec[:n]
+    valid = np.isfinite(req_t) & np.isfinite(ttft) & np.isfinite(dec)
+    if not np.any(valid):
+        return active
 
-    return active
+    start = req_t[valid]
+    end = start + ttft[valid] + dec[valid]
+    start_sorted = np.sort(start.astype(np.float64))
+    end_sorted = np.sort(end.astype(np.float64))
+
+    # active(t) = #{start <= t} - #{end < t}
+    started = np.searchsorted(start_sorted, t_power, side="right")
+    ended = np.searchsorted(end_sorted, t_power, side="left")
+    out = started - ended
+    out = np.maximum(out, 0)
+    return out.astype(np.float64)
 
 
 def _compute_t_arrive_log(
@@ -297,38 +338,42 @@ def _compute_t_arrive_log(
     request_timestamps: np.ndarray,
 ) -> np.ndarray:
     """Compute log(1 + inter-arrival time) for new arrivals at each power measurement."""
-    n_power = len(power_timestamps)
-    t_arrive_log = np.zeros(n_power, dtype=np.float64)
+    t_power = np.asarray(power_timestamps, dtype=np.float64).reshape(-1)
+    n_power = int(t_power.size)
+    out = np.zeros(n_power, dtype=np.float64)
+    if n_power < 2:
+        return out
 
-    if len(request_timestamps) == 0 or len(power_timestamps) < 2:
-        return t_arrive_log
+    req_t = np.asarray(request_timestamps, dtype=np.float64).reshape(-1)
+    req_t = req_t[np.isfinite(req_t)]
+    if req_t.size == 0:
+        return out
+    arr = np.sort(req_t.astype(np.float64))
 
-    dt = float(np.median(np.diff(power_timestamps)))
-    sorted_arrivals = np.sort(request_timestamps)
+    dt = float(np.median(np.diff(t_power)))
+    starts = np.empty(n_power, dtype=np.float64)
+    ends = np.empty(n_power, dtype=np.float64)
+    starts[0] = t_power[0] - (dt / 2.0)
+    starts[1:] = (t_power[1:] + t_power[:-1]) / 2.0
+    ends[:-1] = (t_power[:-1] + t_power[1:]) / 2.0
+    ends[-1] = t_power[-1] + (dt / 2.0)
 
-    for i, t in enumerate(power_timestamps):
-        if i == 0:
-            interval_start = t - dt / 2
-        else:
-            interval_start = (t + power_timestamps[i - 1]) / 2
+    idx_lo = np.searchsorted(arr, starts, side="left")
+    idx_hi = np.searchsorted(arr, ends, side="left")
+    has_arrival = idx_hi > idx_lo
+    if not np.any(has_arrival):
+        return out
 
-        if i == n_power - 1:
-            interval_end = t + dt / 2
-        else:
-            interval_end = (t + power_timestamps[i + 1]) / 2
+    first_idx = idx_lo[has_arrival]
+    valid_prev = first_idx > 0
+    if not np.any(valid_prev):
+        return out
 
-        arrivals_in_interval = sorted_arrivals[
-            (sorted_arrivals >= interval_start) & (sorted_arrivals < interval_end)
-        ]
-
-        if len(arrivals_in_interval) > 0:
-            first_arrival = arrivals_in_interval[0]
-            idx = np.searchsorted(sorted_arrivals, first_arrival)
-            if idx > 0:
-                inter_arrival = first_arrival - sorted_arrivals[idx - 1]
-                t_arrive_log[i] = np.log1p(max(0.0, inter_arrival))
-
-    return t_arrive_log
+    selected_positions = np.nonzero(has_arrival)[0][valid_prev]
+    first_with_prev = first_idx[valid_prev]
+    inter = arr[first_with_prev] - arr[first_with_prev - 1]
+    out[selected_positions] = np.log1p(np.maximum(0.0, inter))
+    return out
 
 
 def _align_trace_to_grid(
