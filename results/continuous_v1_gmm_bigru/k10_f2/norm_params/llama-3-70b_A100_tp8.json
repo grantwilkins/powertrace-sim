@@ -1,10 +1,10 @@
 {
-  "active_mean": 0.0,
-  "active_std": 1e-06,
+  "active_mean": 5.236995142724067,
+  "active_std": 6.420997931186136,
   "auto_k": false,
   "config_id": "llama-3-70b_A100_tp8",
-  "delta_A_mean": 0.0,
-  "delta_A_std": 1e-06,
+  "delta_A_mean": -0.0003992167747086668,
+  "delta_A_std": 0.737112844298043,
   "dt": 0.25,
   "feature_set": "f2",
   "hidden_dim": 64,
@@ -18,6 +18,6 @@
   "power_std": 599.0205362213892,
   "seed": 42,
   "source_norm_path": "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp8.json",
-  "t_arrive_log_mean": 0.0,
-  "t_arrive_log_std": 1e-06
+  "t_arrive_log_mean": 0.11617968779303539,
+  "t_arrive_log_std": 0.32753816270289055
 }

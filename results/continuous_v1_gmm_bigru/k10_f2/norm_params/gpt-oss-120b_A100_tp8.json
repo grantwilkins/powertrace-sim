@@ -1,10 +1,10 @@
 {
-  "active_mean": 0.0,
-  "active_std": 1e-06,
+  "active_mean": 1.440526870671133,
+  "active_std": 2.011518847034671,
   "auto_k": false,
   "config_id": "gpt-oss-120b_A100_tp8",
-  "delta_A_mean": 0.0,
-  "delta_A_std": 1e-06,
+  "delta_A_mean": -0.00040102356490852846,
+  "delta_A_std": 0.7401218904529829,
   "dt": 0.25,
   "feature_set": "f2",
   "hidden_dim": 64,
@@ -18,6 +18,6 @@
   "power_std": 351.2671018207653,
   "seed": 42,
   "source_norm_path": "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp8.json",
-  "t_arrive_log_mean": 0.0,
-  "t_arrive_log_std": 1e-06
+  "t_arrive_log_mean": 0.12223812042320079,
+  "t_arrive_log_std": 0.3219970144313227
 }
