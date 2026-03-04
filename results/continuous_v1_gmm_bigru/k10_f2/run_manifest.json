@@ -8,24 +8,41 @@
   },
   "configs": {
     "deepseek-r1-distill-70b_A100_tp4": {
-      "best_epoch": 499,
-      "best_val_loss": 0.7127225796381632,
+      "auto_k": false,
+      "best_epoch": 1,
+      "best_val_loss": 1.914200782775879,
       "bic_candidates": {
         "10": {
-          "aic": 350469.2832816432,
-          "bic": 350713.08413442137
+          "aic": 312340.68845552125,
+          "bic": 312582.0321942557
         },
         "12": {
-          "aic": 349026.6844463964,
-          "bic": 349320.9268549218
+          "aic": 312320.1112501536,
+          "bic": 312611.38817621244
+        },
+        "14": {
+          "aic": 311766.20252107707,
+          "bic": 312107.41263446026
+        },
+        "16": {
+          "aic": 311833.56731058663,
+          "bic": 312224.71061129414
+        },
+        "18": {
+          "aic": 311754.56005648075,
+          "bic": 312195.63654451264
+        },
+        "20": {
+          "aic": 311745.0166065302,
+          "bic": 312236.02628188644
         },
         "6": {
-          "aic": 351013.9801472712,
-          "bic": 351156.89788855496
+          "aic": 315875.16421076976,
+          "bic": 316016.6415748555
         },
         "8": {
-          "aic": 350572.5133231144,
-          "bic": 350765.8726201454
+          "aic": 312440.4584434093,
+          "bic": 312631.86899481935
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-70b_A100_tp4_k10_f2_best.pt",
@@ -33,43 +50,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-70b_A100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.8153977990150452,
-      "final_val_loss": 0.7127225796381632,
-      "gmm_aic": 350469.2832816432,
-      "gmm_bic": 350713.08413442137,
+      "final_train_loss": 1.3631622940301895,
+      "final_val_loss": 2.0679367184638977,
+      "gmm_aic": 312340.68845552125,
+      "gmm_bic": 312582.0321942557,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-70b_A100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-70b_A100_tp4.json",
       "num_layers": 1,
-      "num_test_traces": 2,
-      "num_train_points": 33088,
-      "num_train_traces": 13,
-      "num_val_traces": 3,
+      "num_test_traces": 4,
+      "num_train_points": 30400,
+      "num_train_traces": 12,
+      "num_val_traces": 2,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "deepseek-r1-distill-70b_A100_tp8": {
-      "best_epoch": 498,
-      "best_val_loss": 0.798202653725942,
+      "auto_k": false,
+      "best_epoch": 1,
+      "best_val_loss": 2.075160503387451,
       "bic_candidates": {
         "10": {
-          "aic": 337617.66606810316,
-          "bic": 337858.87977892626
+          "aic": 336158.49788619665,
+          "bic": 336399.575207539
         },
         "12": {
-          "aic": 337348.24626016343,
-          "bic": 337639.3662559844
+          "aic": 336029.9781322523,
+          "bic": 336320.9335200793
+        },
+        "14": {
+          "aic": 335874.2552952778,
+          "bic": 336215.08874958946
+        },
+        "16": {
+          "aic": 335992.5931362573,
+          "bic": 336383.3046570536
+        },
+        "18": {
+          "aic": 335983.77645499964,
+          "bic": 336424.36604228057
+        },
+        "20": {
+          "aic": 335243.9637846422,
+          "bic": 335734.43143840774
         },
         "6": {
-          "aic": 338098.4223811848,
-          "bic": 338239.82352201216
+          "aic": 336928.5424091226,
+          "bic": 337069.8635974957
         },
         "8": {
-          "aic": 337803.1173246589,
-          "bic": 337994.4247504841
+          "aic": 336385.8969634161,
+          "bic": 336577.0962182738
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-70b_A100_tp8_k10_f2_best.pt",
@@ -77,43 +112,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-70b_A100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7220982760190964,
-      "final_val_loss": 0.8180574178695679,
-      "gmm_aic": 337617.66606810316,
-      "gmm_bic": 337858.87977892626,
+      "final_train_loss": 1.6452593406041462,
+      "final_val_loss": 2.111254096031189,
+      "gmm_aic": 336158.49788619665,
+      "gmm_bic": 336399.575207539,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-70b_A100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-70b_A100_tp8.json",
       "num_layers": 1,
-      "num_test_traces": 2,
-      "num_train_points": 30264,
+      "num_test_traces": 4,
+      "num_train_points": 30122,
       "num_train_traces": 12,
-      "num_val_traces": 3,
+      "num_val_traces": 2,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "deepseek-r1-distill-70b_H100_tp4": {
-      "best_epoch": 335,
-      "best_val_loss": 0.9771469980478287,
+      "auto_k": false,
+      "best_epoch": 3,
+      "best_val_loss": 2.150067687034607,
       "bic_candidates": {
         "10": {
-          "aic": 653127.0503740456,
-          "bic": 653384.4359402434
+          "aic": 638488.8103312241,
+          "bic": 638746.0501422147
         },
         "12": {
-          "aic": 652942.9617576333,
-          "bic": 653253.599509941
+          "aic": 638453.7752669108,
+          "bic": 638764.2371077616
+        },
+        "14": {
+          "aic": 638334.8124706573,
+          "bic": 638698.4963413682
+        },
+        "16": {
+          "aic": 638005.730281726,
+          "bic": 638422.636182297
+        },
+        "18": {
+          "aic": 637834.712960599,
+          "bic": 638304.8408910302
+        },
+        "20": {
+          "aic": 637755.3356520268,
+          "bic": 638278.6856123181
         },
         "6": {
-          "aic": 653702.1828707398,
-          "bic": 653853.0640647179
+          "aic": 639339.2059903964,
+          "bic": 639490.0017416668
         },
         "8": {
-          "aic": 653292.6291112436,
-          "bic": 653496.7624913316
+          "aic": 638809.0476628052,
+          "bic": 639013.0654439357
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-70b_H100_tp4_k10_f2_best.pt",
@@ -121,18 +174,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-70b_H100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.873990209329696,
-      "final_val_loss": 0.9786466956138611,
-      "gmm_aic": 653127.0503740456,
-      "gmm_bic": 653384.4359402434,
+      "final_train_loss": 1.879450111162095,
+      "final_val_loss": 2.168942481279373,
+      "gmm_aic": 638488.8103312241,
+      "gmm_bic": 638746.0501422147,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-70b_H100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-70b_H100_tp4.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52858,
+      "num_train_points": 52593,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -140,24 +194,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-70b_H100_tp8": {
-      "best_epoch": 460,
-      "best_val_loss": 0.7098002284765244,
+      "auto_k": false,
+      "best_epoch": 114,
+      "best_val_loss": 1.7634119987487793,
       "bic_candidates": {
         "10": {
-          "aic": 635750.6256321066,
-          "bic": 636007.8030673915
+          "aic": 631637.1121027378,
+          "bic": 631894.215396071
         },
         "12": {
-          "aic": 635185.1977513905,
-          "bic": 635495.5843112172
+          "aic": 631583.5091984131,
+          "bic": 631893.8062765738
+        },
+        "14": {
+          "aic": 631440.3504453716,
+          "bic": 631803.8413083599
+        },
+        "16": {
+          "aic": 631134.0634309569,
+          "bic": 631550.7480787728
+        },
+        "18": {
+          "aic": 631123.9071185696,
+          "bic": 631593.785551213
+        },
+        "20": {
+          "aic": 630916.0085254088,
+          "bic": 631439.0807428798
         },
         "6": {
-          "aic": 642488.8094399024,
-          "bic": 642639.5686261039
+          "aic": 638971.7082359388,
+          "bic": 639122.4239596169
         },
         "8": {
-          "aic": 638415.0137456646,
-          "bic": 638618.9820564078
+          "aic": 631909.4233864693,
+          "bic": 632113.3328949749
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-70b_H100_tp8_k10_f2_best.pt",
@@ -165,18 +236,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-70b_H100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.6726192505586714,
-      "final_val_loss": 0.7190901786088943,
-      "gmm_aic": 635750.6256321066,
-      "gmm_bic": 636007.8030673915,
+      "final_train_loss": 1.6105928591319494,
+      "final_val_loss": 1.783848375082016,
+      "gmm_aic": 631637.1121027378,
+      "gmm_bic": 631894.215396071,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-70b_H100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-70b_H100_tp8.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52480,
+      "num_train_points": 52346,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -184,24 +256,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-8b_A100_tp1": {
-      "best_epoch": 392,
-      "best_val_loss": 0.6562690536181132,
+      "auto_k": false,
+      "best_epoch": 0,
+      "best_val_loss": 2.2547327677408853,
       "bic_candidates": {
         "10": {
-          "aic": 295663.50340738276,
-          "bic": 295911.03686889977
+          "aic": 278524.9216612303,
+          "bic": 278772.1202979573
         },
         "12": {
-          "aic": 296318.3500899339,
-          "bic": 296617.0973710751
+          "aic": 280035.3849790336,
+          "bic": 280333.72816129035
+        },
+        "14": {
+          "aic": 277682.9682608385,
+          "bic": 278032.4559886249
+        },
+        "16": {
+          "aic": 277592.0496039127,
+          "bic": 277992.68187722884
+        },
+        "18": {
+          "aic": 277637.36646800285,
+          "bic": 278089.14328684873
+        },
+        "20": {
+          "aic": 277520.6583231277,
+          "bic": 278023.57968750334
         },
         "6": {
-          "aic": 297415.0259172085,
-          "bic": 297560.1317394771
+          "aic": 280587.6144392941,
+          "bic": 280732.5239849616
         },
         "8": {
-          "aic": 296342.816888488,
-          "bic": 296539.1365303808
+          "aic": 280090.0727269727,
+          "bic": 280286.12681816996
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_A100_tp1_k10_f2_best.pt",
@@ -209,18 +298,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_A100_tp1_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.673464039961497,
-      "final_val_loss": 0.6577809453010559,
-      "gmm_aic": 295663.50340738276,
-      "gmm_bic": 295911.03686889977,
+      "final_train_loss": 1.8055357297261556,
+      "final_val_loss": 2.4132327238718667,
+      "gmm_aic": 278524.9216612303,
+      "gmm_bic": 278772.1202979573,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_A100_tp1_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_A100_tp1.json",
       "num_layers": 1,
       "num_test_traces": 4,
-      "num_train_points": 37633,
+      "num_train_points": 37201,
       "num_train_traces": 15,
       "num_val_traces": 3,
       "reason": "",
@@ -228,24 +318,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-8b_A100_tp2": {
-      "best_epoch": 492,
-      "best_val_loss": 1.0162054896354675,
+      "auto_k": false,
+      "best_epoch": 6,
+      "best_val_loss": 1.9814899563789368,
       "bic_candidates": {
         "10": {
-          "aic": 275270.988985242,
-          "bic": 275514.36339220696
+          "aic": 253686.74224027657,
+          "bic": 253927.49620657467
         },
         "12": {
-          "aic": 275195.7355166653,
-          "bic": 275489.4632492093
+          "aic": 253452.3723439885,
+          "bic": 253742.93747572758
+        },
+        "14": {
+          "aic": 253425.50592950912,
+          "bic": 253765.88222668917
+        },
+        "16": {
+          "aic": 253400.4854226347,
+          "bic": 253790.67288525574
+        },
+        "18": {
+          "aic": 253333.9748303408,
+          "bic": 253773.97345840282
+        },
+        "20": {
+          "aic": 252656.52166189387,
+          "bic": 253146.33145539687
         },
         "6": {
-          "aic": 278440.5370947443,
-          "bic": 278583.2048505513
+          "aic": 256660.88737059748,
+          "bic": 256802.0190060136
         },
         "8": {
-          "aic": 276496.1044850271,
-          "bic": 276689.1255664131
+          "aic": 253606.64782034777,
+          "bic": 253797.59062120487
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_A100_tp2_k10_f2_best.pt",
@@ -253,43 +360,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_A100_tp2_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7833673724761376,
-      "final_val_loss": 1.0467376311620076,
-      "gmm_aic": 275270.988985242,
-      "gmm_bic": 275514.36339220696,
+      "final_train_loss": 1.5054935415585835,
+      "final_val_loss": 2.013195812702179,
+      "gmm_aic": 253686.74224027657,
+      "gmm_bic": 253927.49620657467,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_A100_tp2_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_A100_tp2.json",
       "num_layers": 1,
-      "num_test_traces": 2,
-      "num_train_points": 32605,
-      "num_train_traces": 13,
-      "num_val_traces": 3,
+      "num_test_traces": 4,
+      "num_train_points": 29788,
+      "num_train_traces": 12,
+      "num_val_traces": 2,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "deepseek-r1-distill-8b_A100_tp4": {
-      "best_epoch": 496,
-      "best_val_loss": 1.0264341831207275,
+      "auto_k": false,
+      "best_epoch": 7,
+      "best_val_loss": 2.0412501096725464,
       "bic_candidates": {
         "10": {
-          "aic": 324979.44916405284,
-          "bic": 325222.8093365788
+          "aic": 298925.5583787048,
+          "bic": 299166.2255696763
         },
         "12": {
-          "aic": 324501.07761746884,
-          "bic": 324794.7881705174
+          "aic": 298382.67822055105,
+          "bic": 298673.13862344774
+        },
+        "14": {
+          "aic": 298216.71794597263,
+          "bic": 298556.97156079445
+        },
+        "16": {
+          "aic": 298257.53519775736,
+          "bic": 298647.5820245043
+        },
+        "18": {
+          "aic": 297532.7511257897,
+          "bic": 297972.5911644618
+        },
+        "20": {
+          "aic": 297507.1040600474,
+          "bic": 297996.73731064465
         },
         "6": {
-          "aic": 325220.50669990527,
-          "bic": 325363.166111386
+          "aic": 299053.590411603,
+          "bic": 299194.6711787242
         },
         "8": {
-          "aic": 324857.9220669981,
-          "bic": 325050.9318590014
+          "aic": 298895.2521586663,
+          "bic": 299086.1261377127
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_A100_tp4_k10_f2_best.pt",
@@ -297,43 +422,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_A100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9022970176660098,
-      "final_val_loss": 1.0267727971076965,
-      "gmm_aic": 324979.44916405284,
-      "gmm_bic": 325222.8093365788,
+      "final_train_loss": 1.899288962284724,
+      "final_val_loss": 2.0637210607528687,
+      "gmm_aic": 298925.5583787048,
+      "gmm_bic": 299166.2255696763,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_A100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_A100_tp4.json",
       "num_layers": 1,
-      "num_test_traces": 2,
-      "num_train_points": 32589,
-      "num_train_traces": 13,
-      "num_val_traces": 3,
+      "num_test_traces": 4,
+      "num_train_points": 29699,
+      "num_train_traces": 12,
+      "num_val_traces": 2,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "deepseek-r1-distill-8b_A100_tp8": {
-      "best_epoch": 273,
-      "best_val_loss": 1.135694831609726,
+      "auto_k": false,
+      "best_epoch": 77,
+      "best_val_loss": 2.015067219734192,
       "bic_candidates": {
         "10": {
-          "aic": 290208.384303937,
-          "bic": 290446.83219884365
+          "aic": 316083.6103959743,
+          "bic": 316324.26489013666
         },
         "12": {
-          "aic": 290269.81545038195,
-          "bic": 290557.5973925106
+          "aic": 315982.6828870874,
+          "bic": 316273.12796624884
+        },
+        "14": {
+          "aic": 316003.5068739299,
+          "bic": 316343.74253809045
+        },
+        "16": {
+          "aic": 315978.1055392757,
+          "bic": 316368.1317884354
+        },
+        "18": {
+          "aic": 315871.90169870737,
+          "bic": 316311.71853286616
+        },
+        "20": {
+          "aic": 315876.50137131615,
+          "bic": 316366.10879047407
         },
         "6": {
-          "aic": 293263.6908193337,
-          "bic": 293403.4706197962
+          "aic": 318417.473412525,
+          "bic": 318558.54673668917
         },
         "8": {
-          "aic": 292107.08395681315,
-          "bic": 292296.1978044977
+          "aic": 317947.6183414518,
+          "bic": 318138.482250615
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_A100_tp8_k10_f2_best.pt",
@@ -341,43 +484,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_A100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 1.0239480462941257,
-      "final_val_loss": 1.1457997262477875,
-      "gmm_aic": 290208.384303937,
-      "gmm_bic": 290446.83219884365,
+      "final_train_loss": 1.8914197782675426,
+      "final_val_loss": 2.0351099967956543,
+      "gmm_aic": 316083.6103959743,
+      "gmm_bic": 316324.26489013666,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_A100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_A100_tp8.json",
       "num_layers": 1,
-      "num_test_traces": 3,
-      "num_train_points": 27511,
-      "num_train_traces": 11,
+      "num_test_traces": 4,
+      "num_train_points": 29686,
+      "num_train_traces": 12,
       "num_val_traces": 2,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "deepseek-r1-distill-8b_H100_tp1": {
-      "best_epoch": 278,
-      "best_val_loss": 1.2351166605949402,
+      "auto_k": false,
+      "best_epoch": 160,
+      "best_val_loss": 1.9428656101226807,
       "bic_candidates": {
         "10": {
-          "aic": 484831.84100168693,
-          "bic": 485088.98083638697
+          "aic": 497820.96394692693,
+          "bic": 498077.90836010483
         },
         "12": {
-          "aic": 484737.6622274118,
-          "bic": 485048.00340722216
+          "aic": 497665.53711022175,
+          "bic": 497975.64243647095
+        },
+        "14": {
+          "aic": 497776.8118660341,
+          "bic": 498140.0781053546
+        },
+        "16": {
+          "aic": 497614.76494504214,
+          "bic": 498031.1920974339
+        },
+        "18": {
+          "aic": 496587.8831598852,
+          "bic": 497057.47122534824
+        },
+        "20": {
+          "aic": 497615.91719769774,
+          "bic": 498138.6661762321
         },
         "6": {
-          "aic": 485931.14833516633,
-          "bic": 486081.8854796456
+          "aic": 498896.75622144924,
+          "bic": 499047.3788084846
         },
         "8": {
-          "aic": 485217.40535305534,
-          "bic": 485421.343842645
+          "aic": 497972.6748395127,
+          "bic": 498176.4583396193
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_H100_tp1_k10_f2_best.pt",
@@ -385,18 +546,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_H100_tp1_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.8273617540087018,
-      "final_val_loss": 1.2548879384994507,
-      "gmm_aic": 484831.84100168693,
-      "gmm_bic": 485088.98083638697,
+      "final_train_loss": 1.8834783292952038,
+      "final_val_loss": 1.944448858499527,
+      "gmm_aic": 497820.96394692693,
+      "gmm_bic": 498077.90836010483,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_H100_tp1_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_H100_tp1.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52412,
+      "num_train_points": 52060,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -404,24 +566,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-8b_H100_tp2": {
-      "best_epoch": 499,
-      "best_val_loss": 0.7276182174682617,
+      "auto_k": false,
+      "best_epoch": 2,
+      "best_val_loss": 1.5970232784748077,
       "bic_candidates": {
         "10": {
-          "aic": 560564.8214162578,
-          "bic": 560821.8748061351
+          "aic": 552369.0637222186,
+          "bic": 552625.932277529
         },
         "12": {
-          "aic": 560382.4585540786,
-          "bic": 560692.6954039305
+          "aic": 543395.5674823867,
+          "bic": 543705.5812560371
+        },
+        "14": {
+          "aic": 543368.5703176976,
+          "bic": 543731.7293096881
+        },
+        "16": {
+          "aic": 543351.6828205871,
+          "bic": 543767.9870309177
+        },
+        "18": {
+          "aic": 543175.9879031141,
+          "bic": 543645.4373317847
+        },
+        "20": {
+          "aic": 543127.065342989,
+          "bic": 543649.6599899998
         },
         "6": {
-          "aic": 560556.30743484,
-          "bic": 560706.9939047681
+          "aic": 552794.5207147194,
+          "bic": 552945.0988333496
         },
         "8": {
-          "aic": 560342.5866259469,
-          "bic": 560546.4565558496
+          "aic": 552496.6213455604,
+          "bic": 552700.3446825307
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_H100_tp2_k10_f2_best.pt",
@@ -429,18 +608,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_H100_tp2_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7791651586691538,
-      "final_val_loss": 0.7276182174682617,
-      "gmm_aic": 560564.8214162578,
-      "gmm_bic": 560821.8748061351,
+      "final_train_loss": 1.5961966003690446,
+      "final_val_loss": 1.6300580650568008,
+      "gmm_aic": 552369.0637222186,
+      "gmm_bic": 552625.932277529,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_H100_tp2_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_H100_tp2.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52256,
+      "num_train_points": 51924,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -448,24 +628,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-8b_H100_tp4": {
-      "best_epoch": 173,
-      "best_val_loss": 1.0639563351869583,
+      "auto_k": false,
+      "best_epoch": 146,
+      "best_val_loss": 1.878025084733963,
       "bic_candidates": {
         "10": {
-          "aic": 551180.1370527442,
-          "bic": 551435.7355153877
+          "aic": 568466.728573985,
+          "bic": 568722.1485168961
         },
         "12": {
-          "aic": 551093.6505827848,
-          "bic": 551402.1314859753
+          "aic": 568149.8700117358,
+          "bic": 568458.1354600766
+        },
+        "14": {
+          "aic": 564519.1879876659,
+          "bic": 564880.2989414366
+        },
+        "16": {
+          "aic": 564515.5395320149,
+          "bic": 564929.4959912155
+        },
+        "18": {
+          "aic": 564529.6738449329,
+          "bic": 564996.4758095633
+        },
+        "20": {
+          "aic": 564312.9811572661,
+          "bic": 564832.6286273263
         },
         "6": {
-          "aic": 552060.2767680456,
-          "bic": 552210.1103495953
+          "aic": 569696.2996132819,
+          "bic": 569846.0285453331
         },
         "8": {
-          "aic": 551405.3483015595,
-          "bic": 551608.0643236561
+          "aic": 568937.1551205616,
+          "bic": 569139.7295580427
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_H100_tp4_k10_f2_best.pt",
@@ -473,18 +670,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_H100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 1.058615505695343,
-      "final_val_loss": 1.0731507241725922,
-      "gmm_aic": 551180.1370527442,
-      "gmm_bic": 551435.7355153877,
+      "final_train_loss": 2.0192023873329163,
+      "final_val_loss": 1.8806398212909698,
+      "gmm_aic": 568466.728573985,
+      "gmm_bic": 568722.1485168961,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_H100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_H100_tp4.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 49699,
+      "num_train_points": 49394,
       "num_train_traces": 20,
       "num_val_traces": 4,
       "reason": "",
@@ -492,24 +690,41 @@
       "status": "trained"
     },
     "deepseek-r1-distill-8b_H100_tp8": {
-      "best_epoch": 499,
-      "best_val_loss": 1.3266969323158264,
+      "auto_k": false,
+      "best_epoch": 95,
+      "best_val_loss": 1.8750633895397186,
       "bic_candidates": {
         "10": {
-          "aic": 615605.7134737951,
-          "bic": 615862.8571813953
+          "aic": 637064.316154422,
+          "bic": 637321.1813584872
         },
         "12": {
-          "aic": 615324.1081491162,
-          "bic": 615634.4540031165
+          "aic": 636658.259329285,
+          "bic": 636968.2690583292
+        },
+        "14": {
+          "aic": 636510.3746658984,
+          "bic": 636873.5289199216
+        },
+        "16": {
+          "aic": 636445.2247397973,
+          "bic": 636861.5235187996
+        },
+        "18": {
+          "aic": 635426.3666086535,
+          "bic": 635895.8099126347
+        },
+        "20": {
+          "aic": 635291.0423496984,
+          "bic": 635813.6301786586
         },
         "6": {
-          "aic": 617110.6698532066,
-          "bic": 617261.4092680067
+          "aic": 638600.5321003394,
+          "bic": 638751.1082544466
         },
         "8": {
-          "aic": 616286.751837766,
-          "bic": 616490.6933989662
+          "aic": 637636.6540472968,
+          "bic": 637840.374726383
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/deepseek-r1-distill-8b_H100_tp8_k10_f2_best.pt",
@@ -517,18 +732,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/deepseek-r1-distill-8b_H100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9606474765709468,
-      "final_val_loss": 1.3266969323158264,
-      "gmm_aic": 615605.7134737951,
-      "gmm_bic": 615862.8571813953,
+      "final_train_loss": NaN,
+      "final_val_loss": NaN,
+      "gmm_aic": 637064.316154422,
+      "gmm_bic": 637321.1813584872,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/deepseek-r1-distill-8b_H100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52419,
+      "num_train_points": 51918,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -536,24 +752,41 @@
       "status": "trained"
     },
     "gpt-oss-120b_A100_tp4": {
-      "best_epoch": 116,
-      "best_val_loss": 0.8403515815734863,
+      "auto_k": false,
+      "best_epoch": 107,
+      "best_val_loss": 2.0028969943523407,
       "bic_candidates": {
         "10": {
-          "aic": 346283.59996084205,
-          "bic": 346522.90677007666
+          "aic": 580112.4739732225,
+          "bic": 580369.5672927322
         },
         "12": {
-          "aic": 344862.0347580366,
-          "bic": 345150.85332090594
+          "aic": 579854.0657637789,
+          "bic": 580164.3508045663
+        },
+        "14": {
+          "aic": 579935.5548342492,
+          "bic": 580299.0315963145
+        },
+        "16": {
+          "aic": 578920.3309893602,
+          "bic": 579336.9994727033
+        },
+        "18": {
+          "aic": 578856.6203219767,
+          "bic": 579326.4805265977
+        },
+        "20": {
+          "aic": 566963.0516260545,
+          "bic": 567486.1035519533
         },
         "6": {
-          "aic": 381963.9954271376,
-          "bic": 382104.2787291027
+          "aic": 596883.8728432836,
+          "bic": 597034.5827202374
         },
         "8": {
-          "aic": 357083.3373537893,
-          "bic": 357273.1324093892
+          "aic": 580429.9877836253,
+          "bic": 580633.889381857
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-120b_A100_tp4_k10_f2_best.pt",
@@ -561,18 +794,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-120b_A100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9354500912484669,
-      "final_val_loss": 1.1446318179368973,
-      "gmm_aic": 346283.59996084205,
-      "gmm_bic": 346522.90677007666,
+      "final_train_loss": 2.0202475445611134,
+      "final_val_loss": 2.0668213963508606,
+      "gmm_aic": 580112.4739732225,
+      "gmm_bic": 580369.5672927322,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-120b_A100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-120b_A100_tp4.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 28338,
+      "num_train_points": 52328,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -580,24 +814,41 @@
       "status": "trained"
     },
     "gpt-oss-120b_A100_tp8": {
-      "best_epoch": 76,
-      "best_val_loss": 1.4673054814338684,
+      "auto_k": false,
+      "best_epoch": 167,
+      "best_val_loss": 2.075401246547699,
       "bic_candidates": {
         "10": {
-          "aic": 390325.98559772223,
-          "bic": 390565.53900881525
+          "aic": 600172.850276359,
+          "bic": 600429.9646476967
         },
         "12": {
-          "aic": 382984.8301599082,
-          "bic": 383273.94634571014
+          "aic": 598298.1196767315,
+          "bic": 598608.4301248977
+        },
+        "14": {
+          "aic": 597935.7200927592,
+          "bic": 598299.226617754
+        },
+        "16": {
+          "aic": 597430.9779734893,
+          "bic": 597847.6805753126
+        },
+        "18": {
+          "aic": 597399.7331194627,
+          "bic": 597869.6317981145
+        },
+        "20": {
+          "aic": 597717.1707018894,
+          "bic": 598240.2654573696
         },
         "6": {
-          "aic": 392810.85454438394,
-          "bic": 392951.28240605915
+          "aic": 611513.1543252214,
+          "bic": 611663.8765429022
         },
         "8": {
-          "aic": 387943.8698695234,
-          "bic": 388133.8605059075
+          "aic": 602142.6763609946,
+          "bic": 602346.5946555039
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-120b_A100_tp8_k10_f2_best.pt",
@@ -605,106 +856,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-120b_A100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 1.1431091044630324,
-      "final_val_loss": 1.6894660890102386,
-      "gmm_aic": 390325.98559772223,
-      "gmm_bic": 390565.53900881525,
+      "final_train_loss": 2.0614219165983654,
+      "final_val_loss": 2.0781800746917725,
+      "gmm_aic": 600172.850276359,
+      "gmm_bic": 600429.9646476967,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-120b_A100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-120b_A100_tp8.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 28580,
-      "num_train_traces": 21,
-      "num_val_traces": 4,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "gpt-oss-120b_H100_tp4": {
-      "best_epoch": 498,
-      "best_val_loss": 0.5204758159816265,
-      "bic_candidates": {
-        "10": {
-          "aic": 395812.1981818341,
-          "bic": 396051.425058865
-        },
-        "12": {
-          "aic": 394559.4649310872,
-          "bic": 394848.1870240556
-        },
-        "6": {
-          "aic": 404519.08852914587,
-          "bic": 404659.3249743019
-        },
-        "8": {
-          "aic": 398728.9726438333,
-          "bic": 398918.7043049268
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-120b_H100_tp4_k10_f2_best.pt",
-      "config_id": "gpt-oss-120b_H100_tp4",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-120b_H100_tp4_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 0.5124813277451765,
-      "final_val_loss": 0.6287197358906269,
-      "gmm_aic": 395812.1981818341,
-      "gmm_bic": 396051.425058865,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-120b_H100_tp4_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-120b_H100_tp4.json",
-      "num_layers": 1,
-      "num_test_traces": 5,
-      "num_train_points": 28260,
-      "num_train_traces": 21,
-      "num_val_traces": 4,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "gpt-oss-120b_H100_tp8": {
-      "best_epoch": 127,
-      "best_val_loss": 0.3794684559106827,
-      "bic_candidates": {
-        "10": {
-          "aic": 399765.5523360608,
-          "bic": 400004.29180666053
-        },
-        "12": {
-          "aic": 398739.11424625874,
-          "bic": 399027.24809008604
-        },
-        "6": {
-          "aic": 407977.28338564106,
-          "bic": 408117.23410978576
-        },
-        "8": {
-          "aic": 403540.5514425667,
-          "bic": 403729.89653993887
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-120b_H100_tp8_k10_f2_best.pt",
-      "config_id": "gpt-oss-120b_H100_tp8",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-120b_H100_tp8_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 0.686760242496218,
-      "final_val_loss": 0.3936774209141731,
-      "gmm_aic": 399765.5523360608,
-      "gmm_bic": 400004.29180666053,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-120b_H100_tp8_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-120b_H100_tp8.json",
-      "num_layers": 1,
-      "num_test_traces": 5,
-      "num_train_points": 27789,
+      "num_train_points": 52366,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -712,24 +876,41 @@
       "status": "trained"
     },
     "gpt-oss-20b_A100_tp1": {
-      "best_epoch": 264,
-      "best_val_loss": 1.1820021122694016,
+      "auto_k": false,
+      "best_epoch": 1,
+      "best_val_loss": 2.172425776720047,
       "bic_candidates": {
         "10": {
-          "aic": 293679.31551369897,
-          "bic": 293920.3658654632
+          "aic": 416821.21794480545,
+          "bic": 417078.33176234347
         },
         "12": {
-          "aic": 293551.67843526707,
-          "bic": 293842.6012736032
+          "aic": 413544.32396364136,
+          "bic": 413854.6337434286
+        },
+        "14": {
+          "aic": 411993.1437137786,
+          "bic": 412356.6494558151
+        },
+        "16": {
+          "aic": 411975.42437027383,
+          "bic": 412392.1260745596
+        },
+        "18": {
+          "aic": 411950.2659012715,
+          "bic": 412420.1635678065
+        },
+        "20": {
+          "aic": 411868.5375913936,
+          "bic": 412391.6312201778
         },
         "6": {
-          "aic": 310950.3336444893,
-          "bic": 311091.6390231097
+          "aic": 421616.1646988803,
+          "bic": 421766.8865919198
         },
         "8": {
-          "aic": 294531.10546403116,
-          "bic": 294722.2833292235
+          "aic": 418143.0399280843,
+          "bic": 418346.9577833731
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-20b_A100_tp1_k10_f2_best.pt",
@@ -737,18 +918,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-20b_A100_tp1_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9630408343814668,
-      "final_val_loss": 1.2110726535320282,
-      "gmm_aic": 293679.31551369897,
-      "gmm_bic": 293920.3658654632,
+      "final_train_loss": 2.0878492991129556,
+      "final_val_loss": 2.2282669246196747,
+      "gmm_aic": 416821.21794480545,
+      "gmm_bic": 417078.33176234347,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-20b_A100_tp1_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-20b_A100_tp1.json",
       "num_layers": 1,
-      "num_test_traces": 5,
-      "num_train_points": 30094,
+      "num_test_traces": 6,
+      "num_train_points": 52365,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -756,24 +938,41 @@
       "status": "trained"
     },
     "gpt-oss-20b_A100_tp2": {
-      "best_epoch": 368,
-      "best_val_loss": 1.179599106311798,
+      "auto_k": false,
+      "best_epoch": 159,
+      "best_val_loss": 2.0140048563480377,
       "bic_candidates": {
         "10": {
-          "aic": 315494.93105520285,
-          "bic": 315733.23099599674
+          "aic": 492654.9768198528,
+          "bic": 492912.05184510525
         },
         "12": {
-          "aic": 314091.2033815022,
-          "bic": 314378.8067583224
+          "aic": 492466.3508192388,
+          "bic": 492776.6137807504
+        },
+        "14": {
+          "aic": 492715.20089485345,
+          "bic": 493078.65179262415
+        },
+        "16": {
+          "aic": 492787.2980526764,
+          "bic": 493203.9368867062
+        },
+        "18": {
+          "aic": 492208.1642659829,
+          "bic": 492677.9910362719
+        },
+        "20": {
+          "aic": 491596.3095668208,
+          "bic": 492119.3242733689
         },
         "6": {
-          "aic": 327941.0988856446,
-          "bic": 328080.7919543858
+          "aic": 494724.6046088028,
+          "bic": 494875.303761537
         },
         "8": {
-          "aic": 316619.9318475233,
-          "bic": 316808.9283522909
+          "aic": 494532.2080798208,
+          "bic": 494736.0951688141
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-20b_A100_tp2_k10_f2_best.pt",
@@ -781,106 +980,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-20b_A100_tp2_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 1.0258702337741852,
-      "final_val_loss": 1.1859129071235657,
-      "gmm_aic": 315494.93105520285,
-      "gmm_bic": 315733.23099599674,
+      "final_train_loss": 2.041207103502183,
+      "final_val_loss": 2.019645035266876,
+      "gmm_aic": 492654.9768198528,
+      "gmm_bic": 492912.05184510525,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-20b_A100_tp2_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-20b_A100_tp2.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 27371,
-      "num_train_traces": 20,
-      "num_val_traces": 4,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "gpt-oss-20b_H100_tp1": {
-      "best_epoch": 329,
-      "best_val_loss": 0.7403736114501953,
-      "bic_candidates": {
-        "10": {
-          "aic": 308031.2876055023,
-          "bic": 308270.05419645505
-        },
-        "12": {
-          "aic": 307570.10501258535,
-          "bic": 307858.27158787317
-        },
-        "6": {
-          "aic": 312653.2408746722,
-          "bic": 312793.2074969548
-        },
-        "8": {
-          "aic": 308774.670437174,
-          "bic": 308964.0370437917
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-20b_H100_tp1_k10_f2_best.pt",
-      "config_id": "gpt-oss-20b_H100_tp1",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-20b_H100_tp1_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 0.7172486210862795,
-      "final_val_loss": 0.7590655386447906,
-      "gmm_aic": 308031.2876055023,
-      "gmm_bic": 308270.05419645505,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-20b_H100_tp1_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-20b_H100_tp1.json",
-      "num_layers": 1,
-      "num_test_traces": 5,
-      "num_train_points": 27815,
-      "num_train_traces": 21,
-      "num_val_traces": 4,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "gpt-oss-20b_H100_tp2": {
-      "best_epoch": 117,
-      "best_val_loss": 1.1148103922605515,
-      "bic_candidates": {
-        "10": {
-          "aic": 339030.69535568054,
-          "bic": 339269.4546474944
-        },
-        "12": {
-          "aic": 338941.41525607393,
-          "bic": 339229.5730220562
-        },
-        "6": {
-          "aic": 342621.42528394377,
-          "bic": 342761.3876274209
-        },
-        "8": {
-          "aic": 339598.685850566,
-          "bic": 339788.0466682115
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/gpt-oss-20b_H100_tp2_k10_f2_best.pt",
-      "config_id": "gpt-oss-20b_H100_tp2",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/gpt-oss-20b_H100_tp2_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 0.8522301600092933,
-      "final_val_loss": 1.2249123007059097,
-      "gmm_aic": 339030.69535568054,
-      "gmm_bic": 339269.4546474944,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/gpt-oss-20b_H100_tp2_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/gpt-oss-20b_H100_tp2.json",
-      "num_layers": 1,
-      "num_test_traces": 5,
-      "num_train_points": 27808,
+      "num_train_points": 52295,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -888,24 +1000,41 @@
       "status": "trained"
     },
     "llama-3-405b_H100_tp8": {
-      "best_epoch": 451,
-      "best_val_loss": 1.039100170135498,
+      "auto_k": false,
+      "best_epoch": 2,
+      "best_val_loss": 1.8963930010795593,
       "bic_candidates": {
         "10": {
-          "aic": 729105.0931259183,
-          "bic": 729362.8894437937
+          "aic": 712128.5965342837,
+          "bic": 712386.211074206
         },
         "12": {
-          "aic": 729053.5423003595,
-          "bic": 729364.6757874504
+          "aic": 712234.1712592237,
+          "bic": 712545.08535913
+        },
+        "14": {
+          "aic": 711997.6096323709,
+          "bic": 712361.8232922611
+        },
+        "16": {
+          "aic": 712044.3167340037,
+          "bic": 712461.8299538778
+        },
+        "18": {
+          "aic": 711998.6998986757,
+          "bic": 712469.5126785338
+        },
+        "20": {
+          "aic": 711948.0753077092,
+          "bic": 712472.1876475512
         },
         "6": {
-          "aic": 730224.417048659,
-          "bic": 730375.5390281031
+          "aic": 712883.6993332912,
+          "bic": 713034.7147532456
         },
         "8": {
-          "aic": 729226.0174788081,
-          "bic": 729430.4766274678
+          "aic": 712247.833754753,
+          "bic": 712452.1487346914
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-405b_H100_tp8_k10_f2_best.pt",
@@ -913,18 +1042,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-405b_H100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.8911194034985134,
-      "final_val_loss": 1.0395850539207458,
-      "gmm_aic": 729105.0931259183,
-      "gmm_bic": 729362.8894437937,
+      "final_train_loss": 1.750551008042835,
+      "final_val_loss": 1.9206780791282654,
+      "gmm_aic": 712128.5965342837,
+      "gmm_bic": 712386.211074206,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-405b_H100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-405b_H100_tp8.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 53612,
+      "num_train_points": 53277,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -932,24 +1062,41 @@
       "status": "trained"
     },
     "llama-3-70b_A100_tp4": {
-      "best_epoch": 81,
-      "best_val_loss": 0.9473931193351746,
+      "auto_k": false,
+      "best_epoch": 39,
+      "best_val_loss": 1.5799541622400284,
       "bic_candidates": {
         "10": {
-          "aic": 1032939.9094836004,
-          "bic": 1033213.0435755488
+          "aic": 539192.4951535062,
+          "bic": 539450.0677500907
         },
         "12": {
-          "aic": 1032441.5146026408,
-          "bic": 1032771.1591963716
+          "aic": 537521.8524170795,
+          "bic": 537832.715895716
+        },
+        "14": {
+          "aic": 537455.803507591,
+          "bic": 537819.9578682795
+        },
+        "16": {
+          "aic": 537458.7340523397,
+          "bic": 537876.1792950801
+        },
+        "18": {
+          "aic": 537378.3070765209,
+          "bic": 537849.0432013134
+        },
+        "20": {
+          "aic": 537384.5222173658,
+          "bic": 537908.5492242102
         },
         "6": {
-          "aic": 1047147.1357172049,
-          "bic": 1047307.2488055883
+          "aic": 541104.0001913222,
+          "bic": 541254.9910238028
         },
         "8": {
-          "aic": 1033414.1647583297,
-          "bic": 1033630.7883484956
+          "aic": 538082.3509363132,
+          "bic": 538286.6326508458
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-70b_A100_tp4_k10_f2_best.pt",
@@ -957,43 +1104,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-70b_A100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9448174805868239,
-      "final_val_loss": 1.0020460022820368,
-      "gmm_aic": 1032939.9094836004,
-      "gmm_bic": 1033213.0435755488,
+      "final_train_loss": 1.3892149669783456,
+      "final_val_loss": 1.601783499121666,
+      "gmm_aic": 539192.4951535062,
+      "gmm_bic": 539450.0677500907,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-70b_A100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-70b_A100_tp4.json",
       "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 90982,
-      "num_train_traces": 42,
-      "num_val_traces": 9,
+      "num_test_traces": 5,
+      "num_train_points": 53200,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "llama-3-70b_A100_tp8": {
-      "best_epoch": 10,
-      "best_val_loss": 1.5136171181996663,
+      "auto_k": false,
+      "best_epoch": 102,
+      "best_val_loss": 1.6666528582572937,
       "bic_candidates": {
         "10": {
-          "aic": 1067533.7868666067,
-          "bic": 1067803.2209761275
+          "aic": 627027.0207903709,
+          "bic": 627284.2661148792
         },
         "12": {
-          "aic": 1066889.5062049364,
-          "bic": 1067214.685302634
+          "aic": 626942.2904597891,
+          "bic": 627252.7589548853
+        },
+        "14": {
+          "aic": 623793.9638483325,
+          "bic": 624157.6555140166
+        },
+        "16": {
+          "aic": 623680.263363444,
+          "bic": 624097.178199716
+        },
+        "18": {
+          "aic": 623479.3765653695,
+          "bic": 623949.5145722295
+        },
+        "20": {
+          "aic": 623441.1124809344,
+          "bic": 623964.4736583822
         },
         "6": {
-          "aic": 1100309.6396092605,
-          "bic": 1100467.5837424279
+          "aic": 630147.7141741953,
+          "bic": 630298.5131575278
         },
         "8": {
-          "aic": 1070602.2133113004,
-          "bic": 1070815.9024326445
+          "aic": 628323.6043652236,
+          "bic": 628527.6265191439
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-70b_A100_tp8_k10_f2_best.pt",
@@ -1001,43 +1166,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-70b_A100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 1.1592656638473273,
-      "final_val_loss": 1.6483764515982733,
-      "gmm_aic": 1067533.7868666067,
-      "gmm_bic": 1067803.2209761275,
+      "final_train_loss": 1.790197071574983,
+      "final_val_loss": 1.673138439655304,
+      "gmm_aic": 627027.0207903709,
+      "gmm_bic": 627284.2661148792,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-70b_A100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-70b_A100_tp8.json",
       "num_layers": 1,
-      "num_test_traces": 8,
-      "num_train_points": 80084,
-      "num_train_traces": 40,
-      "num_val_traces": 9,
+      "num_test_traces": 5,
+      "num_train_points": 52603,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "llama-3-70b_H100_tp4": {
-      "best_epoch": 181,
-      "best_val_loss": 1.0782443814807467,
+      "auto_k": false,
+      "best_epoch": 0,
+      "best_val_loss": 2.2360817790031433,
       "bic_candidates": {
         "10": {
-          "aic": 1065981.228739353,
-          "bic": 1066250.7297637726
+          "aic": 610287.111033474,
+          "bic": 610542.8927225852
         },
         "12": {
-          "aic": 1065248.0237701752,
-          "bic": 1065573.2836272335
+          "aic": 608089.6873372858,
+          "bic": 608398.3893758685
+        },
+        "14": {
+          "aic": 607833.2500673054,
+          "bic": 608194.8724553593
+        },
+        "16": {
+          "aic": 607853.4969507875,
+          "bic": 608268.0396883127
+        },
+        "18": {
+          "aic": 607757.6747606888,
+          "bic": 608225.1378476854
+        },
+        "20": {
+          "aic": 607757.3492090614,
+          "bic": 608277.7326455292
         },
         "6": {
-          "aic": 1067787.3640121927,
-          "bic": 1067945.3473713354
+          "aic": 610881.2630170849,
+          "bic": 611031.2040072536
         },
         "8": {
-          "aic": 1066651.214899363,
-          "bic": 1066864.957091144
+          "aic": 610710.6177881013,
+          "bic": 610913.4791277413
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-70b_H100_tp4_k10_f2_best.pt",
@@ -1045,43 +1228,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-70b_H100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7335270148951832,
-      "final_val_loss": 1.092269202073415,
-      "gmm_aic": 1065981.228739353,
-      "gmm_bic": 1066250.7297637726,
+      "final_train_loss": 2.0422835111618043,
+      "final_val_loss": 2.3406562209129333,
+      "gmm_aic": 610287.111033474,
+      "gmm_bic": 610542.8927225852,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-70b_H100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-70b_H100_tp4.json",
       "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 80269,
-      "num_train_traces": 41,
-      "num_val_traces": 9,
+      "num_test_traces": 5,
+      "num_train_points": 50014,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "llama-3-70b_H100_tp8": {
-      "best_epoch": 132,
-      "best_val_loss": 0.817547470331192,
+      "auto_k": false,
+      "best_epoch": 68,
+      "best_val_loss": 1.7704640328884125,
       "bic_candidates": {
         "10": {
-          "aic": 1063246.312589517,
-          "bic": 1063514.5037150464
+          "aic": 642474.6855300879,
+          "bic": 642731.7755242272
         },
         "12": {
-          "aic": 1062919.8519327734,
-          "bic": 1063243.5308773778
+          "aic": 642052.2522797269,
+          "bic": 642362.5333071364
+        },
+        "14": {
+          "aic": 641721.3601908076,
+          "bic": 642084.8322514873
+        },
+        "16": {
+          "aic": 641616.3446117227,
+          "bic": 642033.0077056726
+        },
+        "18": {
+          "aic": 640396.4782995369,
+          "bic": 640866.332426757
+        },
+        "20": {
+          "aic": 640186.3891331531,
+          "bic": 640709.4342936435
         },
         "6": {
-          "aic": 1067800.048142389,
-          "bic": 1067957.2636297683
+          "aic": 644323.384733256,
+          "bic": 644474.0926608548
         },
         "8": {
-          "aic": 1066064.1166286825,
-          "bic": 1066276.819935137
+          "aic": 642765.0800642328,
+          "bic": 642968.9790251019
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-70b_H100_tp8_k10_f2_best.pt",
@@ -1089,219 +1290,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-70b_H100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7897364010171193,
-      "final_val_loss": 0.985829535457823,
-      "gmm_aic": 1063246.312589517,
-      "gmm_bic": 1063514.5037150464,
+      "final_train_loss": 1.665124121166411,
+      "final_val_loss": 1.7875372469425201,
+      "gmm_aic": 642474.6855300879,
+      "gmm_bic": 642731.7755242272,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-70b_H100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-70b_H100_tp8.json",
       "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 76724,
-      "num_train_traces": 41,
-      "num_val_traces": 9,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "llama-3-8b_A100_tp1": {
-      "best_epoch": 483,
-      "best_val_loss": 0.9591341416041056,
-      "bic_candidates": {
-        "10": {
-          "aic": 793021.1939836853,
-          "bic": 793291.788340215
-        },
-        "12": {
-          "aic": 789869.4231829138,
-          "bic": 790196.0025787255
-        },
-        "6": {
-          "aic": 800812.4068626122,
-          "bic": 800971.0311405779
-        },
-        "8": {
-          "aic": 795212.4739051332,
-          "bic": 795427.0832223808
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_A100_tp1_k10_f2_best.pt",
-      "config_id": "llama-3-8b_A100_tp1",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_A100_tp1_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 0.7186330045972552,
-      "final_val_loss": 0.9613479574521383,
-      "gmm_aic": 793021.1939836853,
-      "gmm_bic": 793291.788340215,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_A100_tp1_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_A100_tp1.json",
-      "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 83353,
-      "num_train_traces": 42,
-      "num_val_traces": 9,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "llama-3-8b_A100_tp2": {
-      "best_epoch": 0,
-      "best_val_loss": 2.1985192828708224,
-      "bic_candidates": {
-        "10": {
-          "aic": 840718.4567075181,
-          "bic": 840987.9978068902
-        },
-        "12": {
-          "aic": 831738.3355223502,
-          "bic": 832063.6437457303
-        },
-        "6": {
-          "aic": 845015.4266173294,
-          "bic": 845173.4334686854
-        },
-        "8": {
-          "aic": 841624.9951384143,
-          "bic": 841838.7691137784
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_A100_tp2_k10_f2_best.pt",
-      "config_id": "llama-3-8b_A100_tp2",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_A100_tp2_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 1.217579383675645,
-      "final_val_loss": 2.4910140368673535,
-      "gmm_aic": 840718.4567075181,
-      "gmm_bic": 840987.9978068902,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_A100_tp2_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_A100_tp2.json",
-      "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 80380,
-      "num_train_traces": 41,
-      "num_val_traces": 9,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
-    "llama-3-8b_A100_tp4": {
-      "best_epoch": 498,
-      "best_val_loss": 1.2488586604595184,
-      "bic_candidates": {
-        "10": {
-          "aic": 500142.42552405543,
-          "bic": 500398.2402450932
-        },
-        "12": {
-          "aic": 499941.19647247804,
-          "bic": 500249.9383771788
-        },
-        "6": {
-          "aic": 500965.4318205153,
-          "bic": 501115.3921742271
-        },
-        "8": {
-          "aic": 500157.8147552615,
-          "bic": 500360.70229263627
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_A100_tp4_k10_f2_best.pt",
-      "config_id": "llama-3-8b_A100_tp4",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_A100_tp4_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 1.1805272728204728,
-      "final_val_loss": 1.25228613615036,
-      "gmm_aic": 500142.42552405543,
-      "gmm_bic": 500398.2402450932,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_A100_tp4_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_A100_tp4.json",
-      "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 50071,
-      "num_train_traces": 20,
+      "num_train_points": 52322,
+      "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
-    "llama-3-8b_A100_tp8": {
-      "best_epoch": 488,
-      "best_val_loss": 1.3196848630905151,
-      "bic_candidates": {
-        "10": {
-          "aic": 394098.42117644026,
-          "bic": 394345.936137651
-        },
-        "12": {
-          "aic": 393977.76270147105,
-          "bic": 394276.48765465635
-        },
-        "6": {
-          "aic": 395013.62358301703,
-          "bic": 395158.7185602785
-        },
-        "8": {
-          "aic": 394218.400333757,
-          "bic": 394414.70530299307
-        }
-      },
-      "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_A100_tp8_k10_f2_best.pt",
-      "config_id": "llama-3-8b_A100_tp8",
-      "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_A100_tp8_k10_f2.csv",
-      "device": "cuda",
-      "feature_set": "f2",
-      "final_train_loss": 1.174392819404602,
-      "final_val_loss": 1.3204259872436523,
-      "gmm_aic": 394098.42117644026,
-      "gmm_bic": 394345.936137651,
-      "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_A100_tp8_k10.json",
-      "hidden_dim": 64,
-      "input_dim": 2,
-      "k": 10,
-      "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_A100_tp8.json",
-      "num_layers": 1,
-      "num_test_traces": 3,
-      "num_train_points": 37609,
-      "num_train_traces": 15,
-      "num_val_traces": 3,
-      "reason": "",
-      "seed": 42,
-      "status": "trained"
-    },
     "llama-3-8b_H100_tp1": {
-      "best_epoch": 171,
-      "best_val_loss": 0.9973605010244582,
+      "auto_k": false,
+      "best_epoch": 98,
+      "best_val_loss": 1.9550540447235107,
       "bic_candidates": {
         "10": {
-          "aic": 876954.1124421355,
-          "bic": 877224.0341874292
+          "aic": 515959.0813164607,
+          "bic": 516216.01124273223
         },
         "12": {
-          "aic": 876785.6539746159,
-          "bic": 877111.4215982462
+          "aic": 515964.00982845435,
+          "bic": 516274.0976705062
+        },
+        "14": {
+          "aic": 515891.99215055804,
+          "bic": 516255.23790839023
+        },
+        "16": {
+          "aic": 515396.145280811,
+          "bic": 515812.5489544235
+        },
+        "18": {
+          "aic": 514447.52191878256,
+          "bic": 514917.0835081754
+        },
+        "20": {
+          "aic": 514480.8548483104,
+          "bic": 515003.57435348356
         },
         "6": {
-          "aic": 880350.5208743963,
-          "bic": 880508.7508630168
+          "aic": 516569.57601324725,
+          "bic": 516720.19010795816
         },
         "8": {
-          "aic": 878357.4096312315,
-          "bic": 878571.4854981885
+          "aic": 515952.30238469015,
+          "bic": 516156.0743951814
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_H100_tp1_k10_f2_best.pt",
@@ -1309,43 +1352,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_H100_tp1_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.7120768434944607,
-      "final_val_loss": 1.1823266976409488,
-      "gmm_aic": 876954.1124421355,
-      "gmm_bic": 877224.0341874292,
+      "final_train_loss": 1.9249193952197121,
+      "final_val_loss": 1.9559687972068787,
+      "gmm_aic": 515959.0813164607,
+      "gmm_bic": 516216.01124273223,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp1_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp1.json",
       "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 81442,
-      "num_train_traces": 42,
-      "num_val_traces": 9,
+      "num_test_traces": 5,
+      "num_train_points": 52034,
+      "num_train_traces": 21,
+      "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "llama-3-8b_H100_tp2": {
-      "best_epoch": 51,
-      "best_val_loss": 1.566131803724501,
+      "auto_k": false,
+      "best_epoch": 76,
+      "best_val_loss": 1.940786212682724,
       "bic_candidates": {
         "10": {
-          "aic": 903642.3061618007,
-          "bic": 903910.7123137342
+          "aic": 519868.1993534544,
+          "bic": 520123.6234058851
         },
         "12": {
-          "aic": 902781.0625531425,
-          "bic": 903105.0010123727
+          "aic": 519591.3209023749,
+          "bic": 519899.59131048096
+        },
+        "14": {
+          "aic": 519405.06172768056,
+          "bic": 519766.1784914619
+        },
+        "16": {
+          "aic": 519409.1186824205,
+          "bic": 519823.0818018772
+        },
+        "18": {
+          "aic": 519286.86620316736,
+          "bic": 519753.67567829933
+        },
+        "20": {
+          "aic": 516900.2438611074,
+          "bic": 517419.8996919147
         },
         "6": {
-          "aic": 907829.3387552206,
-          "bic": 907986.680292561
+          "aic": 520583.33346622385,
+          "bic": 520733.0648073039
         },
         "8": {
-          "aic": 905188.4696813584,
-          "bic": 905401.3435259954
+          "aic": 520360.2095643451,
+          "bic": 520562.7872611004
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_H100_tp2_k10_f2_best.pt",
@@ -1353,43 +1414,61 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_H100_tp2_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.998685021225999,
-      "final_val_loss": 1.7006951835420396,
-      "gmm_aic": 903642.3061618007,
-      "gmm_bic": 903910.7123137342,
+      "final_train_loss": 2.0309530973434446,
+      "final_val_loss": 2.014715850353241,
+      "gmm_aic": 519868.1993534544,
+      "gmm_bic": 520123.6234058851,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp2_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp2.json",
       "num_layers": 1,
-      "num_test_traces": 9,
-      "num_train_points": 77295,
-      "num_train_traces": 41,
-      "num_val_traces": 9,
+      "num_test_traces": 5,
+      "num_train_points": 49401,
+      "num_train_traces": 20,
+      "num_val_traces": 4,
       "reason": "",
       "seed": 42,
       "status": "trained"
     },
     "llama-3-8b_H100_tp4": {
-      "best_epoch": 348,
-      "best_val_loss": 0.9264888912439346,
+      "auto_k": false,
+      "best_epoch": 88,
+      "best_val_loss": 1.8930297195911407,
       "bic_candidates": {
         "10": {
-          "aic": 590771.6822393438,
-          "bic": 591028.7788838424
+          "aic": 601285.4686912227,
+          "bic": 601542.3288676939
         },
         "12": {
-          "aic": 590449.1603834716,
-          "bic": 590759.4494371768
+          "aic": 601024.1655638919,
+          "bic": 601334.1692251503
+        },
+        "14": {
+          "aic": 597064.0733464346,
+          "bic": 597427.2204924801
+        },
+        "16": {
+          "aic": 597017.9114848211,
+          "bic": 597434.2021156538
+        },
+        "18": {
+          "aic": 597008.9301284037,
+          "bic": 597478.3642440236
+        },
+        "20": {
+          "aic": 596909.661909953,
+          "bic": 597432.2395103599
         },
         "6": {
-          "aic": 591688.2091847707,
-          "bic": 591838.921010856
+          "aic": 602364.3728029552,
+          "bic": 602514.9460098521
         },
         "8": {
-          "aic": 591101.6273754992,
-          "bic": 591305.5316107912
+          "aic": 601830.5064431145,
+          "bic": 602034.2231347986
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_H100_tp4_k10_f2_best.pt",
@@ -1397,18 +1476,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_H100_tp4_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.9455545672348568,
-      "final_val_loss": 0.9703190922737122,
-      "gmm_aic": 590771.6822393438,
-      "gmm_bic": 591028.7788838424,
+      "final_train_loss": 2.022528637023199,
+      "final_val_loss": 1.8945672512054443,
+      "gmm_aic": 601285.4686912227,
+      "gmm_bic": 601542.3288676939,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp4_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp4.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52334,
+      "num_train_points": 51909,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -1416,24 +1496,41 @@
       "status": "trained"
     },
     "llama-3-8b_H100_tp8": {
-      "best_epoch": 223,
-      "best_val_loss": 1.15057123452425,
+      "auto_k": false,
+      "best_epoch": 93,
+      "best_val_loss": 1.8734741806983948,
       "bic_candidates": {
         "10": {
-          "aic": 627814.9345768349,
-          "bic": 628072.0145925749
+          "aic": 648671.7039891643,
+          "bic": 648928.5546666904
         },
         "12": {
-          "aic": 624483.0248284364,
-          "bic": 624793.2938129501
+          "aic": 648458.8647111688,
+          "bic": 648768.856908183
+        },
+        "14": {
+          "aic": 646423.0581269991,
+          "bic": 646786.1918435014
+        },
+        "16": {
+          "aic": 646545.7080100186,
+          "bic": 646961.9832460091
+        },
+        "18": {
+          "aic": 646292.3636257078,
+          "bic": 646761.7803811864
+        },
+        "20": {
+          "aic": 646258.5761377487,
+          "bic": 646781.1344127154
         },
         "6": {
-          "aic": 628538.886785525,
-          "bic": 628689.5888637174
+          "aic": 649433.0395235063,
+          "bic": 649583.607162056
         },
         "8": {
-          "aic": 628095.7622298647,
-          "bic": 628299.6532768309
+          "aic": 648857.1109236112,
+          "bic": 649060.8200816491
         }
       },
       "checkpoint_path": "results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_H100_tp8_k10_f2_best.pt",
@@ -1441,18 +1538,19 @@
       "curve_path": "results/continuous_v1_gmm_bigru/k10_f2/training_curves/llama-3-8b_H100_tp8_k10_f2.csv",
       "device": "cuda",
       "feature_set": "f2",
-      "final_train_loss": 0.8461217497076307,
-      "final_val_loss": 1.1951265931129456,
-      "gmm_aic": 627814.9345768349,
-      "gmm_bic": 628072.0145925749,
+      "final_train_loss": 2.033560276031494,
+      "final_val_loss": 1.8761649429798126,
+      "gmm_aic": 648671.7039891643,
+      "gmm_bic": 648928.5546666904,
       "gmm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp8_k10.json",
       "hidden_dim": 64,
       "input_dim": 2,
       "k": 10,
+      "k_selection_reason": "fixed",
       "norm_params_path": "results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp8.json",
       "num_layers": 1,
       "num_test_traces": 5,
-      "num_train_points": 52304,
+      "num_train_points": 51892,
       "num_train_traces": 21,
       "num_val_traces": 4,
       "reason": "",
@@ -1461,19 +1559,25 @@
     }
   },
   "defaults": {
+    "auto_k": false,
     "bic_candidates": [
       6,
       8,
       10,
-      12
+      12,
+      14,
+      16,
+      18,
+      20
     ],
     "device": "cuda",
     "epochs": 500,
     "feature_set": "f2",
-    "force_all_configs": false,
+    "force_all_configs": true,
     "hidden_dim": 64,
     "k": 10,
     "lr": 0.001,
+    "max_k": 20,
     "num_layers": 1,
     "out_dir": "results/continuous_v1_gmm_bigru/k10_f2",
     "out_root": "results/continuous_v1_gmm_bigru",
@@ -1483,16 +1587,16 @@
     "seed": 42,
     "variant": "k10_f2"
   },
-  "generated_at_utc": "2026-02-19T08:16:54Z",
+  "generated_at_utc": "2026-03-04T06:56:14Z",
   "inputs": {
     "manifest_path": "results/experimental_continuous_v1/manifest.json"
   },
   "schema_version": "continuous-v1-gmm-bigru-train-run-v1",
   "summary": {
     "num_failed": 0,
-    "num_requested_configs": 33,
+    "num_requested_configs": 25,
     "num_skipped": 0,
-    "num_target_configs": 33,
-    "num_trained": 33
+    "num_target_configs": 25,
+    "num_trained": 25
   }
 }
