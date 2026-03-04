@@ -68,11 +68,10 @@ def _parse_power_csv(
         Dict with 'timestamps' (epoch seconds) and 'power' (watts) arrays.
     """
     try:
-        timestamps: List[float] = []
-        power_values: List[float] = []
-        current_group_ts: Optional[float] = None
-        current_group_power: List[float] = []
-        row_in_group = 0
+        raw_rows: List[Tuple[float, float]] = []
+        tp = int(max(1, tensor_parallelism))
+        gpn = int(max(1, gpus_per_node))
+        tp = int(min(tp, gpn))
 
         with open(csv_path, "r", newline="") as f:
             reader = csv.reader(f)
@@ -93,44 +92,82 @@ def _parse_power_csv(
             for row in reader:
                 if len(row) <= max(ts_col, power_col):
                     continue
-
                 ts = _power_timestamp_to_epoch(row[ts_col])
                 if ts is None:
                     continue
-
                 power_str = re.sub(r"[^\d.]", "", row[power_col])
                 try:
                     power = float(power_str)
                 except ValueError:
-                    continue
+                    power = float("nan")
+                raw_rows.append((float(ts), float(power)))
 
-                if current_group_ts is None:
-                    current_group_ts = ts
-                    current_group_power = [power]
-                    row_in_group = 1
-                elif ts == current_group_ts:
-                    current_group_power.append(power)
-                    row_in_group += 1
+        if len(raw_rows) < 2:
+            return None
+
+        # Preferred path: raw nvidia-smi stream (8 GPU rows per sample).
+        # Aggregate by fixed contiguous groups and sum the first TP rows.
+        use_fixed_groups = False
+        if len(raw_rows) >= (2 * gpn):
+            ts_arr = np.asarray([r[0] for r in raw_rows], dtype=np.float64)
+            diffs = np.diff(ts_arr)
+            zero_frac = float(np.mean(np.isclose(diffs, 0.0))) if diffs.size > 0 else 0.0
+            pos_diffs = diffs[diffs > 0.0]
+            p10_pos = (
+                float(np.percentile(pos_diffs, 10))
+                if pos_diffs.size > 0
+                else float("inf")
+            )
+            # Raw per-GPU logs typically have many repeated timestamps and/or
+            # sub-sample spacing between adjacent rows.
+            use_fixed_groups = bool((zero_frac > 0.02) or (p10_pos < 0.05))
+
+        timestamps: List[float] = []
+        power_values: List[float] = []
+
+        if use_fixed_groups:
+            for start in range(0, len(raw_rows), gpn):
+                block = raw_rows[start : start + gpn]
+                if len(block) < gpn:
+                    break
+                timestamps.append(float(min(ts for ts, _ in block)))
+                block_power = np.asarray([p for _, p in block[:tp]], dtype=np.float64)
+                power_values.append(float(np.nansum(block_power)))
+        else:
+            # Fallback for already-aggregated traces or synthetic fixtures.
+            # Keep legacy timestamp-group behavior, but if no group reaches TP
+            # treat each row as one aggregated sample.
+            current_ts: Optional[float] = None
+            current_power: List[float] = []
+            has_tp_sized_groups = False
+            for ts, p in raw_rows:
+                if current_ts is None:
+                    current_ts = ts
+                    current_power = [p]
+                elif ts == current_ts:
+                    current_power.append(p)
                 else:
-                    if row_in_group >= tensor_parallelism:
-                        agg_power = sum(current_group_power[:tensor_parallelism])
-                        timestamps.append(current_group_ts)
-                        power_values.append(agg_power)
-                    current_group_ts = ts
-                    current_group_power = [power]
-                    row_in_group = 1
+                    if len(current_power) >= tp:
+                        has_tp_sized_groups = True
+                        timestamps.append(float(current_ts))
+                        power_values.append(float(sum(current_power[:tp])))
+                    current_ts = ts
+                    current_power = [p]
+            if current_ts is not None and len(current_power) >= tp:
+                has_tp_sized_groups = True
+                timestamps.append(float(current_ts))
+                power_values.append(float(sum(current_power[:tp])))
 
-            if current_group_ts is not None and row_in_group >= tensor_parallelism:
-                agg_power = sum(current_group_power[:tensor_parallelism])
-                timestamps.append(current_group_ts)
-                power_values.append(agg_power)
+            if (not has_tp_sized_groups) and (len(timestamps) == 0):
+                timestamps = [float(ts) for ts, _ in raw_rows]
+                power_values = [float(p) for _, p in raw_rows]
 
         if len(timestamps) < 2:
             return None
 
         return {
-            "timestamps": np.array(timestamps, dtype=np.float64),
-            "power": np.array(power_values, dtype=np.float64),
+            "timestamps": np.asarray(timestamps, dtype=np.float64),
+            "power": np.asarray(power_values, dtype=np.float64),
         }
     except Exception:
         return None
@@ -161,7 +198,11 @@ def _derive_decode_time(itl_value: object, output_tokens: object) -> Optional[fl
     return None
 
 
-def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
+def _parse_request_json(
+    json_path: str,
+    *,
+    require_request_timestamps: bool = True,
+) -> Optional[Dict[str, object]]:
     """
     Parse benchmark JSON to extract request data.
 
@@ -187,9 +228,13 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
         if n == 0:
             return None
 
-        has_timestamps = isinstance(request_timestamps, list) and len(request_timestamps) >= n
+        has_timestamps = isinstance(request_timestamps, list) and len(request_timestamps) > 0
+        if bool(require_request_timestamps) and (not has_timestamps):
+            return None
         if has_timestamps:
             n = min(n, len(request_timestamps))
+            if n == 0:
+                return None
 
         valid_input: List[float] = []
         valid_output: List[float] = []
@@ -227,13 +272,19 @@ def _parse_request_json(json_path: str) -> Optional[Dict[str, object]]:
         if len(valid_input) == 0:
             return None
 
+        has_finite_timestamps = bool(
+            has_timestamps and len(valid_ts) > 0 and np.all(np.isfinite(valid_ts))
+        )
+        if bool(require_request_timestamps) and (not has_finite_timestamps):
+            return None
+
         return {
             "input_lens": np.array(valid_input, dtype=np.float64),
             "output_lens": np.array(valid_output, dtype=np.float64),
             "ttfts": np.array(valid_ttft, dtype=np.float64),
             "decode_times": np.array(valid_decode, dtype=np.float64),
             "request_timestamps": np.array(valid_ts, dtype=np.float64),
-            "has_timestamps": has_timestamps and np.all(np.isfinite(valid_ts)),
+            "has_timestamps": has_finite_timestamps,
         }
     except Exception:
         return None
@@ -456,6 +507,7 @@ def run_prepare_experimental_manifest(
     val_ratio: float = 0.15,
     seed: int = 42,
     min_traces_per_config: int = 2,
+    require_request_timestamps: bool = True,
 ) -> Dict[str, object]:
     """
     Prepare experimental manifest from Stage0 pair manifest.
@@ -467,6 +519,7 @@ def run_prepare_experimental_manifest(
         val_ratio: Fraction of traces for validation
         seed: Random seed for splits
         min_traces_per_config: Minimum traces required per config
+        require_request_timestamps: Require recorded request_timestamps in JSON.
 
     Returns:
         Manifest dict written to out_dir/manifest.json
@@ -509,7 +562,10 @@ def run_prepare_experimental_manifest(
                 skipped += 1
                 continue
 
-            request_data = _parse_request_json(json_path)
+            request_data = _parse_request_json(
+                json_path,
+                require_request_timestamps=bool(require_request_timestamps),
+            )
             if request_data is None:
                 errors.append(f"json_parse_failed:{pair_key}")
                 skipped += 1
@@ -606,6 +662,7 @@ def run_prepare_experimental_manifest(
             "val_ratio": val_ratio,
             "seed": seed,
             "min_traces_per_config": min_traces_per_config,
+            "require_request_timestamps": bool(require_request_timestamps),
         },
         "summary": {
             "num_configs_total": len(grouped),
@@ -664,6 +721,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=2,
         help="Minimum traces per config to include (default: 2)",
     )
+    parser.add_argument(
+        "--allow-synthetic-request-timestamps",
+        action="store_true",
+        help="Allow traces without recorded request_timestamps (disabled by default).",
+    )
     return parser
 
 
@@ -676,6 +738,7 @@ def main() -> None:
         val_ratio=args.val_ratio,
         seed=args.seed,
         min_traces_per_config=args.min_traces,
+        require_request_timestamps=not bool(args.allow_synthetic_request_timestamps),
     )
 
     print("[prepare_experimental_manifest] Summary:")

@@ -1499,34 +1499,105 @@
     },
     "gpt-oss-120b_A100_tp4": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 93544,
+        "requests_dropped_decode_time": 12,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 34426,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
+        "by_concurrency_bins": [
+          {
+            "concurrency": 1,
+            "median_decode_toks_per_s": 197.52835266504786,
+            "n": 3576
+          },
+          {
+            "concurrency": 2,
+            "median_decode_toks_per_s": 185.08371883140336,
+            "n": 3535
+          },
+          {
+            "concurrency": 3,
+            "median_decode_toks_per_s": 177.7994313938161,
+            "n": 3511
+          },
+          {
+            "concurrency": 4,
+            "median_decode_toks_per_s": 170.60201365158903,
+            "n": 3097
+          },
+          {
+            "concurrency": 5,
+            "median_decode_toks_per_s": 163.04701839695463,
+            "n": 2725
+          },
+          {
+            "concurrency": 6,
+            "median_decode_toks_per_s": 156.91552528577822,
+            "n": 2045
+          },
+          {
+            "concurrency": 7,
+            "median_decode_toks_per_s": 151.68216431658823,
+            "n": 1720
+          },
+          {
+            "concurrency": 8,
+            "median_decode_toks_per_s": 147.7508421322491,
+            "n": 1203
+          },
+          {
+            "concurrency": 9,
+            "median_decode_toks_per_s": 138.737464176209,
+            "n": 750
+          },
+          {
+            "concurrency": 10,
+            "median_decode_toks_per_s": 133.37014063055773,
+            "n": 475
+          },
+          {
+            "concurrency": 11,
+            "median_decode_toks_per_s": 129.58695492031023,
+            "n": 314
+          },
+          {
+            "concurrency": 12,
+            "median_decode_toks_per_s": 124.91774959104968,
+            "n": 224
+          },
+          {
+            "concurrency": 13,
+            "median_decode_toks_per_s": 124.52196805497817,
+            "n": 166
+          },
+          {
+            "concurrency": 14,
+            "median_decode_toks_per_s": 121.22731385421699,
+            "n": 96
+          }
+        ],
+        "max_min_median_ratio": 1.6294046810489209,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 50.97140432520001,
+      "decode_rate_median_toks_per_s": 171.63438237898563,
       "file_counts": {
         "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
+        "runs_missing_request_timestamps": 0,
+        "runs_with_request_timestamps": 30
       },
       "hardware": "A100",
       "model_name": "gpt-oss-120b",
       "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 34426,
-      "prefill_rate_median_toks_per_s": 1813.8289166653603,
+      "num_requests_total": 23625,
+      "num_requests_used": 23613,
+      "prefill_rate_median_toks_per_s": 4357.691851827237,
       "quality_flags": {
-        "requests_dropped_decode_time": 93544,
+        "requests_dropped_decode_time": 12,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 34426,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "source_run_count": 30,
@@ -1534,104 +1605,105 @@
     },
     "gpt-oss-120b_A100_tp8": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 54216,
+        "requests_dropped_decode_time": 5,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 73754,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
+        "by_concurrency_bins": [
+          {
+            "concurrency": 1,
+            "median_decode_toks_per_s": 194.9143310692852,
+            "n": 3655
+          },
+          {
+            "concurrency": 2,
+            "median_decode_toks_per_s": 188.28798770332713,
+            "n": 3878
+          },
+          {
+            "concurrency": 3,
+            "median_decode_toks_per_s": 184.16736238905466,
+            "n": 4005
+          },
+          {
+            "concurrency": 4,
+            "median_decode_toks_per_s": 182.12740294545088,
+            "n": 3317
+          },
+          {
+            "concurrency": 5,
+            "median_decode_toks_per_s": 179.7910149558031,
+            "n": 2882
+          },
+          {
+            "concurrency": 6,
+            "median_decode_toks_per_s": 176.91612704075487,
+            "n": 2112
+          },
+          {
+            "concurrency": 7,
+            "median_decode_toks_per_s": 175.09274390737792,
+            "n": 1532
+          },
+          {
+            "concurrency": 8,
+            "median_decode_toks_per_s": 170.48263410866315,
+            "n": 887
+          },
+          {
+            "concurrency": 9,
+            "median_decode_toks_per_s": 160.23379390688322,
+            "n": 561
+          },
+          {
+            "concurrency": 10,
+            "median_decode_toks_per_s": 155.03840955570456,
+            "n": 274
+          },
+          {
+            "concurrency": 11,
+            "median_decode_toks_per_s": 150.76904232344256,
+            "n": 227
+          },
+          {
+            "concurrency": 12,
+            "median_decode_toks_per_s": 148.3765544492846,
+            "n": 83
+          },
+          {
+            "concurrency": 13,
+            "median_decode_toks_per_s": 147.24367149908466,
+            "n": 61
+          },
+          {
+            "concurrency": 15,
+            "median_decode_toks_per_s": 141.62783707572143,
+            "n": 61
+          }
+        ],
+        "max_min_median_ratio": 1.3762430825309724,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 55.340138760524106,
+      "decode_rate_median_toks_per_s": 182.14524204089724,
       "file_counts": {
         "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
+        "runs_missing_request_timestamps": 0,
+        "runs_with_request_timestamps": 30
       },
       "hardware": "A100",
       "model_name": "gpt-oss-120b",
       "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 73754,
-      "prefill_rate_median_toks_per_s": 1750.5339749824582,
+      "num_requests_total": 23625,
+      "num_requests_used": 23620,
+      "prefill_rate_median_toks_per_s": 4530.104322705438,
       "quality_flags": {
-        "requests_dropped_decode_time": 54216,
+        "requests_dropped_decode_time": 5,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 73754,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "source_run_count": 30,
-      "tensor_parallelism": 8
-    },
-    "gpt-oss-120b_H100_tp4": {
-      "anomaly_counters": {
-        "requests_dropped_decode_time": 90375,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 37595,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
-        "type": "constant"
-      },
-      "decode_rate_median_toks_per_s": 64.31710000568677,
-      "file_counts": {
-        "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
-      },
-      "hardware": "H100",
-      "model_name": "gpt-oss-120b",
-      "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 37595,
-      "prefill_rate_median_toks_per_s": 3713.243965748926,
-      "quality_flags": {
-        "requests_dropped_decode_time": 90375,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 37595,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "source_run_count": 30,
-      "tensor_parallelism": 4
-    },
-    "gpt-oss-120b_H100_tp8": {
-      "anomaly_counters": {
-        "requests_dropped_decode_time": 66937,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 61033,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
-        "type": "constant"
-      },
-      "decode_rate_median_toks_per_s": 109.54953816370997,
-      "file_counts": {
-        "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
-      },
-      "hardware": "H100",
-      "model_name": "gpt-oss-120b",
-      "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 61033,
-      "prefill_rate_median_toks_per_s": 4470.517053168775,
-      "quality_flags": {
-        "requests_dropped_decode_time": 66937,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 61033,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "source_run_count": 30,
@@ -1639,139 +1711,231 @@
     },
     "gpt-oss-20b_A100_tp1": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 104835,
+        "requests_dropped_decode_time": 15,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 23135,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
-        "type": "constant"
+        "by_concurrency_bins": [
+          {
+            "concurrency": 1,
+            "median_decode_toks_per_s": 214.69232435612616,
+            "n": 3644
+          },
+          {
+            "concurrency": 2,
+            "median_decode_toks_per_s": 189.96590139343314,
+            "n": 3041
+          },
+          {
+            "concurrency": 3,
+            "median_decode_toks_per_s": 167.51053340045982,
+            "n": 2719
+          },
+          {
+            "concurrency": 4,
+            "median_decode_toks_per_s": 153.8939194181282,
+            "n": 2529
+          },
+          {
+            "concurrency": 5,
+            "median_decode_toks_per_s": 140.95497431645475,
+            "n": 2374
+          },
+          {
+            "concurrency": 6,
+            "median_decode_toks_per_s": 133.7289117379799,
+            "n": 2129
+          },
+          {
+            "concurrency": 7,
+            "median_decode_toks_per_s": 128.6184187564621,
+            "n": 1854
+          },
+          {
+            "concurrency": 8,
+            "median_decode_toks_per_s": 124.56370543000725,
+            "n": 1455
+          },
+          {
+            "concurrency": 9,
+            "median_decode_toks_per_s": 112.78044882230049,
+            "n": 1072
+          },
+          {
+            "concurrency": 10,
+            "median_decode_toks_per_s": 109.73800739973382,
+            "n": 876
+          },
+          {
+            "concurrency": 11,
+            "median_decode_toks_per_s": 107.57921605462073,
+            "n": 660
+          },
+          {
+            "concurrency": 12,
+            "median_decode_toks_per_s": 104.63856368323897,
+            "n": 407
+          },
+          {
+            "concurrency": 13,
+            "median_decode_toks_per_s": 104.29138992828658,
+            "n": 305
+          },
+          {
+            "concurrency": 14,
+            "median_decode_toks_per_s": 101.84522330873754,
+            "n": 151
+          },
+          {
+            "concurrency": 15,
+            "median_decode_toks_per_s": 99.0189308841759,
+            "n": 132
+          },
+          {
+            "concurrency": 16,
+            "median_decode_toks_per_s": 98.58163016754277,
+            "n": 115
+          },
+          {
+            "concurrency": 17,
+            "median_decode_toks_per_s": 95.37804258211148,
+            "n": 93
+          },
+          {
+            "concurrency": 19,
+            "median_decode_toks_per_s": 93.55500497741512,
+            "n": 70
+          }
+        ],
+        "max_min_median_ratio": 2.2948245730728623,
+        "type": "by_concurrency"
       },
-      "decode_rate_median_toks_per_s": 29.674510778874893,
+      "decode_rate_median_toks_per_s": 148.48461703900128,
       "file_counts": {
-        "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
+        "matched_pairs": 31,
+        "runs_missing_request_timestamps": 0,
+        "runs_with_request_timestamps": 31
       },
       "hardware": "A100",
       "model_name": "gpt-oss-20b",
-      "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 23135,
-      "prefill_rate_median_toks_per_s": 81.5500311465283,
+      "num_pairs": 31,
+      "num_requests_total": 23700,
+      "num_requests_used": 23685,
+      "prefill_rate_median_toks_per_s": 4290.861440651839,
       "quality_flags": {
-        "requests_dropped_decode_time": 104835,
+        "requests_dropped_decode_time": 15,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 23135,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 30,
+      "source_run_count": 31,
       "tensor_parallelism": 1
     },
     "gpt-oss-20b_A100_tp2": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 42357,
+        "requests_dropped_decode_time": 15,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 85613,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
+        "by_concurrency_bins": [
+          {
+            "concurrency": 1,
+            "median_decode_toks_per_s": 255.760323287395,
+            "n": 4795
+          },
+          {
+            "concurrency": 2,
+            "median_decode_toks_per_s": 244.40247989674072,
+            "n": 4370
+          },
+          {
+            "concurrency": 3,
+            "median_decode_toks_per_s": 229.0381347594335,
+            "n": 3956
+          },
+          {
+            "concurrency": 4,
+            "median_decode_toks_per_s": 214.90459982424736,
+            "n": 3228
+          },
+          {
+            "concurrency": 5,
+            "median_decode_toks_per_s": 196.47454324945494,
+            "n": 2430
+          },
+          {
+            "concurrency": 6,
+            "median_decode_toks_per_s": 189.35108960315083,
+            "n": 1802
+          },
+          {
+            "concurrency": 7,
+            "median_decode_toks_per_s": 183.46819024188724,
+            "n": 1236
+          },
+          {
+            "concurrency": 8,
+            "median_decode_toks_per_s": 176.93343464172648,
+            "n": 699
+          },
+          {
+            "concurrency": 9,
+            "median_decode_toks_per_s": 166.20758407577432,
+            "n": 475
+          },
+          {
+            "concurrency": 10,
+            "median_decode_toks_per_s": 161.06725494190187,
+            "n": 267
+          },
+          {
+            "concurrency": 11,
+            "median_decode_toks_per_s": 156.19910279529444,
+            "n": 128
+          },
+          {
+            "concurrency": 12,
+            "median_decode_toks_per_s": 155.079648278219,
+            "n": 64
+          },
+          {
+            "concurrency": 13,
+            "median_decode_toks_per_s": 155.3648703877475,
+            "n": 74
+          },
+          {
+            "concurrency": 14,
+            "median_decode_toks_per_s": 148.22047673810246,
+            "n": 52
+          }
+        ],
+        "max_min_median_ratio": 1.7255397426585641,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 42.995549850039545,
+      "decode_rate_median_toks_per_s": 226.31667043642074,
       "file_counts": {
         "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
+        "runs_missing_request_timestamps": 0,
+        "runs_with_request_timestamps": 30
       },
       "hardware": "A100",
       "model_name": "gpt-oss-20b",
       "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 85613,
-      "prefill_rate_median_toks_per_s": 19.28996678997834,
+      "num_requests_total": 23625,
+      "num_requests_used": 23610,
+      "prefill_rate_median_toks_per_s": 5680.178694330811,
       "quality_flags": {
-        "requests_dropped_decode_time": 42357,
+        "requests_dropped_decode_time": 15,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 85613,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "source_run_count": 30,
-      "tensor_parallelism": 2
-    },
-    "gpt-oss-20b_H100_tp1": {
-      "anomaly_counters": {
-        "requests_dropped_decode_time": 32006,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 95964,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
-        "type": "constant"
-      },
-      "decode_rate_median_toks_per_s": 42.31299602403239,
-      "file_counts": {
-        "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
-      },
-      "hardware": "H100",
-      "model_name": "gpt-oss-20b",
-      "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 95964,
-      "prefill_rate_median_toks_per_s": 2330.4213108599024,
-      "quality_flags": {
-        "requests_dropped_decode_time": 32006,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 95964,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "source_run_count": 30,
-      "tensor_parallelism": 1
-    },
-    "gpt-oss-20b_H100_tp2": {
-      "anomaly_counters": {
-        "requests_dropped_decode_time": 86429,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 41541,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_mismatched_array_lengths": 0
-      },
-      "decode_model": {
-        "by_concurrency_bins": [],
-        "max_min_median_ratio": null,
-        "type": "constant"
-      },
-      "decode_rate_median_toks_per_s": 126.71313176400174,
-      "file_counts": {
-        "matched_pairs": 30,
-        "runs_missing_request_timestamps": 30,
-        "runs_with_request_timestamps": 0
-      },
-      "hardware": "H100",
-      "model_name": "gpt-oss-20b",
-      "num_pairs": 30,
-      "num_requests_total": 127970,
-      "num_requests_used": 41541,
-      "prefill_rate_median_toks_per_s": 5801.300463253336,
-      "quality_flags": {
-        "requests_dropped_decode_time": 86429,
-        "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 41541,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "source_run_count": 30,
@@ -2035,10 +2199,10 @@
     },
     "llama-3-70b_A100_tp4": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 113132,
+        "requests_dropped_decode_time": 4117,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 18955,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2282,34 +2446,34 @@
         "max_min_median_ratio": 1.5610500179759852,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 23.104984894927316,
+      "decode_rate_median_toks_per_s": 27.21142612889904,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 30
       },
       "hardware": "A100",
       "model_name": "llama-3-70b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 38463,
-      "prefill_rate_median_toks_per_s": 467.3786528113698,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 19508,
+      "prefill_rate_median_toks_per_s": 780.3026879756364,
       "quality_flags": {
-        "requests_dropped_decode_time": 113132,
+        "requests_dropped_decode_time": 4117,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 18955,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 4
     },
     "llama-3-70b_A100_tp8": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 104789,
+        "requests_dropped_decode_time": 4140,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 27321,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2468,34 +2632,34 @@
         "max_min_median_ratio": 1.4860784518728414,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 35.06515803784329,
+      "decode_rate_median_toks_per_s": 44.294500367554065,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 30
       },
       "hardware": "A100",
       "model_name": "llama-3-70b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 46806,
-      "prefill_rate_median_toks_per_s": 1086.5913519517094,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 19485,
+      "prefill_rate_median_toks_per_s": 1238.4382772696363,
       "quality_flags": {
-        "requests_dropped_decode_time": 104789,
+        "requests_dropped_decode_time": 4140,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 27321,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 8
     },
     "llama-3-70b_H100_tp4": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 65249,
+        "requests_dropped_decode_time": 3669,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 66390,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2629,34 +2793,34 @@
         "max_min_median_ratio": 1.1801407378993793,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 6.830738596613148,
+      "decode_rate_median_toks_per_s": 52.91588778318797,
       "file_counts": {
-        "matched_pairs": 59,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 29,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 29
       },
       "hardware": "H100",
       "model_name": "llama-3-70b",
-      "num_pairs": 59,
-      "num_requests_total": 149195,
-      "num_requests_used": 83946,
-      "prefill_rate_median_toks_per_s": 442.2736409021645,
+      "num_pairs": 29,
+      "num_requests_total": 21225,
+      "num_requests_used": 17556,
+      "prefill_rate_median_toks_per_s": 1390.1300932435342,
       "quality_flags": {
-        "requests_dropped_decode_time": 65249,
+        "requests_dropped_decode_time": 3669,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 66390,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 59,
+      "source_run_count": 29,
       "tensor_parallelism": 4
     },
     "llama-3-70b_H100_tp8": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 47254,
+        "requests_dropped_decode_time": 4099,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 84815,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2760,34 +2924,34 @@
         "max_min_median_ratio": 1.1939497843270235,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 20.63778511893996,
+      "decode_rate_median_toks_per_s": 76.40708720560147,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 30
       },
       "hardware": "H100",
       "model_name": "llama-3-70b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 104341,
-      "prefill_rate_median_toks_per_s": 1100.4361145733149,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 19526,
+      "prefill_rate_median_toks_per_s": 1933.1804346670529,
       "quality_flags": {
-        "requests_dropped_decode_time": 47254,
+        "requests_dropped_decode_time": 4099,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 84815,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 8
     },
     "llama-3-8b_A100_tp1": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 108064,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 43531,
-        "runs_missing_request_timestamps": 60,
+        "requests_missing_or_invalid_timestamp": 23540,
+        "runs_missing_request_timestamps": 30,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2795,34 +2959,34 @@
         "max_min_median_ratio": null,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 74.72530377007098,
+      "decode_rate_median_toks_per_s": 80.15477119665502,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 60,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 30,
         "runs_with_request_timestamps": 0
       },
       "hardware": "A100",
       "model_name": "llama-3-8b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 43531,
-      "prefill_rate_median_toks_per_s": 1365.085645444186,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 23540,
+      "prefill_rate_median_toks_per_s": 3566.542036490083,
       "quality_flags": {
-        "requests_dropped_decode_time": 108064,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 43531,
-        "runs_missing_request_timestamps": 60,
+        "requests_missing_or_invalid_timestamp": 23540,
+        "runs_missing_request_timestamps": 30,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 1
     },
     "llama-3-8b_A100_tp2": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 91718,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 59877,
-        "runs_missing_request_timestamps": 60,
+        "requests_missing_or_invalid_timestamp": 23540,
+        "runs_missing_request_timestamps": 30,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -2830,26 +2994,26 @@
         "max_min_median_ratio": null,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 112.1914046937317,
+      "decode_rate_median_toks_per_s": 118.03764943875012,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 60,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 30,
         "runs_with_request_timestamps": 0
       },
       "hardware": "A100",
       "model_name": "llama-3-8b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 59877,
-      "prefill_rate_median_toks_per_s": 3144.506273019287,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 23540,
+      "prefill_rate_median_toks_per_s": 5394.912141968085,
       "quality_flags": {
-        "requests_dropped_decode_time": 91718,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 59877,
-        "runs_missing_request_timestamps": 60,
+        "requests_missing_or_invalid_timestamp": 23540,
+        "runs_missing_request_timestamps": 30,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 2
     },
     "llama-3-8b_A100_tp4": {
@@ -2924,10 +3088,10 @@
     },
     "llama-3-8b_H100_tp1": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 41433,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 86622,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -3006,34 +3170,34 @@
         "max_min_median_ratio": 1.0617076695868857,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 111.79123170111177,
+      "decode_rate_median_toks_per_s": 132.36668163345038,
       "file_counts": {
-        "matched_pairs": 60,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 30,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 30
       },
       "hardware": "H100",
       "model_name": "llama-3-8b",
-      "num_pairs": 60,
-      "num_requests_total": 151595,
-      "num_requests_used": 110162,
-      "prefill_rate_median_toks_per_s": 4486.6227238647825,
+      "num_pairs": 30,
+      "num_requests_total": 23625,
+      "num_requests_used": 23540,
+      "prefill_rate_median_toks_per_s": 5885.240445149142,
       "quality_flags": {
-        "requests_dropped_decode_time": 41433,
+        "requests_dropped_decode_time": 85,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 86622,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 60,
+      "source_run_count": 30,
       "tensor_parallelism": 1
     },
     "llama-3-8b_H100_tp2": {
       "anomaly_counters": {
-        "requests_dropped_decode_time": 34431,
+        "requests_dropped_decode_time": 76,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 93615,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
       "decode_model": {
@@ -3092,26 +3256,26 @@
         "max_min_median_ratio": 1.0490239976594116,
         "type": "constant"
       },
-      "decode_rate_median_toks_per_s": 189.52294938681618,
+      "decode_rate_median_toks_per_s": 186.478244229812,
       "file_counts": {
-        "matched_pairs": 59,
-        "runs_missing_request_timestamps": 30,
+        "matched_pairs": 29,
+        "runs_missing_request_timestamps": 0,
         "runs_with_request_timestamps": 29
       },
       "hardware": "H100",
       "model_name": "llama-3-8b",
-      "num_pairs": 59,
-      "num_requests_total": 149195,
-      "num_requests_used": 114764,
-      "prefill_rate_median_toks_per_s": 6908.291710593858,
+      "num_pairs": 29,
+      "num_requests_total": 21225,
+      "num_requests_used": 21149,
+      "prefill_rate_median_toks_per_s": 7838.133468207209,
       "quality_flags": {
-        "requests_dropped_decode_time": 34431,
+        "requests_dropped_decode_time": 76,
         "requests_dropped_invalid_fields": 0,
-        "requests_missing_or_invalid_timestamp": 93615,
-        "runs_missing_request_timestamps": 30,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
         "runs_with_mismatched_array_lengths": 0
       },
-      "source_run_count": 59,
+      "source_run_count": 29,
       "tensor_parallelism": 2
     },
     "llama-3-8b_H100_tp4": {
@@ -3282,6 +3446,6 @@
     "decode_fallback_policy": "constant_when_timestamps_missing_or_bins_not_selected",
     "min_bin_samples": 50
   },
-  "generated_at_utc": "2026-02-19T06:24:50Z",
+  "generated_at_utc": "2026-03-04T06:29:36Z",
   "schema_version": "stage0-throughput-v1"
 }

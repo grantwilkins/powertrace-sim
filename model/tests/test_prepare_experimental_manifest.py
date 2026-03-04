@@ -10,6 +10,46 @@ import numpy as np
 
 
 class TestPrepareExperimentalManifest(unittest.TestCase):
+    def test_parse_power_csv_aggregates_fixed_8_row_groups(self):
+        """Raw nvidia-smi rows should aggregate by contiguous 8-row groups."""
+        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            power_csv = root / "llama-3-8b_tp4_p1.0_d20240101.csv"
+
+            # Two samples, each represented by 8 GPU rows.
+            # First sample has slight per-row timestamp jitter (no exact duplicates).
+            rows = [
+                ("2024/01/01 10:00:00.000", 10.0),
+                ("2024/01/01 10:00:00.001", 11.0),
+                ("2024/01/01 10:00:00.002", 12.0),
+                ("2024/01/01 10:00:00.003", 13.0),
+                ("2024/01/01 10:00:00.004", 14.0),
+                ("2024/01/01 10:00:00.005", 15.0),
+                ("2024/01/01 10:00:00.006", 16.0),
+                ("2024/01/01 10:00:00.007", 17.0),
+                ("2024/01/01 10:00:00.250", 20.0),
+                ("2024/01/01 10:00:00.250", 21.0),
+                ("2024/01/01 10:00:00.250", 22.0),
+                ("2024/01/01 10:00:00.250", 23.0),
+                ("2024/01/01 10:00:00.250", 24.0),
+                ("2024/01/01 10:00:00.250", 25.0),
+                ("2024/01/01 10:00:00.250", 26.0),
+                ("2024/01/01 10:00:00.250", 27.0),
+            ]
+            with open(power_csv, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "power.draw [W]", "utilization.gpu [%]", "memory.used [MiB]"])
+                for ts, pw in rows:
+                    writer.writerow([ts, f"{pw:.1f} W", "50 %", "10000 MiB"])
+
+            parsed = _parse_power_csv(str(power_csv), tensor_parallelism=4)
+            self.assertIsNotNone(parsed)
+            self.assertEqual(len(parsed["power"]), 2)
+            self.assertAlmostEqual(float(parsed["power"][0]), 10.0 + 11.0 + 12.0 + 13.0, places=6)
+            self.assertAlmostEqual(float(parsed["power"][1]), 20.0 + 21.0 + 22.0 + 23.0, places=6)
+
     def test_full_pipeline_creates_manifest_and_datasets(self):
         """Test that the full pipeline creates expected outputs."""
         from model.training_data.utils.prepare_experimental_manifest import (
@@ -190,6 +230,80 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
                 pair_manifest_csv=str(pair_manifest_csv),
                 out_dir=str(out_dir),
                 min_traces_per_config=5,
+            )
+
+            self.assertEqual(manifest["summary"]["num_configs_written"], 0)
+            self.assertEqual(manifest["summary"]["num_configs_skipped"], 1)
+
+    def test_requires_request_timestamps_by_default(self):
+        """Traces without request_timestamps should be rejected by default."""
+        from model.training_data.utils.prepare_experimental_manifest import (
+            run_prepare_experimental_manifest,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage0_dir = root / "stage0"
+            stage0_dir.mkdir(parents=True, exist_ok=True)
+
+            data_dir = root / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            power_csv = data_dir / "llama-3-8b_tp1_p1.0_d20240101.csv"
+            json_path = data_dir / "vllm-1.0qps-tp1-Llama-3.1-8B-Instruct-20240101.json"
+
+            with open(power_csv, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "power.draw [W]"])
+                # 3 samples * 8 GPU rows/sample
+                for i in range(3):
+                    for _ in range(8):
+                        writer.writerow([f"2024/01/01 10:00:0{i}.000", f"{200 + i}.0 W"])
+
+            # Intentionally omit request_timestamps.
+            json_data = {
+                "input_lens": [100, 110, 120],
+                "output_lens": [50, 55, 60],
+                "ttfts": [0.05, 0.06, 0.07],
+                "itls": [[0.02] * 50, [0.02] * 55, [0.02] * 60],
+            }
+            with open(json_path, "w") as f:
+                json.dump(json_data, f)
+
+            pair_manifest_csv = stage0_dir / "pair_manifest.csv"
+            with open(pair_manifest_csv, "w", newline="") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=[
+                        "status",
+                        "model_name",
+                        "hardware",
+                        "tensor_parallelism",
+                        "rate",
+                        "pair_key",
+                        "power_csv_path",
+                        "json_path",
+                    ],
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "status": "matched",
+                        "model_name": "llama-3-8b",
+                        "hardware": "H100",
+                        "tensor_parallelism": "1",
+                        "rate": "1.0",
+                        "pair_key": "tp=1|rate=1.0|date=20240101",
+                        "power_csv_path": str(power_csv),
+                        "json_path": str(json_path),
+                    }
+                )
+
+            out_dir = root / "experimental_continuous_v1"
+            manifest = run_prepare_experimental_manifest(
+                pair_manifest_csv=str(pair_manifest_csv),
+                out_dir=str(out_dir),
+                min_traces_per_config=1,
             )
 
             self.assertEqual(manifest["summary"]["num_configs_written"], 0)

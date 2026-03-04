@@ -1177,7 +1177,11 @@ class MethodsFigureGenerator:
             return bool(cached)
         json_path = self.pair_map.get(pair_key)
         if json_path is None:
-            raise ValueError(f"Pair key not found in pair manifest: {pair_key}")
+            # Some datasets can include traces whose pair keys are absent from the
+            # active pair manifest bundle. Treat those as not-recorded so callers
+            # can continue filtering to valid candidates.
+            self._pair_has_recorded_timestamps_cache[pair_key] = False
+            return False
         payload = _load_json(json_path)
         raw = payload.get("request_timestamps")
         has_recorded = bool(isinstance(raw, list) and len(raw) > 0)
@@ -1413,7 +1417,7 @@ class MethodsFigureGenerator:
         }
 
     def _simulate_moe_proxy_trace(self, tr: TraceData, seed: int) -> Dict[str, Any]:
-        payload = self._compute_logits_for_trace(tr)
+        payload = self._compute_logits_for_trace(tr, require_recorded_timestamps=True)
         slug = _safe_slug(tr.config_id)
         ar1_path = self.ar1_params_dir / f"{slug}_ar1_params.json"
         if not ar1_path.exists():
@@ -1745,8 +1749,11 @@ class MethodsFigureGenerator:
                 if nrmse is None:
                     continue
                 pair_key = str(row.get("pair_key", "")).strip()
-                if require_pair_json and pair_key not in self.pair_map:
-                    continue
+                if require_pair_json:
+                    if pair_key not in self.pair_map:
+                        continue
+                    if not self._pair_has_recorded_request_timestamps(pair_key):
+                        continue
                 ar1_path = self.ar1_params_dir / f"{_safe_slug(cid)}_ar1_params.json"
                 if not ar1_path.exists():
                     continue
@@ -1780,10 +1787,7 @@ class MethodsFigureGenerator:
                 require_moe=True,
             )
         if not candidates:
-            if (
-                self.figure_mode == "simulated-moe"
-                and self._try_autoswitch_gptoss_a100_bundle()
-            ):
+            if self._try_autoswitch_gptoss_a100_bundle():
                 selection_method = "autoswitched_gptoss_a100_bundle_fallback_best_median_nrmse_any_moe_config_any_rate_pair_json"
                 candidates = _candidate_rows(
                     config_id=None,
@@ -2114,9 +2118,9 @@ class MethodsFigureGenerator:
             "bic": self._generate_bic_figures(),
             "at_overlay": self._generate_at_overlay(),
             "simulated_dense": self._generate_dense_overlays(),
-            "simulated_moe": self._generate_moe_overlay(),
             "validation_reused": self._ensure_validation_pdfs(),
             "gmm_structure": self._generate_gmm_structure_figures(),
+            "simulated_moe": self._generate_moe_overlay(),
         }
 
         manifest["output_paths"] = {

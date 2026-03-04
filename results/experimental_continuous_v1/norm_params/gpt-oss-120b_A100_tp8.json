@@ -1,12 +1,12 @@
 {
-  "active_mean": 80.76591727561973,
-  "active_std": 198.25209980999784,
+  "active_mean": 0.0,
+  "active_std": 1e-06,
   "config_id": "gpt-oss-120b_A100_tp8",
   "dt": 0.25,
-  "power_max": 2486.34,
-  "power_mean": 1380.945249466802,
-  "power_min": 556.43,
-  "power_std": 563.0245064369373,
-  "t_arrive_log_mean": 2.258424055886463,
-  "t_arrive_log_std": 3.1687956005053834
+  "power_max": 2107.45,
+  "power_mean": 928.5543933914297,
+  "power_min": 513.46,
+  "power_std": 351.2671018207653,
+  "t_arrive_log_mean": 0.0,
+  "t_arrive_log_std": 1e-06
 }

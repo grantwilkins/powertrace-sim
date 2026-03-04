@@ -1,29 +1,27 @@
 {
   "config_id": "deepseek-r1-distill-8b_A100_tp8",
-  "num_traces": 16,
-  "seed": 2754411529,
   "test_indices": [
+    15,
     1,
-    4,
-    6
+    13,
+    8
   ],
-  "train_fraction": 0.7,
   "train_indices": [
-    0,
-    2,
-    3,
-    5,
-    7,
-    8,
-    9,
-    11,
+    16,
+    17,
     12,
-    14,
-    15
-  ],
-  "val_fraction": 0.15,
-  "val_indices": [
+    6,
     10,
-    13
+    9,
+    7,
+    3,
+    0,
+    14,
+    5,
+    11
+  ],
+  "val_indices": [
+    2,
+    4
   ]
 }
