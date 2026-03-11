@@ -42,7 +42,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -75,12 +75,7 @@ EXPECTED_GEN_MODE = {
 
 # Hardware/TP configurations to exclude from aggregation
 # These configs have systematic issues with certain models
-EXCLUDED_HARDWARE_TP = [
-    ("A100", 8),  # 100% negative ACF R² for llama-3-70b
-    ("A100", 4),  # 67% negative ACF R² for llama-3-70b
-    ("A100", 2),  # 100% negative ACF R² for llama-3-8b
-    ("H100", 2),  # 87% negative ACF R² for llama-3-8b
-]
+EXCLUDED_HARDWARE_TP = None
 
 # Default input directories
 # These can be overridden via CLI or by pointing to kauto_max20_f2 runs
@@ -99,10 +94,10 @@ AUTOK_INPUT_DIRS = {
 
 # Default inventory used to determine whether pair_key has request timestamps.
 DEFAULT_TIMESTAMP_INVENTORY = "results/stage0/data_inventory.json"
-
 # ============================================================================
 # Model Parsing Functions (adapted from collect_results.py)
 # ============================================================================
+
 
 def parse_config_id(config_id: str) -> Dict[str, str]:
     """
@@ -323,6 +318,72 @@ def load_request_timestamp_availability_map(
     return out
 
 
+def discover_timestamp_inventory_json(eval_metrics_dir: str) -> Optional[str]:
+    """
+    Discover stage0 data_inventory.json associated with an eval_metrics directory.
+
+    Looks for eval_metrics/run_manifest.json -> inputs.pair_manifest_csv and then
+    returns <pair_manifest_dir>/data_inventory.json when present.
+    """
+    run_manifest_path = os.path.join(eval_metrics_dir, "run_manifest.json")
+    if not os.path.exists(run_manifest_path):
+        return None
+    try:
+        with open(run_manifest_path, "r") as f:
+            payload = json.load(f)
+        inputs = payload.get("inputs", {})
+        if not isinstance(inputs, dict):
+            return None
+        pair_manifest_csv = str(inputs.get("pair_manifest_csv", "")).strip()
+        if pair_manifest_csv == "":
+            return None
+        # Paths in manifests are often repo-root relative.
+        pair_manifest_path = (
+            pair_manifest_csv
+            if os.path.isabs(pair_manifest_csv)
+            else os.path.join(REPO_ROOT, pair_manifest_csv)
+        )
+        pair_manifest_path = os.path.abspath(pair_manifest_path)
+        candidate = os.path.join(
+            os.path.dirname(pair_manifest_path), "data_inventory.json"
+        )
+        return candidate if os.path.exists(candidate) else None
+    except Exception:
+        return None
+
+
+def load_request_timestamp_availability_map_merged(
+    inventory_json_paths: Sequence[str],
+) -> Dict[str, bool]:
+    """
+    Merge pair_key -> has_request_timestamps maps from multiple inventories.
+    Conservative union is used: if any inventory says True, merged value is True.
+    """
+    merged: Dict[str, bool] = {}
+    loaded_any = False
+    for raw_path in inventory_json_paths:
+        path = str(raw_path).strip()
+        if path == "":
+            continue
+        if not os.path.isabs(path):
+            path = os.path.join(REPO_ROOT, path)
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            continue
+        current = load_request_timestamp_availability_map(path)
+        loaded_any = True
+        for pair_key, has_ts in current.items():
+            merged[pair_key] = bool(merged.get(pair_key, False) or has_ts)
+
+    if not loaded_any:
+        raise FileNotFoundError(
+            "No valid timestamp inventory JSON files were found in the provided list."
+        )
+    if len(merged) == 0:
+        raise ValueError("Merged timestamp inventory map is empty.")
+    return merged
+
+
 def filter_per_seed_rows_by_request_timestamps(
     df: pd.DataFrame, pair_key_has_timestamps: Dict[str, bool]
 ) -> Tuple[pd.DataFrame, Dict[str, int]]:
@@ -339,6 +400,8 @@ def filter_per_seed_rows_by_request_timestamps(
     known_mask = mapped.notna()
     has_ts_mask = known_mask & mapped.astype(bool)
     filtered = df.loc[has_ts_mask].copy()
+    no_ts_keys = pair_key_series.loc[known_mask & (~mapped.astype(bool))]
+    unmapped_keys = pair_key_series.loc[~known_mask]
 
     stats = {
         "rows_before": int(len(df)),
@@ -346,7 +409,15 @@ def filter_per_seed_rows_by_request_timestamps(
         "rows_dropped_no_timestamps": int((known_mask & (~mapped.astype(bool))).sum()),
         "rows_dropped_unmapped_pair_key": int((~known_mask).sum()),
         "unique_pair_keys_before": int(pair_key_series.nunique()),
-        "unique_pair_keys_after": int(filtered["pair_key"].astype(str).str.strip().nunique()),
+        "unique_pair_keys_after": int(
+            filtered["pair_key"].astype(str).str.strip().nunique()
+        ),
+        "sample_no_timestamp_pair_keys": [
+            str(x) for x in no_ts_keys.drop_duplicates().head(5).tolist()
+        ],
+        "sample_unmapped_pair_keys": [
+            str(x) for x in unmapped_keys.drop_duplicates().head(5).tolist()
+        ],
     }
     return filtered, stats
 
@@ -390,7 +461,55 @@ def filter_excluded_hardware_tp(
         "rows_before": rows_before,
         "rows_after": len(filtered),
         "rows_excluded": rows_before - len(filtered),
-        "excluded_configs": list(df[~mask]["config_id"].unique()) if (~mask).any() else [],
+        "excluded_configs": list(df[~mask]["config_id"].unique())
+        if (~mask).any()
+        else [],
+    }
+    return filtered, stats
+
+
+def filter_negative_acf_configs(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Dict[str, object]]:
+    """
+    Exclude entire configs whose config-level ACF R^2 is negative in any mode.
+
+    Args:
+        df: DataFrame with per-config metrics (must include config_id, acf_r2)
+
+    Returns:
+        Tuple of (filtered DataFrame, stats dict)
+    """
+    rows_before = int(len(df))
+    if rows_before == 0:
+        return df, {
+            "rows_before": 0,
+            "rows_after": 0,
+            "rows_excluded": 0,
+            "excluded_configs": [],
+        }
+
+    bad_cfgs = sorted(
+        set(
+            df.loc[
+                pd.to_numeric(df["acf_r2"], errors="coerce") < 0, "config_id"
+            ].astype(str)
+        )
+    )
+    if not bad_cfgs:
+        return df, {
+            "rows_before": rows_before,
+            "rows_after": rows_before,
+            "rows_excluded": 0,
+            "excluded_configs": [],
+        }
+
+    filtered = df[~df["config_id"].astype(str).isin(set(bad_cfgs))].copy()
+    stats: Dict[str, object] = {
+        "rows_before": rows_before,
+        "rows_after": int(len(filtered)),
+        "rows_excluded": int(rows_before - len(filtered)),
+        "excluded_configs": bad_cfgs,
     }
     return filtered, stats
 
@@ -526,7 +645,9 @@ def aggregate_config_to_model(df: pd.DataFrame) -> pd.DataFrame:
         df_parsed.loc[mask, "arch_type"] = arch_type
 
     # Group by (model_family, model_size, generation_mode)
-    grouped = df_parsed.groupby(["model_family", "model_size", "generation_mode", "arch_type"])
+    grouped = df_parsed.groupby(
+        ["model_family", "model_size", "generation_mode", "arch_type"]
+    )
 
     aggregated = []
     for (model_family, model_size, generation_mode, arch_type), group in grouped:
@@ -581,9 +702,41 @@ def select_best_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
 
     best_rows = []
     for (model, model_size), group in grouped:
-        # Find row with minimum KS_mean
-        best_idx = group["KS_mean"].idxmin()
-        best_row = group.loc[best_idx]
+        # Fair comparison: require maximum mode coverage (n_configs) first.
+        max_n_configs = int(group["n_configs"].max())
+        coverage_group = group[group["n_configs"] == max_n_configs].copy()
+
+        ks_values = np.asarray(coverage_group["KS_mean"], dtype=np.float64)
+        finite_mask = np.isfinite(ks_values)
+        if np.any(finite_mask):
+            ks_min = float(np.min(ks_values[finite_mask]))
+            best_group = coverage_group[
+                np.isclose(ks_values, ks_min, atol=1e-12, rtol=0.0)
+            ]
+        else:
+            best_group = coverage_group
+
+        # Tie-breaker: prefer architecture-expected generation mode.
+        arch_type = str(coverage_group.iloc[0]["arch_type"])
+        expected_mode = EXPECTED_GEN_MODE.get(arch_type)
+        if expected_mode is not None and expected_mode in set(
+            best_group["generation_mode"]
+        ):
+            best_group = best_group[best_group["generation_mode"] == expected_mode]
+
+        # Final deterministic tie-breaker.
+        # Prefer modes closest to architecture-expected behavior.
+        if arch_type == "moe":
+            ordered_modes = ["ar1", "ar1_thresh", "iid"]
+        else:
+            ordered_modes = ["iid", "ar1_thresh", "ar1"]
+        mode_rank = {mode: idx for idx, mode in enumerate(ordered_modes)}
+        best_group = best_group.assign(
+            _mode_rank=best_group["generation_mode"].map(
+                lambda x: mode_rank.get(str(x), 99)
+            )
+        ).sort_values(by=["_mode_rank", "generation_mode"], ascending=[True, True])
+        best_row = best_group.iloc[0].drop(labels=["_mode_rank"])
         best_rows.append(best_row)
 
     result = pd.DataFrame(best_rows).reset_index(drop=True)
@@ -594,6 +747,7 @@ def select_best_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================================
 # Formatting Functions
 # ============================================================================
+
 
 def format_display_name(model_family: str, model_size: int) -> str:
     """
@@ -724,6 +878,7 @@ def format_csv_row(
 # ============================================================================
 # Output Generation
 # ============================================================================
+
 
 def generate_latex_table(df: pd.DataFrame) -> List[str]:
     """
@@ -859,7 +1014,9 @@ def print_summary_stats(df: pd.DataFrame, verbose: bool = False) -> None:
             print(f"  KS:     {row['KS_mean']:.3f} ± {row['KS_std']:.3f}")
             print(f"  ACF R²: {row['ACF_R2_mean']:.3f} ± {row['ACF_R2_std']:.3f}")
             print(f"  NRMSE:  {row['NRMSE_mean']:.3f} ± {row['NRMSE_std']:.3f}")
-            print(f"  Energy: {row['energy_err_mean']:.2f}% ± {row['energy_err_std']:.2f}%")
+            print(
+                f"  Energy: {row['energy_err_mean']:.2f}% ± {row['energy_err_std']:.2f}%"
+            )
 
     print(f"\n{'=' * 80}\n")
 
@@ -867,6 +1024,7 @@ def print_summary_stats(df: pd.DataFrame, verbose: bool = False) -> None:
 # ============================================================================
 # Main CLI
 # ============================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -916,11 +1074,13 @@ def main():
     )
     parser.add_argument(
         "--timestamp-inventory-json",
-        type=str,
-        default=os.path.join(REPO_ROOT, DEFAULT_TIMESTAMP_INVENTORY),
+        action="append",
+        default=None,
         help=(
-            "Path to stage0 data inventory JSON used for pair_key request timestamp "
-            "availability filtering."
+            "Path to stage0 data_inventory.json used for pair_key timestamp filtering. "
+            "May be provided multiple times. If omitted, script auto-discovers from "
+            "each eval_metrics/run_manifest.json and falls back to "
+            f"{DEFAULT_TIMESTAMP_INVENTORY}."
         ),
     )
     parser.add_argument(
@@ -1004,15 +1164,51 @@ def main():
             k_vals = list(k_values_map.values())
             print(f"  Loaded K values for {len(k_values_map)} configs")
             print(f"  K range: {min(k_vals)} - {max(k_vals)}")
-            print(f"  K distribution: {dict(sorted(pd.Series(k_vals).value_counts().items()))}")
+            print(
+                f"  K distribution: {dict(sorted(pd.Series(k_vals).value_counts().items()))}"
+            )
 
     if enforce_request_timestamp_filter:
         print(
             "\nApplying request timestamp availability filter "
             "(keeping only pair_keys with stored request_timestamps)..."
         )
-        pair_key_has_timestamps = load_request_timestamp_availability_map(
-            args.timestamp_inventory_json
+        inventory_candidates: List[str] = []
+        if args.timestamp_inventory_json:
+            inventory_candidates.extend(
+                [str(p) for p in args.timestamp_inventory_json if str(p).strip() != ""]
+            )
+        else:
+            for _, dir_path in input_dirs.items():
+                discovered = discover_timestamp_inventory_json(dir_path)
+                if discovered is not None:
+                    inventory_candidates.append(discovered)
+            if not inventory_candidates:
+                inventory_candidates.append(
+                    os.path.join(REPO_ROOT, DEFAULT_TIMESTAMP_INVENTORY)
+                )
+
+        # Deduplicate while preserving order.
+        deduped_candidates: List[str] = []
+        seen_candidates = set()
+        for raw_path in inventory_candidates:
+            abs_path = (
+                os.path.abspath(raw_path)
+                if os.path.isabs(raw_path)
+                else os.path.abspath(os.path.join(REPO_ROOT, raw_path))
+            )
+            if abs_path in seen_candidates:
+                continue
+            seen_candidates.add(abs_path)
+            deduped_candidates.append(abs_path)
+
+        print("  Using timestamp inventory files:")
+        for p in deduped_candidates:
+            exists_str = "✓" if os.path.exists(p) else "✗"
+            print(f"    - {p} {exists_str}")
+
+        pair_key_has_timestamps = load_request_timestamp_availability_map_merged(
+            deduped_candidates
         )
         df_all_seeds, filter_stats = filter_per_seed_rows_by_request_timestamps(
             df_all_seeds, pair_key_has_timestamps
@@ -1032,10 +1228,16 @@ def main():
             f"{filter_stats['unique_pair_keys_before']} -> "
             f"{filter_stats['unique_pair_keys_after']}"
         )
+        if filter_stats["sample_no_timestamp_pair_keys"]:
+            print("  sample_no_timestamp_pair_keys:")
+            for key in filter_stats["sample_no_timestamp_pair_keys"]:
+                print(f"    - {key}")
+        if filter_stats["sample_unmapped_pair_keys"]:
+            print("  sample_unmapped_pair_keys:")
+            for key in filter_stats["sample_unmapped_pair_keys"]:
+                print(f"    - {key}")
         if len(df_all_seeds) == 0:
-            print(
-                "Error: No per-seed rows remain after request timestamp filtering."
-            )
+            print("Error: No per-seed rows remain after request timestamp filtering.")
             sys.exit(1)
     else:
         print(
@@ -1057,7 +1259,9 @@ def main():
 
     # Filter out problematic hardware/TP configurations
     if EXCLUDED_HARDWARE_TP:
-        print(f"\n  2b. Filtering excluded hardware/TP configs: {EXCLUDED_HARDWARE_TP}...")
+        print(
+            f"\n  2b. Filtering excluded hardware/TP configs: {EXCLUDED_HARDWARE_TP}..."
+        )
         df_per_config, exclude_stats = filter_excluded_hardware_tp(
             df_per_config, EXCLUDED_HARDWARE_TP
         )
@@ -1065,6 +1269,16 @@ def main():
         for cfg in exclude_stats.get("excluded_configs", []):
             print(f"        - {cfg}")
         print(f"      Result: {len(df_per_config)} per-config rows")
+
+    # Filter out configs with negative ACF (paper policy).
+    print("\n  2c. Filtering configs with negative config-level ACF R²...")
+    df_per_config, neg_acf_stats = filter_negative_acf_configs(df_per_config)
+    print(
+        f"      Excluded {neg_acf_stats['rows_excluded']} rows from {len(neg_acf_stats['excluded_configs'])} configs"
+    )
+    for cfg in neg_acf_stats.get("excluded_configs", []):
+        print(f"        - {cfg}")
+    print(f"      Result: {len(df_per_config)} per-config rows")
 
     print("  3. Aggregating configs → models (mean±std across hw/tp)...")
     df_per_model = aggregate_config_to_model(df_per_config)

@@ -24,6 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import seaborn as sns
+
 from model.classifiers.metrics import compute_power_metrics
 from scripts.eval.baselines import (
     build_splitwise_lut_params,
@@ -55,7 +57,6 @@ from scripts.eval.run_baselines_node import (
     _write_csv,
 )
 
-METHODS = ("tdp", "mean", "splitwise_lut", "ours")
 CONSTANT_METHODS = {"tdp", "mean"}
 METRIC_KEYS = (
     "ks_stat",
@@ -68,39 +69,52 @@ METRIC_KEYS = (
 
 STYLE = {
     "ground_truth": {
-        "label": "Measured (GPU-only)",
-        "color": "#000000",
+        "label": "Measured",
+        "color": "#111111",
         "linestyle": "-",
-        "linewidth": 2.2,
-        "alpha": 0.9,
+        "linewidth": 2.8,
+        "alpha": 0.5,
+        "zorder": 1,
     },
     "tdp": {
-        "label": "TDP (4x700W)",
-        "color": "#d62728",
+        "label": "TDP",
+        "color": "#D55E00",
         "linestyle": "--",
-        "linewidth": 1.8,
-        "alpha": 0.85,
+        "linewidth": 2.3,
+        "alpha": 0.7,
+        "zorder": 6,
     },
     "mean": {
-        "label": "Mean (Replay)",
-        "color": "#ff7f0e",
+        "label": "Mean",
+        "color": "#E69F00",
         "linestyle": "--",
-        "linewidth": 1.8,
-        "alpha": 0.85,
+        "linewidth": 2.1,
+        "alpha": 0.7,
+        "zorder": 5,
     },
     "splitwise_lut": {
-        "label": "Splitwise LUT",
-        "color": "#2ca02c",
+        "label": "Splitwise (Tuned)",
+        "color": "#009E73",
         "linestyle": "-.",
-        "linewidth": 1.8,
-        "alpha": 0.9,
+        "linewidth": 2.2,
+        "alpha": 0.7,
+        "zorder": 3,
+    },
+    "splitwise_strict": {
+        "label": "Splitwise (Strict)",
+        "color": "#CC79A7",
+        "linestyle": ":",
+        "linewidth": 2.4,
+        "alpha": 0.7,
+        "zorder": 4,
     },
     "ours": {
         "label": "Ours",
-        "color": "#1f77b4",
+        "color": "#0072B2",
         "linestyle": "-",
-        "linewidth": 1.9,
-        "alpha": 0.9,
+        "linewidth": 2.4,
+        "alpha": 0.7,
+        "zorder": 5,
     },
 }
 
@@ -182,6 +196,17 @@ def _select_plot_prediction(
     return preds_by_seed[0]
 
 
+def _resolve_methods(splitwise_mode: str) -> List[str]:
+    mode = str(splitwise_mode).strip().lower()
+    if mode == "fitted":
+        return ["tdp", "mean", "splitwise_lut", "ours"]
+    if mode == "strict":
+        return ["tdp", "mean", "splitwise_strict", "ours"]
+    if mode == "both":
+        return ["tdp", "mean", "splitwise_lut", "splitwise_strict", "ours"]
+    raise ValueError("splitwise_mode must be one of {'fitted','strict','both'}")
+
+
 def _plot_trace_overlay(
     *,
     out_pdf: str,
@@ -192,12 +217,14 @@ def _plot_trace_overlay(
     target_rate: float,
     selected_rate: float,
     trace_index: int,
+    methods: List[str],
 ) -> None:
     _ensure_dir(os.path.dirname(out_pdf) or ".")
     gt = np.asarray(gt_w, dtype=np.float64).reshape(-1)
     t_min = (np.arange(gt.size, dtype=np.float64) * float(dt)) / 60.0
-
-    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.set_style("whitegrid")
+    sns.set_context("talk", font_scale=0.9)
+    fig, ax = plt.subplots(figsize=(12, 4))
     gt_style = STYLE["ground_truth"]
     ax.plot(
         t_min,
@@ -205,10 +232,11 @@ def _plot_trace_overlay(
         label=gt_style["label"],
         color=gt_style["color"],
         linestyle=gt_style["linestyle"],
-        linewidth=gt_style["linewidth"],
+        linewidth=float(gt_style.get("linewidth", 2.2)),
         alpha=gt_style["alpha"],
+        zorder=float(gt_style.get("zorder", 5)),
     )
-    for method in METHODS:
+    for method in methods:
         if method not in pred_by_method:
             continue
         pred = np.asarray(pred_by_method[method], dtype=np.float64).reshape(-1)
@@ -220,18 +248,19 @@ def _plot_trace_overlay(
             label=style["label"],
             color=style["color"],
             linestyle=style["linestyle"],
-            linewidth=style["linewidth"],
+            linewidth=float(style.get("linewidth", 2.0)),
             alpha=style["alpha"],
+            zorder=float(style.get("zorder", 3)),
         )
 
     sel_rate_label = f"{selected_rate:.3f}" if np.isfinite(selected_rate) else "N/A"
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("GPU power (kW)")
     ax.grid(True, alpha=0.25)
-    ax.legend(loc="best")
+    ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left", frameon=False)
     ax.set_ylim(0.0, 3.0)
     fig.tight_layout()
-    fig.savefig(out_pdf)
+    fig.savefig(out_pdf, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -243,7 +272,7 @@ def run_baselines_node_groundtruth(
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
     config_id: str = "deepseek-r1-distill-70b_H100_tp4",
-    target_rate: float = 0.25,
+    target_rate: float = 4.0,
     test_trace_index: Optional[int] = None,
     tp_gpus: int = 4,
     n_gpus_for_gpu_power: int = 4,
@@ -262,6 +291,7 @@ def run_baselines_node_groundtruth(
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: int = 4,
     splitwise_calibration_mode: str = "train_phase_matched_v1",
+    splitwise_mode: str = "fitted",
     out_csv: str = "results/eval_paper/baselines_node_groundtruth_metrics.csv",
     out_plot_pdf: str = "figures/baselines_node_groundtruth_trace.pdf",
 ) -> Dict[str, object]:
@@ -285,6 +315,7 @@ def run_baselines_node_groundtruth(
         raise ValueError("ours_logit_temperature must be > 0")
     if int(splitwise_source_tp) != 4:
         raise ValueError("splitwise_source_tp must be 4 for 70B TP4-only comparison.")
+    methods = _resolve_methods(splitwise_mode)
 
     run_manifest_payload = _load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -391,38 +422,75 @@ def run_baselines_node_groundtruth(
     if json_path is None:
         raise ValueError(f"missing matched request json for pair_key '{pair_key}'")
 
-    phase_targets = _estimate_splitwise_phase_targets_from_indices(
-        indices=train_indices,
-        pair_key_arr=pair_key_arr,
-        power_arr=power_arr,
-        power_start_arr=power_start_arr,
-        pair_map=pair_map,
-        throughput=throughput,
-        norm_cfg=norm_cfg,
-        feature_set=feature_set,
-        dt=float(dt),
-        non_gpu_overhead_w=float(non_gpu_overhead_w),
-    )
-    splitwise_lut_params = build_splitwise_lut_params(
-        config_id=config_id,
-        perf_model_csv=splitwise_perf_model_csv,
-        train_power_flat=train_power_flat_gpu,
-        splitwise_source_model=splitwise_source_model,
-        splitwise_source_hardware=splitwise_source_hardware,
-        splitwise_source_tp=int(splitwise_source_tp),
-        splitwise_calibration_mode=splitwise_calibration_mode,
-        n_gpus_per_node=int(n_gpus_for_gpu_power),
-        per_gpu_tdp_cap_w=float(gpu_tdp_w),
-        target_idle_node_gpu_w=phase_targets.get("target_idle_node_gpu_w"),
-        target_decode_node_gpu_w=phase_targets.get("target_decode_node_gpu_w"),
-        target_prefill_node_gpu_w=phase_targets.get("target_prefill_node_gpu_w"),
-    )
-    splitwise_phase_detection_note = str(
-        splitwise_lut_params.get("phase_detection_note", "")
-    )
-    splitwise_decode_occupancy_note = str(
-        splitwise_lut_params.get("decode_occupancy_note", "")
-    )
+    splitwise_lut_params: Optional[Dict[str, float]] = None
+    splitwise_strict_lut_params: Optional[Dict[str, float]] = None
+    splitwise_meta: Dict[str, Dict[str, str]] = {}
+    if "splitwise_lut" in methods:
+        phase_targets = _estimate_splitwise_phase_targets_from_indices(
+            indices=train_indices,
+            pair_key_arr=pair_key_arr,
+            power_arr=power_arr,
+            power_start_arr=power_start_arr,
+            pair_map=pair_map,
+            throughput=throughput,
+            norm_cfg=norm_cfg,
+            feature_set=feature_set,
+            dt=float(dt),
+            non_gpu_overhead_w=float(non_gpu_overhead_w),
+        )
+        splitwise_lut_params = build_splitwise_lut_params(
+            config_id=config_id,
+            perf_model_csv=splitwise_perf_model_csv,
+            train_power_flat=train_power_flat_gpu,
+            splitwise_source_model=splitwise_source_model,
+            splitwise_source_hardware=splitwise_source_hardware,
+            splitwise_source_tp=int(splitwise_source_tp),
+            splitwise_calibration_mode=splitwise_calibration_mode,
+            n_gpus_per_node=int(n_gpus_for_gpu_power),
+            per_gpu_tdp_cap_w=float(gpu_tdp_w),
+            target_idle_node_gpu_w=phase_targets.get("target_idle_node_gpu_w"),
+            target_decode_node_gpu_w=phase_targets.get("target_decode_node_gpu_w"),
+            target_prefill_node_gpu_w=phase_targets.get("target_prefill_node_gpu_w"),
+        )
+        splitwise_meta["splitwise_lut"] = {
+            "splitwise_calibration_mode": str(
+                splitwise_lut_params.get(
+                    "splitwise_calibration_mode", splitwise_calibration_mode
+                )
+            ),
+            "splitwise_phase_detection_note": str(
+                splitwise_lut_params.get("phase_detection_note", "")
+            ),
+            "splitwise_decode_occupancy_note": str(
+                splitwise_lut_params.get("decode_occupancy_note", "")
+            ),
+        }
+    if "splitwise_strict" in methods:
+        splitwise_strict_lut_params = build_splitwise_lut_params(
+            config_id=config_id,
+            perf_model_csv=splitwise_perf_model_csv,
+            train_power_flat=train_power_flat_gpu,
+            splitwise_source_model=splitwise_source_model,
+            splitwise_source_hardware=splitwise_source_hardware,
+            splitwise_source_tp=int(splitwise_source_tp),
+            splitwise_calibration_mode="dgx_fixed_targets_v1",
+            n_gpus_per_node=int(n_gpus_for_gpu_power),
+            per_gpu_tdp_cap_w=float(gpu_tdp_w),
+        )
+        splitwise_meta["splitwise_strict"] = {
+            "splitwise_calibration_mode": str(
+                splitwise_strict_lut_params.get(
+                    "splitwise_calibration_mode", "dgx_fixed_targets_v1"
+                )
+            ),
+            "splitwise_phase_detection_note": (
+                str(splitwise_strict_lut_params.get("phase_detection_note", ""))
+                + " Strict mode: fixed hardware targets; no train-phase power fitting."
+            ).strip(),
+            "splitwise_decode_occupancy_note": str(
+                splitwise_strict_lut_params.get("decode_occupancy_note", "")
+            ),
+        }
     ar1_params = None
     if _is_moe_config(config_id):
         ar1_params = _load_or_estimate_ar1_params(
@@ -476,10 +544,11 @@ def run_baselines_node_groundtruth(
 
     pred_by_method: Dict[str, np.ndarray] = {}
     rows: List[Dict[str, object]] = []
-    for method in METHODS:
+    for method in methods:
         seeds = (
             [int(base_seed)]
-            if method in CONSTANT_METHODS or method == "splitwise_lut"
+            if method in CONSTANT_METHODS
+            or method in {"splitwise_lut", "splitwise_strict"}
             else [int(base_seed) + i for i in range(int(num_seeds))]
         )
         seed_preds_gpu: List[np.ndarray] = []
@@ -498,6 +567,8 @@ def run_baselines_node_groundtruth(
                 pred_gpu = generate_mean(n_eval, {}, gt_eval_gpu)
                 pred_gpu = np.asarray(pred_gpu, dtype=np.float64).reshape(-1)[:n_eval]
             elif method == "splitwise_lut":
+                if splitwise_lut_params is None:
+                    raise ValueError("splitwise_lut params are unavailable")
                 pred_node = generate_splitwise_lut(
                     a_raw_eval,
                     delta_a_raw_eval,
@@ -508,6 +579,21 @@ def run_baselines_node_groundtruth(
                         "non_gpu_power_w": 0.0,
                     },
                     splitwise_lut_params,
+                )
+                pred_gpu = np.asarray(pred_node, dtype=np.float64).reshape(-1)[:n_eval]
+            elif method == "splitwise_strict":
+                if splitwise_strict_lut_params is None:
+                    raise ValueError("splitwise_strict params are unavailable")
+                pred_node = generate_splitwise_lut(
+                    a_raw_eval,
+                    delta_a_raw_eval,
+                    {
+                        "config_id": config_id,
+                        "tp": int(tp_gpus),
+                        "n_gpus_per_node": int(n_gpus_for_gpu_power),
+                        "non_gpu_power_w": 0.0,
+                    },
+                    splitwise_strict_lut_params,
                 )
                 pred_gpu = np.asarray(pred_node, dtype=np.float64).reshape(-1)[:n_eval]
             elif method == "ours":
@@ -541,6 +627,14 @@ def run_baselines_node_groundtruth(
         }
         if method in CONSTANT_METHODS:
             aggregated["acf_r2"] = float("nan")
+        method_splitwise_meta = splitwise_meta.get(
+            method,
+            {
+                "splitwise_calibration_mode": splitwise_calibration_mode,
+                "splitwise_phase_detection_note": "",
+                "splitwise_decode_occupancy_note": "",
+            },
+        )
         rows.append(
             {
                 "config_id": config_id,
@@ -576,9 +670,15 @@ def run_baselines_node_groundtruth(
                 "splitwise_source_model": splitwise_source_model,
                 "splitwise_source_hardware": splitwise_source_hardware,
                 "splitwise_source_tp": int(splitwise_source_tp),
-                "splitwise_calibration_mode": splitwise_calibration_mode,
-                "splitwise_phase_detection_note": splitwise_phase_detection_note,
-                "splitwise_decode_occupancy_note": splitwise_decode_occupancy_note,
+                "splitwise_calibration_mode": str(
+                    method_splitwise_meta["splitwise_calibration_mode"]
+                ),
+                "splitwise_phase_detection_note": str(
+                    method_splitwise_meta["splitwise_phase_detection_note"]
+                ),
+                "splitwise_decode_occupancy_note": str(
+                    method_splitwise_meta["splitwise_decode_occupancy_note"]
+                ),
             }
         )
 
@@ -626,6 +726,7 @@ def run_baselines_node_groundtruth(
         target_rate=float(target_rate),
         selected_rate=float(selected_rate),
         trace_index=int(trace_index),
+        methods=methods,
     )
     return {
         "out_csv": out_csv,
@@ -634,6 +735,7 @@ def run_baselines_node_groundtruth(
         "trace_index": int(trace_index),
         "selected_rate": float(selected_rate),
         "selection_mode": selection_mode,
+        "splitwise_mode": str(splitwise_mode),
     }
 
 
@@ -715,6 +817,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--splitwise-calibration-mode", default="train_phase_matched_v1"
     )
     parser.add_argument(
+        "--splitwise-mode",
+        choices=["fitted", "strict", "both"],
+        default="fitted",
+        help=(
+            "fitted: train-phase-matched Splitwise LUT; "
+            "strict: fixed-target Splitwise LUT; "
+            "both: include both variants."
+        ),
+    )
+    parser.add_argument(
         "--out-csv", default="results/eval_paper/baselines_node_groundtruth_metrics.csv"
     )
     parser.add_argument(
@@ -752,6 +864,7 @@ def main() -> None:
         splitwise_source_hardware=args.splitwise_source_hardware,
         splitwise_source_tp=args.splitwise_source_tp,
         splitwise_calibration_mode=args.splitwise_calibration_mode,
+        splitwise_mode=args.splitwise_mode,
         out_csv=args.out_csv,
         out_plot_pdf=args.out_plot_pdf,
     )
@@ -761,6 +874,7 @@ def main() -> None:
     print(f"  trace_index    : {result['trace_index']}")
     print(f"  selected_rate  : {result['selected_rate']}")
     print(f"  selection_mode : {result['selection_mode']}")
+    print(f"  splitwise_mode : {result['splitwise_mode']}")
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 import matplotlib
+import seaborn as sns
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -954,16 +955,21 @@ def _plot_at_overlay(
 def _plot_sim_overlay(
     path: Path, *, time_s: np.ndarray, measured: np.ndarray, simulated: np.ndarray
 ) -> None:
+    sns.set_style("whitegrid")
+    sns.set_context("talk", font_scale=0.9)
     fig, ax = plt.subplots(figsize=(10, 2.5))
     ax.plot(time_s, measured, color=COLOR_DARK, label="Measured")
     ax.plot(time_s, simulated, color=COLOR_RED, alpha=0.8, label="Simulated")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("GPU Power (W)")
-    ax.set_ylim(0.0, 1250.0)
+    if "moe" in path.name:
+        ax.set_ylim(0.0, 1250.0)
+    else:
+        ax.set_ylim(0.0, 600.0)
     ax.grid(True, alpha=0.25)
     if len(time_s) > 1:
         ax.set_xlim(float(time_s[0]), float(time_s[-1]))
-    ax.legend(loc="best")
+    ax.legend(bbox_to_anchor=(0.5, -0.3), loc="upper center", ncol=2, frameon=False)
     save_pdf(fig, path)
 
 

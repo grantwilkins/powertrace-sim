@@ -37,6 +37,7 @@ METHOD_LABEL_MAP = {
     "mean": "Mean",
     "marginal_gmm": "Marginal GMM",
     "splitwise_lut": "Splitwise",
+    "splitwise_strict": "Splitwise (Strict)",
     "ours": "Ours",
 }
 
@@ -86,7 +87,12 @@ def _is_representative_dense_config(config_id: str) -> bool:
         return False
     if not _is_dense_config(config_id):
         return False
-    return int(parsed["model_size_b"]) == 70 and int(parsed["tp"]) == 4
+    family = str(parsed["model_family"]).lower()
+    return (
+        "llama-3" in family
+        and int(parsed["model_size_b"]) == 70
+        and int(parsed["tp"]) == 4
+    )
 
 
 def _parse_csv_list(raw: Optional[Sequence[str]]) -> List[str]:
@@ -179,6 +185,34 @@ def _select_configs(
         if len(representative) > 0:
             selected = representative
     return selected
+
+
+def _filter_negative_acf_configs(
+    *,
+    rows: Sequence[Mapping[str, object]],
+    selected_configs: Sequence[str],
+) -> Tuple[List[str], List[str]]:
+    """
+    Exclude configs whose evaluated rows contain negative ACF R^2.
+
+    Returns:
+        (filtered_configs, excluded_configs)
+    """
+    selected_set = set(str(c) for c in selected_configs)
+    bad: set[str] = set()
+    for row in rows:
+        if str(row.get("status", "")).strip() != "evaluated":
+            continue
+        cfg = str(row.get("config_id", "")).strip()
+        if cfg not in selected_set:
+            continue
+        acf = _to_float_or_nan(row.get("acf_r2"))
+        if np.isfinite(acf) and float(acf) < 0.0:
+            bad.add(cfg)
+
+    excluded = sorted(bad)
+    filtered = [str(c) for c in selected_configs if str(c) not in bad]
+    return filtered, excluded
 
 
 def _to_float_or_nan(value: object) -> float:
@@ -390,6 +424,8 @@ def generate_baselines_node_table(
     splitwise_source_model: str = "llama2-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: int = 4,
+    exclude_negative_acf_configs: bool = True,
+    allow_synthetic_request_timestamps: bool = False,
 ) -> Dict[str, object]:
     if recompute_node_metrics:
         from scripts.eval.run_baselines_node import run_baselines_node
@@ -414,6 +450,9 @@ def generate_baselines_node_table(
             splitwise_source_model=str(splitwise_source_model),
             splitwise_source_hardware=str(splitwise_source_hardware),
             splitwise_source_tp=int(splitwise_source_tp),
+            allow_synthetic_request_timestamps=bool(
+                allow_synthetic_request_timestamps
+            ),
         )
 
     rows_all = _load_rows(node_metrics_csv)
@@ -427,6 +466,21 @@ def generate_baselines_node_table(
     rows_selected = [
         r for r in rows_all if str(r.get("config_id", "")).strip() in selected_set
     ]
+    excluded_negative_acf_configs: List[str] = []
+    if bool(exclude_negative_acf_configs):
+        selected_configs, excluded_negative_acf_configs = _filter_negative_acf_configs(
+            rows=rows_selected,
+            selected_configs=selected_configs,
+        )
+        if len(selected_configs) == 0:
+            raise ValueError(
+                "All selected configs were excluded due to negative ACF R^2 rows."
+            )
+        selected_set = set(selected_configs)
+        rows_selected = [
+            r for r in rows_all if str(r.get("config_id", "")).strip() in selected_set
+        ]
+
     third_key = _choose_third_method_key(
         rows_for_selected_configs=rows_selected,
         candidates=third_method_candidates,
@@ -488,8 +542,13 @@ def generate_baselines_node_table(
                 "node_metrics_csv": str(Path(node_metrics_csv).resolve()),
                 "recompute_node_metrics": bool(recompute_node_metrics),
                 "selected_configs": list(selected_configs),
+                "excluded_negative_acf_configs": list(excluded_negative_acf_configs),
                 "arch_filter": str(arch_filter),
                 "representative_only": bool(representative_only),
+                "exclude_negative_acf_configs": bool(exclude_negative_acf_configs),
+                "allow_synthetic_request_timestamps": bool(
+                    allow_synthetic_request_timestamps
+                ),
                 "third_method_key": str(third_key),
             },
             "formatting": {
@@ -527,6 +586,7 @@ def generate_baselines_node_table(
         "out_json": out_json,
         "out_tex": out_tex,
         "selected_configs": selected_configs,
+        "excluded_negative_acf_configs": excluded_negative_acf_configs,
         "third_method_key": third_key,
         "method_labels": method_labels,
         "table_rows": table_rows,
@@ -566,10 +626,10 @@ def main() -> None:
     parser.add_argument(
         "--third-method-candidates",
         nargs="*",
-        default=["splitwise_lut"],
+        default=["splitwise_strict", "splitwise_lut"],
         help=(
             "Candidate method keys for the third row; first present in CSV is used. "
-            "Example: splitwise_lut"
+            "Example: splitwise_strict,splitwise_lut"
         ),
     )
     parser.add_argument(
@@ -601,6 +661,14 @@ def main() -> None:
         ),
     )
     parser.add_argument("--label", default="tab:baselines-node")
+    parser.add_argument(
+        "--allow-negative-acf-configs",
+        action="store_true",
+        help=(
+            "Disable exclusion of configs with negative evaluated ACF R^2. "
+            "Default excludes such configs."
+        ),
+    )
 
     parser.add_argument(
         "--recompute-node-metrics",
@@ -627,6 +695,14 @@ def main() -> None:
     parser.add_argument("--splitwise-source-model", default="llama2-70b")
     parser.add_argument("--splitwise-source-hardware", default="a100-80gb")
     parser.add_argument("--splitwise-source-tp", type=int, default=4)
+    parser.add_argument(
+        "--allow-synthetic-request-timestamps",
+        action="store_true",
+        help=(
+            "Allow synthetic fallback timestamps when recomputing node metrics. "
+            "Default requires recorded request_timestamps."
+        ),
+    )
 
     args = parser.parse_args()
     config_ids = _parse_csv_list(args.config_ids)
@@ -670,6 +746,10 @@ def main() -> None:
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
+        exclude_negative_acf_configs=not bool(args.allow_negative_acf_configs),
+        allow_synthetic_request_timestamps=bool(
+            args.allow_synthetic_request_timestamps
+        ),
     )
 
     print("[generate_baselines_node_table] Done")
@@ -678,6 +758,9 @@ def main() -> None:
     print(f"  out_json         : {result['out_json']}")
     print(f"  out_tex          : {result['out_tex']}")
     print(f"  selected_configs : {len(result['selected_configs'])}")
+    print(f"  excluded_negative_acf_configs : {len(result.get('excluded_negative_acf_configs', []))}")
+    for cfg in result.get("excluded_negative_acf_configs", []):
+        print(f"    excluded: {cfg}")
     print(f"  third_method_key : {result['third_method_key']}")
     for row in result["table_rows"]:
         print(

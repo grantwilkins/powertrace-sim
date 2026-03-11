@@ -39,7 +39,7 @@ from scripts.eval.baselines import (
     generate_tdp,
 )
 
-METHODS = ("tdp", "mean", "splitwise_lut", "ours")
+METHODS = ("tdp", "mean", "splitwise_lut", "splitwise_strict", "ours")
 STOCHASTIC_METHODS = {"ours"}
 CONSTANT_METHODS = {"tdp", "mean"}
 METRIC_KEYS = (
@@ -216,6 +216,7 @@ def _estimate_splitwise_phase_targets_from_indices(
     phase_eps: float = 1e-6,
     prefill_delta_threshold: float = 0.05,
     prefill_min_steps: int = 2,
+    require_recorded_timestamps: bool = True,
 ) -> Dict[str, float]:
     idle_vals: List[np.ndarray] = []
     decode_vals: List[np.ndarray] = []
@@ -239,6 +240,7 @@ def _estimate_splitwise_phase_targets_from_indices(
                 power_start_epoch_s=float(power_start_arr[idx]),
                 trace_duration_s=float(power.size * dt),
                 dt=float(dt),
+                require_recorded_timestamps=bool(require_recorded_timestamps),
             )
             gt_node = power[1:].astype(np.float64)
             feat = build_rollout_features_from_requests(
@@ -322,6 +324,7 @@ def _build_requests_from_stage0_json(
     power_start_epoch_s: float,
     trace_duration_s: float,
     dt: float,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
     required = ("input_lens", "output_lens")
@@ -338,6 +341,11 @@ def _build_requests_from_stage0_json(
         n = int(min(n_base, len(request_timestamps_raw)))
         request_timestamps = request_timestamps_raw[:n]
     else:
+        if bool(require_recorded_timestamps):
+            raise ValueError(
+                "request json missing arrays: ['request_timestamps'] "
+                "(synthetic fallback disabled)"
+            )
         n = int(n_base)
         synth = _synthesize_request_timestamps(payload, n)
         if synth is None:
@@ -611,6 +619,7 @@ def run_baselines_node(
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: int = 4,
     splitwise_calibration_mode: str = "train_phase_matched_v1",
+    allow_synthetic_request_timestamps: bool = False,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
@@ -644,12 +653,30 @@ def run_baselines_node(
         per_method_num_eval_seeds: Dict[str, int] = {
             method: (int(num_seeds) if method in STOCHASTIC_METHODS else 1) for method in METHODS
         }
+        splitwise_method_meta: Dict[str, Dict[str, object]] = {}
         total_test_traces = 0
         dt = float("nan")
         feature_set = ""
         k = -1
         splitwise_phase_detection_note = ""
         splitwise_decode_occupancy_note = ""
+
+        def _splitwise_meta_for_method(method: str) -> Dict[str, object]:
+            base = {
+                "splitwise_source_model": str(splitwise_source_model),
+                "splitwise_source_hardware": str(splitwise_source_hardware),
+                "splitwise_source_tp": int(splitwise_source_tp),
+                "splitwise_calibration_mode": str(splitwise_calibration_mode),
+                "splitwise_phase_detection_note": str(splitwise_phase_detection_note),
+                "splitwise_decode_occupancy_note": str(splitwise_decode_occupancy_note),
+            }
+            if str(method) == "splitwise_strict":
+                base["splitwise_calibration_mode"] = "dgx_fixed_targets_v1"
+                base[
+                    "splitwise_phase_detection_note"
+                ] = "Strict mode: fixed hardware targets; no train-phase power fitting."
+            base.update(splitwise_method_meta.get(str(method), {}))
+            return base
 
         try:
             cfg_entry = run_cfgs.get(config_id)
@@ -743,6 +770,7 @@ def run_baselines_node(
                 feature_set=feature_set,
                 dt=float(dt),
                 non_gpu_overhead_w=1000.0,
+                require_recorded_timestamps=not bool(allow_synthetic_request_timestamps),
             )
             splitwise_lut_params = build_splitwise_lut_params(
                 config_id=config_id,
@@ -757,8 +785,51 @@ def run_baselines_node(
                 target_decode_node_gpu_w=phase_targets.get("target_decode_node_gpu_w"),
                 target_prefill_node_gpu_w=phase_targets.get("target_prefill_node_gpu_w"),
             )
+            splitwise_strict_lut_params = build_splitwise_lut_params(
+                config_id=config_id,
+                perf_model_csv=splitwise_perf_model_csv,
+                train_power_flat=train_power_flat_gpu,
+                splitwise_source_model=splitwise_source_model,
+                splitwise_source_hardware=splitwise_source_hardware,
+                splitwise_source_tp=int(splitwise_source_tp),
+                splitwise_calibration_mode="dgx_fixed_targets_v1",
+                n_gpus_per_node=8,
+            )
             splitwise_phase_detection_note = str(splitwise_lut_params.get("phase_detection_note", ""))
             splitwise_decode_occupancy_note = str(splitwise_lut_params.get("decode_occupancy_note", ""))
+            splitwise_method_meta = {
+                "splitwise_lut": {
+                    "splitwise_source_model": str(splitwise_source_model),
+                    "splitwise_source_hardware": str(splitwise_source_hardware),
+                    "splitwise_source_tp": int(splitwise_source_tp),
+                    "splitwise_calibration_mode": str(
+                        splitwise_lut_params.get("splitwise_calibration_mode", splitwise_calibration_mode)
+                    ),
+                    "splitwise_phase_detection_note": str(
+                        splitwise_lut_params.get("phase_detection_note", "")
+                    ),
+                    "splitwise_decode_occupancy_note": str(
+                        splitwise_lut_params.get("decode_occupancy_note", "")
+                    ),
+                },
+                "splitwise_strict": {
+                    "splitwise_source_model": str(splitwise_source_model),
+                    "splitwise_source_hardware": str(splitwise_source_hardware),
+                    "splitwise_source_tp": int(splitwise_source_tp),
+                    "splitwise_calibration_mode": str(
+                        splitwise_strict_lut_params.get(
+                            "splitwise_calibration_mode", "dgx_fixed_targets_v1"
+                        )
+                    ),
+                    "splitwise_phase_detection_note": (
+                        str(splitwise_strict_lut_params.get("phase_detection_note", ""))
+                        + " Strict mode: fixed hardware targets; no train-phase power fitting."
+                    ).strip(),
+                    "splitwise_decode_occupancy_note": str(
+                        splitwise_strict_lut_params.get("decode_occupancy_note", "")
+                    ),
+                },
+            }
 
             ar1_params = None
             if _is_moe_config(config_id):
@@ -796,6 +867,9 @@ def run_baselines_node(
                     power_start_epoch_s=float(power_start_arr[test_idx]),
                     trace_duration_s=float(power.size * dt),
                     dt=dt,
+                    require_recorded_timestamps=not bool(
+                        allow_synthetic_request_timestamps
+                    ),
                 )
                 feat = build_rollout_features_from_requests(
                     requests=requests,
@@ -856,6 +930,18 @@ def run_baselines_node(
                                     },
                                     splitwise_lut_params,
                                 )
+                            elif method == "splitwise_strict":
+                                pred = generate_splitwise_lut(
+                                    a_raw_eval,
+                                    delta_a_raw_eval,
+                                    {
+                                        "config_id": config_id,
+                                        "tp": 4,
+                                        "n_gpus_per_node": 8,
+                                        "non_gpu_power_w": 1000.0,
+                                    },
+                                    splitwise_strict_lut_params,
+                                )
                             elif method == "ours":
                                 pred = generate_ours(
                                     feat_eval,
@@ -903,12 +989,28 @@ def run_baselines_node(
                         median_filter_window=int(median_filter_window),
                         ours_std_scale=float(ours_std_scale),
                         ours_logit_temperature=float(ours_logit_temperature),
-                        splitwise_source_model=splitwise_source_model,
-                        splitwise_source_hardware=splitwise_source_hardware,
-                        splitwise_source_tp=int(splitwise_source_tp),
-                        splitwise_calibration_mode=splitwise_calibration_mode,
-                        splitwise_phase_detection_note=splitwise_phase_detection_note,
-                        splitwise_decode_occupancy_note=splitwise_decode_occupancy_note,
+                        splitwise_source_model=str(
+                            _splitwise_meta_for_method(method)["splitwise_source_model"]
+                        ),
+                        splitwise_source_hardware=str(
+                            _splitwise_meta_for_method(method)["splitwise_source_hardware"]
+                        ),
+                        splitwise_source_tp=int(
+                            _splitwise_meta_for_method(method)["splitwise_source_tp"]
+                        ),
+                        splitwise_calibration_mode=str(
+                            _splitwise_meta_for_method(method)["splitwise_calibration_mode"]
+                        ),
+                        splitwise_phase_detection_note=str(
+                            _splitwise_meta_for_method(method)[
+                                "splitwise_phase_detection_note"
+                            ]
+                        ),
+                        splitwise_decode_occupancy_note=str(
+                            _splitwise_meta_for_method(method)[
+                                "splitwise_decode_occupancy_note"
+                            ]
+                        ),
                     )
                 )
             continue
@@ -929,12 +1031,28 @@ def run_baselines_node(
                         median_filter_window=int(median_filter_window) if method == "ours" else 0,
                         ours_std_scale=float(ours_std_scale) if method == "ours" else 1.0,
                         ours_logit_temperature=float(ours_logit_temperature) if method == "ours" else 1.0,
-                        splitwise_source_model=splitwise_source_model,
-                        splitwise_source_hardware=splitwise_source_hardware,
-                        splitwise_source_tp=int(splitwise_source_tp),
-                        splitwise_calibration_mode=splitwise_calibration_mode,
-                        splitwise_phase_detection_note=splitwise_phase_detection_note,
-                        splitwise_decode_occupancy_note=splitwise_decode_occupancy_note,
+                        splitwise_source_model=str(
+                            _splitwise_meta_for_method(method)["splitwise_source_model"]
+                        ),
+                        splitwise_source_hardware=str(
+                            _splitwise_meta_for_method(method)["splitwise_source_hardware"]
+                        ),
+                        splitwise_source_tp=int(
+                            _splitwise_meta_for_method(method)["splitwise_source_tp"]
+                        ),
+                        splitwise_calibration_mode=str(
+                            _splitwise_meta_for_method(method)["splitwise_calibration_mode"]
+                        ),
+                        splitwise_phase_detection_note=str(
+                            _splitwise_meta_for_method(method)[
+                                "splitwise_phase_detection_note"
+                            ]
+                        ),
+                        splitwise_decode_occupancy_note=str(
+                            _splitwise_meta_for_method(method)[
+                                "splitwise_decode_occupancy_note"
+                            ]
+                        ),
                     )
                 )
                 continue
@@ -942,6 +1060,7 @@ def run_baselines_node(
             aggregated = {key: _nanmedian(r[key] for r in metric_rows) for key in METRIC_KEYS}
             if method in CONSTANT_METHODS:
                 aggregated["acf_r2"] = float("nan")
+            method_splitwise_meta = _splitwise_meta_for_method(method)
             rows.append(
                 {
                     "config_id": config_id,
@@ -966,12 +1085,16 @@ def run_baselines_node(
                     "median_filter_window": int(median_filter_window) if method == "ours" else 0,
                     "ours_std_scale": float(ours_std_scale) if method == "ours" else 1.0,
                     "ours_logit_temperature": float(ours_logit_temperature) if method == "ours" else 1.0,
-                    "splitwise_source_model": splitwise_source_model,
-                    "splitwise_source_hardware": splitwise_source_hardware,
-                    "splitwise_source_tp": int(splitwise_source_tp),
-                    "splitwise_calibration_mode": splitwise_calibration_mode,
-                    "splitwise_phase_detection_note": splitwise_phase_detection_note,
-                    "splitwise_decode_occupancy_note": splitwise_decode_occupancy_note,
+                    "splitwise_source_model": str(method_splitwise_meta["splitwise_source_model"]),
+                    "splitwise_source_hardware": str(method_splitwise_meta["splitwise_source_hardware"]),
+                    "splitwise_source_tp": int(method_splitwise_meta["splitwise_source_tp"]),
+                    "splitwise_calibration_mode": str(method_splitwise_meta["splitwise_calibration_mode"]),
+                    "splitwise_phase_detection_note": str(
+                        method_splitwise_meta["splitwise_phase_detection_note"]
+                    ),
+                    "splitwise_decode_occupancy_note": str(
+                        method_splitwise_meta["splitwise_decode_occupancy_note"]
+                    ),
                 }
             )
 
@@ -1015,7 +1138,9 @@ def run_baselines_node(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Node-level baseline comparison (TDP / Mean / Splitwise LUT / Ours).")
+    parser = argparse.ArgumentParser(
+        description="Node-level baseline comparison (TDP / Mean / Splitwise LUT / Splitwise Strict / Ours)."
+    )
     parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
     parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
     parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
@@ -1039,6 +1164,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--splitwise-source-model", default="llama2-70b")
     parser.add_argument("--splitwise-source-hardware", default="a100-80gb")
     parser.add_argument("--splitwise-source-tp", type=int, default=4)
+    parser.add_argument(
+        "--allow-synthetic-request-timestamps",
+        action="store_true",
+        help=(
+            "Allow synthetic fallback when request_timestamps are missing. "
+            "Default requires recorded request_timestamps."
+        ),
+    )
     return parser
 
 
@@ -1065,6 +1198,9 @@ def main() -> None:
         splitwise_source_model=args.splitwise_source_model,
         splitwise_source_hardware=args.splitwise_source_hardware,
         splitwise_source_tp=args.splitwise_source_tp,
+        allow_synthetic_request_timestamps=bool(
+            args.allow_synthetic_request_timestamps
+        ),
     )
     print("[run_baselines_node] Done")
     print(f"  rows     : {result['num_rows']}")

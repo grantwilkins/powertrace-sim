@@ -389,9 +389,12 @@ class TestNodeBaselineSmoke(unittest.TestCase):
             self.assertTrue(out_csv.exists())
             with open(out_csv, "r", newline="") as f:
                 rows = list(csv.DictReader(f))
-            self.assertEqual(len(rows), 4)
+            self.assertEqual(len(rows), 5)
             methods = {row["method"] for row in rows}
-            self.assertEqual(methods, {"tdp", "mean", "splitwise_lut", "ours"})
+            self.assertEqual(
+                methods,
+                {"tdp", "mean", "splitwise_lut", "splitwise_strict", "ours"},
+            )
 
             for row in rows:
                 self.assertEqual(row["status"], "evaluated")

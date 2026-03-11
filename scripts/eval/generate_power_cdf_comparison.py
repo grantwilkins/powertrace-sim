@@ -51,8 +51,12 @@ from model.classifiers.metrics import compute_power_metrics  # noqa: E402
 AR1_MIN_RUN_LENGTH = 5
 AR1_PHI_THRESHOLD = 0.3
 DEFAULT_CONFIG_IDS = (
-    "llama-3-8b_A100_tp1",
+    "deepseek-r1-distill-70b_A100_tp4",
     "llama-3-8b_H100_tp1",
+)
+PREFERRED_GPT_OSS_120B_CONFIG_IDS = (
+    "gpt-oss-120b_H100_tp8",
+    "gpt-oss-120b_A100_tp8",
 )
 
 MODEL_NAME_MAP = {
@@ -163,8 +167,12 @@ def build_rollout_features_from_requests(
     if feat not in {"f2", "f3"}:
         raise ValueError(f"feature_set must be one of {{'f2','f3'}}; got {feature_set}")
 
-    lambda_prefill = _extract_norm_value(throughput, "lambda_prefill", "prefill_rate_median_toks_per_s")
-    lambda_decode = _extract_norm_value(throughput, "lambda_decode", "decode_rate_median_toks_per_s")
+    lambda_prefill = _extract_norm_value(
+        throughput, "lambda_prefill", "prefill_rate_median_toks_per_s"
+    )
+    lambda_decode = _extract_norm_value(
+        throughput, "lambda_decode", "decode_rate_median_toks_per_s"
+    )
     if lambda_prefill <= 0.0 or lambda_decode <= 0.0:
         raise ValueError("Throughput rates must be positive.")
 
@@ -195,7 +203,9 @@ def build_rollout_features_from_requests(
     t_arrive_norm = np.asarray(base[:, 1], dtype=np.float32)
     a_raw = (a_norm.astype(np.float64) * float(active_std)) + float(active_mean)
     delta_raw = compute_delta_active_requests(a_raw).astype(np.float64)
-    delta_norm = normalize_delta_active_requests(delta_raw, mean=dA_mean, std=dA_std).astype(np.float32)
+    delta_norm = normalize_delta_active_requests(
+        delta_raw, mean=dA_mean, std=dA_std
+    ).astype(np.float32)
 
     cols = [a_norm, delta_norm]
     if feat == "f3":
@@ -237,13 +247,17 @@ def generate_gmm_bigru_trace(
     probs = _softmax_np(z)
     mode = str(decode_mode).strip().lower()
     if mode not in {"stochastic", "argmax"}:
-        raise ValueError(f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}")
+        raise ValueError(
+            f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}"
+        )
 
     rng = np.random.default_rng(seed)
     if mode == "argmax":
         states_raw = np.argmax(probs, axis=-1).astype(np.int64)
     else:
-        states_raw = np.asarray([rng.choice(k, p=probs_t) for probs_t in probs], dtype=np.int64)
+        states_raw = np.asarray(
+            [rng.choice(k, p=probs_t) for probs_t in probs], dtype=np.int64
+        )
 
     states = _median_filter_states(states_raw, int(median_filter_window))
     std = np.sqrt(np.clip(variances, a_min=1e-12, a_max=None))
@@ -263,14 +277,22 @@ def generate_gmm_bigru_trace(
     }
 
 
-def predict_sorted_gmm_labels_from_params(power_values: np.ndarray, gmm_params: Dict[str, object]) -> np.ndarray:
+def predict_sorted_gmm_labels_from_params(
+    power_values: np.ndarray, gmm_params: Dict[str, object]
+) -> np.ndarray:
     y = np.asarray(power_values, dtype=np.float64).reshape(-1)
     if y.size == 0:
         return np.zeros((0,), dtype=np.int64)
 
     means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
-    weights = np.asarray(gmm_params.get("weights", np.ones_like(means)), dtype=np.float64).reshape(-1)
+    variances = np.clip(
+        np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1),
+        a_min=1e-12,
+        a_max=None,
+    )
+    weights = np.asarray(
+        gmm_params.get("weights", np.ones_like(means)), dtype=np.float64
+    ).reshape(-1)
     if means.size == 0:
         raise ValueError("GMM means are empty")
     if variances.size != means.size or weights.size != means.size:
@@ -281,7 +303,8 @@ def predict_sorted_gmm_labels_from_params(power_values: np.ndarray, gmm_params: 
 
     x = y.reshape(-1, 1)
     log_norm = -0.5 * (
-        np.log(2.0 * np.pi * variances).reshape(1, -1) + ((x - means.reshape(1, -1)) ** 2) / variances.reshape(1, -1)
+        np.log(2.0 * np.pi * variances).reshape(1, -1)
+        + ((x - means.reshape(1, -1)) ** 2) / variances.reshape(1, -1)
     )
     log_prob = log_norm + np.log(weights).reshape(1, -1)
     return np.argmax(log_prob, axis=1).astype(np.int64)
@@ -295,7 +318,11 @@ def estimate_ar1_params(
     min_run_length: int = AR1_MIN_RUN_LENGTH,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
+    variances = np.clip(
+        np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1),
+        a_min=1e-12,
+        a_max=None,
+    )
     if means.size != int(K) or variances.size != int(K):
         raise ValueError(f"GMM parameter size mismatch for K={K}")
 
@@ -346,7 +373,9 @@ def estimate_ar1_params(
         else:
             phi[k] = 0.0
 
-        sigma_innov[k] = float(sigma_marginal[k] * np.sqrt(max(1e-12, 1.0 - (phi[k] ** 2))))
+        sigma_innov[k] = float(
+            sigma_marginal[k] * np.sqrt(max(1e-12, 1.0 - (phi[k] ** 2)))
+        )
     return phi, sigma_innov, sigma_marginal
 
 
@@ -388,18 +417,24 @@ def generate_gmm_bigru_trace_ar1_thresholded(
 
     use_ar1 = phi_arr >= float(phi_threshold)
     phi_gen = np.where(use_ar1, phi_arr, 0.0).astype(np.float64)
-    sigma_gen = np.where(use_ar1, sigma_innov_arr, sigma_marginal_arr).astype(np.float64)
+    sigma_gen = np.where(use_ar1, sigma_innov_arr, sigma_marginal_arr).astype(
+        np.float64
+    )
 
     probs = _softmax_np(z)
     mode = str(decode_mode).strip().lower()
     if mode not in {"stochastic", "argmax"}:
-        raise ValueError(f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}")
+        raise ValueError(
+            f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}"
+        )
 
     rng = np.random.default_rng(seed)
     if mode == "argmax":
         states_raw = np.argmax(probs, axis=-1).astype(np.int64)
     else:
-        states_raw = np.asarray([rng.choice(k, p=probs_t) for probs_t in probs], dtype=np.int64)
+        states_raw = np.asarray(
+            [rng.choice(k, p=probs_t) for probs_t in probs], dtype=np.int64
+        )
     states = _median_filter_states(states_raw, int(median_filter_window))
 
     t = int(z.shape[0])
@@ -408,7 +443,9 @@ def generate_gmm_bigru_trace_ar1_thresholded(
     for i in range(t):
         s = int(states[i])
         mu = float(means[s])
-        p_t = float(mu + (phi_gen[s] * (p_prev - mu)) + float(rng.normal(0.0, sigma_gen[s])))
+        p_t = float(
+            mu + (phi_gen[s] * (p_prev - mu)) + float(rng.normal(0.0, sigma_gen[s]))
+        )
         if clamp_range is not None:
             lo, hi = float(clamp_range[0]), float(clamp_range[1])
             if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
@@ -436,7 +473,9 @@ def _write_json(path: str, payload: Mapping[str, object]) -> None:
         json.dump(dict(payload), f, indent=2, sort_keys=True)
 
 
-def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]) -> None:
+def _write_csv(
+    path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]
+) -> None:
     _ensure_dir_for_file(path)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(fieldnames))
@@ -494,6 +533,29 @@ def _parse_config_ids(config_ids: Optional[Sequence[str]]) -> List[str]:
     return deduped
 
 
+def _select_single_gpt_oss_120b_config_id(
+    run_cfgs: Mapping[str, object],
+) -> Optional[str]:
+    for cid in PREFERRED_GPT_OSS_120B_CONFIG_IDS:
+        row = run_cfgs.get(cid)
+        if isinstance(row, dict) and str(row.get("status", "")) == "trained":
+            return str(cid)
+
+    fallback: List[str] = []
+    for key, row in run_cfgs.items():
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("status", "")) != "trained":
+            continue
+        k = str(key).strip()
+        if k.startswith("gpt-oss-120b_"):
+            fallback.append(k)
+    if len(fallback) == 0:
+        return None
+    fallback.sort()
+    return fallback[0]
+
+
 def _finite_float(value: object) -> Optional[float]:
     try:
         out = float(value)
@@ -504,7 +566,9 @@ def _finite_float(value: object) -> Optional[float]:
     return out
 
 
-def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
+def _synthesize_request_timestamps(
+    payload: Dict[str, object], n: int
+) -> Optional[List[float]]:
     if n <= 0:
         return []
 
@@ -554,9 +618,12 @@ def _build_requests_from_stage0_json(
     if n <= 0:
         raise ValueError("request arrays are empty after alignment")
 
-    arrivals = np.asarray(request_timestamps[:n], dtype=np.float64) - float(power_start_epoch_s)
+    arrivals = np.asarray(request_timestamps[:n], dtype=np.float64) - float(
+        power_start_epoch_s
+    )
     if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt) or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
+        float(np.min(arrivals)) < -float(dt)
+        or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
     ):
         arrivals = arrivals - float(np.min(arrivals))
 
@@ -625,7 +692,9 @@ def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
     return out
 
 
-def _resolve_throughput(throughput_db: Dict[str, object], config_id: str) -> Dict[str, float]:
+def _resolve_throughput(
+    throughput_db: Dict[str, object], config_id: str
+) -> Dict[str, float]:
     cfgs = throughput_db.get("configs", {})
     if not isinstance(cfgs, dict):
         raise ValueError("Invalid throughput database format")
@@ -641,7 +710,9 @@ def _resolve_throughput(throughput_db: Dict[str, object], config_id: str) -> Dic
     return {"lambda_prefill": prefill, "lambda_decode": decode}
 
 
-def _resolve_checkpoint_norm_gmm_paths(config_entry: Dict[str, object], base_dir: str) -> Tuple[str, str, str]:
+def _resolve_checkpoint_norm_gmm_paths(
+    config_entry: Dict[str, object], base_dir: str
+) -> Tuple[str, str, str]:
     checkpoint_raw = str(config_entry.get("checkpoint_path", ""))
     norm_raw = str(config_entry.get("norm_params_path", ""))
     gmm_raw = str(config_entry.get("gmm_params_path", ""))
@@ -669,8 +740,12 @@ def _resolve_experimental_paths(
     row = cfgs.get(config_id)
     if not isinstance(row, dict):
         raise ValueError(f"config_id '{config_id}' not found in experimental manifest")
-    dataset_path = _resolve_existing_path(str(row.get("dataset_npz", "")), experimental_base)
-    split_path = _resolve_existing_path(str(row.get("split_json", "")), experimental_base)
+    dataset_path = _resolve_existing_path(
+        str(row.get("dataset_npz", "")), experimental_base
+    )
+    split_path = _resolve_existing_path(
+        str(row.get("split_json", "")), experimental_base
+    )
     if dataset_path is None:
         raise ValueError(f"Dataset path not found for '{config_id}'")
     if split_path is None:
@@ -697,7 +772,11 @@ def _load_model(
         state = torch.load(checkpoint_path, map_location=device, weights_only=True)
     except TypeError:
         state = torch.load(checkpoint_path, map_location=device)
-    if isinstance(state, dict) and "model_state_dict" in state and isinstance(state["model_state_dict"], dict):
+    if (
+        isinstance(state, dict)
+        and "model_state_dict" in state
+        and isinstance(state["model_state_dict"], dict)
+    ):
         state = state["model_state_dict"]
     if not isinstance(state, dict):
         raise ValueError(f"Unsupported checkpoint format: {checkpoint_path}")
@@ -743,14 +822,35 @@ def _display_label(config_id: str) -> str:
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
-        "run_manifest": str(repo_root / "results" / "continuous_v1_gmm_bigru" / "k10_f2" / "run_manifest.json"),
-        "experimental_manifest": str(repo_root / "results" / "experimental_continuous_v1" / "manifest.json"),
-        "throughput_db": str(repo_root / "model" / "config" / "throughput_database.json"),
-        "pair_manifest_csv": str(repo_root / "results" / "stage0" / "pair_manifest.csv"),
+        "run_manifest": str(
+            repo_root
+            / "results"
+            / "continuous_v1_gmm_bigru"
+            / "k10_f2"
+            / "run_manifest.json"
+        ),
+        "experimental_manifest": str(
+            repo_root / "results" / "experimental_continuous_v1" / "manifest.json"
+        ),
+        "throughput_db": str(
+            repo_root / "model" / "config" / "throughput_database.json"
+        ),
+        "pair_manifest_csv": str(
+            repo_root / "results" / "stage0" / "pair_manifest.csv"
+        ),
         "out_plot_dir": str(repo_root / "figures" / "trace_power_cdf_comparison"),
-        "out_cdf_csv": str(repo_root / "results" / "eval_paper" / "trace_power_cdf_comparison_points.csv"),
-        "out_summary_csv": str(repo_root / "results" / "eval_paper" / "trace_power_cdf_comparison.csv"),
-        "out_json": str(repo_root / "results" / "eval_paper" / "trace_power_cdf_comparison.json"),
+        "out_cdf_csv": str(
+            repo_root
+            / "results"
+            / "eval_paper"
+            / "trace_power_cdf_comparison_points.csv"
+        ),
+        "out_summary_csv": str(
+            repo_root / "results" / "eval_paper" / "trace_power_cdf_comparison.csv"
+        ),
+        "out_json": str(
+            repo_root / "results" / "eval_paper" / "trace_power_cdf_comparison.json"
+        ),
     }
 
 
@@ -769,7 +869,9 @@ def _collect_config_cdf(
     median_filter_window: int,
     device: torch.device,
 ) -> Dict[str, object]:
-    checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(run_cfg_row, run_manifest_base)
+    checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(
+        run_cfg_row, run_manifest_base
+    )
     norm_payload = _load_json(norm_path)
     norm_cfg = _extract_norm_for_eval(norm_payload)
     gmm_payload = _load_json(gmm_path)
@@ -777,14 +879,18 @@ def _collect_config_cdf(
     throughput = _resolve_throughput(throughput_payload, config_id)
 
     k = int(run_cfg_row.get("k", gmm_cfg["k"]))
-    feature_set = str(run_cfg_row.get("feature_set", norm_payload.get("feature_set", "f2"))).lower()
+    feature_set = str(
+        run_cfg_row.get("feature_set", norm_payload.get("feature_set", "f2"))
+    ).lower()
     if feature_set not in {"f2", "f3"}:
         raise ValueError(f"invalid feature_set for '{config_id}': {feature_set}")
     input_dim = int(run_cfg_row.get("input_dim", 2 if feature_set == "f2" else 3))
     hidden_dim = int(run_cfg_row.get("hidden_dim", norm_payload.get("hidden_dim", 64)))
     num_layers = int(run_cfg_row.get("num_layers", norm_payload.get("num_layers", 1)))
     if k != int(gmm_cfg["k"]):
-        raise ValueError(f"k mismatch between run manifest ({k}) and gmm payload ({int(gmm_cfg['k'])})")
+        raise ValueError(
+            f"k mismatch between run manifest ({k}) and gmm payload ({int(gmm_cfg['k'])})"
+        )
 
     model = _load_model(
         checkpoint_path=checkpoint_path,
@@ -836,7 +942,9 @@ def _collect_config_cdf(
             training_power_traces.append(p_train.astype(np.float64))
             training_labels_traces.append(labels_train.astype(np.int64))
         if len(training_power_traces) == 0:
-            raise ValueError(f"no valid training traces for AR1 estimation: {config_id}")
+            raise ValueError(
+                f"no valid training traces for AR1 estimation: {config_id}"
+            )
         phi, sigma_innov, sigma_marginal = estimate_ar1_params(
             gmm_params=gmm_cfg,
             training_power_traces=training_power_traces,
@@ -886,7 +994,9 @@ def _collect_config_cdf(
                 skipped += 1
                 continue
             with torch.no_grad():
-                x = torch.tensor(features_norm.tolist(), dtype=torch.float32, device=device).unsqueeze(0)
+                x = torch.tensor(
+                    features_norm.tolist(), dtype=torch.float32, device=device
+                ).unsqueeze(0)
                 logits = _tensor_to_numpy(model(x)[0], dtype=np.float64)
 
             per_seed_rows: List[Dict[str, object]] = []
@@ -934,11 +1044,15 @@ def _collect_config_cdf(
                 skipped += 1
                 continue
 
-            nrmse_arr = np.asarray([float(r["nrmse"]) for r in per_seed_rows], dtype=np.float64)
+            nrmse_arr = np.asarray(
+                [float(r["nrmse"]) for r in per_seed_rows], dtype=np.float64
+            )
             median_nrmse = float(np.median(nrmse_arr))
             best_idx = int(np.argmin(np.abs(nrmse_arr - median_nrmse)))
             chosen_seed = int(per_seed_rows[best_idx]["seed"])
-            pred_sel = np.asarray(preds_by_seed[chosen_seed], dtype=np.float64).reshape(-1)
+            pred_sel = np.asarray(preds_by_seed[chosen_seed], dtype=np.float64).reshape(
+                -1
+            )
             n_sel = int(min(gt.size, pred_sel.size))
             if n_sel <= 0:
                 skipped += 1
@@ -1016,14 +1130,15 @@ def _plot_cdfs(
         raise ValueError("No results to plot")
 
     Path(out_plot_dir).mkdir(parents=True, exist_ok=True)
-    sns.set_style("whitegrid")
-    sns.set_context("talk", font_scale=1.2)
+
     plt.rcParams["pdf.fonttype"] = 42
     plt.rcParams["ps.fonttype"] = 42
 
     plot_files: List[Dict[str, str]] = []
     for row in results:
-        fig, ax = plt.subplots(figsize=(6, 6))
+        sns.set_style("whitegrid")
+        sns.set_context("talk", font_scale=1.6)
+        fig, ax = plt.subplots(figsize=(6, 6.5))
         x_o = np.asarray(row["original_sorted"], dtype=np.float64)
         y_o = np.asarray(row["original_cdf"], dtype=np.float64)
         x_s = np.asarray(row["sampled_sorted"], dtype=np.float64)
@@ -1035,7 +1150,7 @@ def _plot_cdfs(
         ax.set_xlabel("Active GPU Power (W)")
         ax.set_ylabel("CDF")
         ax.grid(True, alpha=0.35)
-        ax.legend(loc="best")
+        ax.legend(bbox_to_anchor=(0.5, -0.2), loc="upper center", ncol=2, frameon=False)
 
         slug = _safe_slug(str(row["config_id"]))
         out_pdf = str(Path(out_plot_dir) / f"{slug}_power_cdf.pdf")
@@ -1095,14 +1210,24 @@ def generate_power_cdf_comparison(
 
     results: List[Dict[str, object]] = []
     failures: List[Dict[str, str]] = []
+    gpt_oss_single_plot_files: List[Dict[str, str]] = []
+    gpt_oss_single_result: Optional[Dict[str, object]] = None
+    gpt_oss_single_failure: Optional[Dict[str, str]] = None
 
     for config_id in config_ids:
         row = run_cfgs.get(config_id)
         if not isinstance(row, dict):
-            failures.append({"config_id": config_id, "reason": "config_not_in_run_manifest"})
+            failures.append(
+                {"config_id": config_id, "reason": "config_not_in_run_manifest"}
+            )
             continue
         if str(row.get("status", "")) != "trained":
-            failures.append({"config_id": config_id, "reason": f"config_status_{row.get('status', 'unknown')}"})
+            failures.append(
+                {
+                    "config_id": config_id,
+                    "reason": f"config_status_{row.get('status', 'unknown')}",
+                }
+            )
             continue
         try:
             cfg_result = _collect_config_cdf(
@@ -1121,7 +1246,9 @@ def generate_power_cdf_comparison(
             )
             results.append(cfg_result)
         except Exception as exc:
-            failures.append({"config_id": config_id, "reason": f"{type(exc).__name__}:{exc}"})
+            failures.append(
+                {"config_id": config_id, "reason": f"{type(exc).__name__}:{exc}"}
+            )
 
     if len(results) == 0:
         raise ValueError(f"No configs successfully evaluated. Failures: {failures}")
@@ -1131,13 +1258,57 @@ def generate_power_cdf_comparison(
         out_plot_dir=out_plot_dir,
     )
 
+    # Also emit a single GPT-OSS 120B CDF if a trained config is available.
+    gpt_oss_single_config_id = _select_single_gpt_oss_120b_config_id(run_cfgs)
+    if gpt_oss_single_config_id is not None:
+        existing = next(
+            (
+                r
+                for r in results
+                if str(r.get("config_id", "")) == gpt_oss_single_config_id
+            ),
+            None,
+        )
+        if existing is not None:
+            gpt_oss_single_result = existing
+        else:
+            gpt_row = run_cfgs.get(gpt_oss_single_config_id)
+            if isinstance(gpt_row, dict):
+                try:
+                    gpt_oss_single_result = _collect_config_cdf(
+                        config_id=gpt_oss_single_config_id,
+                        run_cfg_row=gpt_row,
+                        run_manifest_base=run_manifest_base,
+                        experimental_payload=experimental_payload,
+                        experimental_base=experimental_base,
+                        throughput_payload=throughput_payload,
+                        pair_map=pair_map,
+                        seeds=seeds,
+                        generation_mode=generation_mode,
+                        decode_mode=decode_mode,
+                        median_filter_window=int(median_filter_window),
+                        device=resolved_device,
+                    )
+                except Exception as exc:
+                    gpt_oss_single_failure = {
+                        "config_id": gpt_oss_single_config_id,
+                        "reason": f"{type(exc).__name__}:{exc}",
+                    }
+        if gpt_oss_single_result is not None:
+            gpt_oss_single_plot_files = _plot_cdfs(
+                results=[gpt_oss_single_result],
+                out_plot_dir=out_plot_dir,
+            )
+
     cdf_rows: List[Dict[str, object]] = []
     summary_rows: List[Dict[str, object]] = []
     chosen_seed_rows: List[Dict[str, object]] = []
 
     for row in results:
         config_id = str(row["config_id"])
-        for x, y in zip(np.asarray(row["original_sorted"]), np.asarray(row["original_cdf"])):
+        for x, y in zip(
+            np.asarray(row["original_sorted"]), np.asarray(row["original_cdf"])
+        ):
             cdf_rows.append(
                 {
                     "config_id": config_id,
@@ -1147,7 +1318,9 @@ def generate_power_cdf_comparison(
                     "cdf": float(y),
                 }
             )
-        for x, y in zip(np.asarray(row["sampled_sorted"]), np.asarray(row["sampled_cdf"])):
+        for x, y in zip(
+            np.asarray(row["sampled_sorted"]), np.asarray(row["sampled_cdf"])
+        ):
             cdf_rows.append(
                 {
                     "config_id": config_id,
@@ -1231,6 +1404,7 @@ def generate_power_cdf_comparison(
         "artifacts": {
             "plot_dir": str(out_plot_dir),
             "plot_files": plot_files,
+            "gpt_oss_120b_single_plot_files": gpt_oss_single_plot_files,
             "cdf_points_csv": str(out_cdf_csv),
             "summary_csv": str(out_summary_csv),
         },
@@ -1242,6 +1416,19 @@ def generate_power_cdf_comparison(
         "config_summaries": summary_rows,
         "chosen_seed_rows": chosen_seed_rows,
         "failures": failures,
+        "gpt_oss_120b_single": {
+            "config_id": (
+                str(gpt_oss_single_result["config_id"])
+                if isinstance(gpt_oss_single_result, dict)
+                else None
+            ),
+            "summary": (
+                dict(gpt_oss_single_result["summary"])
+                if isinstance(gpt_oss_single_result, dict)
+                else None
+            ),
+            "failure": gpt_oss_single_failure,
+        },
     }
     _write_json(out_json, payload)
     return payload
@@ -1253,7 +1440,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Generate publication-style CDF comparison plots for measured vs sampled held-out power traces."
     )
     parser.add_argument("--run-manifest", default=defaults["run_manifest"])
-    parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
+    parser.add_argument(
+        "--experimental-manifest", default=defaults["experimental_manifest"]
+    )
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
     parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
     parser.add_argument(
@@ -1262,10 +1451,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=list(DEFAULT_CONFIG_IDS),
         help="Config IDs to plot (space- or comma-separated).",
     )
-    parser.add_argument("--generation-mode", choices=["iid", "ar1_thresholded"], default="iid")
+    parser.add_argument(
+        "--generation-mode", choices=["iid", "ar1_thresholded"], default="iid"
+    )
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)
-    parser.add_argument("--decode-mode", choices=["stochastic", "argmax"], default="stochastic")
+    parser.add_argument(
+        "--decode-mode", choices=["stochastic", "argmax"], default="stochastic"
+    )
     parser.add_argument("--median-filter-window", type=int, default=1)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--out-plot-dir", default=defaults["out_plot_dir"])
@@ -1306,6 +1499,16 @@ def main() -> None:
     print(f"  plot_dir: {run['artifacts']['plot_dir']}")
     print(f"  summary_csv: {run['artifacts']['summary_csv']}")
     print(f"  cdf_points_csv: {run['artifacts']['cdf_points_csv']}")
+    gpt_single = run.get("gpt_oss_120b_single", {})
+    if isinstance(gpt_single, dict):
+        cid = gpt_single.get("config_id")
+        if isinstance(cid, str) and cid.strip():
+            print(f"  gpt_oss_120b_single_config: {cid}")
+        failure = gpt_single.get("failure")
+        if isinstance(failure, dict):
+            reason = str(failure.get("reason", "")).strip()
+            if reason:
+                print(f"  gpt_oss_120b_single_failure: {reason}")
 
 
 if __name__ == "__main__":
