@@ -1,0 +1,27 @@
+{
+  "config_id": "gpt-oss-20b_A100_tp1",
+  "generated_at_utc": "2026-03-11T00:59:04Z",
+  "prepared": {
+    "dataset_npz": "/Users/grantwilkins/powertrace-sim/isolated/gpt_oss_20b_a100_tp1/prepared/dataset.npz",
+    "heldout_requests_npz": "/Users/grantwilkins/powertrace-sim/isolated/gpt_oss_20b_a100_tp1/prepared/heldout_requests.npz",
+    "norm_params_json": "/Users/grantwilkins/powertrace-sim/isolated/gpt_oss_20b_a100_tp1/prepared/norm_params.json",
+    "split_json": "/Users/grantwilkins/powertrace-sim/isolated/gpt_oss_20b_a100_tp1/prepared/split.json",
+    "throughput_database_json": "/Users/grantwilkins/powertrace-sim/isolated/gpt_oss_20b_a100_tp1/prepared/throughput_database.json"
+  },
+  "sources": {
+    "data_inventory": "/Users/grantwilkins/powertrace-sim/results/stage0_sharegpt_gptoss_a100/data_inventory.json",
+    "experimental_manifest": "/Users/grantwilkins/powertrace-sim/results/experimental_continuous_v1_gptoss_a100/manifest.json",
+    "throughput_db": "/Users/grantwilkins/powertrace-sim/results/stage0_sharegpt_gptoss_a100/throughput_database.json"
+  },
+  "summary": {
+    "num_test_traces": 6,
+    "test_indices": [
+      2,
+      4,
+      28,
+      1,
+      13,
+      8
+    ]
+  }
+}

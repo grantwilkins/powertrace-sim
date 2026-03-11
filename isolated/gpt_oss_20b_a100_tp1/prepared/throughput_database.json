@@ -1,0 +1,133 @@
+{
+  "configs": {
+    "gpt-oss-20b_A100_tp1": {
+      "anomaly_counters": {
+        "requests_dropped_decode_time": 15,
+        "requests_dropped_invalid_fields": 0,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
+        "runs_with_mismatched_array_lengths": 0
+      },
+      "decode_model": {
+        "by_concurrency_bins": [
+          {
+            "concurrency": 1,
+            "median_decode_toks_per_s": 214.69232435612616,
+            "n": 3644
+          },
+          {
+            "concurrency": 2,
+            "median_decode_toks_per_s": 189.96590139343314,
+            "n": 3041
+          },
+          {
+            "concurrency": 3,
+            "median_decode_toks_per_s": 167.51053340045982,
+            "n": 2719
+          },
+          {
+            "concurrency": 4,
+            "median_decode_toks_per_s": 153.8939194181282,
+            "n": 2529
+          },
+          {
+            "concurrency": 5,
+            "median_decode_toks_per_s": 140.95497431645475,
+            "n": 2374
+          },
+          {
+            "concurrency": 6,
+            "median_decode_toks_per_s": 133.7289117379799,
+            "n": 2129
+          },
+          {
+            "concurrency": 7,
+            "median_decode_toks_per_s": 128.6184187564621,
+            "n": 1854
+          },
+          {
+            "concurrency": 8,
+            "median_decode_toks_per_s": 124.56370543000725,
+            "n": 1455
+          },
+          {
+            "concurrency": 9,
+            "median_decode_toks_per_s": 112.78044882230049,
+            "n": 1072
+          },
+          {
+            "concurrency": 10,
+            "median_decode_toks_per_s": 109.73800739973382,
+            "n": 876
+          },
+          {
+            "concurrency": 11,
+            "median_decode_toks_per_s": 107.57921605462073,
+            "n": 660
+          },
+          {
+            "concurrency": 12,
+            "median_decode_toks_per_s": 104.63856368323897,
+            "n": 407
+          },
+          {
+            "concurrency": 13,
+            "median_decode_toks_per_s": 104.29138992828658,
+            "n": 305
+          },
+          {
+            "concurrency": 14,
+            "median_decode_toks_per_s": 101.84522330873754,
+            "n": 151
+          },
+          {
+            "concurrency": 15,
+            "median_decode_toks_per_s": 99.0189308841759,
+            "n": 132
+          },
+          {
+            "concurrency": 16,
+            "median_decode_toks_per_s": 98.58163016754277,
+            "n": 115
+          },
+          {
+            "concurrency": 17,
+            "median_decode_toks_per_s": 95.37804258211148,
+            "n": 93
+          },
+          {
+            "concurrency": 19,
+            "median_decode_toks_per_s": 93.55500497741512,
+            "n": 70
+          }
+        ],
+        "max_min_median_ratio": 2.2948245730728623,
+        "type": "by_concurrency"
+      },
+      "decode_rate_median_toks_per_s": 148.48461703900128,
+      "file_counts": {
+        "matched_pairs": 31,
+        "runs_missing_request_timestamps": 0,
+        "runs_with_request_timestamps": 31
+      },
+      "hardware": "A100",
+      "model_name": "gpt-oss-20b",
+      "num_pairs": 31,
+      "num_requests_total": 23700,
+      "num_requests_used": 23685,
+      "prefill_rate_median_toks_per_s": 4290.861440651839,
+      "quality_flags": {
+        "requests_dropped_decode_time": 15,
+        "requests_dropped_invalid_fields": 0,
+        "requests_missing_or_invalid_timestamp": 0,
+        "runs_missing_request_timestamps": 0,
+        "runs_with_mismatched_array_lengths": 0
+      },
+      "source_run_count": 31,
+      "tensor_parallelism": 1
+    }
+  },
+  "generated_at_utc": "2026-03-11T00:59:04Z",
+  "schema_version": "stage0-throughput-v1",
+  "source_throughput_db": "/Users/grantwilkins/powertrace-sim/results/stage0_sharegpt_gptoss_a100/throughput_database.json"
+}

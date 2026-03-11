@@ -1,0 +1,11 @@
+[project]
+name = "gpt-oss-20b-a100-tp1"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.2.6",
+    "scikit-learn>=1.7.2",
+    "torch>=2.10.0",
+]
