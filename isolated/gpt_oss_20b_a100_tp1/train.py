@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -16,8 +17,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from eval import evaluate_trained_model
 from prepare import DEFAULT_CONFIG_ID, DEFAULT_OUT_DIR, build_training_inputs
-
-from model.classifiers.gru import GRUClassifier
 
 DEFAULT_PREPARED_DIR = DEFAULT_OUT_DIR
 
@@ -45,6 +44,29 @@ def _parse_k_candidates(csv_text: str) -> List[int]:
         seen.add(val)
         out.append(val)
     return out
+
+
+class GRUClassifier(nn.Module):
+    """
+    GRU-based classifier for predicting power states from schedule matrices.
+    This model uses a bidirectional GRU to process the input schedule matrix
+    and outputs a classification over K power states.
+    """
+
+    def __init__(self, Dx, K, H=64, num_layers=1):
+        super().__init__()
+        self.gru = nn.GRU(
+            Dx,
+            H,
+            num_layers=max(1, int(num_layers)),
+            batch_first=True,
+            bidirectional=True,
+        )
+        self.fc = nn.Linear(2 * H, K)
+
+    def forward(self, x):
+        h, _ = self.gru(x)
+        return self.fc(h)
 
 
 def _train_model(
