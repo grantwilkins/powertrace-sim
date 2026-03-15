@@ -167,7 +167,7 @@ python -m model.scripts.power_regression_analysis \
 
 ```bash
 # 1. Prepare training data
-python -m model.training_data.utils.prepare_training_data \
+python -m model.training_data.prepare_training_data \
     --input-dir data/sharegpt-benchmark-* \
     --output results/stage0
 

@@ -23,7 +23,7 @@ training_data/
 The `prepare_training_data.py` script converts raw benchmark JSON files into the Stage 0 format used for training.
 
 ```bash
-python -m model.training_data.utils.prepare_training_data \
+python -m model.training_data.prepare_training_data \
     --input-dir data/sharegpt-benchmark-llama-3-8b-h100 \
     --output results/stage0
 ```
@@ -176,7 +176,7 @@ Trained Model Artifacts
 
 ## Adding New Data
 
-1. **Collect benchmark data** using `client/benchmark_serving.py`
+1. **Collect benchmark data** using `profiling/client/benchmark_serving.py`
 2. **Organize files** into `data/sharegpt-benchmark-{model}-{hardware}/`
 3. **Run preparation** with `prepare_training_data.py`
 4. **Verify manifest** contains all expected configurations

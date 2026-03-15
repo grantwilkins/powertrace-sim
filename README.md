@@ -43,9 +43,10 @@ powertrace-sim/
 │   └── eval/                 # Paper evaluation scripts and baselines
 ├── data/                     # Benchmark data and traces (NPZ, JSON, CSV)
 ├── results/                  # Training outputs, checkpoints, and metrics
-├── client/                   # Benchmark client for data collection
-├── server/                   # vLLM server launch scripts
-├── job-scripts/              # End-to-end benchmarking automation
+├── profiling/
+│   ├── client/              # Benchmark client for data collection
+│   ├── server/              # vLLM server launch scripts
+│   └── jobs/                # End-to-end benchmarking automation
 ├── figures/                  # Generated evaluation figures
 └── docs/                     # Additional documentation
 ```
@@ -130,10 +131,10 @@ python -m scripts.eval.run_baselines_node \
 
 To collect your own training data:
 
-1. **Start the vLLM server** (see `server/` scripts)
+1. **Start the vLLM server** (see `profiling/server/` scripts)
 2. **Run the benchmark client** with power logging:
    ```bash
-   python client/benchmark_serving.py \
+   python profiling/client/benchmark_serving.py \
        --backend vllm \
        --endpoint /v1/completions \
        --dataset-name sharegpt \
@@ -144,7 +145,7 @@ To collect your own training data:
    ```
 3. **Process the collected data** into training format:
    ```bash
-   python -m model.training_data.utils.prepare_training_data \
+   python -m model.training_data.prepare_training_data \
        --input-dir data/sharegpt-benchmark-llama-3-8b-h100 \
        --output results/stage0
    ```
@@ -181,4 +182,3 @@ See `requirements.txt` for the complete list. Key dependencies:
 - scikit-learn >= 1.3
 - scipy >= 1.11
 - matplotlib >= 3.7 (for visualization)
-

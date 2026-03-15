@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-from model.training_data.utils.stage0_inventory_and_throughput import (
+from model.training_data.stage0_inventory_and_throughput import (
     discover_dataset_dirs,
     inspect_json_schema,
     inspect_power_csv,

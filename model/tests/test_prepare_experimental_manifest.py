@@ -12,7 +12,7 @@ import numpy as np
 
 class TestPrepareExperimentalManifest(unittest.TestCase):
     def test_parse_power_csv_basic(self):
-        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+        from model.training_data.prepare_experimental_manifest import _parse_power_csv
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "power.csv"
@@ -34,7 +34,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
             self.assertAlmostEqual(float(np.median(np.diff(epochs))), 0.25, places=6)
 
     def test_parse_power_csv_bad_timestamp_skips(self):
-        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+        from model.training_data.prepare_experimental_manifest import _parse_power_csv
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "power.csv"
@@ -57,7 +57,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
             )
 
     def test_compute_active_requests_basic(self):
-        from model.training_data.utils.prepare_experimental_manifest import _compute_active_requests
+        from model.training_data.prepare_experimental_manifest import _compute_active_requests
 
         power_t = np.asarray([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
         req_t = np.asarray([0.5, 1.5], dtype=np.float64)
@@ -67,7 +67,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertTrue(np.allclose(active, np.asarray([0.0, 1.0, 2.0, 1.0], dtype=np.float64)))
 
     def test_compute_active_requests_no_overlap(self):
-        from model.training_data.utils.prepare_experimental_manifest import _compute_active_requests
+        from model.training_data.prepare_experimental_manifest import _compute_active_requests
 
         power_t = np.asarray([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
         req_t = np.asarray([0.0, 2.0], dtype=np.float64)
@@ -77,7 +77,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertLessEqual(float(np.max(active)), 1.0)
 
     def test_compute_t_arrive_log_basic(self):
-        from model.training_data.utils.prepare_experimental_manifest import _compute_t_arrive_log
+        from model.training_data.prepare_experimental_manifest import _compute_t_arrive_log
 
         power_t = np.asarray([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
         req_t = np.asarray([0.1, 1.2, 2.1], dtype=np.float64)
@@ -87,7 +87,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertGreater(float(np.count_nonzero(t_arrive_log > 0.0)), 0.0)
 
     def test_align_trace_to_grid_truncates(self):
-        from model.training_data.utils.prepare_experimental_manifest import _align_trace_to_grid
+        from model.training_data.prepare_experimental_manifest import _align_trace_to_grid
 
         power_data = {
             "timestamps": np.asarray([1000.0, 1000.25, 1000.50, 1000.75], dtype=np.float64),
@@ -108,7 +108,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertEqual(len(aligned["power"]), len(aligned["t_arrive_log"]))
 
     def test_compute_normalization_stats_mean_std(self):
-        from model.training_data.utils.prepare_experimental_manifest import _compute_normalization_stats
+        from model.training_data.prepare_experimental_manifest import _compute_normalization_stats
 
         traces = [
             {
@@ -129,7 +129,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertGreater(float(stats["t_arrive_log_std"]), 0.0)
 
     def test_create_train_val_test_split_proportions(self):
-        from model.training_data.utils.prepare_experimental_manifest import _create_train_val_test_split
+        from model.training_data.prepare_experimental_manifest import _create_train_val_test_split
 
         split = _create_train_val_test_split(20, train_ratio=0.7, val_ratio=0.15, seed=123)
         self.assertEqual(len(split["train_indices"]), 14)
@@ -137,14 +137,14 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         self.assertEqual(len(split["test_indices"]), 3)
 
     def test_create_train_val_test_split_deterministic(self):
-        from model.training_data.utils.prepare_experimental_manifest import _create_train_val_test_split
+        from model.training_data.prepare_experimental_manifest import _create_train_val_test_split
 
         a = _create_train_val_test_split(20, train_ratio=0.7, val_ratio=0.15, seed=999)
         b = _create_train_val_test_split(20, train_ratio=0.7, val_ratio=0.15, seed=999)
         self.assertEqual(a, b)
 
     def test_power_timestamp_parse_treats_naive_values_as_utc(self):
-        from model.training_data.utils.prepare_experimental_manifest import (
+        from model.training_data.prepare_experimental_manifest import (
             _power_timestamp_to_epoch,
         )
 
@@ -158,7 +158,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
 
     def test_align_trace_rebases_out_of_range_request_timestamps(self):
         """Recorded arrivals on a different clock should be rebased to power time."""
-        from model.training_data.utils.prepare_experimental_manifest import (
+        from model.training_data.prepare_experimental_manifest import (
             _align_trace_to_grid,
         )
 
@@ -186,7 +186,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
 
     def test_parse_power_csv_aggregates_fixed_8_row_groups(self):
         """Raw nvidia-smi rows should aggregate by contiguous 8-row groups."""
-        from model.training_data.utils.prepare_experimental_manifest import _parse_power_csv
+        from model.training_data.prepare_experimental_manifest import _parse_power_csv
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -226,7 +226,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
 
     def test_full_pipeline_creates_manifest_and_datasets(self):
         """Test that the full pipeline creates expected outputs."""
-        from model.training_data.utils.prepare_experimental_manifest import (
+        from model.training_data.prepare_experimental_manifest import (
             run_prepare_experimental_manifest,
         )
 
@@ -350,7 +350,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
 
     def test_skips_configs_with_insufficient_traces(self):
         """Test that configs with too few traces are skipped."""
-        from model.training_data.utils.prepare_experimental_manifest import (
+        from model.training_data.prepare_experimental_manifest import (
             run_prepare_experimental_manifest,
         )
 
@@ -411,7 +411,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
 
     def test_requires_request_timestamps_by_default(self):
         """Traces without request_timestamps should be rejected by default."""
-        from model.training_data.utils.prepare_experimental_manifest import (
+        from model.training_data.prepare_experimental_manifest import (
             run_prepare_experimental_manifest,
         )
 
