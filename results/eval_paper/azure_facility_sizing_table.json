@@ -8,28 +8,42 @@
     "label": "tab:facility-sizing"
   },
   "inputs": {
+    "method_order": [
+      "tdp_baseline",
+      "mean_baseline",
+      "splitwise_strict",
+      "ours"
+    ],
     "metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_metrics.csv",
     "power_factor": 0.9,
     "recompute_metrics": false
   },
   "method_metrics_15min": {
-    "Mean": {
-      "avg_mw": 0.5292239226210785,
-      "load_factor": 1.0000000000000002,
+    "mean_baseline": {
+      "avg_mw": 0.8547199523122527,
+      "load_factor": 0.9999999999999996,
       "max_ramp_mw_per_hr": 0.0,
-      "par": 0.9999999999999998,
-      "peak_mw": 0.5292239226210784,
-      "transformer_mva": 0.5880265806900872
+      "par": 1.0000000000000004,
+      "peak_mw": 0.8547199523122531,
+      "transformer_mva": 0.9496888359025034
     },
-    "Ours": {
-      "avg_mw": 0.589750359375,
-      "load_factor": 0.8243113475176066,
-      "max_ramp_mw_per_hr": 0.1078687500000001,
-      "par": 1.213133851682954,
-      "peak_mw": 0.715446125,
-      "transformer_mva": 0.7949401388888889
+    "ours": {
+      "avg_mw": 0.6333456087239583,
+      "load_factor": 0.8423785921485851,
+      "max_ramp_mw_per_hr": 0.11046199999999999,
+      "par": 1.1871146884791826,
+      "peak_mw": 0.751853875,
+      "transformer_mva": 0.8353931944444444
     },
-    "TDP": {
+    "splitwise_strict": {
+      "avg_mw": 0.7568933502604167,
+      "load_factor": 0.9210904445660874,
+      "max_ramp_mw_per_hr": 0.06573349999999982,
+      "par": 1.0856697145209078,
+      "peak_mw": 0.8217361875,
+      "transformer_mva": 0.9130402083333333
+    },
+    "tdp_baseline": {
       "avg_mw": 1.1856000000000002,
       "load_factor": 1.0000000000000002,
       "max_ramp_mw_per_hr": 0.0,
@@ -40,34 +54,39 @@
   },
   "table_rows": [
     {
-      "mean": "---",
+      "mean_baseline": "---",
       "metric": "Peak facility power (MW)",
-      "ours": "0.72",
-      "tdp": "1.19"
+      "ours": "0.75",
+      "splitwise_strict": "0.82",
+      "tdp_baseline": "1.19"
     },
     {
-      "mean": "0.53",
+      "mean_baseline": "0.85",
       "metric": "Average facility power (MW)",
-      "ours": "0.59",
-      "tdp": "---"
+      "ours": "0.63",
+      "splitwise_strict": "0.76",
+      "tdp_baseline": "---"
     },
     {
-      "mean": "1.00",
+      "mean_baseline": "1.00",
       "metric": "Peak-to-average ratio",
-      "ours": "1.21",
-      "tdp": "1.00"
+      "ours": "1.19",
+      "splitwise_strict": "1.09",
+      "tdp_baseline": "1.00"
     },
     {
-      "mean": "0.00",
+      "mean_baseline": "0.00",
       "metric": "Max 15-min ramp rate (MW/hr)",
       "ours": "0.11",
-      "tdp": "0.00"
+      "splitwise_strict": "0.07",
+      "tdp_baseline": "0.00"
     },
     {
-      "mean": "1.00",
+      "mean_baseline": "1.00",
       "metric": "Load factor",
-      "ours": "0.82",
-      "tdp": "1.00"
+      "ours": "0.84",
+      "splitwise_strict": "0.92",
+      "tdp_baseline": "1.00"
     }
   ]
 }

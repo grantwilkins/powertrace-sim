@@ -29,6 +29,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from model.utils.io import write_json
+
 PANEL_ORDER = ("server", "rack", "row", "site")
 
 
@@ -36,18 +38,16 @@ def _ensure_dir_for_file(path: Union[str, Path]) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
 
-def _write_json(path: Union[str, Path], payload: Mapping[str, object]) -> None:
-    _ensure_dir_for_file(path)
-    with open(path, "w") as f:
-        json.dump(dict(payload), f, indent=2, sort_keys=True)
-
-
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     fig_dir = repo_root / "figures"
     return {
-        "node_trace_dir": str(repo_root / "results" / "azure_facility" / "node_traces"),
-        "aggregated_dir": str(repo_root / "results" / "azure_facility" / "aggregated"),
+        "node_trace_dir": str(
+            repo_root / "results" / "azure_facility" / "node_traces" / "ours"
+        ),
+        "aggregated_dir": str(
+            repo_root / "results" / "azure_facility" / "aggregated" / "ours"
+        ),
         "out_plot": str(fig_dir / "azure_hierarchy_figure.pdf"),
         "out_csv": str(
             repo_root / "results" / "eval_paper" / "azure_hierarchy_figure.csv"
@@ -417,7 +417,7 @@ def generate_hierarchy_figure(
             "json": str(out_json),
         },
     }
-    _write_json(out_json, payload)
+    write_json(out_json, payload)
     return payload
 
 
@@ -463,7 +463,7 @@ def generate_hierarchy_panels(
             "json": str(out_json),
         },
     }
-    _write_json(out_json, payload)
+    write_json(out_json, payload)
     return payload
 
 
@@ -553,7 +553,7 @@ def generate_hierarchy_outputs(
             "json": str(out_json),
         },
     }
-    _write_json(out_json, payload)
+    write_json(out_json, payload)
     return payload
 
 

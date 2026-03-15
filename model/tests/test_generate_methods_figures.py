@@ -1,6 +1,6 @@
+import os
 import unittest
 from pathlib import Path
-import os
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -12,12 +12,12 @@ import numpy as np
 from model.scripts.generate_methods_figures import (
     bic_sweep,
     estimate_request_alignment_correction,
-    normalize_rate,
     normalize_bic_values,
+    normalize_rate,
     rate_is_one,
     select_seed_nearest_median_nrmse,
-    select_trace_by_lowest_mean_power,
     select_trace_by_best_median_nrmse,
+    select_trace_by_lowest_mean_power,
     select_transition_dense_window,
 )
 
@@ -33,8 +33,12 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         self.assertIsNone(normalize_rate("abc"))
 
     def test_trace_selection_dense_config(self):
-        per_trace_path = Path("results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv")
-        self.assertTrue(per_trace_path.exists(), msg=f"Missing test fixture: {per_trace_path}")
+        per_trace_path = Path(
+            "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv"
+        )
+        self.assertTrue(
+            per_trace_path.exists(), msg=f"Missing test fixture: {per_trace_path}"
+        )
         rows = []
         import csv
 
@@ -42,13 +46,23 @@ class TestGenerateMethodsFigures(unittest.TestCase):
             rows = list(csv.DictReader(f))
 
         cfg = "llama-3-8b_H100_tp1"
-        self.assertEqual(select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=0.25), 8)
-        self.assertEqual(select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=1.0), 17)
-        self.assertEqual(select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=4.0), 59)
+        self.assertEqual(
+            select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=0.25), 8
+        )
+        self.assertEqual(
+            select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=1.0), 13
+        )
+        self.assertEqual(
+            select_trace_by_best_median_nrmse(rows, config_id=cfg, rate=4.0), 27
+        )
 
     def test_seed_selection_nearest_median(self):
-        per_seed_path = Path("results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv")
-        self.assertTrue(per_seed_path.exists(), msg=f"Missing test fixture: {per_seed_path}")
+        per_seed_path = Path(
+            "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv"
+        )
+        self.assertTrue(
+            per_seed_path.exists(), msg=f"Missing test fixture: {per_seed_path}"
+        )
         rows = []
         import csv
 
@@ -56,9 +70,15 @@ class TestGenerateMethodsFigures(unittest.TestCase):
             rows = list(csv.DictReader(f))
 
         cfg = "llama-3-8b_H100_tp1"
-        self.assertEqual(select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=8), 44)
-        self.assertEqual(select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=17), 42)
-        self.assertEqual(select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=59), 42)
+        self.assertEqual(
+            select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=8), 43
+        )
+        self.assertEqual(
+            select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=17), 42
+        )
+        self.assertEqual(
+            select_seed_nearest_median_nrmse(rows, config_id=cfg, trace_idx=59), 42
+        )
 
     def test_bic_sweep_shape_and_bestk(self):
         rng = np.random.default_rng(42)
@@ -107,7 +127,9 @@ class TestGenerateMethodsFigures(unittest.TestCase):
     def test_estimate_request_alignment_correction(self):
         power = np.asarray([120.0, 130.0, 140.0, 350.0, 360.0, 370.0], dtype=np.float64)
         a_t = np.asarray([0.0, 0.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
-        corr = estimate_request_alignment_correction(power_trace=power, a_t=a_t, dt=0.25)
+        corr = estimate_request_alignment_correction(
+            power_trace=power, a_t=a_t, dt=0.25
+        )
         self.assertEqual(int(corr["power_spike_bin"]), 3)
         self.assertEqual(int(corr["at_spike_bin_before"]), 2)
         self.assertEqual(int(corr["offset_bins"]), 1)

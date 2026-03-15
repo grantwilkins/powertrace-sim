@@ -9,9 +9,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
+from model.utils.io import ensure_dir
 
 
 def _load_csv_rows(path: str) -> List[Dict[str, str]]:
@@ -20,7 +18,7 @@ def _load_csv_rows(path: str) -> List[Dict[str, str]]:
 
 
 def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
+    ensure_dir(os.path.dirname(path) or ".")
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(fieldnames))
         writer.writeheader()

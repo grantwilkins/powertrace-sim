@@ -30,14 +30,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from model.utils.io import write_json
+
 CONFIG_ID_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
 METHOD_LABEL_MAP = {
     "tdp": "TDP",
     "mean": "Mean",
     "marginal_gmm": "Marginal GMM",
-    "splitwise_lut": "Splitwise",
-    "splitwise_strict": "Splitwise (Strict)",
+    "splitwise_strict": "Splitwise (Strict Emulation)",
     "ours": "Ours",
 }
 
@@ -91,7 +92,8 @@ def _is_representative_dense_config(config_id: str) -> bool:
     return (
         "llama-3" in family
         and int(parsed["model_size_b"]) == 70
-        and int(parsed["tp"]) == 4
+        and str(parsed["hardware"]).upper() == "A100"
+        and int(parsed["tp"]) in {4, 8}
     )
 
 
@@ -371,12 +373,6 @@ def _write_csv(path: str, rows: Sequence[Mapping[str, str]]) -> None:
             writer.writerow(dict(row))
 
 
-def _write_json(path: str, payload: Mapping[str, object]) -> None:
-    _ensure_dir_for_file(path)
-    with open(path, "w") as f:
-        json.dump(dict(payload), f, indent=2, sort_keys=True)
-
-
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
@@ -403,7 +399,7 @@ def generate_baselines_node_table(
     force_mean_delta_energy_zero: bool = False,
     hide_constant_acf: bool = True,
     caption: str = (
-        "Baseline comparison at node level, averaged across representative dense configurations."
+        "Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations."
     ),
     label: str = "tab:baselines-node",
     recompute_node_metrics: bool = False,
@@ -421,9 +417,9 @@ def generate_baselines_node_table(
     ours_std_scale: float = 1.0,
     ours_logit_temperature: float = 1.0,
     splitwise_perf_model_csv: str = "data/perf_model.csv",
-    splitwise_source_model: str = "llama2-70b",
+    splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
-    splitwise_source_tp: int = 4,
+    splitwise_source_tp: Optional[int] = None,
     exclude_negative_acf_configs: bool = True,
     allow_synthetic_request_timestamps: bool = False,
 ) -> Dict[str, object]:
@@ -449,7 +445,9 @@ def generate_baselines_node_table(
             splitwise_perf_model_csv=str(splitwise_perf_model_csv),
             splitwise_source_model=str(splitwise_source_model),
             splitwise_source_hardware=str(splitwise_source_hardware),
-            splitwise_source_tp=int(splitwise_source_tp),
+            splitwise_source_tp=(
+                int(splitwise_source_tp) if splitwise_source_tp is not None else None
+            ),
             allow_synthetic_request_timestamps=bool(
                 allow_synthetic_request_timestamps
             ),
@@ -535,7 +533,7 @@ def generate_baselines_node_table(
     latex = _build_latex_table(rows=table_rows, caption=caption, label=label)
 
     _write_csv(out_csv, table_rows)
-    _write_json(
+    write_json(
         out_json,
         {
             "inputs": {
@@ -626,10 +624,10 @@ def main() -> None:
     parser.add_argument(
         "--third-method-candidates",
         nargs="*",
-        default=["splitwise_strict", "splitwise_lut"],
+        default=["splitwise_strict"],
         help=(
             "Candidate method keys for the third row; first present in CSV is used. "
-            "Example: splitwise_strict,splitwise_lut"
+            "Example: splitwise_strict"
         ),
     )
     parser.add_argument(
@@ -657,7 +655,7 @@ def main() -> None:
     parser.add_argument(
         "--caption",
         default=(
-            "Baseline comparison at node level, averaged across representative dense configurations."
+            "Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations."
         ),
     )
     parser.add_argument("--label", default="tab:baselines-node")
@@ -692,9 +690,9 @@ def main() -> None:
     parser.add_argument("--ours-std-scale", type=float, default=1.0)
     parser.add_argument("--ours-logit-temperature", type=float, default=1.0)
     parser.add_argument("--splitwise-perf-model-csv", default="data/perf_model.csv")
-    parser.add_argument("--splitwise-source-model", default="llama2-70b")
+    parser.add_argument("--splitwise-source-model", default="llama-3-70b")
     parser.add_argument("--splitwise-source-hardware", default="a100-80gb")
-    parser.add_argument("--splitwise-source-tp", type=int, default=4)
+    parser.add_argument("--splitwise-source-tp", type=int, default=None)
     parser.add_argument(
         "--allow-synthetic-request-timestamps",
         action="store_true",
@@ -745,7 +743,11 @@ def main() -> None:
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
-        splitwise_source_tp=int(args.splitwise_source_tp),
+        splitwise_source_tp=(
+            int(args.splitwise_source_tp)
+            if args.splitwise_source_tp is not None
+            else None
+        ),
         exclude_negative_acf_configs=not bool(args.allow_negative_acf_configs),
         allow_synthetic_request_timestamps=bool(
             args.allow_synthetic_request_timestamps

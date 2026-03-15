@@ -1,6 +1,6 @@
 {
   "formatting": {
-    "caption": "Baseline comparison at node level, averaged across representative dense configurations.",
+    "caption": "Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations.",
     "decimals": 2,
     "delta_energy_mode": "abs",
     "force_mean_delta_energy_zero": false,
@@ -13,72 +13,71 @@
     "exclude_negative_acf_configs": true,
     "excluded_negative_acf_configs": [],
     "node_metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/baselines_node_level.csv",
-    "recompute_node_metrics": false,
+    "recompute_node_metrics": true,
     "representative_only": true,
     "selected_configs": [
-      "llama-3-70b_A100_tp4",
-      "llama-3-70b_H100_tp4"
+      "llama-3-70b_A100_tp4"
     ],
     "third_method_key": "splitwise_strict"
   },
   "method_metrics": {
     "Mean": {
       "acf_r2": NaN,
-      "delta_energy_pct": 24.211656002687448,
-      "ks_stat": 0.7377506036313369,
-      "nrmse": 0.4164572460526733,
-      "num_configs": 2.0
+      "delta_energy_pct": 17.346822135937465,
+      "ks_stat": 0.6888482050465653,
+      "nrmse": 0.3248309094037557,
+      "num_configs": 1.0
     },
     "Ours": {
-      "acf_r2": 0.9835812458914889,
-      "delta_energy_pct": 5.526842414330128,
-      "ks_stat": 0.19935342162234643,
-      "nrmse": 0.3432221501570867,
-      "num_configs": 2.0
+      "acf_r2": 0.9873380270073931,
+      "delta_energy_pct": 6.085201790563038,
+      "ks_stat": 0.11677147178221764,
+      "nrmse": 0.27580256470678116,
+      "num_configs": 1.0
     },
-    "Splitwise (Strict)": {
-      "acf_r2": 0.6801547348999857,
-      "delta_energy_pct": 146.00342969664578,
-      "ks_stat": 1.0,
-      "nrmse": 1.186971594139796,
-      "num_configs": 2.0
+    "Splitwise (Strict Emulation)": {
+      "acf_r2": 0.35851407217135456,
+      "delta_energy_pct": 91.84366095950487,
+      "ks_stat": 0.9997612035341877,
+      "nrmse": 0.6774246605265452,
+      "num_configs": 1.0
     },
     "TDP": {
       "acf_r2": NaN,
-      "delta_energy_pct": 352.4023668414352,
+      "delta_energy_pct": 243.5973571088581,
       "ks_stat": 1.0,
-      "nrmse": 2.7965323575559466,
-      "num_configs": 2.0
+      "nrmse": 1.664273565610385,
+      "num_configs": 1.0
     }
   },
   "table_rows": [
     {
       "acf_r2": "---",
-      "delta_e_pct": "352.40",
+      "delta_e_pct": "243.60",
       "ks": "1.00",
       "method": "TDP",
-      "nrmse": "2.80"
+      "nrmse": "1.66"
     },
     {
       "acf_r2": "---",
-      "delta_e_pct": "24.21",
-      "ks": "0.74",
+      "delta_e_pct": "17.35",
+      "ks": "0.69",
       "method": "Mean",
-      "nrmse": "0.42"
+      "nrmse": "0.32"
     },
     {
-      "acf_r2": "0.68",
-      "delta_e_pct": "146.00",
+      "acf_r2": "0.36",
+      "delta_e_pct": "91.84",
       "ks": "1.00",
-      "method": "Splitwise (Strict)",
-      "nrmse": "1.19"
+      "method": "Splitwise (Strict Emulation)",
+      "nrmse": "0.68"
     },
     {
-      "acf_r2": "0.98",
-      "delta_e_pct": "5.53",
-      "ks": "0.20",
+      "acf_r2": "0.99",
+      "delta_e_pct": "6.09",
+      "ks": "0.12",
       "method": "Ours",
-      "nrmse": "0.34"
+      "nrmse": "0.28"
     }
   ]
 }

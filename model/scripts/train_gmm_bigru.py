@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -25,6 +23,17 @@ from model.classifiers.gmm_bigru import (
     gmm_params_to_json_dict,
 )
 from model.classifiers.gru import GRUClassifier
+from model.utils.config import (
+    parse_config_ids as _parse_config_ids,
+    resolve_device as _resolve_device,
+)
+from model.utils.io import (
+    ensure_dir as _ensure_dir,
+    resolve_existing_path as _resolve_existing_path,
+    safe_slug as _safe_slug,
+    write_csv as _write_csv,
+    write_json as _write_json,
+)
 
 BRACKET_CONFIG_SUBSET = [
     "deepseek-r1-distill-8b_A100_tp1",
@@ -38,70 +47,20 @@ BRACKET_CONFIG_SUBSET = [
 ]
 
 
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
-
-
-def _write_json(path: str, payload: Dict[str, object]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-
-
-def _write_csv(
-    path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]
-) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(fieldnames))
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
-
-
-def _parse_config_ids(config_ids: Optional[Sequence[str]]) -> List[str]:
-    if not config_ids:
-        return []
-    out: List[str] = []
-    for token in config_ids:
-        if token is None:
-            continue
-        out.extend([x.strip() for x in str(token).split(",") if x.strip()])
-    deduped: List[str] = []
-    seen = set()
-    for cid in out:
-        if cid in seen:
-            continue
-        deduped.append(cid)
-        seen.add(cid)
-    return deduped
-
-
-def _resolve_device(device: Optional[torch.device | str]) -> torch.device:
-    if device is None:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if isinstance(device, torch.device):
-        return device
-    if str(device).lower() == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(str(device))
+def _tensor_from_array(
+    values: object,
+    *,
+    dtype: torch.dtype,
+    device: torch.device,
+) -> torch.Tensor:
+    arr = np.asarray(values)
+    try:
+        tensor = torch.from_numpy(arr)
+    except RuntimeError as exc:
+        if "Numpy is not available" not in str(exc):
+            raise
+        tensor = torch.tensor(arr.tolist())
+    return tensor.to(device=device, dtype=dtype)
 
 
 def _parse_k_candidates(csv_text: str) -> List[int]:
@@ -146,9 +105,8 @@ def _extract_raw_trace(
     t_arrive_log_arr: Optional[np.ndarray],
     feature_set: str,
 ) -> Optional[Dict[str, object]]:
+    del t_arrive_log_arr
     n = int(min(len(pair_key_arr), len(power_arr), len(active_arr)))
-    if t_arrive_log_arr is not None:
-        n = int(min(n, len(t_arrive_log_arr)))
     if idx < 0 or idx >= n:
         return None
     try:
@@ -161,20 +119,8 @@ def _extract_raw_trace(
     if not (np.all(np.isfinite(power)) and np.all(np.isfinite(active))):
         return None
 
-    t_arrive_log: Optional[np.ndarray] = None
-    if feature_set == "f3":
-        if t_arrive_log_arr is None:
-            return None
-        try:
-            t_arrive_log = np.asarray(t_arrive_log_arr[idx], dtype=np.float64).reshape(
-                -1
-            )
-        except Exception:
-            return None
-        if t_arrive_log.size < 2:
-            return None
-        if not np.all(np.isfinite(t_arrive_log)):
-            return None
+    if str(feature_set).strip().lower() == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
 
     pair_key = str(pair_key_arr[idx]) if idx < len(pair_key_arr) else f"trace-{idx}"
     return {
@@ -182,9 +128,7 @@ def _extract_raw_trace(
         "pair_key": pair_key,
         "power_w": power.astype(np.float64),
         "active_requests": active.astype(np.float64),
-        "t_arrive_log": t_arrive_log.astype(np.float64)
-        if t_arrive_log is not None
-        else None,
+        "t_arrive_log": None,
     }
 
 
@@ -542,11 +486,15 @@ def train_one_config(
         model.train()
         train_losses: List[float] = []
         for tr in config_data["train"]:
-            x = torch.from_numpy(np.asarray(tr["features_norm"], dtype=np.float32)).to(
-                resolved_device
+            x = _tensor_from_array(
+                np.asarray(tr["features_norm"], dtype=np.float32),
+                dtype=torch.float32,
+                device=resolved_device,
             )
-            y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(
-                resolved_device
+            y = _tensor_from_array(
+                np.asarray(tr["state_labels"], dtype=np.int64),
+                dtype=torch.int64,
+                device=resolved_device,
             )
             if x.ndim != 2 or y.ndim != 1:
                 continue
@@ -574,11 +522,15 @@ def train_one_config(
         val_losses: List[float] = []
         with torch.no_grad():
             for tr in config_data["val"]:
-                x = torch.from_numpy(
-                    np.asarray(tr["features_norm"], dtype=np.float32)
-                ).to(resolved_device)
-                y = torch.from_numpy(np.asarray(tr["state_labels"], dtype=np.int64)).to(
-                    resolved_device
+                x = _tensor_from_array(
+                    np.asarray(tr["features_norm"], dtype=np.float32),
+                    dtype=torch.float32,
+                    device=resolved_device,
+                )
+                y = _tensor_from_array(
+                    np.asarray(tr["state_labels"], dtype=np.int64),
+                    dtype=torch.int64,
+                    device=resolved_device,
                 )
                 if x.ndim != 2 or y.ndim != 1:
                     continue
@@ -692,8 +644,10 @@ def run_training_from_manifest(
     max_k: int = 20,
 ) -> Dict[str, object]:
     feature_set = str(feature_set).strip().lower()
-    if feature_set not in {"f2", "f3"}:
-        raise ValueError(f"feature_set must be one of {{'f2','f3'}}; got {feature_set}")
+    if feature_set == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+    if feature_set != "f2":
+        raise ValueError(f"feature_set must be 'f2'; got {feature_set}")
     k = int(k)
     if k < 1:
         raise ValueError(f"k must be >= 1; got {k}")
@@ -784,7 +738,7 @@ def run_training_from_manifest(
                     "delta_A_mean": float(delta_mean),
                     "delta_A_std": float(delta_std),
                     "feature_set": feature_set,
-                    "input_dim": int(2 if feature_set == "f2" else 3),
+                    "input_dim": 2,
                     "hidden_dim": int(hidden_dim),
                     "num_layers": int(max(1, num_layers)),
                     "seed": int(seed),
@@ -934,7 +888,7 @@ def run_training_from_manifest(
                     "test": test_data,
                 },
                 k=selected_k,
-                input_dim=int(2 if feature_set == "f2" else 3),
+                input_dim=2,
                 hidden_dim=int(hidden_dim),
                 num_layers=int(max(1, num_layers)),
                 n_epochs=int(epochs),
@@ -956,7 +910,7 @@ def run_training_from_manifest(
                 "k_selection_reason": k_selection_reason,
                 "auto_k": bool(auto_k),
                 "feature_set": feature_set,
-                "input_dim": int(2 if feature_set == "f2" else 3),
+                "input_dim": 2,
                 "seed": int(seed),
                 "device": resolved_device,
                 "best_epoch": int(train_result["best_epoch"]),
@@ -1086,7 +1040,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-root", default="results/continuous_v1_gmm_bigru")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--k", type=int, default=10)
-    parser.add_argument("--feature-set", choices=["f2", "f3"], default="f2")
+    parser.add_argument("--feature-set", choices=["f2"], default="f2")
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=1000)

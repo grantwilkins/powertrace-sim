@@ -14,19 +14,16 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.classifiers.gru import GRUClassifier
+from model.classifiers.gmm_bigru import (
+    estimate_ar1_params,
+    generate_gmm_bigru_trace_ar1_thresholded,
+)
+from model.utils.io import write_json as _write_json
 from model.scripts.eval_gmm_bigru import (
     _load_pair_manifest_map,
     _estimate_request_alignment_offset_seconds,
-    estimate_ar1_params,
     evaluate_from_artifacts,
-    generate_gmm_bigru_trace_ar1_thresholded,
 )
-
-
-def _write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
 
 
 def _write_pair_manifest(path: Path, *, pair_key: str, json_path: str) -> None:

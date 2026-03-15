@@ -15,39 +15,19 @@ import csv
 import json
 import math
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+import sys
+from typing import Dict, List
 
 import numpy as np
 
+from model.utils.io import ensure_dir
 
-@dataclass(frozen=True)
-class FacilityLayout:
-    rows: int = 10
-    racks_per_row: int = 6
-    nodes_per_rack: int = 4
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-    @property
-    def n_nodes(self) -> int:
-        return int(self.rows) * int(self.racks_per_row) * int(self.nodes_per_rack)
-
-    def node_id_to_coords(self, node_id: int) -> Tuple[int, int, int]:
-        npr = int(self.nodes_per_rack)
-        rpr = int(self.racks_per_row)
-        per_row = rpr * npr
-        row = int(node_id) // per_row
-        rem = int(node_id) % per_row
-        rack = rem // npr
-        node = rem % npr
-        return int(row), int(rack), int(node)
-
-    def iter_node_ids(self) -> Sequence[int]:
-        return range(self.n_nodes)
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
+from scripts.eval.facility import FacilityLayout
 
 
 def _build_default_paths() -> Dict[str, str]:
@@ -82,7 +62,7 @@ def split_azure_requests_to_nodes(
     if layout.n_nodes <= 0:
         raise ValueError("Facility layout yields zero nodes.")
 
-    _ensure_dir(output_dir)
+    ensure_dir(output_dir)
 
     rng = np.random.default_rng(int(seed))
     n_nodes = int(layout.n_nodes)

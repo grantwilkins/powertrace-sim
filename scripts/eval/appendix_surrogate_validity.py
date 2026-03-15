@@ -36,9 +36,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from model.utils.io import ensure_dir, safe_slug, write_json
+
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_70B_ALL_TP_RE = re.compile(r"^.+-70b_(A100|H100)_tp\d+$")
-SAFE_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 STYLE = {
     "a_measured": {
@@ -117,26 +118,15 @@ class SelectedConfig:
     config_id: str
 
 
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
 def _write_csv(
     path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]
 ) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
+    ensure_dir(os.path.dirname(path) or ".")
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(fieldnames))
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
-
-
-def _write_json(path: str | Path, payload: Mapping[str, object]) -> None:
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
 
 
 def _load_json(path: str | Path) -> Dict[str, object]:
@@ -194,11 +184,6 @@ def _nanmean(values: Iterable[float] | np.ndarray) -> float:
     if arr.size == 0:
         return float("nan")
     return float(np.mean(arr))
-
-
-def _safe_slug(value: str) -> str:
-    s = SAFE_SLUG_RE.sub("_", str(value)).strip("_")
-    return s if s else "unknown"
 
 
 def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
@@ -797,7 +782,7 @@ def _build_per_config_figure_paths(
 
     rows: List[Dict[str, object]] = []
     for config_id, trace_row in selected_rows:
-        slug = _safe_slug(config_id)
+        slug = safe_slug(config_id).strip("-_") or "unknown"
         trace_idx = int(trace_row.trace_index)
         ts_file = out_dir / f"{stem}_{slug}_trace{trace_idx}_at_timeseries.pdf"
         hist_file = out_dir / f"{stem}_{slug}_trace{trace_idx}_at_histogram.pdf"
@@ -854,7 +839,7 @@ def _plot_at_time_series(
     ax.grid(True, alpha=0.25)
     ax.legend(loc="best")
 
-    _ensure_dir(os.path.dirname(out_path) or ".")
+    ensure_dir(os.path.dirname(out_path) or ".")
     fig.tight_layout()
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
@@ -901,7 +886,7 @@ def _plot_at_histogram(
     ax.grid(True, alpha=0.25)
     ax.legend(loc="best")
 
-    _ensure_dir(os.path.dirname(out_path) or ".")
+    ensure_dir(os.path.dirname(out_path) or ".")
     fig.tight_layout()
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
@@ -1013,7 +998,7 @@ def _plot_lambda_vs_mean_at(
         fig.legend(handles, labels, loc="upper center", ncol=2)
     fig.tight_layout(rect=(0, 0, 1, 0.93))
 
-    _ensure_dir(os.path.dirname(out_path) or ".")
+    ensure_dir(os.path.dirname(out_path) or ".")
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
 
@@ -1480,7 +1465,7 @@ def run_appendix_surrogate_validity(
         },
         "dry_run": bool(dry_run),
     }
-    _write_json(out_manifest_json, manifest)
+    write_json(out_manifest_json, manifest)
     return manifest
 
 

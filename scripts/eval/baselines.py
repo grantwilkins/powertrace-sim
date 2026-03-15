@@ -15,11 +15,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.eval.pipeline_utils import (
-    generate_gmm_bigru_trace,
-    generate_gmm_bigru_trace_ar1_thresholded,
-)
-
 # Effective DGX GPU-only node TDP contribution targets (W), excluding non-GPU overhead.
 # These values are intentionally lower than 8x vendor chip TDP and reflect platform-level planning targets.
 DEFAULT_NODE_GPU_TDP_W = {
@@ -37,6 +32,15 @@ DEFAULT_NODE_GPU_ACTIVE_W = {
 
 CONFIG_HW_RE = re.compile(r"^.+_(A100|H100)_tp\d+$")
 CONFIG_HW_TP_RE = re.compile(r"^.+_(A100|H100)_tp(\d+)$")
+
+
+def _load_pipeline_generators() -> Tuple[object, object]:
+    from scripts.eval.pipeline_utils import (
+        generate_gmm_bigru_trace,
+        generate_gmm_bigru_trace_ar1_thresholded,
+    )
+
+    return generate_gmm_bigru_trace, generate_gmm_bigru_trace_ar1_thresholded
 
 
 def _extract_seed(config: Mapping[str, object], rng: Optional[np.random.Generator]) -> Optional[int]:
@@ -129,43 +133,382 @@ def _fit_affine_map(x: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
     return a, b
 
 
-def _clamp_per_gpu_phase_powers(
-    *,
-    idle_w: float,
-    decode_w: float,
-    prefill_w: float,
-    per_gpu_tdp_cap_w: float,
-) -> Tuple[float, float, float]:
-    idle_out = max(1.0, float(idle_w))
-    decode_out = max(idle_out, float(decode_w))
-    prefill_out = max(decode_out, float(prefill_w))
-    if np.isfinite(per_gpu_tdp_cap_w) and per_gpu_tdp_cap_w > 0.0:
-        decode_out = min(decode_out, float(per_gpu_tdp_cap_w))
-        prefill_out = min(prefill_out, float(per_gpu_tdp_cap_w))
-        decode_out = max(decode_out, idle_out)
-        prefill_out = max(prefill_out, decode_out)
-    return idle_out, decode_out, prefill_out
+SPLITWISE_STRICT_CALIBRATION_MODE = "splitwise_emulation_strict_v1"
+SPLITWISE_REMOVED_MESSAGE = (
+    "splitwise_lut was removed during the strict-emulation overhaul; use splitwise_strict"
+)
+SPLITWISE_ALLOWED_CALIBRATION_MODES = {
+    SPLITWISE_STRICT_CALIBRATION_MODE,
+    "legacy_scheduler_strict_v1",
+    "strict",
+    "splitwise_strict",
+    "dgx_fixed_targets_v1",
+}
+SPLITWISE_LLAMA_70B_FAMILY = frozenset({"llama2-70b", "llama-3-70b"})
 
 
-def _suppress_short_true_runs(mask: np.ndarray, min_run_len: int) -> np.ndarray:
-    arr = np.asarray(mask, dtype=bool).reshape(-1)
-    if arr.size == 0 or int(min_run_len) <= 1:
-        return arr
-    out = arr.copy()
-    i = 0
-    n = int(arr.size)
-    min_len = int(min_run_len)
-    while i < n:
-        if not out[i]:
-            i += 1
+def _normalize_splitwise_model_name(model: object) -> str:
+    raw = str(model).strip().lower().replace("_", "-").replace(" ", "")
+    aliases = {
+        "llama-2-70b": "llama2-70b",
+        "llama2-70b": "llama2-70b",
+        "llama3-70b": "llama-3-70b",
+        "llama-3-70b": "llama-3-70b",
+    }
+    return aliases.get(raw, raw)
+
+
+def normalize_splitwise_strict_calibration_mode(mode: object) -> str:
+    mode_raw = str(mode).strip().lower()
+    if mode_raw in {"train_phase_matched_v1", "train_phase_matched"}:
+        return SPLITWISE_STRICT_CALIBRATION_MODE
+    return str(mode)
+
+
+def _splitwise_model_family(model: object) -> str:
+    norm = _normalize_splitwise_model_name(model)
+    if norm in SPLITWISE_LLAMA_70B_FAMILY:
+        return "llama-70b-family"
+    return norm
+
+
+def _normalize_splitwise_hardware_name(hardware: object) -> str:
+    return str(hardware).strip().lower().replace("_", "-")
+
+
+def _safe_row_float(row: Mapping[str, object], key: str) -> float:
+    try:
+        return float(row.get(key, "nan"))
+    except Exception:
+        return float("nan")
+
+
+def _group_median_by_batch_tokens(
+    rows: list[Dict[str, object]],
+    value_key: str,
+) -> Tuple[np.ndarray, np.ndarray]:
+    grouped: Dict[float, list[float]] = {}
+    for row in rows:
+        x = float(row["batch_tokens"])
+        y = float(row[value_key])
+        if (not np.isfinite(x)) or (not np.isfinite(y)):
             continue
-        j = i + 1
-        while j < n and out[j]:
-            j += 1
-        if (j - i) < min_len:
-            out[i:j] = False
-        i = j
+        grouped.setdefault(float(x), []).append(float(y))
+    if not grouped:
+        return np.zeros((0,), dtype=np.float64), np.zeros((0,), dtype=np.float64)
+    x_sorted = np.asarray(sorted(grouped.keys()), dtype=np.float64)
+    y_sorted = np.asarray(
+        [float(np.median(np.asarray(grouped[float(x)], dtype=np.float64))) for x in x_sorted],
+        dtype=np.float64,
+    )
+    return x_sorted, y_sorted
+
+
+def _interp_or_extrapolate(
+    x_support: np.ndarray,
+    y_support: np.ndarray,
+    x_query: float,
+    *,
+    extrapolate: bool,
+) -> float:
+    x_arr = np.asarray(x_support, dtype=np.float64).reshape(-1)
+    y_arr = np.asarray(y_support, dtype=np.float64).reshape(-1)
+    if x_arr.size == 0 or y_arr.size != x_arr.size:
+        raise ValueError("invalid support for interpolation")
+    xq = float(x_query)
+    if x_arr.size == 1:
+        return float(y_arr[0])
+    if xq <= float(x_arr[0]):
+        if not extrapolate:
+            return float(y_arr[0])
+        dx = float(x_arr[1] - x_arr[0])
+        if abs(dx) < 1e-12:
+            return float(y_arr[0])
+        slope = float((y_arr[1] - y_arr[0]) / dx)
+        return float(y_arr[0] + slope * (xq - float(x_arr[0])))
+    if xq >= float(x_arr[-1]):
+        if not extrapolate:
+            return float(y_arr[-1])
+        dx = float(x_arr[-1] - x_arr[-2])
+        if abs(dx) < 1e-12:
+            return float(y_arr[-1])
+        slope = float((y_arr[-1] - y_arr[-2]) / dx)
+        return float(y_arr[-1] + slope * (xq - float(x_arr[-1])))
+    return float(np.interp(xq, x_arr, y_arr))
+
+
+def _choose_splitwise_model(rows: list[Dict[str, object]], preferred_model: str) -> str:
+    counts: Dict[str, int] = {}
+    for row in rows:
+        model = str(row["model_norm"])
+        counts[model] = counts.get(model, 0) + 1
+    if preferred_model in counts:
+        return preferred_model
+    ranked = sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))
+    if not ranked:
+        raise ValueError("unable to choose splitwise source model")
+    return str(ranked[0][0])
+
+
+def _read_splitwise_perf_rows(perf_model_csv: str) -> list[Dict[str, object]]:
+    rows: list[Dict[str, object]] = []
+    with open(perf_model_csv, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        for raw_row in reader:
+            try:
+                model_raw = str(raw_row.get("model", "")).strip()
+                hardware_raw = str(raw_row.get("hardware", "")).strip()
+                tensor_parallel = int(float(raw_row.get("tensor_parallel", "nan")))
+            except Exception:
+                continue
+            prompt_size = _safe_row_float(raw_row, "prompt_size")
+            batch_size = _safe_row_float(raw_row, "batch_size")
+            token_size = _safe_row_float(raw_row, "token_size")
+            prompt_time_ms = _safe_row_float(raw_row, "prompt_time")
+            token_time_ms = _safe_row_float(raw_row, "token_time")
+            peak_power = _safe_row_float(raw_row, "peak_power")
+            average_power = _safe_row_float(raw_row, "average_power")
+            batch_tokens = float(prompt_size) * float(batch_size)
+            rows.append(
+                {
+                    "model_raw": model_raw,
+                    "model_norm": _normalize_splitwise_model_name(model_raw),
+                    "model_family": _splitwise_model_family(model_raw),
+                    "hardware": _normalize_splitwise_hardware_name(hardware_raw),
+                    "tensor_parallel": int(tensor_parallel),
+                    "prompt_size": float(prompt_size),
+                    "batch_size": float(batch_size),
+                    "token_size": float(token_size),
+                    "batch_tokens": float(batch_tokens),
+                    "prompt_time_s": float(prompt_time_ms / 1000.0),
+                    "token_time_s": float(token_time_ms / 1000.0),
+                    "peak_power": float(peak_power),
+                    "average_power": float(average_power),
+                }
+            )
+    if len(rows) == 0:
+        raise ValueError(f"perf model csv has no readable rows: {perf_model_csv}")
+    return rows
+
+
+def _resolve_splitwise_source_rows(
+    perf_rows: list[Dict[str, object]],
+    *,
+    requested_model: str,
+    requested_hardware: str,
+    requested_tp: int,
+) -> Tuple[list[Dict[str, object]], Dict[str, object], list[Dict[str, object]]]:
+    requested_model_norm = _normalize_splitwise_model_name(requested_model)
+    requested_family = _splitwise_model_family(requested_model)
+    requested_hw_norm = _normalize_splitwise_hardware_name(requested_hardware)
+    requested_tp_int = int(requested_tp)
+
+    hardware_rows = [
+        row for row in perf_rows if str(row["hardware"]) == requested_hw_norm
+    ]
+    if len(hardware_rows) == 0:
+        raise ValueError(
+            f"No LUT rows for hardware={requested_hw_norm} in perf_model.csv"
+        )
+
+    exact_rows = [
+        row
+        for row in hardware_rows
+        if str(row["model_norm"]) == requested_model_norm
+        and int(row["tensor_parallel"]) == requested_tp_int
+    ]
+    if exact_rows:
+        return (
+            exact_rows,
+            {
+                "splitwise_source_resolved_model": str(
+                    _choose_splitwise_model(exact_rows, requested_model_norm)
+                ),
+                "splitwise_source_resolved_hardware": str(requested_hw_norm),
+                "splitwise_source_resolved_tp": int(requested_tp_int),
+                "splitwise_source_match_status": "exact",
+            },
+            [
+                row
+                for row in hardware_rows
+                if str(row["model_family"]) == requested_family
+            ],
+        )
+
+    family_rows = [
+        row for row in hardware_rows if str(row["model_family"]) == requested_family
+    ]
+    if len(family_rows) == 0:
+        raise ValueError(
+            f"No LUT rows for model family={requested_family} on hardware={requested_hw_norm}"
+        )
+
+    family_tp_rows = [
+        row
+        for row in family_rows
+        if int(row["tensor_parallel"]) == requested_tp_int
+    ]
+    if family_tp_rows:
+        resolved_model = _choose_splitwise_model(family_tp_rows, requested_model_norm)
+        selected_rows = [
+            row for row in family_tp_rows if str(row["model_norm"]) == resolved_model
+        ]
+        return (
+            selected_rows,
+            {
+                "splitwise_source_resolved_model": str(resolved_model),
+                "splitwise_source_resolved_hardware": str(requested_hw_norm),
+                "splitwise_source_resolved_tp": int(requested_tp_int),
+                "splitwise_source_match_status": "family_model_fallback",
+            },
+            family_rows,
+        )
+
+    available_tps = sorted({int(row["tensor_parallel"]) for row in family_rows})
+    resolved_tp = min(
+        available_tps,
+        key=lambda tp_val: (abs(int(tp_val) - requested_tp_int), int(tp_val)),
+    )
+    nearest_rows = [
+        row for row in family_rows if int(row["tensor_parallel"]) == int(resolved_tp)
+    ]
+    resolved_model = _choose_splitwise_model(nearest_rows, requested_model_norm)
+    selected_rows = [
+        row for row in nearest_rows if str(row["model_norm"]) == resolved_model
+    ]
+    match_status = (
+        "nearest_tp_fallback"
+        if resolved_model == requested_model_norm
+        else "family_model_and_nearest_tp_fallback"
+    )
+    return (
+        selected_rows,
+        {
+            "splitwise_source_resolved_model": str(resolved_model),
+            "splitwise_source_resolved_hardware": str(requested_hw_norm),
+            "splitwise_source_resolved_tp": int(resolved_tp),
+            "splitwise_source_match_status": str(match_status),
+        },
+        family_rows,
+    )
+
+
+def _filter_timing_rows(rows: list[Dict[str, object]]) -> list[Dict[str, object]]:
+    out: list[Dict[str, object]] = []
+    for row in rows:
+        prompt_time_s = float(row["prompt_time_s"])
+        token_time_s = float(row["token_time_s"])
+        batch_tokens = float(row["batch_tokens"])
+        batch_size = float(row["batch_size"])
+        if (
+            np.isfinite(prompt_time_s)
+            and np.isfinite(token_time_s)
+            and np.isfinite(batch_tokens)
+            and np.isfinite(batch_size)
+            and prompt_time_s > 0.0
+            and token_time_s > 0.0
+            and batch_tokens > 0.0
+            and batch_size > 0.0
+        ):
+            out.append(row)
     return out
+
+
+def _filter_power_rows(rows: list[Dict[str, object]]) -> list[Dict[str, object]]:
+    out: list[Dict[str, object]] = []
+    for row in rows:
+        prompt_time_s = float(row["prompt_time_s"])
+        token_time_s = float(row["token_time_s"])
+        batch_tokens = float(row["batch_tokens"])
+        peak = float(row["peak_power"])
+        avg = float(row["average_power"])
+        if not (
+            np.isfinite(prompt_time_s)
+            and np.isfinite(token_time_s)
+            and prompt_time_s > 0.0
+            and token_time_s > 0.0
+        ):
+            continue
+        if not (
+            np.isfinite(batch_tokens)
+            and batch_tokens > 0.0
+            and np.isfinite(peak)
+            and np.isfinite(avg)
+            and avg > 0.0
+            and avg <= peak
+            and peak <= 2.0
+        ):
+            continue
+        out.append(row)
+    return out
+
+
+def _build_power_support(
+    primary_rows: list[Dict[str, object]],
+    family_rows: list[Dict[str, object]],
+) -> Dict[str, object]:
+    primary_valid = _filter_power_rows(primary_rows)
+    primary_x, primary_avg = _group_median_by_batch_tokens(primary_valid, "average_power")
+    primary_peak_x, primary_peak = _group_median_by_batch_tokens(primary_valid, "peak_power")
+    if primary_x.size >= 3 and primary_peak_x.size >= 3 and np.array_equal(primary_x, primary_peak_x):
+        avg_support = np.asarray([float(row["average_power"]) for row in primary_valid], dtype=np.float64)
+        idle_ratio = _safe_percentile(avg_support, 10.0)
+        decode_ratio = float(np.median(avg_support))
+        prefill_ratio = float(np.median(np.asarray([float(row["peak_power"]) for row in primary_valid], dtype=np.float64)))
+        return {
+            "power_lookup_mode": "grouped",
+            "power_support_batch_tokens": primary_x.astype(np.float64),
+            "average_power_support": primary_avg.astype(np.float64),
+            "peak_power_support": primary_peak.astype(np.float64),
+            "idle_ratio": float(max(1e-6, idle_ratio)),
+            "decode_ratio": float(max(idle_ratio, decode_ratio)),
+            "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+            "splitwise_power_quality_flag": "clean",
+            "splitwise_power_support_status": "slice_grouped",
+            "splitwise_power_support_points": int(primary_x.size),
+        }
+
+    family_valid = _filter_power_rows(family_rows)
+    family_x, family_avg = _group_median_by_batch_tokens(family_valid, "average_power")
+    family_peak_x, family_peak = _group_median_by_batch_tokens(family_valid, "peak_power")
+    if family_x.size >= 3 and family_peak_x.size >= 3 and np.array_equal(family_x, family_peak_x):
+        avg_support = np.asarray([float(row["average_power"]) for row in family_valid], dtype=np.float64)
+        idle_ratio = _safe_percentile(avg_support, 10.0)
+        decode_ratio = float(np.median(avg_support))
+        prefill_ratio = float(np.median(np.asarray([float(row["peak_power"]) for row in family_valid], dtype=np.float64)))
+        return {
+            "power_lookup_mode": "grouped",
+            "power_support_batch_tokens": family_x.astype(np.float64),
+            "average_power_support": family_avg.astype(np.float64),
+            "peak_power_support": family_peak.astype(np.float64),
+            "idle_ratio": float(max(1e-6, idle_ratio)),
+            "decode_ratio": float(max(idle_ratio, decode_ratio)),
+            "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+            "splitwise_power_quality_flag": "family_fallback",
+            "splitwise_power_support_status": "family_grouped",
+            "splitwise_power_support_points": int(family_x.size),
+        }
+
+    scalar_rows = family_valid if len(family_valid) > 0 else primary_valid
+    if len(scalar_rows) == 0:
+        raise ValueError("No valid power support rows available for Splitwise strict emulation")
+    avg_arr = np.asarray([float(row["average_power"]) for row in scalar_rows], dtype=np.float64)
+    peak_arr = np.asarray([float(row["peak_power"]) for row in scalar_rows], dtype=np.float64)
+    decode_ratio = float(np.median(avg_arr))
+    prefill_ratio = float(np.median(peak_arr))
+    idle_ratio = float(min(decode_ratio, 0.7 * decode_ratio))
+    return {
+        "power_lookup_mode": "scalar",
+        "power_support_batch_tokens": np.zeros((0,), dtype=np.float64),
+        "average_power_support": np.zeros((0,), dtype=np.float64),
+        "peak_power_support": np.zeros((0,), dtype=np.float64),
+        "idle_ratio": float(max(1e-6, idle_ratio)),
+        "decode_ratio": float(max(idle_ratio, decode_ratio)),
+        "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+        "splitwise_power_quality_flag": "scalar_fallback",
+        "splitwise_power_support_status": "scalar_fallback",
+        "splitwise_power_support_points": int(len(scalar_rows)),
+    }
 
 
 def build_splitwise_lut_params(
@@ -173,247 +516,489 @@ def build_splitwise_lut_params(
     perf_model_csv: str,
     train_power_flat: np.ndarray,
     *,
-    splitwise_source_model: str = "llama2-70b",
+    splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
-    splitwise_source_tp: int = 4,
-    splitwise_calibration_mode: str = "train_phase_matched_v1",
+    splitwise_source_tp: Optional[int] = None,
+    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
     n_gpus_per_node: int = DEFAULT_NUM_GPUS_PER_NODE,
     per_gpu_tdp_cap_w: Optional[float] = None,
     target_idle_node_gpu_w: Optional[float] = None,
     target_decode_node_gpu_w: Optional[float] = None,
     target_prefill_node_gpu_w: Optional[float] = None,
-) -> Dict[str, float]:
-    if int(splitwise_source_tp) <= 0:
-        raise ValueError("splitwise_source_tp must be > 0")
+) -> Dict[str, object]:
+    del train_power_flat
+    del target_idle_node_gpu_w
+    del target_decode_node_gpu_w
+    del target_prefill_node_gpu_w
 
-    rows: list[Dict[str, object]] = []
-    with open(perf_model_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                model = str(row.get("model", "")).strip()
-                hardware = str(row.get("hardware", "")).strip()
-                tp = int(float(row.get("tensor_parallel", "nan")))
-                peak = float(row.get("peak_power", "nan"))
-                avg = float(row.get("average_power", "nan"))
-            except Exception:
-                continue
-            if model != str(splitwise_source_model):
-                continue
-            if hardware != str(splitwise_source_hardware):
-                continue
-            if tp != int(splitwise_source_tp):
-                continue
-            if (not np.isfinite(peak)) or (not np.isfinite(avg)):
-                continue
-            if peak <= 0.0 or avg <= 0.0:
-                continue
-            rows.append(
-                {
-                    "peak_power": float(peak),
-                    "average_power": float(avg),
-                }
-            )
-    if len(rows) == 0:
+    mode_raw = str(splitwise_calibration_mode).strip().lower()
+    if mode_raw not in SPLITWISE_ALLOWED_CALIBRATION_MODES:
         raise ValueError(
-            f"No valid LUT rows for model={splitwise_source_model}, hardware={splitwise_source_hardware}, tp={splitwise_source_tp}"
+            f"{SPLITWISE_REMOVED_MESSAGE}; requested calibration mode '{splitwise_calibration_mode}' is no longer supported"
         )
 
-    peak_arr = np.asarray([r["peak_power"] for r in rows], dtype=np.float64)
-    avg_arr = np.asarray([r["average_power"] for r in rows], dtype=np.float64)
-    idle_norm = _safe_percentile(avg_arr, 10.0)
-    decode_norm = float(np.median(avg_arr))
-    prefill_norm = float(np.median(peak_arr))
-    decode_norm = max(decode_norm, idle_norm)
-    prefill_norm = max(prefill_norm, decode_norm)
-
-    config_id_str = str(config_id)
     try:
-        target_hardware = _resolve_hardware({"config_id": config_id_str})
+        target_hardware = _resolve_hardware({"config_id": str(config_id)})
     except Exception:
         target_hardware = "H100"
     try:
-        target_tp = int(_resolve_tp({"config_id": config_id_str}))
+        target_tp = int(_resolve_tp({"config_id": str(config_id)}))
     except Exception:
         target_tp = 4
+    resolved_requested_tp = int(splitwise_source_tp) if splitwise_source_tp is not None else int(target_tp)
+    if resolved_requested_tp <= 0:
+        raise ValueError("splitwise_source_tp must be positive")
+
+    perf_rows = _read_splitwise_perf_rows(perf_model_csv)
+    source_rows, resolved_meta, family_rows = _resolve_splitwise_source_rows(
+        perf_rows,
+        requested_model=str(splitwise_source_model),
+        requested_hardware=str(splitwise_source_hardware),
+        requested_tp=int(resolved_requested_tp),
+    )
+    timing_rows = _filter_timing_rows(source_rows)
+    if len(timing_rows) == 0:
+        raise ValueError(
+            "No valid timing rows available for the resolved Splitwise source slice"
+        )
+    timing_batch_tokens, prompt_time_support_s = _group_median_by_batch_tokens(
+        timing_rows, "prompt_time_s"
+    )
+    token_batch_tokens, token_time_support_s = _group_median_by_batch_tokens(
+        timing_rows, "token_time_s"
+    )
+    if timing_batch_tokens.size == 0 or token_batch_tokens.size == 0:
+        raise ValueError("Resolved Splitwise timing support is empty after grouping")
+    if not np.array_equal(timing_batch_tokens, token_batch_tokens):
+        raise ValueError("Prompt and token timing support batch_tokens do not align")
+
+    power_support = _build_power_support(source_rows, family_rows)
     n_gpus = int(max(1, n_gpus_per_node))
-    target_tp = int(max(1, min(target_tp, n_gpus)))
-
-    train_arr = np.asarray(train_power_flat, dtype=np.float64).reshape(-1)
-    train_arr = train_arr[np.isfinite(train_arr)]
-    if train_arr.size == 0:
-        raise ValueError("train_power_flat must contain finite values.")
-
-    mode_raw = str(splitwise_calibration_mode).strip().lower()
-    use_dgx_targets = mode_raw in {
-        "dgx_fixed_targets_v1",
-        "dgx_fixed_targets",
-        "hardware_targets",
-        "hardware_targets_v1",
-    }
-    use_train_phase_matched = mode_raw in {
-        "train_phase_matched_v1",
-        "train_phase_matched",
-    }
-
-    idle_target_w = float("nan")
-    decode_target_w = float("nan")
-    prefill_target_w = float("nan")
-    a = float("nan")
-    b = float("nan")
-
-    idle_target_override = _finite_or_none(target_idle_node_gpu_w)
-    decode_target_override = _finite_or_none(target_decode_node_gpu_w)
-    prefill_target_override = _finite_or_none(target_prefill_node_gpu_w)
-
-    if use_dgx_targets or use_train_phase_matched:
-        tdp_node_gpu_target_w = float(DEFAULT_NODE_GPU_TDP_W[target_hardware]) * (
-            float(n_gpus) / float(DEFAULT_NUM_GPUS_PER_NODE)
+    target_tp = int(max(1, min(int(target_tp), n_gpus)))
+    if per_gpu_tdp_cap_w is None:
+        per_gpu_tdp_cap_w = float(
+            DEFAULT_NODE_GPU_TDP_W[str(target_hardware)] / float(DEFAULT_NUM_GPUS_PER_NODE)
         )
-        if per_gpu_tdp_cap_w is not None:
-            tdp_node_gpu_target_w = float(per_gpu_tdp_cap_w) * float(n_gpus)
-
-        if use_train_phase_matched:
-            decode_node_gpu_target_w = (
-                float(decode_target_override)
-                if decode_target_override is not None
-                else float(np.mean(train_arr))
-            )
-            idle_node_gpu_target_w = (
-                float(idle_target_override)
-                if idle_target_override is not None
-                else _safe_percentile(train_arr, 10.0)
-            )
-            prefill_node_gpu_target_w = (
-                float(prefill_target_override)
-                if prefill_target_override is not None
-                else _safe_percentile(train_arr, 95.0)
-            )
-            splitwise_calibration_mode = "train_phase_matched_v1"
-        else:
-            decode_node_gpu_target_w = (
-                float(decode_target_override)
-                if decode_target_override is not None
-                else float(DEFAULT_NODE_GPU_ACTIVE_W[target_hardware])
-                * (float(n_gpus) / float(DEFAULT_NUM_GPUS_PER_NODE))
-            )
-            idle_node_gpu_target_w = (
-                float(idle_target_override)
-                if idle_target_override is not None
-                else float(
-                    decode_node_gpu_target_w
-                    * np.clip(idle_norm / max(decode_norm, 1e-9), 0.45, 0.90)
-                )
-            )
-            prefill_node_gpu_target_w = (
-                float(prefill_target_override)
-                if prefill_target_override is not None
-                else float(
-                    decode_node_gpu_target_w
-                    * np.clip(prefill_norm / max(decode_norm, 1e-9), 1.00, 2.00)
-                )
-            )
-            splitwise_calibration_mode = "dgx_fixed_targets_v1"
-
-        decode_node_gpu_target_w = max(1.0, float(decode_node_gpu_target_w))
-        idle_node_gpu_target_w = max(1.0, float(idle_node_gpu_target_w))
-        prefill_node_gpu_target_w = max(1.0, float(prefill_node_gpu_target_w))
-        decode_node_gpu_target_w = max(decode_node_gpu_target_w, idle_node_gpu_target_w)
-        prefill_node_gpu_target_w = max(prefill_node_gpu_target_w, decode_node_gpu_target_w)
-        prefill_node_gpu_target_w = min(prefill_node_gpu_target_w, tdp_node_gpu_target_w)
-
-        idle_w = float(idle_node_gpu_target_w / float(n_gpus))
-        decode_w = float(
-            (decode_node_gpu_target_w - float(n_gpus - target_tp) * idle_w) / float(target_tp)
-        )
-        prefill_w = float(
-            (prefill_node_gpu_target_w - float(n_gpus - target_tp) * idle_w) / float(target_tp)
-        )
-        cap_w = (
-            float(per_gpu_tdp_cap_w)
-            if per_gpu_tdp_cap_w is not None
-            else float(tdp_node_gpu_target_w / float(n_gpus))
-        )
-        idle_w, decode_w, prefill_w = _clamp_per_gpu_phase_powers(
-            idle_w=idle_w,
-            decode_w=decode_w,
-            prefill_w=prefill_w,
-            per_gpu_tdp_cap_w=cap_w,
-        )
-        idle_target_w = float(idle_node_gpu_target_w)
-        decode_target_w = float(decode_node_gpu_target_w)
-        prefill_target_w = float(prefill_node_gpu_target_w)
-    else:
-        # Backward-compatibility path: fit normalized LUT to train-trace statistics, then convert to per-GPU.
-        idle_target_node_w = _safe_percentile(train_arr, 10.0)
-        decode_target_node_w = float(np.mean(train_arr))
-        prefill_target_node_w = _safe_percentile(train_arr, 95.0)
-        non_gpu_ref_w = float(DEFAULT_NON_GPU_POWER_W)
-        idle_target_node_gpu_w = max(1.0, float(idle_target_node_w - non_gpu_ref_w))
-        decode_target_node_gpu_w = max(idle_target_node_gpu_w, float(decode_target_node_w - non_gpu_ref_w))
-        prefill_target_node_gpu_w = max(
-            decode_target_node_gpu_w, float(prefill_target_node_w - non_gpu_ref_w)
-        )
-
-        a, b = _fit_affine_map(
-            np.asarray([idle_norm, decode_norm, prefill_norm], dtype=np.float64),
-            np.asarray(
-                [idle_target_node_gpu_w, decode_target_node_gpu_w, prefill_target_node_gpu_w],
-                dtype=np.float64,
-            ),
-        )
-        idle_node_gpu_w = float((a * idle_norm) + b)
-        decode_node_gpu_w = float((a * decode_norm) + b)
-        prefill_node_gpu_w = float((a * prefill_norm) + b)
-
-        idle_w = float(idle_node_gpu_w / float(n_gpus))
-        decode_w = float(
-            (decode_node_gpu_w - float(n_gpus - target_tp) * idle_w) / float(target_tp)
-        )
-        prefill_w = float(
-            (prefill_node_gpu_w - float(n_gpus - target_tp) * idle_w) / float(target_tp)
-        )
-        cap_w = (
-            float(per_gpu_tdp_cap_w)
-            if per_gpu_tdp_cap_w is not None
-            else float(DEFAULT_NODE_GPU_TDP_W[target_hardware] / float(max(1, DEFAULT_NUM_GPUS_PER_NODE)))
-        )
-        idle_w, decode_w, prefill_w = _clamp_per_gpu_phase_powers(
-            idle_w=idle_w,
-            decode_w=decode_w,
-            prefill_w=prefill_w,
-            per_gpu_tdp_cap_w=cap_w,
-        )
-        idle_target_w = float(idle_target_node_gpu_w)
-        decode_target_w = float(decode_target_node_gpu_w)
-        prefill_target_w = float(prefill_target_node_gpu_w)
 
     return {
         "config_id": str(config_id),
         "splitwise_source_model": str(splitwise_source_model),
-        "splitwise_source_hardware": str(splitwise_source_hardware),
-        "splitwise_source_tp": int(splitwise_source_tp),
-        "splitwise_calibration_mode": str(splitwise_calibration_mode),
+        "splitwise_source_hardware": str(_normalize_splitwise_hardware_name(splitwise_source_hardware)),
+        "splitwise_source_tp": int(resolved_requested_tp),
+        "splitwise_calibration_mode": SPLITWISE_STRICT_CALIBRATION_MODE,
         "target_hardware": str(target_hardware),
         "target_tp": int(target_tp),
         "n_gpus_per_node": int(n_gpus),
-        "idle_norm": float(idle_norm),
-        "decode_norm": float(decode_norm),
-        "prefill_norm": float(prefill_norm),
-        "idle_target_w": float(idle_target_w),      # node GPU-only target
-        "decode_target_w": float(decode_target_w),  # node GPU-only target
-        "prefill_target_w": float(prefill_target_w),  # node GPU-only target
-        "affine_a": float(a),
-        "affine_b": float(b),
-        "idle_w": float(idle_w),       # per-GPU idle power
-        "decode_w": float(decode_w),   # per-GPU decode power
-        "prefill_w": float(prefill_w),  # per-GPU prefill power
-        "prefill_delta_threshold": 0.05,
-        "prefill_min_steps": 2,
-        "phase_detection_mode": "A_raw_delta_A_thresholded",
-        "phase_detection_note": "Approximate Splitwise phase from A_t and delta_A_t, not scheduler task labels.",
-        "decode_occupancy_note": "Decode phase uses a single level and ignores occupancy.",
+        "per_gpu_tdp_cap_w": float(per_gpu_tdp_cap_w),
+        "timing_support_batch_tokens": timing_batch_tokens.astype(np.float64),
+        "prompt_time_support_s": prompt_time_support_s.astype(np.float64),
+        "token_time_support_s": token_time_support_s.astype(np.float64),
+        "max_batch_size": int(
+            max(1, int(np.max(np.asarray([float(row["batch_size"]) for row in timing_rows], dtype=np.float64))))
+        ),
+        "max_batch_tokens_timing": float(
+            np.max(np.asarray([float(row["batch_tokens"]) for row in timing_rows], dtype=np.float64))
+        ),
+        "min_batch_tokens_timing": float(
+            np.min(np.asarray([float(row["batch_tokens"]) for row in timing_rows], dtype=np.float64))
+        ),
+        "splitwise_scheduler_policy": "prompt_biased_mixed_fifo",
+        "phase_detection_note": (
+            "Continuous-time request-centric emulation; no A_raw/delta_A_t phase labeling."
+        ),
+        "decode_occupancy_note": (
+            "Decode uses average_power LUT ratios at the batch level; within-batch occupancy is not modeled."
+        ),
+        **resolved_meta,
+        **power_support,
     }
+
+
+def build_splitwise_strict_emulation_params(
+    config_id: str,
+    perf_model_csv: str,
+    train_power_flat: np.ndarray,
+    **kwargs: object,
+) -> Dict[str, object]:
+    return build_splitwise_lut_params(
+        config_id=config_id,
+        perf_model_csv=perf_model_csv,
+        train_power_flat=train_power_flat,
+        **kwargs,
+    )
+
+
+def _parse_splitwise_requests(requests: object) -> list[Dict[str, float]]:
+    out: list[Dict[str, float]] = []
+    if requests is None:
+        return out
+    for idx, req in enumerate(requests):
+        if not isinstance(req, Mapping):
+            raise ValueError(f"request[{idx}] must be a mapping")
+        try:
+            arrival_time = float(req["arrival_time"])
+            input_tokens = float(req["input_tokens"])
+            output_tokens = float(req["output_tokens"])
+        except Exception as exc:
+            raise ValueError(f"request[{idx}] missing required fields") from exc
+        if not (
+            np.isfinite(arrival_time)
+            and np.isfinite(input_tokens)
+            and np.isfinite(output_tokens)
+        ):
+            continue
+        out.append(
+            {
+                "arrival_time": float(max(0.0, arrival_time)),
+                "input_tokens": float(max(0.0, input_tokens)),
+                "output_tokens": float(max(0.0, output_tokens)),
+                "request_index": float(idx),
+            }
+        )
+    out.sort(key=lambda row: (float(row["arrival_time"]), int(row["request_index"])))
+    return out
+
+
+def _predict_splitwise_timing_s(
+    lut_params: Mapping[str, object],
+    *,
+    batch_tokens: float,
+    phase_kind: str,
+    generation_meta: Dict[str, object],
+) -> float:
+    x_support = np.asarray(lut_params["timing_support_batch_tokens"], dtype=np.float64).reshape(-1)
+    batch_tokens_safe = float(max(1.0, batch_tokens))
+    if x_support.size == 0:
+        raise ValueError("missing timing support")
+    if (
+        batch_tokens_safe < float(np.min(x_support)) - 1e-12
+        or batch_tokens_safe > float(np.max(x_support)) + 1e-12
+    ):
+        generation_meta["splitwise_extrapolation_events"] = int(
+            generation_meta.get("splitwise_extrapolation_events", 0)
+        ) + 1
+    if str(phase_kind) == "decode":
+        y_support = np.asarray(lut_params["token_time_support_s"], dtype=np.float64).reshape(-1)
+        duration = _interp_or_extrapolate(x_support, y_support, batch_tokens_safe, extrapolate=True)
+    else:
+        y_support = np.asarray(lut_params["prompt_time_support_s"], dtype=np.float64).reshape(-1)
+        duration = _interp_or_extrapolate(x_support, y_support, batch_tokens_safe, extrapolate=True)
+        if str(phase_kind) == "mixed":
+            duration *= 1.1
+    return float(max(1e-6, duration))
+
+
+def _lookup_splitwise_power_ratio(
+    lut_params: Mapping[str, object],
+    *,
+    batch_tokens: float,
+    phase_kind: str,
+    generation_meta: Dict[str, object],
+) -> float:
+    idle_ratio = float(lut_params["idle_ratio"])
+    decode_ratio = float(lut_params["decode_ratio"])
+    prefill_ratio = float(lut_params["prefill_ratio"])
+    lookup_mode = str(lut_params["power_lookup_mode"])
+    batch_tokens_safe = float(max(1.0, batch_tokens))
+    if lookup_mode == "scalar":
+        if str(phase_kind) == "decode":
+            return float(max(idle_ratio, decode_ratio))
+        if str(phase_kind) == "prompt":
+            return float(max(decode_ratio, prefill_ratio))
+        if str(phase_kind) == "mixed":
+            return float(max(decode_ratio, prefill_ratio))
+        return float(idle_ratio)
+
+    x_support = np.asarray(lut_params["power_support_batch_tokens"], dtype=np.float64).reshape(-1)
+    if x_support.size == 0:
+        raise ValueError("missing grouped power support")
+    clamped_tokens = float(np.clip(batch_tokens_safe, float(x_support[0]), float(x_support[-1])))
+    if abs(clamped_tokens - batch_tokens_safe) > 1e-12:
+        generation_meta["splitwise_power_clamp_events"] = int(
+            generation_meta.get("splitwise_power_clamp_events", 0)
+        ) + 1
+    if str(phase_kind) == "decode":
+        y_support = np.asarray(lut_params["average_power_support"], dtype=np.float64).reshape(-1)
+        ratio = _interp_or_extrapolate(x_support, y_support, clamped_tokens, extrapolate=False)
+        return float(max(idle_ratio, ratio))
+    if str(phase_kind) in {"prompt", "mixed"}:
+        y_support = np.asarray(lut_params["peak_power_support"], dtype=np.float64).reshape(-1)
+        ratio = _interp_or_extrapolate(x_support, y_support, clamped_tokens, extrapolate=False)
+        return float(max(decode_ratio, ratio))
+    return float(idle_ratio)
+
+
+def _append_splitwise_segment(
+    segments: list[Tuple[float, float, float]],
+    *,
+    start_time: float,
+    end_time: float,
+    power_w: float,
+    horizon_s: float,
+) -> None:
+    seg_start = float(max(0.0, min(start_time, horizon_s)))
+    seg_end = float(max(seg_start, min(end_time, horizon_s)))
+    if seg_end <= seg_start:
+        return
+    if segments and abs(float(segments[-1][2]) - float(power_w)) <= 1e-9 and abs(float(segments[-1][1]) - seg_start) <= 1e-9:
+        prev_start, _, prev_power = segments[-1]
+        segments[-1] = (float(prev_start), float(seg_end), float(prev_power))
+        return
+    segments.append((float(seg_start), float(seg_end), float(power_w)))
+
+
+def _rasterize_splitwise_segments(
+    segments: list[Tuple[float, float, float]],
+    *,
+    T: int,
+    dt: float,
+) -> np.ndarray:
+    t_horizon = int(T)
+    if t_horizon <= 0:
+        return np.zeros((0,), dtype=np.float64)
+    energy = np.zeros((t_horizon,), dtype=np.float64)
+    dt_s = float(dt)
+    for seg_start, seg_end, power_w in segments:
+        start = float(seg_start)
+        end = float(seg_end)
+        if end <= start:
+            continue
+        idx = int(max(0, np.floor(start / dt_s)))
+        while idx < t_horizon:
+            bin_start = float(idx) * dt_s
+            bin_end = bin_start + dt_s
+            overlap = min(end, bin_end) - max(start, bin_start)
+            if overlap > 0.0:
+                energy[idx] += float(power_w) * float(overlap)
+            if bin_end >= end - 1e-12:
+                break
+            idx += 1
+    return np.asarray(energy / dt_s, dtype=np.float64).reshape(-1)
+
+
+def generate_splitwise_strict_emulation(
+    requests: object,
+    *,
+    T: int,
+    dt: float,
+    config: Mapping[str, object],
+    lut_params: Mapping[str, object],
+) -> Tuple[np.ndarray, Dict[str, object]]:
+    t_horizon = int(T)
+    if t_horizon < 0:
+        raise ValueError("T must be non-negative")
+    if t_horizon == 0:
+        generation_meta = {
+            "splitwise_calibration_mode": str(lut_params.get("splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE)),
+            "splitwise_power_support_status": str(lut_params.get("splitwise_power_support_status", "")),
+            "splitwise_power_quality_flag": str(lut_params.get("splitwise_power_quality_flag", "")),
+            "splitwise_source_resolved_model": str(lut_params.get("splitwise_source_resolved_model", "")),
+            "splitwise_source_resolved_hardware": str(lut_params.get("splitwise_source_resolved_hardware", "")),
+            "splitwise_source_resolved_tp": int(lut_params.get("splitwise_source_resolved_tp", 0)),
+            "splitwise_source_match_status": str(lut_params.get("splitwise_source_match_status", "")),
+            "splitwise_scheduler_policy": str(lut_params.get("splitwise_scheduler_policy", "")),
+            "splitwise_extrapolation_events": 0,
+            "splitwise_power_clamp_events": 0,
+            "splitwise_max_batch_tokens_seen": 0.0,
+        }
+        return np.zeros((0,), dtype=np.float64), generation_meta
+    dt_s = float(dt)
+    if (not np.isfinite(dt_s)) or dt_s <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt}")
+
+    parsed_requests = _parse_splitwise_requests(requests)
+    n_gpus = int(config.get("n_gpus_per_node", lut_params.get("n_gpus_per_node", DEFAULT_NUM_GPUS_PER_NODE)))
+    if n_gpus <= 0:
+        raise ValueError("n_gpus_per_node must be positive")
+    tp_payload = config.get("tp")
+    if tp_payload is None:
+        tp_payload = lut_params.get("target_tp")
+    if tp_payload is None:
+        tp_payload = _resolve_tp(config)
+    tp = int(tp_payload)
+    tp = int(max(1, min(tp, n_gpus)))
+    gpu_tdp_w = float(
+        config.get(
+            "gpu_tdp_w",
+            lut_params.get(
+                "per_gpu_tdp_cap_w",
+                DEFAULT_NODE_GPU_TDP_W[str(lut_params.get("target_hardware", "H100"))] / float(DEFAULT_NUM_GPUS_PER_NODE),
+            ),
+        )
+    )
+    non_gpu_power_w = float(config.get("non_gpu_power_w", 0.0))
+    max_batch_size = int(max(1, int(lut_params["max_batch_size"])))
+    max_batch_tokens_timing = float(lut_params["max_batch_tokens_timing"])
+    horizon_s = float(t_horizon) * dt_s
+    generation_meta: Dict[str, object] = {
+        "splitwise_calibration_mode": str(
+            lut_params.get("splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE)
+        ),
+        "splitwise_power_support_status": str(
+            lut_params.get("splitwise_power_support_status", "")
+        ),
+        "splitwise_power_quality_flag": str(
+            lut_params.get("splitwise_power_quality_flag", "")
+        ),
+        "splitwise_source_resolved_model": str(
+            lut_params.get("splitwise_source_resolved_model", "")
+        ),
+        "splitwise_source_resolved_hardware": str(
+            lut_params.get("splitwise_source_resolved_hardware", "")
+        ),
+        "splitwise_source_resolved_tp": int(
+            lut_params.get("splitwise_source_resolved_tp", 0)
+        ),
+        "splitwise_source_match_status": str(
+            lut_params.get("splitwise_source_match_status", "")
+        ),
+        "splitwise_scheduler_policy": str(
+            lut_params.get("splitwise_scheduler_policy", "")
+        ),
+        "splitwise_extrapolation_events": 0,
+        "splitwise_power_clamp_events": 0,
+        "splitwise_max_batch_tokens_seen": 0.0,
+    }
+
+    idle_ratio = float(lut_params["idle_ratio"])
+    idle_node_gpu_power_w = (float(tp) * idle_ratio * gpu_tdp_w) + (
+        float(n_gpus - tp) * idle_ratio * gpu_tdp_w
+    )
+    prompt_queue: list[Dict[str, float]] = []
+    decode_queue: list[Dict[str, float]] = []
+    segments: list[Tuple[float, float, float]] = []
+    next_req_idx = 0
+    current_time = 0.0
+
+    while current_time < horizon_s - 1e-12:
+        while next_req_idx < len(parsed_requests) and float(parsed_requests[next_req_idx]["arrival_time"]) <= current_time + 1e-12:
+            req = dict(parsed_requests[next_req_idx])
+            req["remaining_decode_tokens"] = float(max(0.0, req["output_tokens"] - 1.0))
+            prompt_queue.append(req)
+            next_req_idx += 1
+
+        if len(prompt_queue) == 0 and len(decode_queue) == 0:
+            if next_req_idx >= len(parsed_requests):
+                _append_splitwise_segment(
+                    segments,
+                    start_time=current_time,
+                    end_time=horizon_s,
+                    power_w=float(idle_node_gpu_power_w + non_gpu_power_w),
+                    horizon_s=horizon_s,
+                )
+                break
+            next_arrival = float(parsed_requests[next_req_idx]["arrival_time"])
+            _append_splitwise_segment(
+                segments,
+                start_time=current_time,
+                end_time=min(next_arrival, horizon_s),
+                power_w=float(idle_node_gpu_power_w + non_gpu_power_w),
+                horizon_s=horizon_s,
+            )
+            current_time = float(max(current_time, min(next_arrival, horizon_s)))
+            continue
+
+        batch_prompt: list[Dict[str, float]] = []
+        batch_decode: list[Dict[str, float]] = []
+        batch_tokens = 0.0
+
+        while prompt_queue and (len(batch_prompt) + len(batch_decode)) < max_batch_size:
+            req = prompt_queue[0]
+            req_tokens = float(max(0.0, req["input_tokens"]))
+            if batch_tokens + req_tokens <= max_batch_tokens_timing + 1e-12:
+                batch_prompt.append(prompt_queue.pop(0))
+                batch_tokens += req_tokens
+                continue
+            if len(batch_prompt) == 0 and len(batch_decode) == 0:
+                batch_prompt.append(prompt_queue.pop(0))
+                batch_tokens += req_tokens
+                generation_meta["splitwise_extrapolation_events"] = int(
+                    generation_meta.get("splitwise_extrapolation_events", 0)
+                ) + 1
+            break
+
+        while decode_queue and (len(batch_prompt) + len(batch_decode)) < max_batch_size:
+            if batch_tokens + 1.0 > max_batch_tokens_timing + 1e-12:
+                break
+            batch_decode.append(decode_queue.pop(0))
+            batch_tokens += 1.0
+
+        if len(batch_prompt) == 0 and len(batch_decode) == 0:
+            next_arrival = (
+                float(parsed_requests[next_req_idx]["arrival_time"])
+                if next_req_idx < len(parsed_requests)
+                else horizon_s
+            )
+            _append_splitwise_segment(
+                segments,
+                start_time=current_time,
+                end_time=min(next_arrival, horizon_s),
+                power_w=float(idle_node_gpu_power_w + non_gpu_power_w),
+                horizon_s=horizon_s,
+            )
+            current_time = float(max(current_time, min(next_arrival, horizon_s)))
+            continue
+
+        generation_meta["splitwise_max_batch_tokens_seen"] = float(
+            max(float(generation_meta.get("splitwise_max_batch_tokens_seen", 0.0)), batch_tokens)
+        )
+        if len(batch_prompt) > 0 and len(batch_decode) > 0:
+            phase_kind = "mixed"
+        elif len(batch_prompt) > 0:
+            phase_kind = "prompt"
+        else:
+            phase_kind = "decode"
+        duration_s = _predict_splitwise_timing_s(
+            lut_params,
+            batch_tokens=batch_tokens,
+            phase_kind=phase_kind,
+            generation_meta=generation_meta,
+        )
+        phase_ratio = _lookup_splitwise_power_ratio(
+            lut_params,
+            batch_tokens=batch_tokens,
+            phase_kind=phase_kind,
+            generation_meta=generation_meta,
+        )
+        active_gpu_power = float(tp) * float(phase_ratio) * float(gpu_tdp_w)
+        idle_gpu_power = float(n_gpus - tp) * float(idle_ratio) * float(gpu_tdp_w)
+        node_gpu_power = float(active_gpu_power + idle_gpu_power)
+        iteration_end = float(current_time + duration_s)
+        _append_splitwise_segment(
+            segments,
+            start_time=current_time,
+            end_time=iteration_end,
+            power_w=float(node_gpu_power + non_gpu_power_w),
+            horizon_s=horizon_s,
+        )
+        current_time = iteration_end
+
+        while next_req_idx < len(parsed_requests) and float(parsed_requests[next_req_idx]["arrival_time"]) <= current_time + 1e-12:
+            req = dict(parsed_requests[next_req_idx])
+            req["remaining_decode_tokens"] = float(max(0.0, req["output_tokens"] - 1.0))
+            prompt_queue.append(req)
+            next_req_idx += 1
+
+        for req in batch_prompt:
+            remaining_decode = float(max(0.0, req.get("remaining_decode_tokens", max(0.0, req["output_tokens"] - 1.0))))
+            if remaining_decode > 0.0:
+                decode_req = dict(req)
+                decode_req["remaining_decode_tokens"] = float(remaining_decode)
+                decode_queue.append(decode_req)
+
+        for req in batch_decode:
+            remaining_decode = float(max(0.0, req.get("remaining_decode_tokens", 0.0) - 1.0))
+            if remaining_decode > 0.0:
+                decode_req = dict(req)
+                decode_req["remaining_decode_tokens"] = float(remaining_decode)
+                decode_queue.append(decode_req)
+
+    trace = _rasterize_splitwise_segments(segments, T=t_horizon, dt=dt_s)
+    power_status = str(generation_meta.get("splitwise_power_support_status", ""))
+    clamp_events = int(generation_meta.get("splitwise_power_clamp_events", 0))
+    if clamp_events > 0 and power_status and not power_status.endswith("_clamped"):
+        generation_meta["splitwise_power_support_status"] = f"{power_status}_clamped"
+    return trace.astype(np.float64), generation_meta
 
 
 def generate_splitwise_lut(
@@ -422,48 +1007,11 @@ def generate_splitwise_lut(
     config: Mapping[str, object],
     lut_params: Mapping[str, object],
 ) -> np.ndarray:
-    a = np.asarray(a_raw, dtype=np.float64).reshape(-1)
-    da = np.asarray(delta_a_raw, dtype=np.float64).reshape(-1)
-    n = int(min(a.size, da.size))
-    if n < 0:
-        raise ValueError("invalid horizon")
-    if n == 0:
-        return np.zeros((0,), dtype=np.float64)
-
-    n_gpus = int(config.get("n_gpus_per_node", DEFAULT_NUM_GPUS_PER_NODE))
-    if n_gpus <= 0:
-        raise ValueError("n_gpus_per_node must be positive")
-    tp = int(config.get("tp", _resolve_tp(config)))
-    tp = int(max(1, min(tp, n_gpus)))
-    non_gpu_power_w = float(config.get("non_gpu_power_w", DEFAULT_NON_GPU_POWER_W))
-    eps = float(config.get("phase_eps", 1e-6))
-    prefill_delta_threshold = float(
-        config.get("prefill_delta_threshold", lut_params.get("prefill_delta_threshold", 0.05))
-    )
-    prefill_min_steps = int(config.get("prefill_min_steps", lut_params.get("prefill_min_steps", 2)))
-
-    idle_w = float(lut_params["idle_w"])
-    decode_w = float(lut_params["decode_w"])
-    prefill_w = float(lut_params["prefill_w"])
-    idle_w = max(1.0, idle_w)
-    decode_w = max(idle_w, decode_w)
-    prefill_w = max(decode_w, prefill_w)
-
-    a_n = a[:n]
-    da_n = da[:n]
-    active_mask = a_n > eps
-    prefill_mask = active_mask & (da_n > max(eps, prefill_delta_threshold))
-    prefill_mask = _suppress_short_true_runs(prefill_mask, min_run_len=prefill_min_steps)
-    decode_mask = active_mask & (~prefill_mask)
-
-    phase_power = np.full((n,), idle_w, dtype=np.float64)
-    phase_power[decode_mask] = decode_w
-    phase_power[prefill_mask] = prefill_w
-
-    active_gpus = np.where(active_mask, tp, 0).astype(np.float64)
-    idle_gpus = float(n_gpus) - active_gpus
-    power = (active_gpus * phase_power) + (idle_gpus * idle_w) + float(non_gpu_power_w)
-    return np.asarray(power, dtype=np.float64).reshape(-1)
+    del a_raw
+    del delta_a_raw
+    del config
+    del lut_params
+    raise ValueError(SPLITWISE_REMOVED_MESSAGE)
 
 
 def _resolve_device(config: Mapping[str, object], classifier: torch.nn.Module) -> torch.device:
@@ -588,6 +1136,7 @@ def generate_ours(
         else:
             sigma_marginal = np.asarray(sigma_marginal_payload, dtype=np.float64).reshape(-1) * float(std_scale)
         phi_threshold = float(ar1_params.get("phi_threshold", config.get("phi_threshold", 0.3)))
+        _, generate_gmm_bigru_trace_ar1_thresholded = _load_pipeline_generators()
         generated = generate_gmm_bigru_trace_ar1_thresholded(
             logits=logits,
             gmm_params=gmm_sampling,
@@ -602,6 +1151,7 @@ def generate_ours(
             clamp_range=clamp_range,
         )
     else:
+        generate_gmm_bigru_trace, _ = _load_pipeline_generators()
         generated = generate_gmm_bigru_trace(
             logits=logits,
             gmm_params=gmm_sampling,

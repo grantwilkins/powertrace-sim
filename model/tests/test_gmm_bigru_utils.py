@@ -75,28 +75,6 @@ class TestGMMBiGRUUtils(unittest.TestCase):
         self.assertTrue(np.allclose(x[:, 0], np.array([1.0, 3.0, 2.0], dtype=np.float32)))
         self.assertTrue(np.allclose(x[:, 1], np.array([1.0, 2.0, -1.0], dtype=np.float32)))
 
-    def test_build_features_from_active_f3(self):
-        active = np.array([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
-        t_log = np.array([0.0, 0.1, 0.2, 0.3], dtype=np.float64)
-        norm = {
-            "active_mean": 0.0,
-            "active_std": 1.0,
-            "delta_A_mean": 0.0,
-            "delta_A_std": 1.0,
-            "t_arrive_log_mean": 0.0,
-            "t_arrive_log_std": 1.0,
-        }
-        out = build_features_from_active(
-            active_requests=active,
-            t_arrive_log=t_log,
-            norm=norm,
-            feature_set="f3",
-            max_length=3,
-        )
-        x = np.asarray(out["features_norm"], dtype=np.float32)
-        self.assertEqual(tuple(x.shape), (3, 3))
-        self.assertTrue(np.allclose(x[:, 2], np.array([0.1, 0.2, 0.3], dtype=np.float32)))
-
     def test_build_rollout_features_shapes_and_finite(self):
         requests = [
             {"arrival_time": 0.0, "input_tokens": 32, "output_tokens": 16},
@@ -123,18 +101,6 @@ class TestGMMBiGRUUtils(unittest.TestCase):
         x2 = np.asarray(out_f2["features_norm"], dtype=np.float32)
         self.assertEqual(tuple(x2.shape), (12, 2))
         self.assertTrue(np.all(np.isfinite(x2)))
-
-        out_f3 = build_rollout_features_from_requests(
-            requests=requests,
-            throughput=throughput,
-            norm=norm,
-            T=12,
-            dt=0.25,
-            feature_set="f3",
-        )
-        x3 = np.asarray(out_f3["features_norm"], dtype=np.float32)
-        self.assertEqual(tuple(x3.shape), (12, 3))
-        self.assertTrue(np.all(np.isfinite(x3)))
 
     def test_generate_trace_seeded_and_clamped(self):
         logits = np.zeros((20, 2), dtype=np.float64)

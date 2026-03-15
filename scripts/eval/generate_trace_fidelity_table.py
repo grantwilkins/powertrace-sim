@@ -9,6 +9,7 @@ Features:
     - Loads raw per-seed metrics from CSV files
     - Aggregates across seeds, traces, and hardware/TP configurations
     - Supports multiple generation modes (i.i.d., AR(1), AR(1) thresholded)
+    - Selects a canonical reporting mode per model without KS-based cherry-picking
     - Custom model name mappings and architecture overrides
     - Multiple output formats (LaTeX, CSV)
     - Proper handling of missing standard deviations
@@ -52,16 +53,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.eval.azure_defaults import MODEL_NAME_MAP
+
 # ============================================================================
 # Configuration
 # ============================================================================
-
-# Model display name mapping
-MODEL_NAME_MAP = {
-    "llama-3": "Llama-3.1",
-    "deepseek-r1-distill": "DeepSeek-R1-Distill",
-    "gpt-oss": "gpt-oss",
-}
 
 # Architecture overrides: (model_family, model_size) -> arch_type
 # Keep empty by default; infer_arch_type encodes current paper assumptions.
@@ -78,25 +74,111 @@ EXPECTED_GEN_MODE = {
 EXCLUDED_HARDWARE_TP = None
 
 # Default input directories
-# These can be overridden via CLI or by pointing to kauto_max20_f2 runs
+# Use the manifest-consistent full-heldout eval directories by default.
+# These are validated against each directory's sibling run_manifest.json so
+# mislabeled artifacts fail fast.
 DEFAULT_INPUT_DIRS = {
-    "iid": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru/k10_f2_ar1/eval_metrics",
-    "ar1_thresh": "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics",
+    "iid": "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics_fullheldout",
+    "ar1": "results/continuous_v1_gmm_bigru/k10_f2_ar1/eval_metrics_fullheldout",
+    "ar1_thresh": "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics_fullheldout",
 }
 
 # Alternative auto-K directories (use these when running with --auto-k results)
 AUTOK_INPUT_DIRS = {
-    "iid": "results/continuous_v1_gmm_bigru/kauto_max20_f2/eval_metrics",
-    "ar1": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1/eval_metrics",
-    "ar1_thresh": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1_thresh/eval_metrics",
+    "iid": "results/continuous_v1_gmm_bigru/kauto_max20_f2/eval_metrics_fullheldout",
+    "ar1": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1/eval_metrics_fullheldout",
+    "ar1_thresh": "results/continuous_v1_gmm_bigru/kauto_max20_f2_ar1_thresh/eval_metrics_fullheldout",
 }
 
 # Default inventory used to determine whether pair_key has request timestamps.
 DEFAULT_TIMESTAMP_INVENTORY = "results/stage0/data_inventory.json"
+
+GENERATION_MODE_ALIASES = {
+    "iid": "iid",
+    "ar1": "ar1",
+    "ar1_thresh": "ar1_thresh",
+    "ar1_thresholded": "ar1_thresh",
+}
 # ============================================================================
 # Model Parsing Functions (adapted from collect_results.py)
 # ============================================================================
+
+
+def canonicalize_generation_mode(generation_mode: str) -> str:
+    """
+    Normalize generation mode labels across table code and eval manifests.
+    """
+    raw = str(generation_mode).strip().lower()
+    return GENERATION_MODE_ALIASES.get(raw, raw)
+
+
+def validate_generation_mode_source(
+    csv_path: str, expected_mode: str, df: Optional[pd.DataFrame] = None
+) -> None:
+    """
+    Fail fast when an eval directory is mislabeled for the requested mode.
+    """
+    expected_canonical = canonicalize_generation_mode(expected_mode)
+    observed_modes: List[Tuple[str, str, str]] = []
+
+    manifest_path = os.path.join(os.path.dirname(csv_path), "run_manifest.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+        defaults = manifest.get("defaults", {})
+        if isinstance(defaults, dict):
+            manifest_mode = str(defaults.get("generation_mode", "")).strip()
+            if manifest_mode != "":
+                observed_modes.append(
+                    (
+                        "run_manifest.json",
+                        manifest_mode,
+                        canonicalize_generation_mode(manifest_mode),
+                    )
+                )
+
+    if df is not None and "generation_mode" in df.columns:
+        raw_modes = sorted(
+            {
+                str(x).strip()
+                for x in df["generation_mode"].dropna().tolist()
+                if str(x).strip() != ""
+            }
+        )
+        canonical_modes = sorted(
+            {canonicalize_generation_mode(mode) for mode in raw_modes}
+        )
+        if len(canonical_modes) > 1:
+            raise ValueError(
+                f"CSV contains multiple generation_mode values: {raw_modes}"
+            )
+        if len(raw_modes) == 1:
+            observed_modes.append(
+                (
+                    "CSV column generation_mode",
+                    raw_modes[0],
+                    canonical_modes[0],
+                )
+            )
+
+    if len(observed_modes) == 0:
+        return
+
+    observed_canonical_modes = {canonical for _, _, canonical in observed_modes}
+    if len(observed_canonical_modes) > 1:
+        details = ", ".join(
+            f"{source}={raw}" for source, raw, _ in observed_modes
+        )
+        raise ValueError(
+            f"Inconsistent generation_mode metadata for '{csv_path}': {details}"
+        )
+
+    observed_source, observed_raw, observed_canonical = observed_modes[0]
+    if observed_canonical != expected_canonical:
+        raise ValueError(
+            f"Generation mode mismatch for '{csv_path}': expected "
+            f"'{expected_mode}', found '{observed_raw}' in {observed_source}."
+        )
 
 
 def parse_config_id(config_id: str) -> Dict[str, str]:
@@ -235,6 +317,7 @@ def load_per_seed_csv(
         raise FileNotFoundError(f"CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
+    validate_generation_mode_source(csv_path, generation_mode, df=df)
 
     # Validate required columns
     required_cols = {
@@ -263,6 +346,91 @@ def load_per_seed_csv(
     df = df[df["status"].isin(["ok", "evaluated"])].copy()
 
     return df
+
+
+def load_config_summary_csv(
+    csv_path: str, generation_mode: str, prefer_all_heldout: bool = True
+) -> pd.DataFrame:
+    """
+    Load per-config summary metrics from config_summary.csv.
+
+    When prefer_all_heldout is True, this expects the rerun eval output fields
+    that summarize the full held-out split at the config level.
+    """
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+    df = pd.read_csv(csv_path)
+    validate_generation_mode_source(csv_path, generation_mode, df=df)
+    required_cols = {"config_id", "status"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"CSV missing required columns: {missing}. Found columns: {list(df.columns)}"
+        )
+
+    df = df[df["status"].isin(["ok", "evaluated"])].copy()
+
+    if prefer_all_heldout:
+        heldout_cols = {
+            "ks_stat_all_heldout",
+            "acf_r2_all_heldout",
+            "nrmse_all_heldout",
+            "delta_energy_pct_all_heldout",
+        }
+        missing_heldout = heldout_cols - set(df.columns)
+        if missing_heldout:
+            raise ValueError(
+                "config_summary.csv does not contain full-heldout aggregate fields: "
+                f"{sorted(missing_heldout)}"
+            )
+        out = pd.DataFrame(
+            {
+                "config_id": df["config_id"],
+                "generation_mode": generation_mode,
+                "ks_stat": pd.to_numeric(df["ks_stat_all_heldout"], errors="coerce"),
+                "acf_r2": pd.to_numeric(df["acf_r2_all_heldout"], errors="coerce"),
+                "nrmse": pd.to_numeric(df["nrmse_all_heldout"], errors="coerce"),
+                "delta_energy_pct": pd.to_numeric(
+                    df["delta_energy_pct_all_heldout"], errors="coerce"
+                ),
+                "num_traces": pd.to_numeric(
+                    df.get("num_eval_traces", pd.Series([np.nan] * len(df))),
+                    errors="coerce",
+                ),
+            }
+        )
+        return out
+
+    summary_cols = {
+        "ks_stat_median",
+        "acf_r2_median",
+        "nrmse_median",
+        "delta_energy_pct_median",
+    }
+    missing_summary = summary_cols - set(df.columns)
+    if missing_summary:
+        raise ValueError(
+            "config_summary.csv does not contain legacy summary fields: "
+            f"{sorted(missing_summary)}"
+        )
+
+    return pd.DataFrame(
+        {
+            "config_id": df["config_id"],
+            "generation_mode": generation_mode,
+            "ks_stat": pd.to_numeric(df["ks_stat_median"], errors="coerce"),
+            "acf_r2": pd.to_numeric(df["acf_r2_median"], errors="coerce"),
+            "nrmse": pd.to_numeric(df["nrmse_median"], errors="coerce"),
+            "delta_energy_pct": pd.to_numeric(
+                df["delta_energy_pct_median"], errors="coerce"
+            ),
+            "num_traces": pd.to_numeric(
+                df.get("num_eval_traces", pd.Series([np.nan] * len(df))),
+                errors="coerce",
+            ),
+        }
+    )
 
 
 def load_request_timestamp_availability_map(
@@ -591,6 +759,55 @@ def aggregate_trace_to_config(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def aggregate_seed_to_config_total_energy(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregate total held-out trace energy across all traces for each config/seed.
+
+    For each (config_id, generation_mode, seed), this sums ground-truth and
+    predicted energy across all held-out traces first, then computes a single
+    absolute percentage error for that seed. Config-level energy error is the
+    median of those per-seed total-energy errors.
+    """
+    required = {"energy_gt_j", "energy_pred_j", "seed"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Cannot aggregate total held-out energy without columns: {sorted(missing)}"
+        )
+
+    working = df.copy()
+    working["energy_gt_j"] = pd.to_numeric(working["energy_gt_j"], errors="coerce")
+    working["energy_pred_j"] = pd.to_numeric(working["energy_pred_j"], errors="coerce")
+    working = working[
+        np.isfinite(working["energy_gt_j"]) & np.isfinite(working["energy_pred_j"])
+    ].copy()
+    if len(working) == 0:
+        raise ValueError("No finite per-trace energy totals available for aggregation.")
+
+    per_seed = (
+        working.groupby(["config_id", "generation_mode", "seed"], as_index=False)[
+            ["energy_gt_j", "energy_pred_j"]
+        ]
+        .sum()
+        .copy()
+    )
+    per_seed["delta_energy_pct"] = (
+        100.0
+        * (
+            (per_seed["energy_pred_j"] - per_seed["energy_gt_j"])
+            .abs()
+            .astype(np.float64)
+        )
+        / (per_seed["energy_gt_j"].abs().astype(np.float64) + 1e-12)
+    )
+
+    return (
+        per_seed.groupby(["config_id", "generation_mode"], as_index=False)
+        .agg({"delta_energy_pct": "median"})
+        .copy()
+    )
+
+
 def aggregate_config_to_model(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate per-config metrics to per-model (mean±std across hw/tp).
@@ -687,6 +904,62 @@ def aggregate_config_to_model(df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
+def _generation_mode_priority(arch_type: str) -> List[str]:
+    """
+    Preferred reporting order for generation modes.
+
+    Dense models default to iid generation. MoE models default to ar1.
+    """
+    if str(arch_type) == "moe":
+        return ["ar1", "ar1_thresh", "iid"]
+    return ["iid", "ar1_thresh", "ar1"]
+
+
+def select_expected_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Select one canonical generation mode per (model, size) without using KS.
+
+    Selection policy:
+        1. Require maximum mode coverage (n_configs) first.
+        2. Prefer the architecture-expected generation mode within that set.
+        3. Fall back to a deterministic architecture-specific mode order.
+
+    Args:
+        df: DataFrame with model-level aggregated metrics
+
+    Returns:
+        DataFrame with one row per (model, size)
+    """
+    grouped = df.groupby(["model", "model_size"])
+
+    selected_rows = []
+    for (_, _), group in grouped:
+        max_n_configs = int(group["n_configs"].max())
+        coverage_group = group[group["n_configs"] == max_n_configs].copy()
+
+        arch_type = str(coverage_group.iloc[0]["arch_type"])
+        expected_mode = EXPECTED_GEN_MODE.get(arch_type)
+        if expected_mode is not None and expected_mode in set(
+            coverage_group["generation_mode"]
+        ):
+            picked = coverage_group[
+                coverage_group["generation_mode"] == expected_mode
+            ].copy()
+        else:
+            picked = coverage_group.copy()
+
+        ordered_modes = _generation_mode_priority(arch_type)
+        mode_rank = {mode: idx for idx, mode in enumerate(ordered_modes)}
+        picked = picked.assign(
+            _mode_rank=picked["generation_mode"].map(
+                lambda x: mode_rank.get(str(x), 99)
+            )
+        ).sort_values(by=["_mode_rank", "generation_mode"], ascending=[True, True])
+        selected_rows.append(picked.iloc[0].drop(labels=["_mode_rank"]))
+
+    return pd.DataFrame(selected_rows).reset_index(drop=True)
+
+
 def select_best_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
     """
     For each (model, size), select generation mode with lowest KS_mean.
@@ -726,10 +999,7 @@ def select_best_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
 
         # Final deterministic tie-breaker.
         # Prefer modes closest to architecture-expected behavior.
-        if arch_type == "moe":
-            ordered_modes = ["ar1", "ar1_thresh", "iid"]
-        else:
-            ordered_modes = ["iid", "ar1_thresh", "ar1"]
+        ordered_modes = _generation_mode_priority(arch_type)
         mode_rank = {mode: idx for idx, mode in enumerate(ordered_modes)}
         best_group = best_group.assign(
             _mode_rank=best_group["generation_mode"].map(
@@ -742,6 +1012,27 @@ def select_best_generation_mode(df: pd.DataFrame) -> pd.DataFrame:
     result = pd.DataFrame(best_rows).reset_index(drop=True)
 
     return result
+
+
+def select_generation_mode(
+    df: pd.DataFrame, selection_strategy: str = "expected_mode"
+) -> pd.DataFrame:
+    """
+    Select final reporting rows per model.
+
+    Args:
+        df: DataFrame with model-level aggregated metrics
+        selection_strategy: One of {"expected_mode", "best_ks"}
+
+    Returns:
+        DataFrame with one row per (model, size)
+    """
+    strategy = str(selection_strategy).strip().lower()
+    if strategy == "expected_mode":
+        return select_expected_generation_mode(df)
+    if strategy == "best_ks":
+        return select_best_generation_mode(df)
+    raise ValueError("selection_strategy must be one of {'expected_mode', 'best_ks'}")
 
 
 # ============================================================================
@@ -1011,11 +1302,11 @@ def print_summary_stats(df: pd.DataFrame, verbose: bool = False) -> None:
                 f"\n{model_name} ({row['arch_type'].capitalize()}, {row['generation_mode']}): "
                 f"{row['n_configs']} configs"
             )
-            print(f"  KS:     {row['KS_mean']:.3f} ± {row['KS_std']:.3f}")
-            print(f"  ACF R²: {row['ACF_R2_mean']:.3f} ± {row['ACF_R2_std']:.3f}")
-            print(f"  NRMSE:  {row['NRMSE_mean']:.3f} ± {row['NRMSE_std']:.3f}")
+            print(f"  KS:     {row['KS_mean']:.4f} ± {row['KS_std']:.4f}")
+            print(f"  ACF R²: {row['ACF_R2_mean']:.4f} ± {row['ACF_R2_std']:.4f}")
+            print(f"  NRMSE:  {row['NRMSE_mean']:.4f} ± {row['NRMSE_std']:.4f}")
             print(
-                f"  Energy: {row['energy_err_mean']:.2f}% ± {row['energy_err_std']:.2f}%"
+                f"  Energy: {row['energy_err_mean']:.4f}% ± {row['energy_err_std']:.4f}%"
             )
 
     print(f"\n{'=' * 80}\n")
@@ -1092,6 +1383,16 @@ def main():
         ),
     )
     parser.add_argument(
+        "--selection-strategy",
+        choices=["expected_mode", "best_ks"],
+        default="expected_mode",
+        help=(
+            "How to choose the final reporting row per model. "
+            "expected_mode prefers the architecture-default generation mode after "
+            "coverage filtering. best_ks reproduces the previous lowest-KS selection."
+        ),
+    )
+    parser.add_argument(
         "--use-auto-k",
         action="store_true",
         help=(
@@ -1117,19 +1418,46 @@ def main():
         or os.path.join(REPO_ROOT, default_dirs["ar1_thresh"]),
     }
 
-    print(f"Loading per-seed metrics from:")
+    print(f"Loading evaluation metrics from:")
     for mode, dir_path in input_dirs.items():
-        csv_path = os.path.join(dir_path, "per_seed_metrics.csv")
-        exists_str = "✓" if os.path.exists(csv_path) else "✗"
-        print(f"  {mode:12s}: {csv_path} {exists_str}")
+        seed_csv_path = os.path.join(dir_path, "per_seed_metrics.csv")
+        config_csv_path = os.path.join(dir_path, "config_summary.csv")
+        seed_exists = "✓" if os.path.exists(seed_csv_path) else "✗"
+        config_exists = "✓" if os.path.exists(config_csv_path) else "✗"
+        print(
+            f"  {mode:12s}: per_seed={seed_csv_path} {seed_exists} | "
+            f"config_summary={config_csv_path} {config_exists}"
+        )
 
-    # Load per-seed metrics
+    # Load evaluation metrics
     print(f"\n{'=' * 80}")
-    print("Loading per-seed metrics...")
+    print("Loading evaluation metrics...")
     dfs_per_seed = []
+    dfs_per_config_direct = []
     enforce_request_timestamp_filter = not bool(args.allow_missing_request_timestamps)
 
     for mode, dir_path in input_dirs.items():
+        if not enforce_request_timestamp_filter:
+            config_csv_path = os.path.join(dir_path, "config_summary.csv")
+            if os.path.exists(config_csv_path):
+                try:
+                    df_cfg = load_config_summary_csv(
+                        config_csv_path,
+                        generation_mode=mode,
+                        prefer_all_heldout=True,
+                    )
+                    print(
+                        f"  Loaded {len(df_cfg)} per-config rows from {mode} "
+                        "config_summary.csv (full held-out aggregation)"
+                    )
+                    dfs_per_config_direct.append(df_cfg)
+                    continue
+                except ValueError as exc:
+                    print(
+                        f"  Warning: {mode} config_summary.csv is not usable for "
+                        f"full-heldout aggregation ({exc}); falling back to per-seed metrics."
+                    )
+
         csv_path = os.path.join(dir_path, "per_seed_metrics.csv")
         if not os.path.exists(csv_path):
             print(f"Warning: Skipping {mode}, file not found: {csv_path}")
@@ -1143,13 +1471,22 @@ def main():
         print(f"  Loaded {len(df)} per-seed rows from {mode}")
         dfs_per_seed.append(df)
 
-    if not dfs_per_seed:
+    if not dfs_per_seed and not dfs_per_config_direct:
         print("Error: No input files found!")
         sys.exit(1)
 
-    # Concatenate all per-seed data
-    df_all_seeds = pd.concat(dfs_per_seed, ignore_index=True)
-    print(f"\nTotal per-seed rows: {len(df_all_seeds)}")
+    df_all_seeds = (
+        pd.concat(dfs_per_seed, ignore_index=True) if len(dfs_per_seed) > 0 else None
+    )
+    df_direct_config = (
+        pd.concat(dfs_per_config_direct, ignore_index=True)
+        if len(dfs_per_config_direct) > 0
+        else None
+    )
+    if df_all_seeds is not None:
+        print(f"\nTotal per-seed rows: {len(df_all_seeds)}")
+    if df_direct_config is not None:
+        print(f"Total direct per-config rows: {len(df_direct_config)}")
 
     # Load K values from manifests if using auto-k
     k_values_map: Dict[str, int] = {}
@@ -1207,6 +1544,13 @@ def main():
             exists_str = "✓" if os.path.exists(p) else "✗"
             print(f"    - {p} {exists_str}")
 
+        if df_all_seeds is None:
+            print(
+                "Error: Request timestamp filtering requires per-seed metrics, "
+                "but no per-seed inputs were loaded."
+            )
+            sys.exit(1)
+
         pair_key_has_timestamps = load_request_timestamp_availability_map_merged(
             deduped_candidates
         )
@@ -1248,14 +1592,65 @@ def main():
     # Aggregation pipeline
     print(f"\n{'=' * 80}")
     print("Aggregation pipeline...")
+    per_config_parts: List[pd.DataFrame] = []
 
-    print("  1. Aggregating seeds → traces (median across seeds)...")
-    df_per_trace = aggregate_seed_to_trace(df_all_seeds)
-    print(f"     Result: {len(df_per_trace)} per-trace rows")
+    if df_all_seeds is not None:
+        print("  1. Aggregating seeds → traces (median across seeds)...")
+        df_per_trace = aggregate_seed_to_trace(df_all_seeds)
+        print(f"     Result: {len(df_per_trace)} per-trace rows")
 
-    print("  2. Aggregating traces → configs (median across traces)...")
-    df_per_config = aggregate_trace_to_config(df_per_trace)
-    print(f"     Result: {len(df_per_config)} per-config rows")
+        print("  2. Aggregating traces → configs (median across traces)...")
+        df_per_config_from_seed = aggregate_trace_to_config(df_per_trace)
+        print(f"     Result: {len(df_per_config_from_seed)} per-config rows")
+
+        if {"energy_gt_j", "energy_pred_j"}.issubset(df_all_seeds.columns):
+            print(
+                "  2a. Recomputing config energy from total held-out joules "
+                "(sum across traces first)..."
+            )
+            legacy_energy = df_per_config_from_seed[
+                ["config_id", "generation_mode", "delta_energy_pct"]
+            ].rename(columns={"delta_energy_pct": "delta_energy_pct_legacy"})
+            df_energy = aggregate_seed_to_config_total_energy(df_all_seeds)
+            df_per_config_from_seed = (
+                df_per_config_from_seed.drop(columns=["delta_energy_pct"])
+                .merge(df_energy, on=["config_id", "generation_mode"], how="left")
+                .merge(legacy_energy, on=["config_id", "generation_mode"], how="left")
+            )
+            missing_energy = int(
+                df_per_config_from_seed["delta_energy_pct"].isna().sum()
+            )
+            if missing_energy > 0:
+                print(
+                    f"      Warning: Falling back to legacy per-trace energy for {missing_energy} rows"
+                )
+                df_per_config_from_seed["delta_energy_pct"] = df_per_config_from_seed[
+                    "delta_energy_pct"
+                ].fillna(df_per_config_from_seed["delta_energy_pct_legacy"])
+            df_per_config_from_seed = df_per_config_from_seed.drop(
+                columns=["delta_energy_pct_legacy"]
+            )
+        else:
+            print(
+                "  2a. Using legacy per-trace energy aggregation "
+                "(per_seed_metrics.csv is missing energy_gt_j / energy_pred_j)."
+            )
+        per_config_parts.append(df_per_config_from_seed)
+
+    if df_direct_config is not None:
+        print(
+            "  2b. Using full-heldout per-config metrics loaded directly from "
+            "config_summary.csv..."
+        )
+        print(f"      Result: {len(df_direct_config)} per-config rows")
+        per_config_parts.append(df_direct_config)
+
+    if len(per_config_parts) == 0:
+        print("Error: No per-config metrics were produced.")
+        sys.exit(1)
+
+    df_per_config = pd.concat(per_config_parts, ignore_index=True)
+    print(f"  Combined per-config rows: {len(df_per_config)}")
 
     # Filter out problematic hardware/TP configurations
     if EXCLUDED_HARDWARE_TP:
@@ -1284,8 +1679,13 @@ def main():
     df_per_model = aggregate_config_to_model(df_per_config)
     print(f"     Result: {len(df_per_model)} per-model rows")
 
-    print("  4. Selecting best generation mode per model...")
-    df_final = select_best_generation_mode(df_per_model)
+    print(
+        "  4. Selecting final reporting row per model "
+        f"(strategy={args.selection_strategy})..."
+    )
+    df_final = select_generation_mode(
+        df_per_model, selection_strategy=args.selection_strategy
+    )
     print(f"     Result: {len(df_final)} final model rows")
 
     # Print summary statistics

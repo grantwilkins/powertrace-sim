@@ -7,28 +7,32 @@ for use in datacenter power simulation studies.
 
 import csv
 import os
-import sys
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List
 
 import numpy as np
 
-# Add model path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../model"))
 
-from simulators.arrival_simulator import ServeGenRequest  # noqa: E402
+@dataclass
+class Request:
+    """A single LLM inference request with arrival time and token counts."""
+    request_id: int
+    arrival_time: float
+    input_tokens: int
+    output_tokens: int
 
 
 def load_and_parse_azure_csv(
     csv_path: str, scale_factor: float = 1.0, seed: int = 0
-) -> List[ServeGenRequest]:
+) -> List[Request]:
     """
-    Load Azure conversation trace and convert to ServeGenRequest objects.
+    Load Azure conversation trace and convert to Request objects.
 
     This function reads an Azure LLM inference trace CSV file containing timestamps,
     context tokens, and generated tokens for each request. It normalizes timestamps
     to seconds from the start, optionally scales the arrival rate, and converts
-    each row to a ServeGenRequest object.
+    each row to a Request object.
 
     Args:
         csv_path: Path to Azure trace CSV with columns:
@@ -42,7 +46,7 @@ def load_and_parse_azure_csv(
         seed: Random seed for reproducibility (currently unused, for future extensions)
 
     Returns:
-        List of ServeGenRequest objects sorted by arrival_time in ascending order.
+        List of Request objects sorted by arrival_time in ascending order.
         Each request has:
             - request_id: Sequential index (0 to N-1)
             - arrival_time: Seconds from trace start (float)
@@ -154,11 +158,11 @@ def load_and_parse_azure_csv(
     else:
         scaled_times = times_seconds
 
-    # Create ServeGenRequest objects
+    # Create Request objects
     requests = []
     for i, (t, row) in enumerate(zip(scaled_times, rows)):
         requests.append(
-            ServeGenRequest(
+            Request(
                 request_id=i,
                 arrival_time=float(t),
                 input_tokens=row["context"],
@@ -169,12 +173,12 @@ def load_and_parse_azure_csv(
     return requests
 
 
-def compute_trace_statistics(requests: List[ServeGenRequest]) -> dict:
+def compute_trace_statistics(requests: List[Request]) -> dict:
     """
     Compute basic statistics for a request stream.
 
     Args:
-        requests: List of ServeGenRequest objects (must be sorted by arrival_time)
+        requests: List of Request objects (must be sorted by arrival_time)
 
     Returns:
         Dictionary with keys:

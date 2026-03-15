@@ -14,6 +14,8 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from model.utils.io import power_timestamp_to_epoch as _power_timestamp_to_epoch
+
 
 BENCH_FILE_RE = re.compile(
     r"^(?P<model>.+)_tp(?P<tp>\d+)_rate(?P<rate>[\d.]+)_iter(?P<iter>\d+)_(?P<date>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})\.(?P<ext>json|csv)$"
@@ -122,33 +124,6 @@ def parse_dataset_dir_metadata(dir_name: str, family: str) -> Optional[Tuple[str
     hardware = pieces[-1].upper()
     model_name = "-".join(pieces[:-1])
     return model_name, hardware
-
-
-def _power_timestamp_to_epoch(ts_text: str) -> Optional[float]:
-    text = ts_text.strip()
-    formats = (
-        "%Y/%m/%d %H:%M:%S.%f",
-        "%Y/%m/%d %H:%M:%S",
-        "%Y-%m-%d %H:%M:%S.%f",
-        "%Y-%m-%d %H:%M:%S",
-    )
-    for fmt in formats:
-        try:
-            dt_obj = datetime.strptime(text, fmt)
-            # Power CSV timestamps are timezone-naive wall times.
-            # Treat as UTC to avoid host-local timezone drift.
-            return dt_obj.replace(tzinfo=timezone.utc).timestamp()
-        except ValueError:
-            pass
-    try:
-        dt_obj = datetime.fromisoformat(text.replace("/", "-"))
-        if dt_obj.tzinfo is None:
-            dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-        else:
-            dt_obj = dt_obj.astimezone(timezone.utc)
-        return dt_obj.timestamp()
-    except ValueError:
-        return None
 
 
 def inspect_power_csv(csv_path: str, max_rows: int = 4096) -> Dict[str, object]:

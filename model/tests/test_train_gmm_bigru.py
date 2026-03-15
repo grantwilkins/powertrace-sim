@@ -12,13 +12,8 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
+from model.utils.io import write_json as _write_json
 from model.scripts.train_gmm_bigru import run_training_from_manifest, train_one_config
-
-
-def _write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
 
 
 class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):

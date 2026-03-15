@@ -5,7 +5,6 @@ import argparse
 import csv
 import json
 import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -24,107 +23,33 @@ import numpy as np
 import torch
 
 from model.classifiers.gmm_bigru import (
+    AR1_MIN_RUN_LENGTH,
+    AR1_PHI_THRESHOLD,
     build_rollout_features_from_requests,
+    estimate_ar1_params,
+    extract_norm_params,
+    generate_gmm_bigru_trace,
+    generate_gmm_bigru_trace_ar1_thresholded,
     load_gmm_params_json_dict,
+    predict_sorted_gmm_labels_from_params,
 )
-from model.classifiers.gru import GRUClassifier
-from model.classifiers.metrics import compute_power_metrics
-
-AR1_MIN_RUN_LENGTH = 5
-AR1_PHI_THRESHOLD = 0.3
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
-
-
-def _write_json(path: str, payload: Dict[str, object]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-
-
-def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(fieldnames))
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-
-
-def _load_json(path: str) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    path_text = str(path_str).strip()
-    if path_text == "":
-        return None
-    repo_root = Path(__file__).resolve().parents[2]
-    repo_name = repo_root.name
-    raw = Path(path_text)
-    if raw.is_absolute():
-        if raw.exists():
-            return str(raw)
-        # Handle manifests produced on a different machine where absolute
-        # paths still contain ".../<repo_name>/...".
-        parts = raw.parts
-        if repo_name in parts:
-            i = parts.index(repo_name)
-            suffix = Path(*parts[i + 1 :]) if (i + 1) < len(parts) else Path()
-            remapped = repo_root / suffix
-            if remapped.exists():
-                return str(remapped)
-        return None
-    local = Path(path_text)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    # Pair manifests often store paths relative to repo root (e.g. "data/...").
-    from_repo_root = repo_root / raw
-    if from_repo_root.exists():
-        return str(from_repo_root)
-    return None
-
-
-def _resolve_device(device: Optional[torch.device | str]) -> torch.device:
-    if device is None:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if isinstance(device, torch.device):
-        return device
-    if str(device).lower() == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(str(device))
-
-
-def _parse_config_ids(config_ids: Optional[Sequence[str]]) -> List[str]:
-    if not config_ids:
-        return []
-    out: List[str] = []
-    for token in config_ids:
-        if token is None:
-            continue
-        out.extend([x.strip() for x in str(token).split(",") if x.strip()])
-    deduped: List[str] = []
-    seen = set()
-    for cid in out:
-        if cid in seen:
-            continue
-        deduped.append(cid)
-        seen.add(cid)
-    return deduped
-
+from model.classifiers.model_loading import load_gru_classifier
+from model.classifiers.metrics import (
+    compute_aggregate_power_metrics,
+    compute_power_metrics,
+)
+from model.utils.config import (
+    parse_config_ids as _parse_config_ids,
+    resolve_device as _resolve_device,
+)
+from model.utils.io import (
+    ensure_dir as _ensure_dir,
+    load_json as _load_json,
+    resolve_existing_path as _resolve_existing_path,
+    safe_slug as _safe_slug,
+    write_csv as _write_csv,
+    write_json as _write_json,
+)
 
 def _nanmedian(values: Iterable[float]) -> float:
     arr = np.asarray(list(values), dtype=np.float64)
@@ -132,6 +57,11 @@ def _nanmedian(values: Iterable[float]) -> float:
     if finite.size == 0:
         return float("nan")
     return float(np.median(finite))
+
+
+def _total_energy_from_trace(power_w: np.ndarray, *, dt: float) -> float:
+    arr = np.asarray(power_w, dtype=np.float64).reshape(-1)
+    return float(np.sum(arr) * float(dt))
 
 
 def _finite_float(value: object) -> Optional[float]:
@@ -280,33 +210,7 @@ def _estimate_request_alignment_offset_seconds(
     return float(offset_bins) * float(dt)
 
 
-def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
-    required = (
-        "active_mean",
-        "active_std",
-        "t_arrive_log_mean",
-        "t_arrive_log_std",
-        "power_mean",
-        "power_std",
-        "power_min",
-        "power_max",
-        "delta_A_mean",
-        "delta_A_std",
-    )
-    missing = [k for k in required if k not in norm_payload]
-    if missing:
-        raise ValueError(f"Norm params missing keys: {missing}")
-
-    out = {k: float(norm_payload[k]) for k in required}
-    if out["active_std"] <= 0.0:
-        raise ValueError("active_std must be positive")
-    if out["t_arrive_log_std"] <= 0.0:
-        raise ValueError("t_arrive_log_std must be positive")
-    if out["power_std"] <= 0.0:
-        raise ValueError("power_std must be positive")
-    if out["delta_A_std"] <= 0.0:
-        raise ValueError("delta_A_std must be positive")
-    return out
+_extract_norm_for_eval = extract_norm_params
 
 
 def _resolve_checkpoint_norm_gmm_paths(
@@ -365,253 +269,7 @@ def _resolve_experimental_paths(
     return dataset_path, split_path
 
 
-def _load_model(
-    *,
-    checkpoint_path: str,
-    k: int,
-    input_dim: int,
-    hidden_dim: int,
-    num_layers: int,
-    device: torch.device,
-) -> GRUClassifier:
-    model = GRUClassifier(
-        Dx=int(input_dim),
-        K=int(k),
-        H=int(hidden_dim),
-        num_layers=int(max(1, num_layers)),
-    ).to(device)
-    try:
-        state = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    except TypeError:
-        state = torch.load(checkpoint_path, map_location=device)
-    if isinstance(state, dict) and "model_state_dict" in state and isinstance(state["model_state_dict"], dict):
-        state = state["model_state_dict"]
-    if not isinstance(state, dict):
-        raise ValueError(f"Unsupported checkpoint format: {checkpoint_path}")
-    model.load_state_dict(state)
-    model.eval()
-    return model
-
-
-def _softmax_np(logits: np.ndarray) -> np.ndarray:
-    z = np.asarray(logits, dtype=np.float64)
-    z = z - np.max(z, axis=-1, keepdims=True)
-    exp_z = np.exp(z)
-    denom = np.sum(exp_z, axis=-1, keepdims=True)
-    return exp_z / np.clip(denom, a_min=1e-12, a_max=None)
-
-
-def _median_filter_states(states: np.ndarray, window: int) -> np.ndarray:
-    z = np.asarray(states, dtype=np.int64).reshape(-1)
-    n = int(z.size)
-    if n == 0:
-        return z.copy()
-
-    w = int(max(1, window))
-    if w < 3:
-        return z.copy()
-    if w % 2 == 0:
-        w += 1
-    half = w // 2
-
-    out = np.zeros_like(z)
-    for i in range(n):
-        lo = max(0, i - half)
-        hi = min(n, i + half + 1)
-        out[i] = int(np.median(z[lo:hi]))
-    return out
-
-
-def predict_sorted_gmm_labels_from_params(power_values: np.ndarray, gmm_params: Dict[str, object]) -> np.ndarray:
-    y = np.asarray(power_values, dtype=np.float64).reshape(-1)
-    if y.size == 0:
-        return np.zeros((0,), dtype=np.int64)
-
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
-    weights = np.asarray(gmm_params.get("weights", np.ones_like(means)), dtype=np.float64).reshape(-1)
-    if means.size == 0:
-        raise ValueError("GMM means are empty")
-    if variances.size != means.size or weights.size != means.size:
-        raise ValueError("GMM parameter shape mismatch")
-
-    weights = np.clip(weights, a_min=1e-12, a_max=None)
-    weights = weights / np.sum(weights)
-
-    x = y.reshape(-1, 1)
-    log_norm = -0.5 * (np.log(2.0 * np.pi * variances).reshape(1, -1) + ((x - means.reshape(1, -1)) ** 2) / variances.reshape(1, -1))
-    log_prob = log_norm + np.log(weights).reshape(1, -1)
-    return np.argmax(log_prob, axis=1).astype(np.int64)
-
-
-def estimate_ar1_params(
-    gmm_params: Dict[str, object],
-    training_power_traces: Sequence[np.ndarray],
-    training_labels_traces: Sequence[np.ndarray],
-    K: int,
-    min_run_length: int = AR1_MIN_RUN_LENGTH,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
-    if means.size != int(K) or variances.size != int(K):
-        raise ValueError(f"GMM parameter size mismatch for K={K}")
-
-    state_run_residuals: Dict[int, List[np.ndarray]] = {k: [] for k in range(int(K))}
-    run_min = int(max(2, min_run_length))
-    for power, labels in zip(training_power_traces, training_labels_traces):
-        p = np.asarray(power, dtype=np.float64).reshape(-1)
-        s = np.asarray(labels, dtype=np.int64).reshape(-1)
-        n = int(min(len(p), len(s)))
-        if n < 2:
-            continue
-        p = p[:n]
-        s = s[:n]
-
-        run_start = 0
-        for i in range(1, n + 1):
-            if i == n or s[i] != s[run_start]:
-                state = int(s[run_start])
-                run_len = int(i - run_start)
-                if run_len >= run_min and 0 <= state < int(K):
-                    run_power = p[run_start:i]
-                    run_residuals = run_power - float(means[state])
-                    state_run_residuals[state].append(run_residuals.astype(np.float64))
-                run_start = i
-
-    phi = np.zeros((int(K),), dtype=np.float64)
-    sigma_marginal = np.sqrt(variances).astype(np.float64)
-    sigma_innov = np.zeros((int(K),), dtype=np.float64)
-
-    for k in range(int(K)):
-        runs = state_run_residuals[k]
-        if len(runs) == 0:
-            phi[k] = 0.0
-            sigma_innov[k] = sigma_marginal[k]
-            continue
-
-        numer = 0.0
-        denom = 0.0
-        for r in runs:
-            if r.size < 2:
-                continue
-            numer += float(np.sum(r[:-1] * r[1:]))
-            denom += float(np.sum(r[:-1] ** 2))
-
-        if denom > 1e-12:
-            phi_raw = numer / denom
-            phi[k] = float(np.clip(phi_raw, 0.0, 0.99))
-        else:
-            phi[k] = 0.0
-
-        sigma_innov[k] = float(sigma_marginal[k] * np.sqrt(max(1e-12, 1.0 - (phi[k] ** 2))))
-
-    return phi, sigma_innov, sigma_marginal
-
-
-def generate_gmm_bigru_trace_ar1_thresholded(
-    *,
-    logits: np.ndarray | torch.Tensor,
-    gmm_params: Dict[str, object],
-    phi: np.ndarray,
-    sigma_innov: np.ndarray,
-    sigma_marginal: np.ndarray,
-    p0: float,
-    seed: Optional[int] = None,
-    decode_mode: str = "stochastic",
-    median_filter_window: int = 1,
-    phi_threshold: float = AR1_PHI_THRESHOLD,
-    clamp_range: Optional[Tuple[float, float]] = None,
-) -> Dict[str, np.ndarray]:
-    if isinstance(logits, torch.Tensor):
-        z = logits.detach().cpu().numpy()
-    else:
-        z = np.asarray(logits, dtype=np.float64)
-    if z.ndim == 3 and z.shape[0] == 1:
-        z = z[0]
-    if z.ndim != 2:
-        raise ValueError(f"logits must have shape (T,K) or (1,T,K); got {z.shape}")
-
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    K = int(means.size)
-    if K <= 0:
-        raise ValueError("GMM means are empty")
-    if z.shape[1] != K:
-        raise ValueError(f"logits K mismatch: got {z.shape[1]} but GMM has {K}")
-
-    phi_arr = np.asarray(phi, dtype=np.float64).reshape(-1)
-    sigma_innov_arr = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
-    sigma_marginal_arr = np.asarray(sigma_marginal, dtype=np.float64).reshape(-1)
-    if phi_arr.size != K or sigma_innov_arr.size != K or sigma_marginal_arr.size != K:
-        raise ValueError(f"phi/sigma arrays size mismatch for K={K}")
-
-    use_ar1 = phi_arr >= float(phi_threshold)
-    phi_gen = np.where(use_ar1, phi_arr, 0.0).astype(np.float64)
-    sigma_gen = np.where(use_ar1, sigma_innov_arr, sigma_marginal_arr).astype(np.float64)
-
-    probs = _softmax_np(z)
-    mode = str(decode_mode).strip().lower()
-    if mode not in {"stochastic", "argmax"}:
-        raise ValueError(f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}")
-
-    rng = np.random.default_rng(seed)
-    if mode == "argmax":
-        states_raw = np.argmax(probs, axis=-1).astype(np.int64)
-    else:
-        states_raw = np.array([rng.choice(K, p=probs_t) for probs_t in probs], dtype=np.int64)
-    states = _median_filter_states(states_raw, int(median_filter_window))
-
-    T = int(z.shape[0])
-    power = np.zeros((T,), dtype=np.float64)
-    p_prev = float(p0)
-    for t in range(T):
-        s = int(states[t])
-        mu = float(means[s])
-        p_t = float(mu + (phi_gen[s] * (p_prev - mu)) + float(rng.normal(0.0, sigma_gen[s])))
-        if clamp_range is not None:
-            lo, hi = float(clamp_range[0]), float(clamp_range[1])
-            if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
-                margin = 0.05 * (hi - lo)
-                p_t = float(np.clip(p_t, lo - margin, hi + margin))
-        power[t] = p_t
-        p_prev = p_t
-
-    return {
-        "power_w": power.astype(np.float64),
-        "states": states.astype(np.int64),
-        "states_raw": states_raw.astype(np.int64),
-        "probs": probs.astype(np.float64),
-        "use_ar1": use_ar1.astype(bool),
-        "phi_gen": phi_gen.astype(np.float64),
-        "sigma_gen": sigma_gen.astype(np.float64),
-    }
-
-
-def generate_gmm_bigru_trace_ar1(
-    *,
-    logits: np.ndarray | torch.Tensor,
-    gmm_params: Dict[str, object],
-    phi: np.ndarray,
-    sigma_innov: np.ndarray,
-    p0: float,
-    seed: Optional[int] = None,
-    decode_mode: str = "stochastic",
-    median_filter_window: int = 1,
-    clamp_range: Optional[Tuple[float, float]] = None,
-) -> Dict[str, np.ndarray]:
-    sigma_marginal = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
-    return generate_gmm_bigru_trace_ar1_thresholded(
-        logits=logits,
-        gmm_params=gmm_params,
-        phi=phi,
-        sigma_innov=sigma_innov,
-        sigma_marginal=sigma_marginal,
-        p0=p0,
-        seed=seed,
-        decode_mode=decode_mode,
-        median_filter_window=median_filter_window,
-        phi_threshold=0.0,
-        clamp_range=clamp_range,
-    )
+_load_model = load_gru_classifier
 
 
 def _plot_overlay(path: str, *, dt: float, gt: np.ndarray, pred: np.ndarray, title: str) -> None:
@@ -718,12 +376,18 @@ def evaluate_from_artifacts(
     base_seed: int = 42,
     device: str = "auto",
     acf_max_lag: int = 50,
+    generation_mode: str = "ar1_thresholded",
     decode_mode: str = "stochastic",
     median_filter_window: int = 1,
     plots: bool = True,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
+    generation_mode_resolved = str(generation_mode).strip().lower()
+    if generation_mode_resolved not in {"iid", "ar1", "ar1_thresholded"}:
+        raise ValueError(
+            "generation_mode must be one of {'iid', 'ar1', 'ar1_thresholded'}"
+        )
     if decode_mode not in {"stochastic", "argmax"}:
         raise ValueError(f"decode_mode must be one of {{'stochastic','argmax'}}; got {decode_mode}")
 
@@ -754,6 +418,7 @@ def evaluate_from_artifacts(
 
     per_seed_rows: List[Dict[str, object]] = []
     per_trace_rows: List[Dict[str, object]] = []
+    per_config_seed_rows: List[Dict[str, object]] = []
     config_rows: List[Dict[str, object]] = []
     config_results: Dict[str, Dict[str, object]] = {}
     seeds = [int(base_seed) + i for i in range(int(num_seeds))]
@@ -784,9 +449,11 @@ def evaluate_from_artifacts(
 
             k = int(row.get("k", gmm_cfg["k"]))
             feature_set = str(row.get("feature_set", norm_payload.get("feature_set", "f2"))).lower()
-            if feature_set not in {"f2", "f3"}:
+            if feature_set == "f3":
+                raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+            if feature_set != "f2":
                 raise ValueError(f"invalid feature_set for '{config_id}': {feature_set}")
-            input_dim = int(row.get("input_dim", 2 if feature_set == "f2" else 3))
+            input_dim = int(row.get("input_dim", 2))
             hidden_dim = int(row.get("hidden_dim", norm_payload.get("hidden_dim", 64)))
             num_layers = int(row.get("num_layers", norm_payload.get("num_layers", 1)))
             if k != int(gmm_cfg["k"]):
@@ -905,6 +572,12 @@ def evaluate_from_artifacts(
             representative_seed = int(seeds[0])
             representative_gt: Optional[np.ndarray] = None
             representative_pred: Optional[np.ndarray] = None
+            gt_traces_by_seed: Dict[int, List[np.ndarray]] = {
+                int(seed): [] for seed in seeds
+            }
+            pred_traces_by_seed: Dict[int, List[np.ndarray]] = {
+                int(seed): [] for seed in seeds
+            }
 
             for tr in trace_records:
                 trace_idx = int(tr["trace_idx"])
@@ -974,25 +647,66 @@ def evaluate_from_artifacts(
                         raise ValueError(f"rollout feature shape mismatch: {features_norm.shape} vs input_dim={input_dim}")
 
                     with torch.no_grad():
-                        x = torch.from_numpy(features_norm).to(device=resolved_device, dtype=torch.float32).unsqueeze(0)
-                        logits = model(x)[0].detach().cpu().numpy()
+                        x = torch.tensor(
+                            features_norm.tolist(),
+                            dtype=torch.float32,
+                            device=resolved_device,
+                        ).unsqueeze(0)
+                        logits_t = model(x)[0].detach().cpu()
+                        try:
+                            logits = np.asarray(logits_t.numpy(), dtype=np.float64)
+                        except Exception:
+                            logits = np.asarray(logits_t.tolist(), dtype=np.float64)
 
                     seed_rows: List[Dict[str, object]] = []
                     pred_by_seed: Dict[int, np.ndarray] = {}
                     for seed_value in seeds:
-                        gen = generate_gmm_bigru_trace_ar1_thresholded(
-                            logits=logits,
-                            gmm_params=gmm_cfg,
-                            phi=phi,
-                            sigma_innov=sigma_innov,
-                            sigma_marginal=sigma_marginal,
-                            p0=float(tr["p0"]),
-                            seed=int(seed_value),
-                            decode_mode=decode_mode,
-                            median_filter_window=int(median_filter_window),
-                            phi_threshold=float(AR1_PHI_THRESHOLD),
-                            clamp_range=(norm_cfg["power_min"], norm_cfg["power_max"]),
-                        )
+                        if generation_mode_resolved == "iid":
+                            gen = generate_gmm_bigru_trace(
+                                logits=logits,
+                                gmm_params=gmm_cfg,
+                                seed=int(seed_value),
+                                decode_mode=decode_mode,
+                                median_filter_window=int(median_filter_window),
+                                clamp_range=(
+                                    norm_cfg["power_min"],
+                                    norm_cfg["power_max"],
+                                ),
+                            )
+                        elif generation_mode_resolved == "ar1":
+                            gen = generate_gmm_bigru_trace_ar1_thresholded(
+                                logits=logits,
+                                gmm_params=gmm_cfg,
+                                phi=phi,
+                                sigma_innov=sigma_innov,
+                                sigma_marginal=sigma_marginal,
+                                p0=float(tr["p0"]),
+                                seed=int(seed_value),
+                                decode_mode=decode_mode,
+                                median_filter_window=int(median_filter_window),
+                                phi_threshold=0.0,
+                                clamp_range=(
+                                    norm_cfg["power_min"],
+                                    norm_cfg["power_max"],
+                                ),
+                            )
+                        else:
+                            gen = generate_gmm_bigru_trace_ar1_thresholded(
+                                logits=logits,
+                                gmm_params=gmm_cfg,
+                                phi=phi,
+                                sigma_innov=sigma_innov,
+                                sigma_marginal=sigma_marginal,
+                                p0=float(tr["p0"]),
+                                seed=int(seed_value),
+                                decode_mode=decode_mode,
+                                median_filter_window=int(median_filter_window),
+                                phi_threshold=float(AR1_PHI_THRESHOLD),
+                                clamp_range=(
+                                    norm_cfg["power_min"],
+                                    norm_cfg["power_max"],
+                                ),
+                            )
                         pred = np.asarray(gen["power_w"], dtype=np.float64).reshape(-1)
                         n = int(min(len(gt), len(pred)))
                         if n <= 0:
@@ -1005,6 +719,8 @@ def evaluate_from_artifacts(
                             dt=dt,
                             acf_max_lag=int(acf_max_lag),
                         )
+                        energy_gt_j = _total_energy_from_trace(gt_n, dt=dt)
+                        energy_pred_j = _total_energy_from_trace(pred_n, dt=dt)
                         seed_row = {
                             "config_id": config_id,
                             "trace_idx": trace_idx,
@@ -1013,11 +729,15 @@ def evaluate_from_artifacts(
                             "num_points": int(n),
                             "status": "ok",
                             "reason": "",
+                            "energy_gt_j": float(energy_gt_j),
+                            "energy_pred_j": float(energy_pred_j),
                             **metrics,
                         }
                         per_seed_rows.append(seed_row)
                         seed_rows.append(seed_row)
                         pred_by_seed[int(seed_value)] = pred_n
+                        gt_traces_by_seed[int(seed_value)].append(gt_n.copy())
+                        pred_traces_by_seed[int(seed_value)].append(pred_n.copy())
 
                     trace_row = {
                         "config_id": config_id,
@@ -1062,6 +782,37 @@ def evaluate_from_artifacts(
             if len(eval_trace_rows) == 0:
                 raise ValueError("all test traces failed or were skipped")
 
+            config_seed_rows: List[Dict[str, object]] = []
+            for seed_value in seeds:
+                seed_int = int(seed_value)
+                gt_traces = gt_traces_by_seed.get(seed_int, [])
+                pred_traces = pred_traces_by_seed.get(seed_int, [])
+                if len(gt_traces) == 0 or len(pred_traces) == 0:
+                    continue
+                aggregate_metrics = compute_aggregate_power_metrics(
+                    gt_traces,
+                    pred_traces,
+                    dt=dt,
+                    acf_max_lag=int(acf_max_lag),
+                )
+                total_points = int(
+                    sum(len(np.asarray(arr, dtype=np.float64).reshape(-1)) for arr in gt_traces)
+                )
+                config_seed_row = {
+                    "config_id": config_id,
+                    "seed": seed_int,
+                    "status": "evaluated",
+                    "reason": "",
+                    "num_eval_traces": int(len(gt_traces)),
+                    "num_points": total_points,
+                    **aggregate_metrics,
+                }
+                per_config_seed_rows.append(config_seed_row)
+                config_seed_rows.append(config_seed_row)
+
+            if len(config_seed_rows) == 0:
+                raise ValueError("no config-seed aggregate metrics were computed")
+
             plot_paths: Dict[str, str] = {}
             ar1_params_plot_path = ""
             if plots and representative_gt is not None and representative_pred is not None:
@@ -1093,7 +844,7 @@ def evaluate_from_artifacts(
                 "config_id": config_id,
                 "status": "evaluated",
                 "reason": "",
-                "generation_mode": "ar1_thresholded",
+                "generation_mode": generation_mode_resolved,
                 "k": int(k),
                 "feature_set": feature_set,
                 "decode_mode": decode_mode,
@@ -1109,6 +860,18 @@ def evaluate_from_artifacts(
                 "p95_error_pct_median": _nanmedian(r["p95_error_pct_median"] for r in eval_trace_rows),
                 "p99_error_pct_median": _nanmedian(r["p99_error_pct_median"] for r in eval_trace_rows),
                 "delta_energy_pct_median": _nanmedian(r["delta_energy_pct_median"] for r in eval_trace_rows),
+                "ks_stat_all_heldout": _nanmedian(r["ks_stat"] for r in config_seed_rows),
+                "acf_r2_all_heldout": _nanmedian(r["acf_r2"] for r in config_seed_rows),
+                "nrmse_all_heldout": _nanmedian(r["nrmse"] for r in config_seed_rows),
+                "p95_error_pct_all_heldout": _nanmedian(
+                    r["p95_error_pct"] for r in config_seed_rows
+                ),
+                "p99_error_pct_all_heldout": _nanmedian(
+                    r["p99_error_pct"] for r in config_seed_rows
+                ),
+                "delta_energy_pct_all_heldout": _nanmedian(
+                    r["delta_energy_pct"] for r in config_seed_rows
+                ),
                 "phi_median": _nanmedian(phi),
                 "representative_trace_idx": int(representative_trace_idx),
                 "representative_seed": int(representative_seed),
@@ -1135,6 +898,8 @@ def evaluate_from_artifacts(
         "status",
         "reason",
         "num_points",
+        "energy_gt_j",
+        "energy_pred_j",
         "ks_stat",
         "acf_r2",
         "nrmse",
@@ -1173,6 +938,26 @@ def evaluate_from_artifacts(
     per_trace_csv = os.path.join(out_dir, "per_trace_metrics.csv")
     _write_csv(per_trace_csv, per_trace_rows, per_trace_fields)
 
+    per_config_seed_fields = [
+        "config_id",
+        "seed",
+        "status",
+        "reason",
+        "num_eval_traces",
+        "num_points",
+        "ks_stat",
+        "acf_r2",
+        "nrmse",
+        "p95_error_pct",
+        "p99_error_pct",
+        "delta_energy_pct",
+    ]
+    for r in per_config_seed_rows:
+        for f in per_config_seed_fields:
+            r.setdefault(f, "")
+    per_config_seed_csv = os.path.join(out_dir, "per_config_seed_metrics.csv")
+    _write_csv(per_config_seed_csv, per_config_seed_rows, per_config_seed_fields)
+
     config_fields = [
         "config_id",
         "status",
@@ -1193,6 +978,12 @@ def evaluate_from_artifacts(
         "p95_error_pct_median",
         "p99_error_pct_median",
         "delta_energy_pct_median",
+        "ks_stat_all_heldout",
+        "acf_r2_all_heldout",
+        "nrmse_all_heldout",
+        "p95_error_pct_all_heldout",
+        "p99_error_pct_all_heldout",
+        "delta_energy_pct_all_heldout",
         "phi_median",
         "representative_trace_idx",
         "representative_seed",
@@ -1224,8 +1015,12 @@ def evaluate_from_artifacts(
             "median_filter_window": int(median_filter_window),
             "device": str(resolved_device),
             "plots": bool(plots),
-            "generation_mode": "ar1_thresholded",
-            "phi_threshold": float(AR1_PHI_THRESHOLD),
+            "generation_mode": generation_mode_resolved,
+            "phi_threshold": (
+                float(AR1_PHI_THRESHOLD)
+                if generation_mode_resolved == "ar1_thresholded"
+                else (0.0 if generation_mode_resolved == "ar1" else None)
+            ),
             "min_run_length": int(AR1_MIN_RUN_LENGTH),
         },
         "summary": {
@@ -1237,6 +1032,7 @@ def evaluate_from_artifacts(
         "artifacts": {
             "per_seed_metrics_csv": per_seed_csv,
             "per_trace_metrics_csv": per_trace_csv,
+            "per_config_seed_metrics_csv": per_config_seed_csv,
             "config_summary_csv": config_csv,
             "plots_dir": plots_dir,
             "ar1_params_dir": ar1_params_dir,
@@ -1259,6 +1055,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)
     parser.add_argument("--acf-max-lag", type=int, default=50)
+    parser.add_argument(
+        "--generation-mode",
+        choices=["iid", "ar1", "ar1_thresholded"],
+        default="ar1_thresholded",
+    )
     parser.add_argument("--decode-mode", choices=["stochastic", "argmax"], default="stochastic")
     parser.add_argument("--median-filter-window", type=int, default=1)
     parser.add_argument("--device", default="auto")
@@ -1279,6 +1080,7 @@ def main() -> None:
         base_seed=args.base_seed,
         device=args.device,
         acf_max_lag=args.acf_max_lag,
+        generation_mode=args.generation_mode,
         decode_mode=args.decode_mode,
         median_filter_window=args.median_filter_window,
         plots=(not args.no_plots),

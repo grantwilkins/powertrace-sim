@@ -7,58 +7,11 @@ Policy:
 """
 
 import os
-import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-
-
-def parse_config_id(config_id: str) -> Dict[str, str]:
-    """
-    Parse config_id string into components.
-
-    Args:
-        config_id: Format "{model}-{size}b_{hardware}_tp{digits}"
-                   Examples:
-                   - "deepseek-r1-distill-70b_H100_tp4"
-                   - "llama-3-8b_A100_tp1"
-                   - "gpt-oss-120b_H100_tp8"
-
-    Returns:
-        Dict with keys:
-            - model_family: Model name without size (e.g., "deepseek-r1-distill", "llama-3")
-            - model_size: Parameter count in billions as string (e.g., "70", "8")
-            - hardware: GPU type ("A100" or "H100")
-            - tp: Tensor parallelism factor as string (e.g., "1", "4", "8")
-
-    Raises:
-        ValueError: If config_id format is invalid or cannot be parsed
-
-    Example:
-        >>> parse_config_id("deepseek-r1-distill-70b_H100_tp4")
-        {'model_family': 'deepseek-r1-distill', 'model_size': '70',
-         'hardware': 'H100', 'tp': '4'}
-    """
-    # Pattern: {model_name}-{size}b_{hardware}_tp{digits}
-    # The model name ends with -{size}b, then hardware and TP follow
-    pattern = r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$"
-    match = re.match(pattern, config_id)
-
-    if not match:
-        raise ValueError(
-            f"Invalid config_id format: '{config_id}'. "
-            f"Expected format: '{{model}}-{{size}}b_{{hardware}}_tp{{digits}}'"
-        )
-
-    model_family, model_size, hardware, tp = match.groups()
-
-    return {
-        "model_family": model_family,
-        "model_size": model_size,
-        "hardware": hardware,
-        "tp": tp,
-    }
+from model.utils.config import parse_config_id
 
 
 def infer_arch_type(model_family: str, model_size: int) -> str:

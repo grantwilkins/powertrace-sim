@@ -22,34 +22,11 @@ from model.classifiers.gmm_bigru import (
     load_gmm_params_json_dict,
 )
 from model.classifiers.gru import GRUClassifier
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
-
-
-def _resolve_device(device: Optional[torch.device | str]) -> torch.device:
-    if device is None:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if isinstance(device, torch.device):
-        return device
-    if str(device).lower() == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(str(device))
-
+from model.utils.config import resolve_device as _resolve_device
+from model.utils.io import (
+    ensure_dir as _ensure_dir,
+    resolve_existing_path as _resolve_existing_path,
+)
 
 def _read_json(path: str) -> Dict[str, object]:
     with open(path, "r") as f:
@@ -229,8 +206,10 @@ def run_inference_from_artifacts(
         if feature_set is not None
         else config_entry.get("feature_set", norm_payload.get("feature_set", "f2"))
     ).lower()
-    if resolved_feature_set not in {"f2", "f3"}:
-        raise ValueError(f"feature_set must be one of {{'f2','f3'}}; got {resolved_feature_set}")
+    if resolved_feature_set == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+    if resolved_feature_set != "f2":
+        raise ValueError(f"feature_set must be 'f2'; got {resolved_feature_set}")
 
     resolved_dt = float(norm_payload.get("dt", 0.25) if dt is None else dt)
     if (not np.isfinite(resolved_dt)) or resolved_dt <= 0.0:
@@ -274,8 +253,20 @@ def run_inference_from_artifacts(
     model.eval()
 
     with torch.no_grad():
-        x = torch.from_numpy(features_norm).to(device=resolved_device, dtype=torch.float32).unsqueeze(0)
-        logits = model(x)[0].detach().cpu().numpy()
+        try:
+            x_tensor = torch.from_numpy(features_norm)
+        except RuntimeError as exc:
+            if "Numpy is not available" not in str(exc):
+                raise
+            x_tensor = torch.tensor(features_norm.tolist(), dtype=torch.float32)
+        x = x_tensor.to(device=resolved_device, dtype=torch.float32).unsqueeze(0)
+        logits_tensor = model(x)[0].detach().cpu()
+        try:
+            logits = logits_tensor.numpy()
+        except RuntimeError as exc:
+            if "Numpy is not available" not in str(exc):
+                raise
+            logits = np.asarray(logits_tensor.tolist(), dtype=np.float32)
     generated = generate_gmm_bigru_trace(
         logits=logits,
         gmm_params=gmm_cfg,
@@ -328,7 +319,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gmm-params", default=None)
     parser.add_argument("--norm-params", default=None)
     parser.add_argument("--k", type=int, default=None)
-    parser.add_argument("--feature-set", choices=["f2", "f3"], default=None)
+    parser.add_argument("--feature-set", choices=["f2"], default=None)
     parser.add_argument("--hidden-dim", type=int, default=None)
     parser.add_argument("--num-layers", type=int, default=None)
     return parser

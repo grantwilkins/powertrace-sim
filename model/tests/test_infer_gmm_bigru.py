@@ -13,13 +13,8 @@ os.environ.setdefault("KMP_USE_SHM", "0")
 import torch
 
 from model.classifiers.gru import GRUClassifier
+from model.utils.io import write_json as _write_json
 from model.scripts.infer_gmm_bigru import run_inference_from_artifacts
-
-
-def _write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
 
 
 class TestContinuousV1GMMBiGRUInfer(unittest.TestCase):

@@ -20,49 +20,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _write_json(path: str, payload: Dict[str, object]) -> None:
-    _ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
-
-
-def _power_timestamp_to_epoch(ts_text: str) -> Optional[float]:
-    """Parse power CSV timestamp to Unix epoch seconds."""
-    text = ts_text.strip()
-    formats = (
-        "%Y/%m/%d %H:%M:%S.%f",
-        "%Y/%m/%d %H:%M:%S",
-        "%Y-%m-%d %H:%M:%S.%f",
-        "%Y-%m-%d %H:%M:%S",
-    )
-    for fmt in formats:
-        try:
-            dt_obj = datetime.strptime(text, fmt)
-            # Power CSV timestamps are timezone-naive wall times.
-            # Interpret them as UTC so epochs are stable across host timezones.
-            return dt_obj.replace(tzinfo=timezone.utc).timestamp()
-        except ValueError:
-            pass
-    try:
-        dt_obj = datetime.fromisoformat(text.replace("/", "-"))
-        if dt_obj.tzinfo is None:
-            dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-        else:
-            dt_obj = dt_obj.astimezone(timezone.utc)
-        return dt_obj.timestamp()
-    except ValueError:
-        return None
-
+from model.utils.io import (
+    ensure_dir as _ensure_dir,
+    power_timestamp_to_epoch as _power_timestamp_to_epoch,
+    safe_slug as _safe_slug,
+    write_json as _write_json,
+)
 
 def _parse_power_csv(
     csv_path: str,

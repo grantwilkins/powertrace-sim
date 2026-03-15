@@ -1,7 +1,7 @@
 \begin{table}[t]
 \centering
 \small
-\caption{Baseline comparison at node level, averaged across representative dense configurations.}
+\caption{Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations.}
 \label{tab:baselines-node}
 \vspace{0.4em}
 \begin{tabular}{lcccc}
@@ -12,10 +12,10 @@
 \textbf{NRMSE~$\downarrow$} &
 \textbf{$\Delta$E (\%)~$\downarrow$} \\
 \midrule
-TDP & 1.00 & --- & 2.80 & 352.40 \\
-Mean & 0.74 & --- & 0.42 & 24.21 \\
-Splitwise (Strict) & 1.00 & 0.68 & 1.19 & 146.00 \\
-Ours & 0.20 & 0.98 & 0.34 & 5.53 \\
+TDP & 1.00 & --- & 1.66 & 243.60 \\
+Mean & 0.69 & --- & 0.32 & 17.35 \\
+Splitwise & 1.00 & 0.36 & 0.68 & 91.84 \\
+Ours & 0.12 & 0.99 & 0.28 & 6.09 \\
 \bottomrule
 \end{tabular}
 \end{table}

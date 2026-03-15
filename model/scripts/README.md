@@ -24,7 +24,7 @@ python -m model.scripts.train_gmm_bigru \
 | `--stage0-manifest` | Path to data manifest JSON | Required |
 | `--out-dir` | Output directory for artifacts | Required |
 | `--num-components` | Number of GMM components (K) | 10 |
-| `--feature-set` | Feature set: f2 or f3 | f2 |
+| `--feature-set` | Feature set (f2 only) | f2 |
 | `--config-ids` | Specific configs to train (space-separated) | All |
 | `--hidden-size` | GRU hidden dimension | 64 |
 | `--num-layers` | Number of GRU layers | 2 |
@@ -151,20 +151,6 @@ Generate paper-quality figures for methods section.
 ```bash
 python -m model.scripts.generate_methods_figures \
     --out-dir figures/methods
-```
-
-### `simulate_server_power.py`
-
-Standalone server power simulation script.
-
-```bash
-python -m model.scripts.simulate_server_power \
-    --model llama-3-8b \
-    --hardware H100 \
-    --tp 1 \
-    --duration 600 \
-    --rate 1.0 \
-    --out-csv server_power.csv
 ```
 
 ### `power_regression_analysis.py`

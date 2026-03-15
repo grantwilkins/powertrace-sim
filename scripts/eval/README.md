@@ -20,7 +20,7 @@ python -m scripts.eval.run_baselines_node \
 **Baselines Compared:**
 - **TDP**: Constant thermal design power
 - **Mean**: Average power from training data
-- **Splitwise LUT**: Phase-aware lookup table
+- **Splitwise Strict Emulation**: Request-centric LUT scheduler surrogate
 - **Ours**: GMM-BiGRU (with AR(1) variants)
 
 **Output:**
@@ -79,13 +79,40 @@ Contains implementations of all baseline generation methods:
 from scripts.eval.baselines import (
     generate_tdp,           # Constant TDP
     generate_mean,          # Training mean
-    generate_splitwise_lut, # Splitwise lookup table
+    generate_splitwise_strict_emulation, # Splitwise strict emulation
     generate_ours,          # GMM-BiGRU pipeline
-    build_splitwise_lut_params,  # LUT parameter estimation
+    build_splitwise_lut_params,  # strict emulation LUT parameter estimation
 )
 ```
 
-### 2. Azure Trace Processing
+### 2. Azure Facility Pipeline
+
+The Azure facility pipeline is now baseline-inclusive by default at the top level. The maintained workflow is:
+- `ours`
+- `splitwise_strict`
+- plus facility baselines in downstream artifacts: `tdp_baseline`, `mean_baseline`
+
+Default Azure configuration:
+- `config_id`: `llama-3-70b_A100_tp4`
+- Splitwise source curves: `llama-3-70b` on `a100-80gb` with `tp=4`
+
+Default output roots:
+- `results/azure_facility/node_traces/{method}`
+- `results/azure_facility/aggregated/{method}`
+- `results/eval_paper/azure_facility_metrics.csv`
+- `results/eval_paper/azure_facility_ldc_15min.csv`
+- `results/eval_paper/azure_facility_site_traces_15min.csv`
+- `results/eval_paper/azure_oversubscription_capacity.{csv,json}`
+- `results/eval_paper/azure_facility_sizing_table.{csv,json,tex}`
+- `figures/azure_figure_*.pdf`
+
+#### `run_azure_pipeline.py`
+
+Run the full Azure facility workflow end to end.
+
+```bash
+python -m scripts.eval.run_azure_pipeline
+```
 
 #### `parse_azure_trace.py`
 
@@ -114,40 +141,64 @@ Convert parsed traces to per-node request streams.
 ```bash
 python -m scripts.eval.azure_to_node_streams \
     --input data/azure_trace/parsed \
-    --output data/azure_trace/node_requests \
-    --num-nodes 32
-```
-
-#### `azure_aggregate.py`
-
-Aggregate node-level traces to rack/row/facility levels.
-
-```bash
-python -m scripts.eval.azure_aggregate \
-    --input results/azure_facility/node_traces \
-    --output results/azure_facility/aggregated
+    --output data/azure_facility/node_streams \
+    --num-nodes 240
 ```
 
 #### `azure_generate_traces.py`
 
-Generate power traces from Azure request data.
+Generate per-node Azure power traces for `ours` and `splitwise_strict`.
 
 ```bash
 python -m scripts.eval.azure_generate_traces \
-    --requests data/azure_trace/node_requests \
-    --checkpoint-dir results/continuous_v1_gmm_bigru/k10_f2/checkpoints \
-    --out-dir results/azure_facility/node_traces
+    --node-stream-dir data/azure_facility/node_streams \
+    --output-root results/azure_facility/node_traces
+```
+
+#### `azure_aggregate.py`
+
+Aggregate node traces into rack, row, and site traces under `aggregated/{method}`.
+
+```bash
+python -m scripts.eval.azure_aggregate \
+    --node-traces-root results/azure_facility/node_traces \
+    --output-root results/azure_facility/aggregated
 ```
 
 #### `azure_metrics.py`
 
-Compute metrics on Azure facility traces.
+Write normalized multi-method facility metrics, 15-minute site traces, and load-duration rows.
 
 ```bash
 python -m scripts.eval.azure_metrics \
-    --generated results/azure_facility/aggregated \
-    --ground-truth data/azure_facility \
-    --out-csv results/azure_facility/metrics.csv
+    --aggregated-root results/azure_facility/aggregated \
+    --node-traces-root results/azure_facility/node_traces \
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
+    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv
+```
+
+#### `oversubscription_figure.py`
+
+Compute the max feasible rack count per method under the configured row-power risk rule.
+
+```bash
+python -m scripts.eval.oversubscription_figure \
+    --aggregated-root results/azure_facility/aggregated \
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv
+```
+
+#### `azure_figures.py`
+
+Generate Azure facility figures. Figure 1 is `ours` only; comparison figures include TDP, Mean, Splitwise, and Ours.
+
+```bash
+python -m scripts.eval.azure_figures \
+    --aggregated-root results/azure_facility/aggregated \
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
+    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv \
+    --out-dir figures
 ```
 
 #### `azure_trace_utils.py`
@@ -197,12 +248,12 @@ python -m scripts.eval.generate_trace_fidelity_table \
 
 #### `generate_azure_facility_sizing_table.py`
 
-Generate facility sizing analysis table.
+Generate the facility sizing comparison table for TDP, Mean, Splitwise, and Ours.
 
 ```bash
 python -m scripts.eval.generate_azure_facility_sizing_table \
-    --facility-metrics results/azure_facility/metrics.csv \
-    --out-tex figures/tables/facility_sizing.tex
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+    --out-tex results/eval_paper/azure_facility_sizing_table.tex
 ```
 
 ### 4. Figure Generation
@@ -225,8 +276,11 @@ Generate Azure-specific evaluation figures.
 
 ```bash
 python -m scripts.eval.azure_figures \
-    --data-dir results/azure_facility \
-    --out-dir figures/azure
+    --aggregated-root results/azure_facility/aggregated \
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
+    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv \
+    --out-dir figures
 ```
 
 #### `hierarchy_figure.py`
@@ -245,8 +299,8 @@ Generate power oversubscription analysis figure.
 
 ```bash
 python -m scripts.eval.oversubscription_figure \
-    --data-dir results/azure_facility \
-    --out-file figures/oversubscription.pdf
+    --aggregated-root results/azure_facility/aggregated \
+    --metrics-csv results/eval_paper/azure_facility_metrics.csv
 ```
 
 #### `aggregation_variance.py`
@@ -350,7 +404,7 @@ python -m scripts.eval.generate_power_cdf_comparison \
 | `nrmse` | Normalized RMSE | Lower |
 | `p95_error_pct` | 95th percentile error (%) | Lower |
 | `p99_error_pct` | 99th percentile error (%) | Lower |
-| `delta_energy_pct` | Total energy error (%) | Lower |
+| `delta_energy_pct` | Absolute total-trace energy error from `sum(power) * dt` (%) | Lower |
 
 ## Output Directory Structure
 

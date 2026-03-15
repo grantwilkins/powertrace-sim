@@ -24,17 +24,23 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.mixture import GaussianMixture
 
 from model.classifiers.gmm_bigru import (
     build_rollout_features_from_requests,
+    extract_norm_params,
     generate_gmm_bigru_trace,
+    generate_gmm_bigru_trace_ar1_thresholded,
     load_gmm_params_json_dict,
 )
-from model.classifiers.gru import GRUClassifier
-from model.scripts.eval_gmm_bigru import (
-    generate_gmm_bigru_trace_ar1_thresholded,
+from model.classifiers.model_loading import load_gru_classifier
+from model.utils.config import resolve_device as _resolve_device
+from model.utils.io import (
+    load_json as _load_json,
+    resolve_existing_path as _resolve_existing_path,
+    safe_slug as _safe_slug,
+    write_json as _write_json,
 )
+from model.utils.gaussian_mixture import make_gaussian_mixture
 
 COLOR_DARK = "#2c3e50"
 COLOR_RED = "#e74c3c"
@@ -131,60 +137,9 @@ def save_pdf(fig: Any, path: str | Path) -> None:
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
 
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
-
-
-def _load_json(path: str | Path) -> Dict[str, Any]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
-
-
-def _write_json(path: str | Path, payload: Dict[str, Any]) -> None:
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-
-
 def _read_csv_rows(path: str | Path) -> List[Dict[str, str]]:
     with open(path, "r", newline="") as f:
         return list(csv.DictReader(f))
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    path_text = str(path_str).strip()
-    if path_text == "":
-        return None
-    repo_root = Path(__file__).resolve().parents[2]
-    repo_name = repo_root.name
-    raw = Path(path_text)
-    if raw.is_absolute():
-        if raw.exists():
-            return str(raw)
-        # Handle manifests copied across machines with stale absolute roots.
-        parts = raw.parts
-        if repo_name in parts:
-            i = parts.index(repo_name)
-            suffix = Path(*parts[i + 1 :]) if (i + 1) < len(parts) else Path()
-            remapped = repo_root / suffix
-            if remapped.exists():
-                return str(remapped)
-        return None
-    local = Path(path_text)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    from_repo_root = repo_root / raw
-    if from_repo_root.exists():
-        return str(from_repo_root)
-    return None
 
 
 def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
@@ -386,21 +341,38 @@ def select_trace_by_best_median_nrmse(
     config_id: str,
     rate: float,
 ) -> int:
+    target_rate = float(rate)
+    all_candidates: List[Tuple[int, float, float]] = []  # (trace_idx, nrmse, rate)
     candidates: List[Tuple[int, float]] = []
     for row in rows:
         if str(row.get("config_id", "")) != str(config_id):
             continue
-        if str(row.get("status", "")) != "evaluated":
-            continue
-        if not rate_matches(row.get("rate", ""), rate):
+        if str(row.get("status", "")).strip().lower() != "evaluated":
             continue
         trace_idx = int(row.get("trace_idx", "-1"))
         nrmse = float(row.get("nrmse_median", "nan"))
-        if trace_idx < 0 or not np.isfinite(nrmse):
+        parsed_rate = normalize_rate(row.get("rate", ""))
+        if trace_idx < 0 or not np.isfinite(nrmse) or parsed_rate is None:
+            continue
+        all_candidates.append((trace_idx, nrmse, float(parsed_rate)))
+        if not rate_matches(row.get("rate", ""), target_rate):
             continue
         candidates.append((trace_idx, nrmse))
     if not candidates:
-        raise ValueError(f"No per-trace candidates for config={config_id}, rate={rate}")
+        if not all_candidates:
+            raise ValueError(
+                f"No per-trace candidates for config={config_id}, rate={target_rate}"
+            )
+        # Sparse fixtures may not include an exact rate bucket. Fall back to
+        # nearest available evaluated rate, then lowest nRMSE.
+        min_dist = min(abs(r - target_rate) for _, _, r in all_candidates)
+        nearest = [
+            (trace_idx, nrmse)
+            for trace_idx, nrmse, parsed_rate in all_candidates
+            if abs(parsed_rate - target_rate) <= (min_dist + 1e-12)
+        ]
+        nearest.sort(key=lambda x: (x[1], x[0]))
+        return int(nearest[0][0])
     candidates.sort(key=lambda x: (x[1], x[0]))
     return int(candidates[0][0])
 
@@ -445,20 +417,37 @@ def select_seed_nearest_median_nrmse(
     config_id: str,
     trace_idx: int,
 ) -> int:
+    config_seeds: List[int] = []
     candidates: List[Tuple[int, float]] = []
     for row in rows:
         if str(row.get("config_id", "")) != str(config_id):
             continue
-        if int(row.get("trace_idx", "-1")) != int(trace_idx):
+        status = str(row.get("status", "")).strip().lower()
+        if status not in {"", "ok", "evaluated"}:
             continue
-        if str(row.get("status", "")) != "ok":
+        try:
+            seed = int(row.get("seed", "-1"))
+        except Exception:
             continue
-        seed = int(row.get("seed", "-1"))
-        nrmse = float(row.get("nrmse", "nan"))
+        if seed >= 0:
+            config_seeds.append(seed)
+        try:
+            row_trace_idx = int(row.get("trace_idx", "-1"))
+        except Exception:
+            continue
+        if row_trace_idx != int(trace_idx):
+            continue
+        try:
+            nrmse = float(row.get("nrmse", "nan"))
+        except Exception:
+            continue
         if seed < 0 or not np.isfinite(nrmse):
             continue
         candidates.append((seed, nrmse))
     if not candidates:
+        if config_seeds:
+            # Some fixtures are sparse at trace-level; fall back to base seed.
+            return int(min(config_seeds))
         raise ValueError(
             f"No per-seed candidates for config={config_id}, trace_idx={trace_idx}"
         )
@@ -490,9 +479,8 @@ def bic_sweep(
     x = y.reshape(-1, 1)
     bics: List[float] = []
     for k in k_values:
-        gmm = GaussianMixture(
+        gmm = make_gaussian_mixture(
             n_components=int(k),
-            covariance_type="full",
             random_state=int(random_state),
             n_init=int(max(1, n_init)),
             max_iter=int(max(10, max_iter)),
@@ -522,15 +510,14 @@ def normalize_bic_values(bic_values: Sequence[float]) -> List[float]:
     return ((arr - min_v) / denom).astype(np.float64).tolist()
 
 
-def _fit_gmm(power_values: np.ndarray, k: int) -> GaussianMixture:
+def _fit_gmm(power_values: np.ndarray, k: int) -> Any:
     y = np.asarray(power_values, dtype=np.float64).reshape(-1)
     y = y[np.isfinite(y)]
     if y.size < int(k):
         raise ValueError(f"Need at least k points for GMM fit; got n={y.size}, k={k}")
     x = y.reshape(-1, 1)
-    gmm = GaussianMixture(
+    gmm = make_gaussian_mixture(
         n_components=int(k),
-        covariance_type="full",
         random_state=42,
         n_init=10,
         max_iter=300,
@@ -790,33 +777,7 @@ def build_requests_from_stage0_json(
     return requests
 
 
-def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
-    required = (
-        "active_mean",
-        "active_std",
-        "t_arrive_log_mean",
-        "t_arrive_log_std",
-        "power_mean",
-        "power_std",
-        "power_min",
-        "power_max",
-        "delta_A_mean",
-        "delta_A_std",
-    )
-    missing = [k for k in required if k not in norm_payload]
-    if missing:
-        raise ValueError(f"Norm params missing keys: {missing}")
-
-    out = {k: float(norm_payload[k]) for k in required}
-    if out["active_std"] <= 0.0:
-        raise ValueError("active_std must be positive")
-    if out["t_arrive_log_std"] <= 0.0:
-        raise ValueError("t_arrive_log_std must be positive")
-    if out["power_std"] <= 0.0:
-        raise ValueError("power_std must be positive")
-    if out["delta_A_std"] <= 0.0:
-        raise ValueError("delta_A_std must be positive")
-    return out
+_extract_norm_for_eval = extract_norm_params
 
 
 def _resolve_throughput_entry(
@@ -835,12 +796,6 @@ def _resolve_throughput_entry(
     if decode is None or decode <= 0:
         raise ValueError(f"Invalid decode throughput for {config_id}")
     return {"lambda_prefill": float(prefill), "lambda_decode": float(decode)}
-
-
-def _resolve_device(device: str | None) -> torch.device:
-    if device is None or str(device).lower() == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(str(device))
 
 
 def _plot_bic_curve(
@@ -998,34 +953,7 @@ def _plot_gmm_structure(
     save_pdf(fig, path)
 
 
-def _load_model_from_artifacts(
-    *,
-    checkpoint_path: str,
-    input_dim: int,
-    k: int,
-    hidden_dim: int,
-    num_layers: int,
-    device: torch.device,
-) -> GRUClassifier:
-    model = GRUClassifier(
-        Dx=int(input_dim),
-        K=int(k),
-        H=int(hidden_dim),
-        num_layers=int(max(1, num_layers)),
-    ).to(device)
-    try:
-        state = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    except TypeError:
-        state = torch.load(checkpoint_path, map_location=device)
-    if (
-        isinstance(state, dict)
-        and "model_state_dict" in state
-        and isinstance(state["model_state_dict"], dict)
-    ):
-        state = state["model_state_dict"]
-    model.load_state_dict(state)
-    model.eval()
-    return model
+_load_model_from_artifacts = load_gru_classifier
 
 
 class MethodsFigureGenerator:
@@ -1357,9 +1285,11 @@ class MethodsFigureGenerator:
         feature_set = str(
             row.get("feature_set", norm_payload.get("feature_set", "f2"))
         ).lower()
-        if feature_set not in {"f2", "f3"}:
+        if feature_set == "f3":
+            raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+        if feature_set != "f2":
             raise ValueError(f"Invalid feature_set for {config_id}: {feature_set}")
-        input_dim = int(row.get("input_dim", 2 if feature_set == "f2" else 3))
+        input_dim = int(row.get("input_dim", 2))
         hidden_dim = int(row.get("hidden_dim", norm_payload.get("hidden_dim", 64)))
         num_layers = int(row.get("num_layers", norm_payload.get("num_layers", 1)))
 

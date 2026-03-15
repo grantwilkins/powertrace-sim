@@ -14,8 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
-from azure_trace_utils import compute_trace_statistics, load_and_parse_azure_csv
-from model.simulators.arrival_simulator import ServeGenRequest
+from azure_trace_utils import Request, compute_trace_statistics, load_and_parse_azure_csv
 
 
 class TestLoadAndParseAzureCSV:
@@ -259,9 +258,9 @@ class TestComputeTraceStatistics:
     def test_basic_statistics(self):
         """Test basic statistics computation."""
         requests = [
-            ServeGenRequest(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50),
-            ServeGenRequest(request_id=1, arrival_time=1.0, input_tokens=200, output_tokens=75),
-            ServeGenRequest(request_id=2, arrival_time=3.0, input_tokens=150, output_tokens=100),
+            Request(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50),
+            Request(request_id=1, arrival_time=1.0, input_tokens=200, output_tokens=75),
+            Request(request_id=2, arrival_time=3.0, input_tokens=150, output_tokens=100),
         ]
 
         stats = compute_trace_statistics(requests)
@@ -276,11 +275,11 @@ class TestComputeTraceStatistics:
         """Test inter-arrival time percentile computation."""
         # Create requests with known inter-arrival times: 1s, 2s, 3s, 4s
         requests = [
-            ServeGenRequest(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50),
-            ServeGenRequest(request_id=1, arrival_time=1.0, input_tokens=100, output_tokens=50),
-            ServeGenRequest(request_id=2, arrival_time=3.0, input_tokens=100, output_tokens=50),
-            ServeGenRequest(request_id=3, arrival_time=6.0, input_tokens=100, output_tokens=50),
-            ServeGenRequest(request_id=4, arrival_time=10.0, input_tokens=100, output_tokens=50),
+            Request(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50),
+            Request(request_id=1, arrival_time=1.0, input_tokens=100, output_tokens=50),
+            Request(request_id=2, arrival_time=3.0, input_tokens=100, output_tokens=50),
+            Request(request_id=3, arrival_time=6.0, input_tokens=100, output_tokens=50),
+            Request(request_id=4, arrival_time=10.0, input_tokens=100, output_tokens=50),
         ]
 
         stats = compute_trace_statistics(requests)
@@ -302,7 +301,7 @@ class TestComputeTraceStatistics:
     def test_single_request(self):
         """Test statistics for single request."""
         requests = [
-            ServeGenRequest(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50)
+            Request(request_id=0, arrival_time=0.0, input_tokens=100, output_tokens=50)
         ]
 
         stats = compute_trace_statistics(requests)

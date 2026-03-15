@@ -7,88 +7,67 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import os
-from dataclasses import dataclass
+import sys
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-@dataclass(frozen=True)
-class FacilityLayout:
-    rows: int = 10
-    racks_per_row: int = 6
-    nodes_per_rack: int = 4
+from scripts.eval.azure_defaults import (
+    DEFAULT_CONFIG_ID,
+    DEFAULT_NON_GPU_OVERHEAD_W,
+    DEFAULT_PUE,
+    DEFAULT_TRACE_KINDS,
+    build_default_paths,
+    ensure_dir_for_file,
+    load_json,
+    parse_csv_list,
+)
+from scripts.eval.facility import FacilityLayout
+from scripts.eval.pipeline_utils import resolve_experimental_paths
 
-    @property
-    def n_nodes(self) -> int:
-        return int(self.rows) * int(self.racks_per_row) * int(self.nodes_per_rack)
-
-    def iter_nodes(self) -> Sequence[Tuple[int, int, int]]:
-        for row in range(int(self.rows)):
-            for rack in range(int(self.racks_per_row)):
-                for node in range(int(self.nodes_per_rack)):
-                    yield int(row), int(rack), int(node)
-
-
-def _ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
-
-
-def _load_json(path: str) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
+RESOLUTION_FILE_MAP = {
+    0.25: "site_250ms.npy",
+    1.0: "site_1s.npy",
+    60.0: "site_1min.npy",
+    900.0: "site_15min.npy",
+}
+RESOLUTION_FILE_MAP_IT = {
+    0.25: "site_it_250ms.npy",
+    1.0: "site_it_1s.npy",
+    60.0: "site_it_1min.npy",
+    900.0: "site_it_15min.npy",
+}
+NON_CONSTANT_METHODS = {"ours", "splitwise_strict"}
 
 
-def _resolve_experimental_paths(
-    experimental_manifest: Mapping[str, object],
-    *,
-    config_id: str,
-    experimental_base: str,
-) -> Tuple[str, str]:
-    cfgs = experimental_manifest.get("configs", {})
-    if not isinstance(cfgs, dict):
-        raise ValueError("Invalid experimental manifest format")
-    row = cfgs.get(config_id)
-    if not isinstance(row, dict):
-        raise ValueError(f"config_id '{config_id}' not found in experimental manifest")
-    dataset_path = _resolve_existing_path(str(row.get("dataset_npz", "")), experimental_base)
-    split_path = _resolve_existing_path(str(row.get("split_json", "")), experimental_base)
-    if dataset_path is None:
-        raise ValueError(f"Dataset path not found for '{config_id}'")
-    if split_path is None:
-        raise ValueError(f"Split path not found for '{config_id}'")
-    return dataset_path, split_path
+def _load_array(path: str) -> np.ndarray:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Required array not found: {path}")
+    arr = np.asarray(np.load(path), dtype=np.float64).reshape(-1)
+    if arr.size == 0:
+        raise ValueError(f"Empty array: {path}")
+    return arr
 
 
 def _load_train_mean_gpu_power_w(
     *,
     config_id: str,
     experimental_manifest_path: str,
-    non_gpu_overhead_w: float,
 ) -> float:
-    manifest = _load_json(experimental_manifest_path)
+    manifest = load_json(experimental_manifest_path)
     base = str(Path(experimental_manifest_path).resolve().parent)
-    dataset_path, split_path = _resolve_experimental_paths(manifest, config_id=config_id, experimental_base=base)
-    split_payload = _load_json(split_path)
+    dataset_path, split_path = resolve_experimental_paths(
+        manifest,
+        config_id=config_id,
+        experimental_base=base,
+    )
+    split_payload = load_json(split_path)
     train_indices = [int(x) for x in split_payload.get("train_indices", [])]
 
     with np.load(dataset_path, allow_pickle=True) as data:
@@ -99,31 +78,21 @@ def _load_train_mean_gpu_power_w(
     for idx in train_indices:
         if idx < 0 or idx >= n_total:
             continue
-        p = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
-        if p.size > 0:
-            traces.append(p.astype(np.float64))
+        power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
+        if power.size > 0:
+            traces.append(power.astype(np.float64))
     if len(traces) == 0:
-        for i in range(n_total):
-            p = np.asarray(power_arr[i], dtype=np.float64).reshape(-1)
-            if p.size > 0:
-                traces.append(p.astype(np.float64))
+        for idx in range(n_total):
+            power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
+            if power.size > 0:
+                traces.append(power.astype(np.float64))
     if len(traces) == 0:
         raise ValueError(f"No training traces available for {config_id}")
 
     flat_total = np.concatenate(traces, axis=0).astype(np.float64)
-    flat_gpu = np.clip(flat_total - float(non_gpu_overhead_w), a_min=0.0, a_max=None)
-    if flat_gpu.size == 0:
+    if flat_total.size == 0:
         raise ValueError("Empty train GPU power pool")
-    return float(np.mean(flat_gpu))
-
-
-def _load_array(path: str) -> np.ndarray:
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Required array not found: {path}")
-    arr = np.asarray(np.load(path), dtype=np.float64).reshape(-1)
-    if arr.size == 0:
-        raise ValueError(f"Empty array: {path}")
-    return arr
+    return float(np.mean(flat_total))
 
 
 def _compute_metrics(arr_kw: np.ndarray, resolution_s: float) -> Dict[str, float]:
@@ -194,32 +163,52 @@ def _compute_diversity_factor_it(
     return float(site_peak / denom)
 
 
-def _build_default_paths() -> Dict[str, str]:
-    repo_root = Path(__file__).resolve().parents[2]
+def _load_method_site_arrays(aggregated_root: str, method: str) -> Dict[float, np.ndarray]:
+    method_dir = os.path.join(aggregated_root, method)
+    return {res_s: _load_array(os.path.join(method_dir, fname)) for res_s, fname in RESOLUTION_FILE_MAP.items()}
+
+
+def _load_method_site_it_arrays(aggregated_root: str, method: str) -> Dict[float, np.ndarray]:
+    method_dir = os.path.join(aggregated_root, method)
     return {
-        "aggregated_dir": str(repo_root / "results" / "azure_facility" / "aggregated"),
-        "node_trace_dir": str(repo_root / "results" / "azure_facility" / "node_traces"),
-        "experimental_manifest": str(repo_root / "results" / "experimental_continuous_v1" / "manifest.json"),
-        "metrics_csv": str(repo_root / "results" / "eval_paper" / "azure_facility_metrics.csv"),
-        "ldc_csv": str(repo_root / "results" / "eval_paper" / "azure_facility_ldc_15min.csv"),
+        res_s: _load_array(os.path.join(method_dir, fname))
+        for res_s, fname in RESOLUTION_FILE_MAP_IT.items()
     }
+
+
+def _normalize_trace_kinds(trace_kinds: Sequence[str] | str) -> List[str]:
+    kinds = parse_csv_list(trace_kinds) if isinstance(trace_kinds, str) else [str(x).strip() for x in trace_kinds]
+    out: List[str] = []
+    allowed = set(DEFAULT_TRACE_KINDS)
+    for kind in kinds:
+        if not kind:
+            continue
+        if kind not in allowed:
+            raise ValueError(f"Unsupported trace_kind '{kind}'. Allowed: {sorted(allowed)}")
+        if kind not in out:
+            out.append(kind)
+    if not out:
+        raise ValueError("No trace kinds selected")
+    return out
 
 
 def compute_azure_facility_metrics(
     *,
-    aggregated_dir: str,
-    node_trace_dir: str,
+    aggregated_root: str,
+    node_traces_root: str,
     experimental_manifest: str,
     metrics_csv: str,
     ldc_csv: str,
-    config_id: str = "deepseek-r1-distill-70b_H100_tp4",
+    site_traces_15min_csv: str,
+    config_id: str = DEFAULT_CONFIG_ID,
+    trace_kinds: Sequence[str] | str = ",".join(DEFAULT_TRACE_KINDS),
     rows: int = 10,
     racks_per_row: int = 6,
     nodes_per_rack: int = 4,
     tp_gpus: int = 4,
     gpu_tdp_w: float = 700.0,
-    non_gpu_overhead_w: float = 1000.0,
-    pue: float = 1.3,
+    non_gpu_overhead_w: float = DEFAULT_NON_GPU_OVERHEAD_W,
+    pue: float = DEFAULT_PUE,
 ) -> Dict[str, object]:
     if int(tp_gpus) <= 0:
         raise ValueError("tp_gpus must be >= 1")
@@ -230,28 +219,23 @@ def compute_azure_facility_metrics(
     if float(pue) <= 0.0:
         raise ValueError("pue must be > 0")
 
+    selected_kinds = _normalize_trace_kinds(trace_kinds)
     layout = FacilityLayout(rows=int(rows), racks_per_row=int(racks_per_row), nodes_per_rack=int(nodes_per_rack))
     n_nodes = int(layout.n_nodes)
 
-    site_by_resolution_w = {
-        0.25: _load_array(os.path.join(aggregated_dir, "site_250ms.npy")),
-        1.0: _load_array(os.path.join(aggregated_dir, "site_1s.npy")),
-        60.0: _load_array(os.path.join(aggregated_dir, "site_1min.npy")),
-        900.0: _load_array(os.path.join(aggregated_dir, "site_15min.npy")),
-    }
-    site_it_by_resolution_w = {
-        0.25: _load_array(os.path.join(aggregated_dir, "site_it_250ms.npy")),
-        1.0: _load_array(os.path.join(aggregated_dir, "site_it_1s.npy")),
-        60.0: _load_array(os.path.join(aggregated_dir, "site_it_1min.npy")),
-        900.0: _load_array(os.path.join(aggregated_dir, "site_it_15min.npy")),
-    }
+    method_site_w: Dict[str, Dict[float, np.ndarray]] = {}
+    method_site_it_w: Dict[str, Dict[float, np.ndarray]] = {}
+    for method in NON_CONSTANT_METHODS:
+        try:
+            method_site_w[method] = _load_method_site_arrays(aggregated_root, method)
+            method_site_it_w[method] = _load_method_site_it_arrays(aggregated_root, method)
+        except Exception:
+            continue
+    if len(method_site_w) == 0:
+        raise ValueError("No aggregated non-constant method traces were found")
 
-    diversity_ours = _compute_diversity_factor_it(
-        node_trace_dir=node_trace_dir,
-        site_it_250ms_w=site_it_by_resolution_w[0.25],
-        layout=layout,
-        non_gpu_overhead_w=float(non_gpu_overhead_w),
-    )
+    reference_method = "ours" if "ours" in method_site_w else sorted(method_site_w.keys())[0]
+    reference_by_resolution = method_site_w[reference_method]
 
     node_tdp_it_w = float(tp_gpus) * float(gpu_tdp_w) + float(non_gpu_overhead_w)
     site_tdp_w = float(n_nodes) * node_tdp_it_w * float(pue)
@@ -259,43 +243,65 @@ def compute_azure_facility_metrics(
     train_mean_gpu_w = _load_train_mean_gpu_power_w(
         config_id=config_id,
         experimental_manifest_path=experimental_manifest,
-        non_gpu_overhead_w=float(non_gpu_overhead_w),
     )
     node_mean_it_w = float(train_mean_gpu_w) + float(non_gpu_overhead_w)
     site_mean_w = float(n_nodes) * node_mean_it_w * float(pue)
 
+    diversity_by_method: Dict[str, float] = {}
+    for method, site_it_by_res in method_site_it_w.items():
+        diversity_by_method[method] = _compute_diversity_factor_it(
+            node_trace_dir=os.path.join(node_traces_root, method),
+            site_it_250ms_w=site_it_by_res[0.25],
+            layout=layout,
+            non_gpu_overhead_w=float(non_gpu_overhead_w),
+        )
+
     rows_out: List[Dict[str, object]] = []
     ldc_rows: List[Dict[str, object]] = []
-    for resolution_s in (0.25, 1.0, 60.0, 900.0):
-        ours_w = site_by_resolution_w[resolution_s]
-        ours_kw = ours_w / 1000.0
-        tdp_kw = np.full((ours_kw.size,), fill_value=float(site_tdp_w / 1000.0), dtype=np.float64)
-        mean_kw = np.full((ours_kw.size,), fill_value=float(site_mean_w / 1000.0), dtype=np.float64)
+    site_trace_rows: List[Dict[str, object]] = []
 
-        bundles = [
-            ("ours", ours_kw, diversity_ours, ""),
-            ("tdp_baseline", tdp_kw, 1.0, "constant_trace"),
-            ("mean_baseline", mean_kw, 1.0, "constant_trace"),
-        ]
-        for trace_kind, values_kw, diversity, notes in bundles:
-            m = _compute_metrics(values_kw, resolution_s=resolution_s)
+    for resolution_s in (0.25, 1.0, 60.0, 900.0):
+        n_samples = int(reference_by_resolution[resolution_s].size)
+        values_by_kind: Dict[str, np.ndarray] = {}
+        for trace_kind in selected_kinds:
+            if trace_kind in NON_CONSTANT_METHODS:
+                if trace_kind not in method_site_w:
+                    raise ValueError(f"trace_kind '{trace_kind}' requested but method traces are missing")
+                values_by_kind[trace_kind] = method_site_w[trace_kind][resolution_s] / 1000.0
+            elif trace_kind == "tdp_baseline":
+                values_by_kind[trace_kind] = np.full((n_samples,), fill_value=float(site_tdp_w / 1000.0), dtype=np.float64)
+            elif trace_kind == "mean_baseline":
+                values_by_kind[trace_kind] = np.full((n_samples,), fill_value=float(site_mean_w / 1000.0), dtype=np.float64)
+            else:
+                raise ValueError(f"Unsupported trace_kind: {trace_kind}")
+
+        for trace_kind in selected_kinds:
+            values_kw = np.asarray(values_by_kind[trace_kind], dtype=np.float64).reshape(-1)
+            notes = ""
+            diversity = 1.0
+            if trace_kind in NON_CONSTANT_METHODS:
+                diversity = float(diversity_by_method.get(trace_kind, float("nan")))
+            else:
+                notes = "constant_trace"
+
+            metrics = _compute_metrics(values_kw, resolution_s=resolution_s)
             rows_out.append(
                 {
                     "trace_kind": str(trace_kind),
                     "resolution_s": float(resolution_s),
                     "n_samples": int(values_kw.size),
-                    "peak_kw": float(m["peak_kw"]),
-                    "avg_kw": float(m["avg_kw"]),
-                    "par": float(m["par"]),
-                    "load_factor": float(m["load_factor"]),
-                    "ramp_p50_kw_per_step": float(m["ramp_p50_kw_per_step"]),
-                    "ramp_p95_abs_kw_per_step": float(m["ramp_p95_abs_kw_per_step"]),
-                    "ramp_p99_abs_kw_per_step": float(m["ramp_p99_abs_kw_per_step"]),
-                    "ramp_max_up_kw_per_step": float(m["ramp_max_up_kw_per_step"]),
-                    "ramp_max_down_kw_per_step": float(m["ramp_max_down_kw_per_step"]),
-                    "ramp_p95_abs_kw_per_s": float(m["ramp_p95_abs_kw_per_s"]),
-                    "ldc_p95_kw": float(m["ldc_p95_kw"]),
-                    "ldc_p99_kw": float(m["ldc_p99_kw"]),
+                    "peak_kw": float(metrics["peak_kw"]),
+                    "avg_kw": float(metrics["avg_kw"]),
+                    "par": float(metrics["par"]),
+                    "load_factor": float(metrics["load_factor"]),
+                    "ramp_p50_kw_per_step": float(metrics["ramp_p50_kw_per_step"]),
+                    "ramp_p95_abs_kw_per_step": float(metrics["ramp_p95_abs_kw_per_step"]),
+                    "ramp_p99_abs_kw_per_step": float(metrics["ramp_p99_abs_kw_per_step"]),
+                    "ramp_max_up_kw_per_step": float(metrics["ramp_max_up_kw_per_step"]),
+                    "ramp_max_down_kw_per_step": float(metrics["ramp_max_down_kw_per_step"]),
+                    "ramp_p95_abs_kw_per_s": float(metrics["ramp_p95_abs_kw_per_s"]),
+                    "ldc_p95_kw": float(metrics["ldc_p95_kw"]),
+                    "ldc_p99_kw": float(metrics["ldc_p99_kw"]),
                     "diversity_factor_it": float(diversity),
                     "status": "evaluated",
                     "notes": str(notes),
@@ -305,18 +311,30 @@ def compute_azure_facility_metrics(
             if float(resolution_s) == 900.0:
                 sorted_desc = np.sort(values_kw)[::-1]
                 n = int(sorted_desc.size)
-                for i, v in enumerate(sorted_desc):
+                for idx, value in enumerate(sorted_desc):
                     ldc_rows.append(
                         {
                             "trace_kind": str(trace_kind),
                             "resolution_s": float(resolution_s),
-                            "rank": int(i),
-                            "fraction_exceeded": float(i / max(1, n)),
-                            "power_kw": float(v),
+                            "rank": int(idx),
+                            "fraction_exceeded": float(idx / max(1, n)),
+                            "power_kw": float(value),
                         }
                     )
 
-    _ensure_dir(os.path.dirname(metrics_csv) or ".")
+                hours = (np.arange(values_kw.size, dtype=np.float64) + 0.5) * (900.0 / 3600.0)
+                for idx, value in enumerate(values_kw):
+                    site_trace_rows.append(
+                        {
+                            "trace_kind": str(trace_kind),
+                            "bin_idx": int(idx),
+                            "hour": float(hours[idx]),
+                            "power_kw": float(value),
+                            "power_mw": float(value / 1000.0),
+                        }
+                    )
+
+    ensure_dir_for_file(metrics_csv)
     with open(metrics_csv, "w", newline="") as f:
         writer = csv.DictWriter(
             f,
@@ -344,6 +362,7 @@ def compute_azure_facility_metrics(
         writer.writeheader()
         writer.writerows(rows_out)
 
+    ensure_dir_for_file(ldc_csv)
     with open(ldc_csv, "w", newline="") as f:
         writer = csv.DictWriter(
             f,
@@ -352,15 +371,27 @@ def compute_azure_facility_metrics(
         writer.writeheader()
         writer.writerows(ldc_rows)
 
-    summary = {
+    ensure_dir_for_file(site_traces_15min_csv)
+    with open(site_traces_15min_csv, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["trace_kind", "bin_idx", "hour", "power_kw", "power_mw"],
+        )
+        writer.writeheader()
+        writer.writerows(site_trace_rows)
+
+    return {
         "status": "ok",
         "config_id": config_id,
-        "aggregated_dir": aggregated_dir,
-        "node_trace_dir": node_trace_dir,
+        "aggregated_root": aggregated_root,
+        "node_traces_root": node_traces_root,
+        "trace_kinds": selected_kinds,
         "metrics_csv": metrics_csv,
         "ldc_csv": ldc_csv,
+        "site_traces_15min_csv": site_traces_15min_csv,
         "n_rows_metrics": int(len(rows_out)),
         "n_rows_ldc": int(len(ldc_rows)),
+        "n_rows_site_traces": int(len(site_trace_rows)),
         "layout": {
             "rows": int(layout.rows),
             "racks_per_row": int(layout.racks_per_row),
@@ -372,36 +403,40 @@ def compute_azure_facility_metrics(
             "site_mean_w": float(site_mean_w),
             "train_mean_gpu_w": float(train_mean_gpu_w),
         },
-        "ours": {"diversity_factor_it": float(diversity_ours)},
+        "diversity_by_method": {key: float(value) for key, value in diversity_by_method.items()},
+        "reference_method": str(reference_method),
     }
-    return summary
 
 
 def main() -> None:
-    defaults = _build_default_paths()
-    parser = argparse.ArgumentParser(description="Experiment 2d: compute Azure facility metrics and baselines.")
-    parser.add_argument("--aggregated-dir", default=defaults["aggregated_dir"])
-    parser.add_argument("--node-trace-dir", default=defaults["node_trace_dir"])
+    defaults = build_default_paths()
+    parser = argparse.ArgumentParser(description="Compute Azure facility metrics with Splitwise baselines.")
+    parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
+    parser.add_argument("--node-traces-root", default=defaults["node_traces_root"])
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--metrics-csv", default=defaults["metrics_csv"])
     parser.add_argument("--ldc-csv", default=defaults["ldc_csv"])
-    parser.add_argument("--config-id", default="deepseek-r1-distill-70b_H100_tp4")
+    parser.add_argument("--site-traces-15min-csv", default=defaults["site_traces_15min_csv"])
+    parser.add_argument("--config-id", default=DEFAULT_CONFIG_ID)
+    parser.add_argument("--trace-kinds", default=",".join(DEFAULT_TRACE_KINDS))
     parser.add_argument("--rows", type=int, default=10)
     parser.add_argument("--racks-per-row", type=int, default=6)
     parser.add_argument("--nodes-per-rack", type=int, default=4)
     parser.add_argument("--tp-gpus", type=int, default=4)
     parser.add_argument("--gpu-tdp-w", type=float, default=700.0)
-    parser.add_argument("--non-gpu-overhead-w", type=float, default=1000.0)
-    parser.add_argument("--pue", type=float, default=1.3)
+    parser.add_argument("--non-gpu-overhead-w", type=float, default=DEFAULT_NON_GPU_OVERHEAD_W)
+    parser.add_argument("--pue", type=float, default=DEFAULT_PUE)
     args = parser.parse_args()
 
     summary = compute_azure_facility_metrics(
-        aggregated_dir=str(args.aggregated_dir),
-        node_trace_dir=str(args.node_trace_dir),
+        aggregated_root=str(args.aggregated_root),
+        node_traces_root=str(args.node_traces_root),
         experimental_manifest=str(args.experimental_manifest),
         metrics_csv=str(args.metrics_csv),
         ldc_csv=str(args.ldc_csv),
+        site_traces_15min_csv=str(args.site_traces_15min_csv),
         config_id=str(args.config_id),
+        trace_kinds=str(args.trace_kinds),
         rows=int(args.rows),
         racks_per_row=int(args.racks_per_row),
         nodes_per_rack=int(args.nodes_per_rack),
@@ -412,14 +447,15 @@ def main() -> None:
     )
 
     print("=" * 72)
-    print("Azure Facility Metrics (Experiment 2d)")
+    print("Azure Facility Metrics")
     print("=" * 72)
     print(f"Config              : {summary['config_id']}")
+    print(f"Trace kinds         : {', '.join(summary['trace_kinds'])}")
     print(f"Metrics CSV         : {summary['metrics_csv']}")
     print(f"LDC CSV             : {summary['ldc_csv']}")
+    print(f"Site traces 15min   : {summary['site_traces_15min_csv']}")
     print(f"Metric rows         : {summary['n_rows_metrics']}")
     print(f"LDC rows            : {summary['n_rows_ldc']}")
-    print(f"Diversity factor IT : {summary['ours']['diversity_factor_it']:.6f}")
     print("=" * 72)
 
 

@@ -45,11 +45,24 @@ from model.classifiers.feature_utils import (  # noqa: E402
     compute_inference_features,
     normalize_delta_active_requests,
 )
-from model.classifiers.gru import GRUClassifier  # noqa: E402
+from model.classifiers.gmm_bigru import (  # noqa: E402
+    AR1_MIN_RUN_LENGTH,
+    AR1_PHI_THRESHOLD,
+    estimate_ar1_params,
+    extract_norm_params,
+    generate_gmm_bigru_trace_ar1_thresholded,
+    predict_sorted_gmm_labels_from_params,
+)
 from model.classifiers.metrics import compute_power_metrics  # noqa: E402
+from model.classifiers.model_loading import load_gru_classifier  # noqa: E402
+from model.utils.io import safe_slug, write_json  # noqa: E402
+from scripts.eval.azure_defaults import MODEL_NAME_MAP  # noqa: E402
+from scripts.eval.pipeline_utils import (  # noqa: E402
+    resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
+    resolve_experimental_paths as _shared_resolve_experimental_paths,
+    resolve_throughput as _shared_resolve_throughput,
+)
 
-AR1_MIN_RUN_LENGTH = 5
-AR1_PHI_THRESHOLD = 0.3
 DEFAULT_CONFIG_IDS = (
     "deepseek-r1-distill-70b_A100_tp4",
     "llama-3-8b_H100_tp1",
@@ -58,12 +71,6 @@ PREFERRED_GPT_OSS_120B_CONFIG_IDS = (
     "gpt-oss-120b_H100_tp8",
     "gpt-oss-120b_A100_tp8",
 )
-
-MODEL_NAME_MAP = {
-    "llama-3": "Llama-3",
-    "deepseek-r1-distill": "DeepSeek-R1-Distill",
-    "gpt-oss": "gpt-oss",
-}
 
 CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 EPS = 1e-12
@@ -164,8 +171,10 @@ def build_rollout_features_from_requests(
     feature_set: str = "f2",
 ) -> Dict[str, np.ndarray]:
     feat = str(feature_set).strip().lower()
-    if feat not in {"f2", "f3"}:
-        raise ValueError(f"feature_set must be one of {{'f2','f3'}}; got {feature_set}")
+    if feat == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+    if feat != "f2":
+        raise ValueError(f"feature_set must be 'f2'; got {feature_set}")
 
     lambda_prefill = _extract_norm_value(
         throughput, "lambda_prefill", "prefill_rate_median_toks_per_s"
@@ -207,10 +216,7 @@ def build_rollout_features_from_requests(
         delta_raw, mean=dA_mean, std=dA_std
     ).astype(np.float32)
 
-    cols = [a_norm, delta_norm]
-    if feat == "f3":
-        cols.append(t_arrive_norm)
-    features = np.stack(cols, axis=-1).astype(np.float32)
+    features = np.stack([a_norm, delta_norm], axis=-1).astype(np.float32)
     return {
         "features_norm": features,
         "A_raw": a_raw.astype(np.float64),
@@ -277,200 +283,8 @@ def generate_gmm_bigru_trace(
     }
 
 
-def predict_sorted_gmm_labels_from_params(
-    power_values: np.ndarray, gmm_params: Dict[str, object]
-) -> np.ndarray:
-    y = np.asarray(power_values, dtype=np.float64).reshape(-1)
-    if y.size == 0:
-        return np.zeros((0,), dtype=np.int64)
-
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(
-        np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1),
-        a_min=1e-12,
-        a_max=None,
-    )
-    weights = np.asarray(
-        gmm_params.get("weights", np.ones_like(means)), dtype=np.float64
-    ).reshape(-1)
-    if means.size == 0:
-        raise ValueError("GMM means are empty")
-    if variances.size != means.size or weights.size != means.size:
-        raise ValueError("GMM parameter shape mismatch")
-
-    weights = np.clip(weights, a_min=1e-12, a_max=None)
-    weights = weights / np.sum(weights)
-
-    x = y.reshape(-1, 1)
-    log_norm = -0.5 * (
-        np.log(2.0 * np.pi * variances).reshape(1, -1)
-        + ((x - means.reshape(1, -1)) ** 2) / variances.reshape(1, -1)
-    )
-    log_prob = log_norm + np.log(weights).reshape(1, -1)
-    return np.argmax(log_prob, axis=1).astype(np.int64)
-
-
-def estimate_ar1_params(
-    gmm_params: Dict[str, object],
-    training_power_traces: Sequence[np.ndarray],
-    training_labels_traces: Sequence[np.ndarray],
-    K: int,
-    min_run_length: int = AR1_MIN_RUN_LENGTH,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    variances = np.clip(
-        np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1),
-        a_min=1e-12,
-        a_max=None,
-    )
-    if means.size != int(K) or variances.size != int(K):
-        raise ValueError(f"GMM parameter size mismatch for K={K}")
-
-    state_run_residuals: Dict[int, List[np.ndarray]] = {k: [] for k in range(int(K))}
-    run_min = int(max(2, min_run_length))
-    for power, labels in zip(training_power_traces, training_labels_traces):
-        p = np.asarray(power, dtype=np.float64).reshape(-1)
-        s = np.asarray(labels, dtype=np.int64).reshape(-1)
-        n = int(min(len(p), len(s)))
-        if n < 2:
-            continue
-        p = p[:n]
-        s = s[:n]
-
-        run_start = 0
-        for i in range(1, n + 1):
-            if i == n or s[i] != s[run_start]:
-                state = int(s[run_start])
-                run_len = int(i - run_start)
-                if run_len >= run_min and 0 <= state < int(K):
-                    run_power = p[run_start:i]
-                    run_residuals = run_power - float(means[state])
-                    state_run_residuals[state].append(run_residuals.astype(np.float64))
-                run_start = i
-
-    phi = np.zeros((int(K),), dtype=np.float64)
-    sigma_marginal = np.sqrt(variances).astype(np.float64)
-    sigma_innov = np.zeros((int(K),), dtype=np.float64)
-
-    for k in range(int(K)):
-        runs = state_run_residuals[k]
-        if len(runs) == 0:
-            phi[k] = 0.0
-            sigma_innov[k] = sigma_marginal[k]
-            continue
-
-        numer = 0.0
-        denom = 0.0
-        for r in runs:
-            if r.size < 2:
-                continue
-            numer += float(np.sum(r[:-1] * r[1:]))
-            denom += float(np.sum(r[:-1] ** 2))
-
-        if denom > 1e-12:
-            phi_raw = numer / denom
-            phi[k] = float(np.clip(phi_raw, 0.0, 0.99))
-        else:
-            phi[k] = 0.0
-
-        sigma_innov[k] = float(
-            sigma_marginal[k] * np.sqrt(max(1e-12, 1.0 - (phi[k] ** 2)))
-        )
-    return phi, sigma_innov, sigma_marginal
-
-
-def generate_gmm_bigru_trace_ar1_thresholded(
-    *,
-    logits: np.ndarray | torch.Tensor,
-    gmm_params: Dict[str, object],
-    phi: np.ndarray,
-    sigma_innov: np.ndarray,
-    sigma_marginal: np.ndarray,
-    p0: float,
-    seed: Optional[int] = None,
-    decode_mode: str = "stochastic",
-    median_filter_window: int = 1,
-    phi_threshold: float = AR1_PHI_THRESHOLD,
-    clamp_range: Optional[Tuple[float, float]] = None,
-) -> Dict[str, np.ndarray]:
-    if isinstance(logits, torch.Tensor):
-        z = _tensor_to_numpy(logits, dtype=np.float64)
-    else:
-        z = np.asarray(logits, dtype=np.float64)
-    if z.ndim == 3 and z.shape[0] == 1:
-        z = z[0]
-    if z.ndim != 2:
-        raise ValueError(f"logits must have shape (T,K) or (1,T,K); got {z.shape}")
-
-    means = np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)
-    k = int(means.size)
-    if k <= 0:
-        raise ValueError("GMM means are empty")
-    if z.shape[1] != k:
-        raise ValueError(f"logits K mismatch: got {z.shape[1]} but GMM has {k}")
-
-    phi_arr = np.asarray(phi, dtype=np.float64).reshape(-1)
-    sigma_innov_arr = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
-    sigma_marginal_arr = np.asarray(sigma_marginal, dtype=np.float64).reshape(-1)
-    if phi_arr.size != k or sigma_innov_arr.size != k or sigma_marginal_arr.size != k:
-        raise ValueError(f"phi/sigma arrays size mismatch for K={k}")
-
-    use_ar1 = phi_arr >= float(phi_threshold)
-    phi_gen = np.where(use_ar1, phi_arr, 0.0).astype(np.float64)
-    sigma_gen = np.where(use_ar1, sigma_innov_arr, sigma_marginal_arr).astype(
-        np.float64
-    )
-
-    probs = _softmax_np(z)
-    mode = str(decode_mode).strip().lower()
-    if mode not in {"stochastic", "argmax"}:
-        raise ValueError(
-            f"decode_mode must be 'stochastic' or 'argmax'; got {decode_mode}"
-        )
-
-    rng = np.random.default_rng(seed)
-    if mode == "argmax":
-        states_raw = np.argmax(probs, axis=-1).astype(np.int64)
-    else:
-        states_raw = np.asarray(
-            [rng.choice(k, p=probs_t) for probs_t in probs], dtype=np.int64
-        )
-    states = _median_filter_states(states_raw, int(median_filter_window))
-
-    t = int(z.shape[0])
-    power = np.zeros((t,), dtype=np.float64)
-    p_prev = float(p0)
-    for i in range(t):
-        s = int(states[i])
-        mu = float(means[s])
-        p_t = float(
-            mu + (phi_gen[s] * (p_prev - mu)) + float(rng.normal(0.0, sigma_gen[s]))
-        )
-        if clamp_range is not None:
-            lo, hi = float(clamp_range[0]), float(clamp_range[1])
-            if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
-                margin = 0.05 * (hi - lo)
-                p_t = float(np.clip(p_t, lo - margin, hi + margin))
-        power[i] = p_t
-        p_prev = p_t
-
-    return {
-        "power_w": power.astype(np.float64),
-        "states": states.astype(np.int64),
-        "states_raw": states_raw.astype(np.int64),
-        "probs": probs.astype(np.float64),
-        "use_ar1": use_ar1.astype(bool),
-    }
-
-
 def _ensure_dir_for_file(path: str) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-
-def _write_json(path: str, payload: Mapping[str, object]) -> None:
-    _ensure_dir_for_file(path)
-    with open(path, "w") as f:
-        json.dump(dict(payload), f, indent=2, sort_keys=True)
 
 
 def _write_csv(
@@ -664,129 +478,15 @@ def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
     return out
 
 
-def _extract_norm_for_eval(norm_payload: Dict[str, object]) -> Dict[str, float]:
-    required = (
-        "active_mean",
-        "active_std",
-        "t_arrive_log_mean",
-        "t_arrive_log_std",
-        "power_mean",
-        "power_std",
-        "power_min",
-        "power_max",
-        "delta_A_mean",
-        "delta_A_std",
-    )
-    missing = [k for k in required if k not in norm_payload]
-    if missing:
-        raise ValueError(f"Norm params missing keys: {missing}")
-    out = {k: float(norm_payload[k]) for k in required}
-    if out["active_std"] <= 0.0:
-        raise ValueError("active_std must be positive")
-    if out["t_arrive_log_std"] <= 0.0:
-        raise ValueError("t_arrive_log_std must be positive")
-    if out["power_std"] <= 0.0:
-        raise ValueError("power_std must be positive")
-    if out["delta_A_std"] <= 0.0:
-        raise ValueError("delta_A_std must be positive")
-    return out
+_extract_norm_for_eval = extract_norm_params
 
 
-def _resolve_throughput(
-    throughput_db: Dict[str, object], config_id: str
-) -> Dict[str, float]:
-    cfgs = throughput_db.get("configs", {})
-    if not isinstance(cfgs, dict):
-        raise ValueError("Invalid throughput database format")
-    row = cfgs.get(config_id)
-    if not isinstance(row, dict):
-        raise ValueError(f"config_id '{config_id}' not found in throughput DB")
-    prefill = float(row.get("prefill_rate_median_toks_per_s", float("nan")))
-    decode = float(row.get("decode_rate_median_toks_per_s", float("nan")))
-    if (not np.isfinite(prefill)) or prefill <= 0.0:
-        raise ValueError(f"Invalid prefill throughput for '{config_id}'")
-    if (not np.isfinite(decode)) or decode <= 0.0:
-        raise ValueError(f"Invalid decode throughput for '{config_id}'")
-    return {"lambda_prefill": prefill, "lambda_decode": decode}
+_resolve_throughput = _shared_resolve_throughput
+_resolve_checkpoint_norm_gmm_paths = _shared_resolve_checkpoint_norm_gmm_paths
+_resolve_experimental_paths = _shared_resolve_experimental_paths
 
 
-def _resolve_checkpoint_norm_gmm_paths(
-    config_entry: Dict[str, object], base_dir: str
-) -> Tuple[str, str, str]:
-    checkpoint_raw = str(config_entry.get("checkpoint_path", ""))
-    norm_raw = str(config_entry.get("norm_params_path", ""))
-    gmm_raw = str(config_entry.get("gmm_params_path", ""))
-    checkpoint_path = _resolve_existing_path(checkpoint_raw, base_dir)
-    norm_path = _resolve_existing_path(norm_raw, base_dir)
-    gmm_path = _resolve_existing_path(gmm_raw, base_dir)
-    if checkpoint_path is None:
-        raise ValueError(f"Checkpoint path not found: {checkpoint_raw}")
-    if norm_path is None:
-        raise ValueError(f"Norm params path not found: {norm_raw}")
-    if gmm_path is None:
-        raise ValueError(f"GMM path not found: {gmm_raw}")
-    return checkpoint_path, norm_path, gmm_path
-
-
-def _resolve_experimental_paths(
-    experimental_manifest: Dict[str, object],
-    *,
-    config_id: str,
-    experimental_base: str,
-) -> Tuple[str, str]:
-    cfgs = experimental_manifest.get("configs", {})
-    if not isinstance(cfgs, dict):
-        raise ValueError("Invalid experimental manifest format")
-    row = cfgs.get(config_id)
-    if not isinstance(row, dict):
-        raise ValueError(f"config_id '{config_id}' not found in experimental manifest")
-    dataset_path = _resolve_existing_path(
-        str(row.get("dataset_npz", "")), experimental_base
-    )
-    split_path = _resolve_existing_path(
-        str(row.get("split_json", "")), experimental_base
-    )
-    if dataset_path is None:
-        raise ValueError(f"Dataset path not found for '{config_id}'")
-    if split_path is None:
-        raise ValueError(f"Split path not found for '{config_id}'")
-    return dataset_path, split_path
-
-
-def _load_model(
-    *,
-    checkpoint_path: str,
-    k: int,
-    input_dim: int,
-    hidden_dim: int,
-    num_layers: int,
-    device: torch.device,
-) -> GRUClassifier:
-    model = GRUClassifier(
-        Dx=int(input_dim),
-        K=int(k),
-        H=int(hidden_dim),
-        num_layers=int(max(1, num_layers)),
-    ).to(device)
-    try:
-        state = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    except TypeError:
-        state = torch.load(checkpoint_path, map_location=device)
-    if (
-        isinstance(state, dict)
-        and "model_state_dict" in state
-        and isinstance(state["model_state_dict"], dict)
-    ):
-        state = state["model_state_dict"]
-    if not isinstance(state, dict):
-        raise ValueError(f"Unsupported checkpoint format: {checkpoint_path}")
-    model.load_state_dict(state)
-    model.eval()
-    return model
-
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
+_load_model = load_gru_classifier
 
 
 def _ks_statistic(x: np.ndarray, y: np.ndarray) -> float:
@@ -882,9 +582,11 @@ def _collect_config_cdf(
     feature_set = str(
         run_cfg_row.get("feature_set", norm_payload.get("feature_set", "f2"))
     ).lower()
-    if feature_set not in {"f2", "f3"}:
+    if feature_set == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+    if feature_set != "f2":
         raise ValueError(f"invalid feature_set for '{config_id}': {feature_set}")
-    input_dim = int(run_cfg_row.get("input_dim", 2 if feature_set == "f2" else 3))
+    input_dim = int(run_cfg_row.get("input_dim", 2))
     hidden_dim = int(run_cfg_row.get("hidden_dim", norm_payload.get("hidden_dim", 64)))
     num_layers = int(run_cfg_row.get("num_layers", norm_payload.get("num_layers", 1)))
     if k != int(gmm_cfg["k"]):
@@ -1152,7 +854,7 @@ def _plot_cdfs(
         ax.grid(True, alpha=0.35)
         ax.legend(bbox_to_anchor=(0.5, -0.2), loc="upper center", ncol=2, frameon=False)
 
-        slug = _safe_slug(str(row["config_id"]))
+        slug = safe_slug(str(row["config_id"]))
         out_pdf = str(Path(out_plot_dir) / f"{slug}_power_cdf.pdf")
         out_png = str(Path(out_plot_dir) / f"{slug}_power_cdf.png")
         fig.tight_layout()
@@ -1430,7 +1132,7 @@ def generate_power_cdf_comparison(
             "failure": gpt_oss_single_failure,
         },
     }
-    _write_json(out_json, payload)
+    write_json(out_json, payload)
     return payload
 
 

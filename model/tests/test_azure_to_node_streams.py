@@ -4,12 +4,10 @@ Tests for scripts/eval/azure_to_node_streams.py.
 
 import csv
 import os
-import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
-
-from azure_to_node_streams import FacilityLayout, split_azure_requests_to_nodes  # noqa: E402
+from scripts.eval.azure_to_node_streams import split_azure_requests_to_nodes  # noqa: E402
+from scripts.eval.facility import FacilityLayout  # noqa: E402
 
 
 def _write_parsed_csv(path: str, rows):

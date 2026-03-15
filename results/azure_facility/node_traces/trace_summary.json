@@ -1,8 +1,11 @@
 {
-  "config_id": "deepseek-r1-distill-70b_H100_tp4",
+  "config_id": "llama-3-70b_A100_tp8",
   "counts": {
-    "evaluated_nodes": 240,
-    "failed_nodes": 0
+    "evaluated_by_method": {
+      "ours": 240,
+      "splitwise_strict": 240
+    },
+    "failed_rows": 0
   },
   "generation": {
     "base_seed": 42,
@@ -10,8 +13,11 @@
     "decode_mode": "stochastic",
     "device": "cpu",
     "median_filter_window": 1,
+    "n_gpus_per_node": 8,
+    "non_gpu_overhead_w": 1000.0,
     "ours_logit_temperature": 1.0,
     "ours_std_scale": 1.0,
+    "tp_gpus": 8,
     "uses_ar1": false
   },
   "layout": {
@@ -20,8 +26,34 @@
     "racks_per_row": 6,
     "rows": 10
   },
+  "methods": [
+    "ours",
+    "splitwise_strict"
+  ],
   "node_stream_dir": "/Users/grantwilkins/powertrace-sim/data/azure_facility/node_streams",
-  "out_dir": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces",
+  "out_root": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces",
+  "splitwise": {
+    "meta": {
+      "splitwise_calibration_mode": "splitwise_emulation_strict_v1",
+      "splitwise_extrapolation_events": 57381344,
+      "splitwise_max_batch_tokens_seen": 26220.0,
+      "splitwise_power_clamp_events": 57389687,
+      "splitwise_power_quality_flag": "clean",
+      "splitwise_power_support_status": "slice_grouped_clamped",
+      "splitwise_scheduler_policy": "prompt_biased_mixed_fifo",
+      "splitwise_source_hardware": "a100-80gb",
+      "splitwise_source_match_status": "family_model_fallback",
+      "splitwise_source_model": "llama-3-70b",
+      "splitwise_source_resolved_hardware": "a100-80gb",
+      "splitwise_source_resolved_model": "llama2-70b",
+      "splitwise_source_resolved_tp": 8,
+      "splitwise_source_tp": 8
+    },
+    "splitwise_calibration_mode": "splitwise_emulation_strict_v1",
+    "splitwise_source_hardware": "a100-80gb",
+    "splitwise_source_model": "llama-3-70b",
+    "splitwise_source_tp": 8
+  },
   "status": "ok",
   "timing": {
     "dt": 0.25,

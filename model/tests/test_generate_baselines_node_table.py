@@ -1,7 +1,10 @@
 import unittest
 from pathlib import Path
 
-from scripts.eval.generate_baselines_node_table import _filter_negative_acf_configs
+from scripts.eval.generate_baselines_node_table import (
+    _filter_negative_acf_configs,
+    _select_configs,
+)
 
 
 class TestGenerateBaselinesNodeTable(unittest.TestCase):
@@ -15,7 +18,7 @@ class TestGenerateBaselinesNodeTable(unittest.TestCase):
             },
             {
                 "config_id": "cfg_b",
-                "method": "splitwise_lut",
+                "method": "splitwise_strict",
                 "status": "evaluated",
                 "acf_r2": "-0.1",
             },
@@ -43,7 +46,7 @@ class TestGenerateBaselinesNodeTable(unittest.TestCase):
             },
             {
                 "config_id": "cfg_b",
-                "method": "splitwise_lut",
+                "method": "splitwise_strict",
                 "status": "failed",
                 "acf_r2": "-0.9",
             },
@@ -54,6 +57,24 @@ class TestGenerateBaselinesNodeTable(unittest.TestCase):
         )
         self.assertEqual(filtered, ["cfg_a", "cfg_b"])
         self.assertEqual(excluded, [])
+
+    def test_representative_selection_targets_llama70_a100_tp4_and_tp8(self):
+        rows = [
+            {"config_id": "llama-3-70b_A100_tp4", "status": "evaluated"},
+            {"config_id": "llama-3-70b_A100_tp8", "status": "evaluated"},
+            {"config_id": "llama-3-70b_H100_tp4", "status": "evaluated"},
+            {"config_id": "deepseek-r1-distill-70b_A100_tp4", "status": "evaluated"},
+        ]
+        selected = _select_configs(
+            rows=rows,
+            config_ids=[],
+            arch_filter="dense",
+            representative_only=True,
+        )
+        self.assertEqual(
+            selected,
+            ["llama-3-70b_A100_tp4", "llama-3-70b_A100_tp8"],
+        )
 
     def test_run_baselines_node_has_synthetic_timestamp_opt_out_flag(self):
         path = Path("scripts/eval/run_baselines_node.py")

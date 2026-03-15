@@ -6,7 +6,7 @@ ground truth and generated power traces.
 """
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Sequence
 
 import numpy as np
 
@@ -62,21 +62,19 @@ def _acf(values: np.ndarray, max_lag: int) -> np.ndarray:
     return out
 
 
-def _integrate_trapezoid(values: np.ndarray, *, dx: float) -> float:
+def _total_energy_from_bins(values: np.ndarray, *, dt: float) -> float:
     """
-    Integrate values using trapezoidal rule.
+    Compute total trace energy from per-bin average power samples.
 
     Args:
-        values: Array of values to integrate.
-        dx: Spacing between values.
+        values: Array of power values in watts, one value per time bin.
+        dt: Duration of each time bin in seconds.
 
     Returns:
-        Integral approximation.
+        Total energy in joules.
     """
     arr = np.asarray(values, dtype=np.float64).reshape(-1)
-    if hasattr(np, "trapezoid"):
-        return float(np.trapezoid(arr, dx=float(dx)))
-    return float(np.trapz(arr, dx=float(dx)))
+    return float(np.sum(arr) * float(dt))
 
 
 def autocorrelation_r2(real: np.ndarray, synthetic: np.ndarray, max_lag: int = 50) -> float:
@@ -109,6 +107,136 @@ def autocorrelation_r2(real: np.ndarray, synthetic: np.ndarray, max_lag: int = 5
     return float(1.0 - (sse / tss))
 
 
+def autocorrelation_r2_aggregate(
+    real_traces: Sequence[np.ndarray],
+    synthetic_traces: Sequence[np.ndarray],
+    max_lag: int = 50,
+) -> float:
+    """
+    Compare average held-out ACF structure across multiple trace pairs.
+
+    Each trace pair contributes its own ACF up to the pair-specific valid lag.
+    Those ACF vectors are then averaged across traces, and a single R^2 score
+    is computed on the averaged ACFs.
+    """
+    real_rows = []
+    synth_rows = []
+    max_lag_int = int(max(1, max_lag))
+
+    for real, synthetic in zip(real_traces, synthetic_traces):
+        r = np.asarray(real, dtype=np.float64).reshape(-1)
+        s = np.asarray(synthetic, dtype=np.float64).reshape(-1)
+        n = int(min(r.size, s.size))
+        if n < 3:
+            continue
+        r = r[:n]
+        s = s[:n]
+        lag = int(min(max_lag_int, n - 1))
+        if lag < 1:
+            continue
+
+        r_acf = _acf(r, lag)[1:]
+        s_acf = _acf(s, lag)[1:]
+        r_pad = np.full((max_lag_int,), np.nan, dtype=np.float64)
+        s_pad = np.full((max_lag_int,), np.nan, dtype=np.float64)
+        r_pad[: r_acf.size] = r_acf
+        s_pad[: s_acf.size] = s_acf
+        real_rows.append(r_pad)
+        synth_rows.append(s_pad)
+
+    if len(real_rows) == 0:
+        return float("nan")
+
+    real_stack = np.vstack(real_rows)
+    synth_stack = np.vstack(synth_rows)
+    real_mean = np.full((max_lag_int,), np.nan, dtype=np.float64)
+    synth_mean = np.full((max_lag_int,), np.nan, dtype=np.float64)
+    real_counts = np.sum(np.isfinite(real_stack), axis=0)
+    synth_counts = np.sum(np.isfinite(synth_stack), axis=0)
+    real_mask = real_counts > 0
+    synth_mask = synth_counts > 0
+    real_mean[real_mask] = (
+        np.nansum(real_stack[:, real_mask], axis=0) / real_counts[real_mask]
+    )
+    synth_mean[synth_mask] = (
+        np.nansum(synth_stack[:, synth_mask], axis=0) / synth_counts[synth_mask]
+    )
+    mask = np.isfinite(real_mean) & np.isfinite(synth_mean)
+    if int(np.sum(mask)) == 0:
+        return float("nan")
+
+    r_acf = real_mean[mask]
+    s_acf = synth_mean[mask]
+    sse = float(np.sum((r_acf - s_acf) ** 2))
+    tss = float(np.sum((r_acf - float(np.mean(r_acf))) ** 2))
+    if tss <= EPS:
+        return float(1.0 if sse <= 1e-10 else 0.0)
+    return float(1.0 - (sse / tss))
+
+
+def compute_aggregate_power_metrics(
+    ground_truth_traces: Sequence[np.ndarray],
+    generated_traces: Sequence[np.ndarray],
+    *,
+    dt: float,
+    acf_max_lag: int = 50,
+) -> Dict[str, float]:
+    """
+    Compute held-out aggregate metrics across a collection of trace pairs.
+
+    KS, NRMSE, percentile errors, and energy are computed on all held-out points
+    pooled together. ACF R^2 is computed from trace-level ACFs averaged across
+    held-out traces, avoiding concatenation artifacts at trace boundaries.
+    """
+    gt_chunks = []
+    pred_chunks = []
+
+    for ground_truth_w, generated_w in zip(ground_truth_traces, generated_traces):
+        gt = np.asarray(ground_truth_w, dtype=np.float64).reshape(-1)
+        pred = np.asarray(generated_w, dtype=np.float64).reshape(-1)
+        n = int(min(len(gt), len(pred)))
+        if n <= 0:
+            continue
+        gt_chunks.append(gt[:n])
+        pred_chunks.append(pred[:n])
+
+    if len(gt_chunks) == 0 or len(pred_chunks) == 0:
+        raise ValueError("No aligned traces for aggregate metric computation.")
+
+    gt_all = np.concatenate(gt_chunks, axis=0).astype(np.float64)
+    pred_all = np.concatenate(pred_chunks, axis=0).astype(np.float64)
+
+    err = pred_all - gt_all
+    rmse = float(np.sqrt(np.mean(err**2)))
+    scale = float(np.max(gt_all) - np.min(gt_all))
+    nrmse = float(rmse / (scale + EPS))
+
+    p95_gt = float(np.percentile(gt_all, 95))
+    p95_pred = float(np.percentile(pred_all, 95))
+    p99_gt = float(np.percentile(gt_all, 99))
+    p99_pred = float(np.percentile(pred_all, 99))
+
+    p95_error_pct = float(100.0 * abs(p95_pred - p95_gt) / (abs(p95_gt) + EPS))
+    p99_error_pct = float(100.0 * abs(p99_pred - p99_gt) / (abs(p99_gt) + EPS))
+
+    energy_gt = _total_energy_from_bins(gt_all, dt=float(dt))
+    energy_pred = _total_energy_from_bins(pred_all, dt=float(dt))
+    delta_energy_pct = float(
+        100.0 * abs(energy_pred - energy_gt) / (abs(energy_gt) + EPS)
+    )
+
+    return {
+        "ks_stat": ks_statistic(gt_all, pred_all),
+        "acf_r2": autocorrelation_r2_aggregate(
+            gt_chunks, pred_chunks, max_lag=int(acf_max_lag)
+        ),
+        "nrmse": nrmse,
+        "p95_error_pct": p95_error_pct,
+        "p99_error_pct": p99_error_pct,
+        "delta_energy_pct": delta_energy_pct,
+    }
+
+
 def compute_power_metrics(
     ground_truth_w: np.ndarray,
     generated_w: np.ndarray,
@@ -132,7 +260,7 @@ def compute_power_metrics(
             - nrmse: Normalized root mean squared error
             - p95_error_pct: Percent error in 95th percentile
             - p99_error_pct: Percent error in 99th percentile
-            - delta_energy_pct: Percent difference in total energy
+            - delta_energy_pct: Absolute percent error in total trace energy
     """
     gt = np.asarray(ground_truth_w, dtype=np.float64).reshape(-1)
     pred = np.asarray(generated_w, dtype=np.float64).reshape(-1)
@@ -155,9 +283,13 @@ def compute_power_metrics(
     p95_error_pct = float(100.0 * abs(p95_pred - p95_gt) / (abs(p95_gt) + EPS))
     p99_error_pct = float(100.0 * abs(p99_pred - p99_gt) / (abs(p99_gt) + EPS))
 
-    energy_gt = _integrate_trapezoid(gt, dx=float(dt))
-    energy_pred = _integrate_trapezoid(pred, dx=float(dt))
-    delta_energy_pct = float(100.0 * (energy_pred - energy_gt) / (abs(energy_gt) + EPS))
+    # Energy error is intentionally end-of-trace only: compare total joules per
+    # held-out trace, not pointwise power deviations over time.
+    energy_gt = _total_energy_from_bins(gt, dt=float(dt))
+    energy_pred = _total_energy_from_bins(pred, dt=float(dt))
+    delta_energy_pct = float(
+        100.0 * abs(energy_pred - energy_gt) / (abs(energy_gt) + EPS)
+    )
 
     return {
         "ks_stat": ks_statistic(gt, pred),

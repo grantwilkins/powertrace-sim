@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from model.utils.io import write_json as _write_json
 from model.training_data.utils.stage0_inventory_and_throughput import (
     concurrency_binned_decode_medians,
     derive_decode_time,
@@ -24,14 +25,6 @@ def _write_power_csv(path: Path, timestamps):
         for ts in timestamps:
             for gpu in range(8):
                 f.write(f"{ts}, {100.0 + gpu:.2f} W, 0 %, 10 MiB\n")
-
-
-def _write_json(path: Path, payload):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(payload, f)
-
-
 class TestStage0InventoryAndThroughput(unittest.TestCase):
     def test_filename_parsers(self):
         bench = parse_benchmark_filename(

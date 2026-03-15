@@ -28,18 +28,13 @@ import numpy as np
 import torch
 
 from model.classifiers.gru import GRUClassifier
+from model.utils.io import safe_slug, write_json
 
 SUBSET_ORDER = ["A", "ΔA", "F2", "F3", "F6"]
 
 
 def _ensure_parent(path: str | Path) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-
-def _write_json(path: str | Path, payload: Mapping[str, object]) -> None:
-    _ensure_parent(path)
-    with open(path, "w") as f:
-        json.dump(dict(payload), f, indent=2, sort_keys=True)
 
 
 def _write_csv(path: str | Path, rows: Sequence[Mapping[str, object]], fieldnames: Sequence[str]) -> None:
@@ -49,10 +44,6 @@ def _write_csv(path: str | Path, rows: Sequence[Mapping[str, object]], fieldname
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
-
-
-def _safe_slug(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
 
 
 def _parse_include_configs(raw: Optional[str]) -> Optional[set[str]]:
@@ -572,7 +563,7 @@ def run_feature_sufficiency_figure(
             continue
 
         k = int(entry.get("k", 10))
-        gmm_name = f"{_safe_slug(config_id)}_k{k}.json"
+        gmm_name = f"{safe_slug(config_id)}_k{k}.json"
         gmm_path = str(Path(gmm_dir) / gmm_name)
         if not os.path.exists(gmm_path):
             skipped[config_id] = "missing_gmm"
@@ -885,7 +876,7 @@ def run_feature_sufficiency_figure(
             "manifest_json": out_json,
         },
     }
-    _write_json(out_json, manifest)
+    write_json(out_json, manifest)
     return manifest
 
 

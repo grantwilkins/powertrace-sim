@@ -10,7 +10,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
-from azure_aggregate import aggregate_facility_traces  # noqa: E402
+from azure_aggregate import aggregate_all_methods, aggregate_facility_traces  # noqa: E402
 
 
 def test_hierarchical_aggregation_and_power_placement():
@@ -68,3 +68,57 @@ def test_hierarchical_aggregation_and_power_placement():
         assert np.allclose(site_1min, (8.0 * (gpu_w + overhead_w)) * pue)
         assert site_15min.shape == (1,)
         assert np.allclose(site_15min, (8.0 * (gpu_w + overhead_w)) * pue)
+
+
+def test_aggregate_all_methods_outputs():
+    t = 3600  # 15 minutes at 250ms
+    dt = 0.25
+    overhead_w = 1000.0
+    pue = 1.3
+    methods = ["ours", "splitwise_strict"]
+
+    with tempfile.TemporaryDirectory() as td:
+        node_root = os.path.join(td, "results", "azure_facility", "node_traces")
+        out_root = os.path.join(td, "results", "azure_facility", "aggregated")
+
+        rows, racks_per_row, nodes_per_rack = 2, 2, 2
+        for method_idx, method in enumerate(methods):
+            method_dir = os.path.join(node_root, method)
+            os.makedirs(method_dir, exist_ok=True)
+            base_gpu = 100.0 + (10.0 * method_idx)
+            for i in range(rows):
+                for j in range(racks_per_row):
+                    for k in range(nodes_per_rack):
+                        path = os.path.join(method_dir, f"node_{i}_{j}_{k}.npy")
+                        np.save(path, np.full((t,), base_gpu + i + j + k, dtype=np.float32))
+
+        summary = aggregate_all_methods(
+            node_traces_root=node_root,
+            aggregated_root=out_root,
+            methods=",".join(methods),
+            dt=dt,
+            rows=rows,
+            racks_per_row=racks_per_row,
+            nodes_per_rack=nodes_per_rack,
+            non_gpu_overhead_w=overhead_w,
+            pue=pue,
+        )
+
+        assert summary["status"] == "ok"
+        assert summary["methods"] == methods
+        assert os.path.exists(os.path.join(out_root, "aggregation_summary.json"))
+
+        for method in methods:
+            method_out = os.path.join(out_root, method)
+            assert os.path.exists(os.path.join(method_out, "site_250ms.npy"))
+            assert os.path.exists(os.path.join(method_out, "site_1s.npy"))
+            assert os.path.exists(os.path.join(method_out, "site_1min.npy"))
+            assert os.path.exists(os.path.join(method_out, "site_15min.npy"))
+            assert os.path.exists(os.path.join(method_out, "aggregation_metadata.json"))
+
+        ours_site = np.asarray(
+            np.load(os.path.join(out_root, "ours", "site_250ms.npy")),
+            dtype=np.float64,
+        ).reshape(-1)
+        expected = (8.0 * ((100.0 + 1.5) + overhead_w)) * pue
+        assert np.allclose(np.mean(ours_site), expected, atol=5.0)

@@ -43,7 +43,6 @@ powertrace-sim/
 │   └── eval/                 # Paper evaluation scripts and baselines
 ├── data/                     # Benchmark data and traces (NPZ, JSON, CSV)
 ├── results/                  # Training outputs, checkpoints, and metrics
-├── ServeGen/                 # Workload generation (git submodule)
 ├── client/                   # Benchmark client for data collection
 ├── server/                   # vLLM server launch scripts
 ├── job-scripts/              # End-to-end benchmarking automation
@@ -72,8 +71,6 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Install ServeGen (workload generator)
-cd ServeGen && pip install -e . && cd ..
 ```
 
 ## Quick Start

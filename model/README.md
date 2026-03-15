@@ -128,7 +128,6 @@ Integrates with ServeGen for realistic workload generation:
 
 - `ServingConfig` - Model/hardware configuration
 - `ServingSystemSimulator` - Request processing simulation
-- `ServeGenPowerSimulator` - End-to-end power from workload
 - `create_llama_config()`, `create_deepseek_config()` - Configuration factories
 
 ### `simulators/server_power_simulator.py`
