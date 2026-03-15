@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
 from collect_results import (  # noqa: E402
+    _parse_and_annotate_rows,
     aggregate_by_model,
     infer_arch_type,
     load_result_csv,
@@ -39,6 +40,7 @@ class TestInferArchType:
         assert infer_arch_type("deepseek-r1-distill", 8) == "dense"
         assert infer_arch_type("gpt-oss", 20) == "moe"
         assert infer_arch_type("gpt-oss", 8) == "dense"
+        assert infer_arch_type("llama-3", 70) == "dense"
 
 
 class TestLoadResultCSV:
@@ -183,3 +185,20 @@ class TestAggregation:
         assert moe["generation_mode"] == "ar1_with_iid_fallback"
         assert int(dense["n_configs"]) == 2
         assert int(moe["n_configs"]) == 2
+
+
+class TestParseAndAnnotateRows:
+    def test_parse_and_annotate_rows_adds_arch_column(self):
+        df = pd.DataFrame(
+            {
+                "config_id": ["gpt-oss-20b_H100_tp1"],
+                "ks_stat_median": [0.2],
+                "acf_r2_median": [0.8],
+                "nrmse_median": [0.3],
+                "delta_energy_pct_median": [1.5],
+                "generation_mode": ["iid"],
+            }
+        )
+        out = _parse_and_annotate_rows(df)
+        assert len(out) == 1
+        assert out.loc[0, "arch_type"] == "moe"

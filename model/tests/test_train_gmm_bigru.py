@@ -13,7 +13,14 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.utils.io import write_json as _write_json
-from model.scripts.train_gmm_bigru import run_training_from_manifest, train_one_config
+from model.scripts.train_gmm_bigru import (
+    _compute_delta_stats,
+    _extract_raw_trace,
+    _parse_k_candidates,
+    _select_optimal_k,
+    run_training_from_manifest,
+    train_one_config,
+)
 
 
 class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
@@ -73,6 +80,98 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
             self.assertGreaterEqual(len(rows), 1)
             self.assertTrue({"epoch", "train_loss", "val_loss", "lr"}.issubset(set(rows[0].keys())))
             self.assertTrue(np.isfinite(float(rows[-1]["val_loss"])))
+
+    def test_parse_k_candidates_basic(self):
+        self.assertEqual(_parse_k_candidates("6,8,10"), [6, 8, 10])
+
+    def test_parse_k_candidates_dedup(self):
+        self.assertEqual(_parse_k_candidates("6,6,8"), [6, 8])
+
+    def test_parse_k_candidates_empty_string(self):
+        self.assertEqual(_parse_k_candidates(""), [])
+
+    def test_select_optimal_k_clear_minimum(self):
+        bic_scores = {
+            "6": {"bic": 120.0},
+            "8": {"bic": 95.0},
+            "10": {"bic": 105.0},
+        }
+        k, reason = _select_optimal_k(bic_scores, max_k=20, min_k=4)
+        self.assertEqual(k, 8)
+        self.assertEqual(reason, "bic_minimum_at_k=8")
+
+    def test_select_optimal_k_no_valid_fallback(self):
+        bic_scores = {
+            "2": {"bic": float("nan")},
+            "3": {"bic": float("nan")},
+        }
+        k, reason = _select_optimal_k(bic_scores, max_k=20, min_k=4)
+        self.assertEqual(k, 10)
+        self.assertEqual(reason, "no_valid_bic_scores_fallback")
+
+    def test_extract_raw_trace_valid(self):
+        pair_key_arr = np.asarray(["p0"], dtype=object)
+        power_arr = np.asarray([np.asarray([1.0, 2.0, 3.0], dtype=np.float64)], dtype=object)
+        active_arr = np.asarray([np.asarray([0.0, 1.0, 1.0], dtype=np.float64)], dtype=object)
+        out = _extract_raw_trace(
+            idx=0,
+            pair_key_arr=pair_key_arr,
+            power_arr=power_arr,
+            active_arr=active_arr,
+            t_arrive_log_arr=None,
+            feature_set="f2",
+        )
+        self.assertIsNotNone(out)
+        assert out is not None
+        self.assertEqual(out["pair_key"], "p0")
+        self.assertIn("power_w", out)
+        self.assertIn("active_requests", out)
+        self.assertIsNone(out["t_arrive_log"])
+
+    def test_extract_raw_trace_nonfinite_returns_none(self):
+        pair_key_arr = np.asarray(["p0"], dtype=object)
+        power_arr = np.asarray([np.asarray([1.0, np.nan, 3.0], dtype=np.float64)], dtype=object)
+        active_arr = np.asarray([np.asarray([0.0, 1.0, 1.0], dtype=np.float64)], dtype=object)
+        out = _extract_raw_trace(
+            idx=0,
+            pair_key_arr=pair_key_arr,
+            power_arr=power_arr,
+            active_arr=active_arr,
+            t_arrive_log_arr=None,
+            feature_set="f2",
+        )
+        self.assertIsNone(out)
+
+    def test_compute_delta_stats_basic(self):
+        train_raw = [
+            {
+                "trace_idx": 0,
+                "pair_key": "p0",
+                "power_w": np.asarray([10.0, 11.0, 12.0, 13.0], dtype=np.float64),
+                "active_requests": np.asarray([0.0, 1.0, 3.0, 2.0], dtype=np.float64),
+                "t_arrive_log": None,
+            },
+            {
+                "trace_idx": 1,
+                "pair_key": "p1",
+                "power_w": np.asarray([8.0, 9.0, 10.0, 11.0], dtype=np.float64),
+                "active_requests": np.asarray([2.0, 2.0, 1.0, 1.0], dtype=np.float64),
+                "t_arrive_log": None,
+            },
+        ]
+        source_norm = {
+            "active_mean": 0.0,
+            "active_std": 1.0,
+            "t_arrive_log_mean": 0.0,
+            "t_arrive_log_std": 1.0,
+        }
+        stats, err = _compute_delta_stats(train_raw, source_norm=source_norm, feature_set="f2")
+        self.assertIsNone(err)
+        self.assertIsNotNone(stats)
+        assert stats is not None
+        expected = np.asarray([1.0, 2.0, -1.0, 0.0, -1.0, 0.0], dtype=np.float64)
+        self.assertAlmostEqual(stats[0], float(np.mean(expected)), places=9)
+        self.assertAlmostEqual(stats[1], float(np.std(expected) + 1e-6), places=9)
 
     def test_run_training_from_manifest_trains_and_skips(self):
         with tempfile.TemporaryDirectory() as tmp:

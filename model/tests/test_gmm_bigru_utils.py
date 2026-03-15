@@ -12,14 +12,49 @@ from model.classifiers.gmm_bigru import (
     build_features_from_active,
     build_rollout_features_from_requests,
     build_state_labels,
+    extract_norm_params,
     fit_power_gmm,
     generate_gmm_bigru_trace,
+    generate_gmm_bigru_trace_ar1_thresholded,
     gmm_params_to_json_dict,
     load_gmm_params_json_dict,
+    predict_sorted_gmm_labels_from_params,
 )
 
 
 class TestGMMBiGRUUtils(unittest.TestCase):
+    def test_extract_norm_params_valid(self):
+        payload = {
+            "active_mean": 1.0,
+            "active_std": 2.0,
+            "t_arrive_log_mean": 0.1,
+            "t_arrive_log_std": 0.2,
+            "power_mean": 200.0,
+            "power_std": 10.0,
+            "power_min": 120.0,
+            "power_max": 280.0,
+            "delta_A_mean": 0.0,
+            "delta_A_std": 1.0,
+        }
+        out = extract_norm_params(payload)
+        self.assertEqual(set(out.keys()), set(payload.keys()))
+        self.assertAlmostEqual(out["active_mean"], 1.0, places=9)
+
+    def test_extract_norm_params_missing_key_raises(self):
+        payload = {
+            "active_mean": 1.0,
+            "active_std": 2.0,
+            "t_arrive_log_mean": 0.1,
+            "t_arrive_log_std": 0.2,
+            "power_mean": 200.0,
+            "power_std": 10.0,
+            "power_min": 120.0,
+            "power_max": 280.0,
+            "delta_A_mean": 0.0,
+        }
+        with self.assertRaises(ValueError):
+            extract_norm_params(payload)
+
     def test_fit_power_gmm_sorts_means_and_labels(self):
         rng = np.random.default_rng(123)
         x = np.concatenate(
@@ -40,6 +75,24 @@ class TestGMMBiGRUUtils(unittest.TestCase):
         self.assertTrue(np.all(labels >= 0))
         self.assertTrue(np.all(labels < 3))
         self.assertGreaterEqual(np.unique(labels).size, 2)
+
+    def test_build_state_labels_empty_array(self):
+        out = build_state_labels(np.asarray([], dtype=np.float64), gmm_params={})
+        self.assertEqual(out.shape, (0,))
+
+    def test_predict_sorted_gmm_labels_from_params(self):
+        rng = np.random.default_rng(42)
+        x = np.concatenate(
+            [
+                rng.normal(90.0, 1.0, size=200),
+                rng.normal(140.0, 1.5, size=200),
+                rng.normal(220.0, 2.0, size=200),
+            ]
+        ).astype(np.float64)
+        fitted = fit_power_gmm(x, k=3, random_state=5, n_init=5, max_iter=200, reg_covar=1e-6)
+        labels_model = build_state_labels(x, fitted)
+        labels_params = predict_sorted_gmm_labels_from_params(x, fitted)
+        np.testing.assert_array_equal(labels_model, labels_params)
 
     def test_gmm_json_roundtrip(self):
         rng = np.random.default_rng(11)
@@ -138,6 +191,42 @@ class TestGMMBiGRUUtils(unittest.TestCase):
         hi = 180.0 + (0.05 * (180.0 - 120.0))
         self.assertTrue(np.all(p_a >= lo - 1e-6))
         self.assertTrue(np.all(p_a <= hi + 1e-6))
+
+    def test_generate_gmm_bigru_trace_ar1_thresholded_basic(self):
+        logits = np.zeros((16, 2), dtype=np.float64)
+        gmm = {
+            "means": np.asarray([100.0, 200.0], dtype=np.float64),
+            "variances": np.asarray([4.0, 9.0], dtype=np.float64),
+        }
+        out = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=logits,
+            gmm_params=gmm,
+            phi=np.asarray([0.5, 0.1], dtype=np.float64),
+            sigma_innov=np.asarray([1.0, 1.0], dtype=np.float64),
+            sigma_marginal=np.asarray([2.0, 3.0], dtype=np.float64),
+            p0=150.0,
+            seed=7,
+            decode_mode="argmax",
+            median_filter_window=1,
+            phi_threshold=0.3,
+        )
+        power = np.asarray(out["power_w"], dtype=np.float64)
+        states = np.asarray(out["states"], dtype=np.int64)
+        self.assertEqual(power.shape, (16,))
+        self.assertEqual(states.shape, (16,))
+        self.assertTrue(np.all(np.isfinite(power)))
+        np.testing.assert_array_equal(
+            np.asarray(out["use_ar1"], dtype=bool),
+            np.asarray([True, False], dtype=bool),
+        )
+        np.testing.assert_allclose(
+            np.asarray(out["phi_gen"], dtype=np.float64),
+            np.asarray([0.5, 0.0], dtype=np.float64),
+        )
+        np.testing.assert_allclose(
+            np.asarray(out["sigma_gen"], dtype=np.float64),
+            np.asarray([1.0, 3.0], dtype=np.float64),
+        )
 
 
 if __name__ == "__main__":

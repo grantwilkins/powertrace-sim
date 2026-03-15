@@ -17,6 +17,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval")
 from azure_trace_utils import Request, compute_trace_statistics, load_and_parse_azure_csv
 
 
+class TestRequestDataclass:
+    def test_request_dataclass_fields(self):
+        req = Request(
+            request_id=7,
+            arrival_time=1.5,
+            input_tokens=128,
+            output_tokens=64,
+        )
+        assert req.request_id == 7
+        assert req.arrival_time == pytest.approx(1.5)
+        assert req.input_tokens == 128
+        assert req.output_tokens == 64
+
+
 class TestLoadAndParseAzureCSV:
     """Tests for load_and_parse_azure_csv function."""
 

@@ -20,8 +20,12 @@ from model.classifiers.gmm_bigru import (
 )
 from model.utils.io import write_json as _write_json
 from model.scripts.eval_gmm_bigru import (
+    _build_requests_from_stage0_json,
+    _build_trace_record,
+    _detect_first_power_spike,
     _load_pair_manifest_map,
     _estimate_request_alignment_offset_seconds,
+    _synthesize_request_timestamps,
     evaluate_from_artifacts,
 )
 
@@ -71,6 +75,67 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
         np.random.seed(0)
+
+    def test_synthesize_request_timestamps_uniform(self):
+        timestamps = _synthesize_request_timestamps({"duration": 8.0}, 4)
+        self.assertEqual(timestamps, [2.0, 4.0, 6.0, 8.0])
+
+    def test_build_requests_from_stage0_json_basic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "requests.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [16, 32],
+                    "output_lens": [8, 12],
+                    "request_timestamps": [1000.25, 1000.75],
+                },
+            )
+            requests = _build_requests_from_stage0_json(
+                str(request_path),
+                power_start_epoch_s=1000.0,
+                trace_duration_s=2.0,
+                dt=0.25,
+            )
+
+            self.assertEqual(len(requests), 2)
+            self.assertEqual(
+                set(requests[0].keys()),
+                {"arrival_time", "input_tokens", "output_tokens"},
+            )
+            self.assertAlmostEqual(float(requests[0]["arrival_time"]), 0.25, places=9)
+            self.assertAlmostEqual(float(requests[1]["output_tokens"]), 12.0, places=9)
+
+    def test_detect_first_power_spike_basic(self):
+        power = np.asarray([100.0, 120.0, 260.0, 270.0, 265.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 2)
+
+    def test_build_trace_record_all_keys(self):
+        record = _build_trace_record(
+            trace_idx=3,
+            pair_key="tp=1|rate=1|date=20260101-000000",
+            rate="1",
+            power_start_epoch_s=1000.0,
+            power=np.asarray([100.0, 101.0, 103.0, 102.0], dtype=np.float64),
+            dt=0.25,
+        )
+        self.assertEqual(
+            set(record.keys()),
+            {
+                "trace_idx",
+                "pair_key",
+                "rate",
+                "power_start_epoch_s",
+                "power",
+                "ground_truth",
+                "p0",
+                "dt",
+                "num_points",
+            },
+        )
+        self.assertEqual(int(record["trace_idx"]), 3)
+        self.assertEqual(int(record["num_points"]), 3)
 
     def test_estimate_request_alignment_offset_seconds(self):
         power = np.asarray([120.0, 130.0, 360.0, 370.0, 380.0], dtype=np.float64)
