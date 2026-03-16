@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import os
 import re
 import sys
@@ -28,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model.utils.io import ensure_dir
+from model.utils.io import ensure_dir, load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
     SPLITWISE_STRICT_CALIBRATION_MODE,
@@ -87,14 +86,6 @@ def _is_moe_config(config_id: str) -> bool:
     if "gpt-oss" in model_family and model_size >= 20:
         return True
     return False
-
-
-def _load_json(path: str) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
 
 
 def _write_csv(
@@ -170,7 +161,7 @@ def _load_or_estimate_ar1_params(
     ar1_path = Path(ar1_params_dir) / f"{config_id}_ar1_params.json"
     k = int(gmm_params["k"])
     if ar1_path.exists():
-        payload = _load_json(str(ar1_path))
+        payload = load_json(str(ar1_path))
         phi = np.asarray(payload.get("phi", []), dtype=np.float64).reshape(-1)
         sigma_innov = np.asarray(
             payload.get("sigma_innov", []), dtype=np.float64
@@ -320,7 +311,7 @@ def _extract_token_pools(json_paths: Sequence[str]) -> Tuple[np.ndarray, np.ndar
     output_pool: List[int] = []
     for path in json_paths:
         try:
-            payload = _load_json(path)
+            payload = load_json(path)
         except Exception:
             continue
         input_lens = payload.get("input_lens")
@@ -747,7 +738,7 @@ def run_baselines_facility(
     if float(burst_node_scale_sigma) < 0:
         raise ValueError("burst_node_scale_sigma must be >= 0")
 
-    run_manifest_payload = _load_json(run_manifest)
+    run_manifest_payload = load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
     if not isinstance(run_cfgs, dict):
         raise ValueError("Invalid run manifest format")
@@ -762,9 +753,9 @@ def run_baselines_facility(
     checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(
         cfg_entry, run_manifest_base
     )
-    norm_payload = _load_json(norm_path)
+    norm_payload = load_json(norm_path)
     norm_cfg = _extract_norm_for_eval(norm_payload)
-    gmm_cfg = load_gmm_params_json_dict(_load_json(gmm_path))
+    gmm_cfg = load_gmm_params_json_dict(load_json(gmm_path))
     k = int(cfg_entry.get("k", gmm_cfg["k"]))
     if k != int(gmm_cfg["k"]):
         raise ValueError(f"k mismatch: manifest={k}, gmm={int(gmm_cfg['k'])}")
@@ -788,16 +779,16 @@ def run_baselines_facility(
         device=resolved_device,
     )
 
-    throughput_payload = _load_json(throughput_db)
+    throughput_payload = load_json(throughput_db)
     throughput = _resolve_throughput(throughput_payload, config_id)
-    experimental_payload = _load_json(experimental_manifest)
+    experimental_payload = load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
     dataset_path, split_path = _resolve_experimental_paths(
         experimental_payload,
         config_id=config_id,
         experimental_base=experimental_base,
     )
-    split_payload = _load_json(split_path)
+    split_payload = load_json(split_path)
     train_indices = [int(x) for x in split_payload.get("train_indices", [])]
     test_indices = [int(x) for x in split_payload.get("test_indices", [])]
     if len(train_indices) == 0 and len(test_indices) == 0:

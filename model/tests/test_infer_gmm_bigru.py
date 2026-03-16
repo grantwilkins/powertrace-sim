@@ -1,5 +1,4 @@
 import csv
-import json
 import os
 import tempfile
 import unittest
@@ -14,7 +13,7 @@ import torch
 
 from model.classifiers.gru import GRUClassifier
 from model.utils.io import write_json as _write_json
-from model.scripts.infer_gmm_bigru import run_inference_from_artifacts
+from model.pipeline.inference import run_inference_from_artifacts
 
 
 class TestContinuousV1GMMBiGRUInfer(unittest.TestCase):

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
 import os
 import re
@@ -36,7 +35,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from model.utils.io import ensure_dir, safe_slug, write_json
+from model.utils.io import ensure_dir, load_json, safe_slug, write_json
 
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_70B_ALL_TP_RE = re.compile(r"^.+-70b_(A100|H100)_tp\d+$")
@@ -127,14 +126,6 @@ def _write_csv(
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
-
-
-def _load_json(path: str | Path) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
 
 
 def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
@@ -292,7 +283,7 @@ def _build_requests_from_stage0_json(
     trace_duration_s: float,
     dt: float,
 ) -> Tuple[List[Dict[str, float]], str]:
-    payload = _load_json(request_json_path)
+    payload = load_json(request_json_path)
     input_lens_raw = payload.get("input_lens")
     output_lens_raw = payload.get("output_lens")
     ts_raw = payload.get("request_timestamps")
@@ -1094,9 +1085,9 @@ def run_appendix_surrogate_validity(
 
     checks = _self_checks()
 
-    run_payload = _load_json(run_manifest)
-    exp_payload = _load_json(experimental_manifest)
-    throughput_payload = _load_json(throughput_db)
+    run_payload = load_json(run_manifest)
+    exp_payload = load_json(experimental_manifest)
+    throughput_payload = load_json(throughput_db)
     pair_map = _load_pair_manifest_map(pair_manifest_csv)
 
     target_config_ids = _list_candidate_configs(
@@ -1123,7 +1114,7 @@ def run_appendix_surrogate_validity(
             experimental_manifest=exp_payload,
             config_id=config_id,
         )
-        split_payload = _load_json(split_path)
+        split_payload = load_json(split_path)
         test_indices = [int(x) for x in split_payload.get("test_indices", [])]
 
         with np.load(dataset_path, allow_pickle=True) as data:

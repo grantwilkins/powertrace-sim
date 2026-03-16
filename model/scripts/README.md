@@ -1,203 +1,44 @@
 # Scripts
 
-This directory contains the main command-line scripts for training, evaluating, and running inference with the GMM-BiGRU pipeline.
+This directory is for CLI entry points only. Core logic lives in `model.pipeline` and `model.training_data`.
 
-## Primary Scripts
+## Thin Wrapper Scripts
 
-### `train_gmm_bigru.py` - Model Training
+| Script | Delegates to | Purpose |
+|---|---|---|
+| `train_gmm_bigru.py` | `model.pipeline.training.run_training_from_manifest` | Train GMM-BiGRU artifacts from experimental manifest data |
+| `eval_gmm_bigru.py` | `model.pipeline.evaluation.evaluate_from_artifacts` | Evaluate trained artifacts on held-out traces |
+| `infer_gmm_bigru.py` | `model.pipeline.inference.run_inference_from_artifacts` | Generate a power trace from request JSON |
+| `stage0_inventory.py` | `model.training_data.stage0_inventory_and_throughput.main` | Build Stage0 inventory + pair manifest + throughput DB |
+| `prepare_manifest.py` | `model.training_data.manifest.main` | Build `experimental_continuous_v1` datasets/splits/norm params |
 
-Train GMM and BiGRU classifier for power state prediction.
+## Other Scripts
 
-```bash
-python -m model.scripts.train_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --out-dir results/continuous_v1_gmm_bigru/k10_f2 \
-    --num-components 10 \
-    --feature-set f2 \
-    --config-ids llama-3-8b_H100_tp1 llama-3-70b_H100_tp4
-```
-
-**Arguments:**
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--stage0-manifest` | Path to data manifest JSON | Required |
-| `--out-dir` | Output directory for artifacts | Required |
-| `--num-components` | Number of GMM components (K) | 10 |
-| `--feature-set` | Feature set (f2 only) | f2 |
-| `--config-ids` | Specific configs to train (space-separated) | All |
-| `--hidden-size` | GRU hidden dimension | 64 |
-| `--num-layers` | Number of GRU layers | 2 |
-| `--epochs` | Training epochs | 100 |
-| `--lr` | Learning rate | 1e-3 |
-| `--device` | Device: cuda, mps, or cpu | Auto-detect |
-
-**Output Structure:**
-```
-out-dir/
-├── checkpoints/          # Model weights (.pt files)
-│   └── {config_id}.pt
-├── gmms/                 # GMM parameters (.json files)
-│   └── {config_id}.json
-├── norm_params/          # Normalization parameters
-│   └── {config_id}.json
-└── training_curves/      # Loss plots (optional)
-```
-
-### `eval_gmm_bigru.py` - Model Evaluation
-
-Evaluate trained models on held-out test data.
-
-```bash
-python -m model.scripts.eval_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --checkpoint-dir results/continuous_v1_gmm_bigru/k10_f2/checkpoints \
-    --norm-dir results/continuous_v1_gmm_bigru/k10_f2/norm_params \
-    --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
-    --out-dir results/continuous_v1_gmm_bigru/k10_f2/eval_metrics \
-    --num-seeds 5
-```
-
-**Arguments:**
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--stage0-manifest` | Path to data manifest JSON | Required |
-| `--checkpoint-dir` | Directory with model checkpoints | Required |
-| `--norm-dir` | Directory with normalization params | Required |
-| `--gmm-dir` | Directory with GMM parameters | Required |
-| `--out-dir` | Output directory for metrics | Required |
-| `--num-seeds` | Number of random seeds for stochastic methods | 5 |
-| `--use-ar1` | Enable AR(1) smoothing | False |
-| `--use-ar1-thresh` | Enable AR(1) with idle thresholding | False |
-
-**Output:**
-- `eval_metrics.csv` - Per-configuration metrics
-- `eval_metrics_summary.csv` - Aggregated statistics
-- `plots/` - Visualization of generated vs ground truth traces
-
-### `infer_gmm_bigru.py` - Power Trace Generation
-
-Generate power traces from request timelines using trained models.
-
-```bash
-python -m model.scripts.infer_gmm_bigru \
-    --requests input_requests.csv \
-    --checkpoint results/.../checkpoints/llama-3-8b_H100_tp1.pt \
-    --norm results/.../norm_params/llama-3-8b_H100_tp1.json \
-    --gmm results/.../gmms/llama-3-8b_H100_tp1.json \
-    --out-csv generated_power.csv \
-    --run-manifest results/stage0/manifest.json \
-    --throughput-db data/perf_model.csv
-```
-
-**Input CSV Format:**
-```csv
-request_id,arrival_time,input_tokens,output_tokens
-0,0.0,512,128
-1,0.5,256,64
-...
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `--requests` | Input CSV with request timeline |
-| `--checkpoint` | Model checkpoint path |
-| `--norm` | Normalization parameters JSON |
-| `--gmm` | GMM parameters JSON |
-| `--out-csv` | Output power trace CSV |
-| `--run-manifest` | Data manifest for config resolution |
-| `--throughput-db` | Performance database for TTFT/TPOT |
-| `--config-id` | Override config ID |
-| `--dt` | Output time resolution (seconds) |
-| `--seed` | Random seed for generation |
-
-**Output CSV Format:**
-```csv
-timestamp_s,watts
-0.0,450.2
-0.1,487.6
-...
-```
-
-### `compare_gmm_bigru.py` - Results Comparison
-
-Compare evaluation results across experiments or configurations.
-
-```bash
-python -m model.scripts.compare_gmm_bigru \
-    --results-dirs results/exp1 results/exp2 \
-    --labels "Baseline" "New Method" \
-    --out-dir results/comparison
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `--results-dirs` | Directories with eval_metrics.csv |
-| `--labels` | Labels for each experiment |
-| `--out-dir` | Output directory for comparison |
-| `--metrics` | Metrics to compare (default: all) |
-
-## Supporting Scripts
-
-### `generate_methods_figures.py`
-
-Generate paper-quality figures for methods section.
-
-```bash
-python -m model.scripts.generate_methods_figures \
-    --out-dir figures/methods
-```
-
-### `power_regression_analysis.py`
-
-Analyze power consumption vs. workload characteristics.
-
-```bash
-python -m model.scripts.power_regression_analysis \
-    --data-dir data/sharegpt-benchmark-llama-3-8b-h100 \
-    --out-dir results/regression
-```
+- `compare_gmm_bigru.py`: experiment comparison utility.
+- `generate_methods_figures.py`: methods-paper figure generation.
+- `power_regression_analysis.py`: regression and exploratory analysis.
 
 ## Typical Workflow
 
 ```bash
-# 1. Prepare training data
-python -m model.training_data.prepare_training_data \
-    --input-dir data/sharegpt-benchmark-* \
-    --output results/stage0
+# 1) Discover Stage0 pairs + throughput model
+python -m model.scripts.stage0_inventory --data_root_dir data
 
-# 2. Train models
+# 2) Build experimental manifest artifacts
+python -m model.scripts.prepare_manifest \
+    --pair-manifest-csv results/stage0/pair_manifest.csv \
+    --out-dir results/experimental_continuous_v1
+
+# 3) Train
 python -m model.scripts.train_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --out-dir results/my_experiment
+    --manifest results/experimental_continuous_v1/manifest.json \
+    --out-root results/continuous_v1_gmm_bigru \
+    --k 10
 
-# 3. Evaluate
+# 4) Evaluate
 python -m model.scripts.eval_gmm_bigru \
-    --stage0-manifest results/stage0/manifest.json \
-    --checkpoint-dir results/my_experiment/checkpoints \
-    --norm-dir results/my_experiment/norm_params \
-    --gmm-dir results/my_experiment/gmms \
-    --out-dir results/my_experiment/eval_metrics
-
-# 4. Generate traces for new workloads
-python -m model.scripts.infer_gmm_bigru \
-    --requests my_workload.csv \
-    --checkpoint results/my_experiment/checkpoints/llama-3-8b_H100_tp1.pt \
-    --norm results/my_experiment/norm_params/llama-3-8b_H100_tp1.json \
-    --gmm results/my_experiment/gmms/llama-3-8b_H100_tp1.json \
-    --out-csv generated_power.csv
+    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
+    --experimental-manifest results/experimental_continuous_v1/manifest.json
 ```
 
-## Configuration ID Format
-
-Configuration IDs follow the pattern: `{model}_{hardware}_{tp}`
-
-**Examples:**
-- `llama-3-8b_H100_tp1`
-- `llama-3-70b_A100_tp4`
-- `deepseek-r1-distill-70b_H100_tp8`
+Use `--help` on each script for full argument details.

@@ -27,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
 import seaborn as sns
 
 from model.classifiers.metrics import compute_power_metrics
+from model.utils.io import load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
     SPLITWISE_STRICT_CALIBRATION_MODE,
@@ -47,7 +48,6 @@ from scripts.eval.run_baselines_node import (
     _extract_norm_for_eval,
     _is_70b_tp4_config,
     _is_moe_config,
-    _load_json,
     _load_model,
     _load_or_estimate_ar1_params,
     _load_pair_manifest_map,
@@ -310,7 +310,7 @@ def run_baselines_node_groundtruth(
     )
     methods = _resolve_methods(splitwise_mode)
 
-    run_manifest_payload = _load_json(run_manifest)
+    run_manifest_payload = load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
     if not isinstance(run_cfgs, dict):
         raise ValueError("Invalid run manifest format")
@@ -324,9 +324,9 @@ def run_baselines_node_groundtruth(
     checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(
         cfg_entry, run_manifest_base
     )
-    norm_payload = _load_json(norm_path)
+    norm_payload = load_json(norm_path)
     norm_cfg = _extract_norm_for_eval(norm_payload)
-    gmm_cfg = load_gmm_params_json_dict(_load_json(gmm_path))
+    gmm_cfg = load_gmm_params_json_dict(load_json(gmm_path))
     k = int(cfg_entry.get("k", gmm_cfg["k"]))
     if k != int(gmm_cfg["k"]):
         raise ValueError(f"k mismatch: manifest={k}, gmm={int(gmm_cfg['k'])}")
@@ -348,16 +348,16 @@ def run_baselines_node_groundtruth(
         device=resolved_device,
     )
 
-    throughput_payload = _load_json(throughput_db)
+    throughput_payload = load_json(throughput_db)
     throughput = _resolve_throughput(throughput_payload, config_id)
-    experimental_payload = _load_json(experimental_manifest)
+    experimental_payload = load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
     dataset_path, split_path = _resolve_experimental_paths(
         experimental_payload,
         config_id=config_id,
         experimental_base=experimental_base,
     )
-    split_payload = _load_json(split_path)
+    split_payload = load_json(split_path)
     train_indices = [int(x) for x in split_payload.get("train_indices", [])]
     test_indices = [int(x) for x in split_payload.get("test_indices", [])]
     pair_map = _load_pair_manifest_map(pair_manifest_csv)

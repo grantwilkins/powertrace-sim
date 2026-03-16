@@ -3,19 +3,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from model.utils.io import write_json as _write_json
-from model.training_data.stage0_inventory_and_throughput import (
-    concurrency_binned_decode_medians,
-    derive_decode_time,
+from model.training_data.inventory import (
     discover_pairs_for_dataset,
-    extract_request_metrics,
     normalize_sharegpt_date,
     parse_benchmark_filename,
     parse_sharegpt_csv_filename,
     parse_sharegpt_json_filename,
+)
+from model.training_data.stage0_inventory_and_throughput import (
     run_stage0_inventory_and_throughput,
+)
+from model.training_data.throughput import (
+    concurrency_binned_decode_medians,
+    extract_request_metrics,
     select_decode_model_type,
 )
+from model.utils.decode_time import derive_decode_time
+from model.utils.io import write_json as _write_json
 
 
 def _write_power_csv(path: Path, timestamps):
@@ -25,6 +29,8 @@ def _write_power_csv(path: Path, timestamps):
         for ts in timestamps:
             for gpu in range(8):
                 f.write(f"{ts}, {100.0 + gpu:.2f} W, 0 %, 10 MiB\n")
+
+
 class TestStage0InventoryAndThroughput(unittest.TestCase):
     def test_filename_parsers(self):
         bench = parse_benchmark_filename(

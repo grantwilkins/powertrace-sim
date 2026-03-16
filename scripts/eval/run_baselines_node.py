@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import os
 import re
 import sys
@@ -24,7 +23,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.classifiers.metrics import compute_aggregate_power_metrics
-from model.utils.io import ensure_dir
+from model.utils.io import ensure_dir, load_json
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
     estimate_ar1_params,
@@ -74,14 +73,6 @@ CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
 # Backward-compatible alias used by run_baselines_node_groundtruth imports.
 _ensure_dir = ensure_dir
-
-
-def _load_json(path: str) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
 
 
 def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequence[str]) -> None:
@@ -418,7 +409,7 @@ def _build_requests_from_stage0_json(
     dt: float,
     require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
-    payload = _load_json(request_json_path)
+    payload = load_json(request_json_path)
     required = ("input_lens", "output_lens")
     missing = [k for k in required if not isinstance(payload.get(k), list)]
     if missing:
@@ -510,7 +501,7 @@ def _load_or_estimate_ar1_params(
     ar1_path = Path(ar1_params_dir) / f"{config_id}_ar1_params.json"
     k = int(gmm_params["k"])
     if ar1_path.exists():
-        payload = _load_json(str(ar1_path))
+        payload = load_json(str(ar1_path))
         phi = np.asarray(payload.get("phi", []), dtype=np.float64).reshape(-1)
         sigma_innov = np.asarray(payload.get("sigma_innov", []), dtype=np.float64).reshape(-1)
         sigma_marginal = np.asarray(payload.get("sigma_marginal", []), dtype=np.float64).reshape(-1)
@@ -647,15 +638,15 @@ def run_baselines_node(
     splitwise_calibration_mode = normalize_splitwise_strict_calibration_mode(
         splitwise_calibration_mode
     )
-    run_manifest_payload = _load_json(run_manifest)
+    run_manifest_payload = load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
     if not isinstance(run_cfgs, dict):
         raise ValueError("Invalid run manifest format")
     run_manifest_base = str(Path(run_manifest).resolve().parent)
 
-    experimental_payload = _load_json(experimental_manifest)
+    experimental_payload = load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
-    throughput_payload = _load_json(throughput_db)
+    throughput_payload = load_json(throughput_db)
     pair_map = _load_pair_manifest_map(pair_manifest_csv)
     parsed_targets = _parse_config_ids(config_ids) or list(DEFAULT_CONFIG_IDS)
     targets = list(dict.fromkeys(parsed_targets))
@@ -734,9 +725,9 @@ def run_baselines_node(
                 raise ValueError(f"config_status_{cfg_entry.get('status', 'unknown')}")
 
             checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(cfg_entry, run_manifest_base)
-            norm_payload = _load_json(norm_path)
+            norm_payload = load_json(norm_path)
             norm_cfg = _extract_norm_for_eval(norm_payload)
-            gmm_payload = _load_json(gmm_path)
+            gmm_payload = load_json(gmm_path)
             gmm_cfg = load_gmm_params_json_dict(gmm_payload)
             throughput = _resolve_throughput(throughput_payload, config_id)
 
@@ -767,7 +758,7 @@ def run_baselines_node(
                 config_id=config_id,
                 experimental_base=experimental_base,
             )
-            split_payload = _load_json(split_path)
+            split_payload = load_json(split_path)
             train_indices = [int(x) for x in split_payload.get("train_indices", [])]
             test_indices = [int(x) for x in split_payload.get("test_indices", [])]
             if len(test_indices) == 0:

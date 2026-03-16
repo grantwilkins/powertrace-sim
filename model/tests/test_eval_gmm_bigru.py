@@ -19,7 +19,7 @@ from model.classifiers.gmm_bigru import (
     generate_gmm_bigru_trace_ar1_thresholded,
 )
 from model.utils.io import write_json as _write_json
-from model.scripts.eval_gmm_bigru import (
+from model.pipeline.evaluation import (
     _build_requests_from_stage0_json,
     _build_trace_record,
     _detect_first_power_spike,
@@ -106,8 +106,44 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             self.assertAlmostEqual(float(requests[0]["arrival_time"]), 0.25, places=9)
             self.assertAlmostEqual(float(requests[1]["output_tokens"]), 12.0, places=9)
 
+    def test_build_requests_from_stage0_json_alignment_offset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "requests_offset.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [10, 20],
+                    "output_lens": [5, 10],
+                    "request_timestamps": [1000.25, 1000.75],
+                },
+            )
+            requests = _build_requests_from_stage0_json(
+                str(request_path),
+                power_start_epoch_s=1000.0,
+                trace_duration_s=2.0,
+                dt=0.25,
+                alignment_offset_s=0.5,
+            )
+            arrivals = [float(r["arrival_time"]) for r in requests]
+            self.assertEqual(arrivals, [0.75, 1.25])
+
     def test_detect_first_power_spike_basic(self):
         power = np.asarray([100.0, 120.0, 260.0, 270.0, 265.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 2)
+
+    def test_detect_first_power_spike_all_below_threshold(self):
+        power = np.asarray([100.0, 120.0, 180.0, 190.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 0)
+
+    def test_detect_first_power_spike_trace_shorter_than_window(self):
+        power = np.asarray([100.0, 280.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 0)
+
+    def test_detect_first_power_spike_single_value_above_threshold(self):
+        power = np.asarray([100.0, 120.0, 260.0, 140.0, 130.0], dtype=np.float64)
         idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
         self.assertEqual(idx, 2)
 

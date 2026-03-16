@@ -12,12 +12,18 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
+from model.classifiers.gmm_bigru import fit_power_gmm
 from model.utils.io import write_json as _write_json
-from model.scripts.train_gmm_bigru import (
+from model.pipeline.data_loading import (
     _compute_delta_stats,
     _extract_raw_trace,
+    _prepare_split,
+)
+from model.pipeline.gmm_fitting import (
     _parse_k_candidates,
     _select_optimal_k,
+)
+from model.pipeline.training import (
     run_training_from_manifest,
     train_one_config,
 )
@@ -118,7 +124,6 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
             pair_key_arr=pair_key_arr,
             power_arr=power_arr,
             active_arr=active_arr,
-            t_arrive_log_arr=None,
             feature_set="f2",
         )
         self.assertIsNotNone(out)
@@ -137,10 +142,103 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
             pair_key_arr=pair_key_arr,
             power_arr=power_arr,
             active_arr=active_arr,
-            t_arrive_log_arr=None,
             feature_set="f2",
         )
         self.assertIsNone(out)
+
+    def test_train_one_config_deterministic_for_same_seed(self):
+        x = np.stack(
+            [
+                np.linspace(-1.0, 1.0, 16, dtype=np.float32),
+                np.linspace(0.5, -0.5, 16, dtype=np.float32),
+            ],
+            axis=1,
+        )
+        y = np.mod(np.arange(16), 3).astype(np.int64)
+        trace = {
+            "pair_key": "trace-0",
+            "features_norm": x.astype(np.float32),
+            "state_labels": y.astype(np.int64),
+            "target_power_w": np.linspace(100.0, 130.0, 16, dtype=np.float64),
+        }
+        config_data = {"train": [trace], "val": [trace], "test": [trace]}
+
+        out_a = train_one_config(
+            config_id="toy_H100_tp1",
+            config_data=config_data,
+            k=3,
+            input_dim=2,
+            hidden_dim=8,
+            num_layers=1,
+            n_epochs=4,
+            lr=1e-3,
+            patience=4,
+            scheduler_patience=2,
+            scheduler_factor=0.5,
+            seed=17,
+            device="cpu",
+        )
+        out_b = train_one_config(
+            config_id="toy_H100_tp1",
+            config_data=config_data,
+            k=3,
+            input_dim=2,
+            hidden_dim=8,
+            num_layers=1,
+            n_epochs=4,
+            lr=1e-3,
+            patience=4,
+            scheduler_patience=2,
+            scheduler_factor=0.5,
+            seed=17,
+            device="cpu",
+        )
+
+        self.assertAlmostEqual(float(out_a["best_val_loss"]), float(out_b["best_val_loss"]), places=10)
+        self.assertEqual(int(out_a["best_epoch"]), int(out_b["best_epoch"]))
+
+    def test_prepare_split_with_gmm_fit_has_valid_label_range(self):
+        raw = [
+            {
+                "trace_idx": 0,
+                "pair_key": "p0",
+                "power_w": np.asarray([90.0, 95.0, 105.0, 115.0], dtype=np.float64),
+                "active_requests": np.asarray([0.0, 1.0, 2.0, 1.0], dtype=np.float64),
+                "t_arrive_log": None,
+            },
+            {
+                "trace_idx": 1,
+                "pair_key": "p1",
+                "power_w": np.asarray([88.0, 92.0, 98.0, 108.0], dtype=np.float64),
+                "active_requests": np.asarray([0.0, 1.0, 1.0, 2.0], dtype=np.float64),
+                "t_arrive_log": None,
+            },
+        ]
+        norm = {
+            "active_mean": 0.0,
+            "active_std": 1.0,
+            "t_arrive_log_mean": 0.0,
+            "t_arrive_log_std": 1.0,
+            "delta_A_mean": 0.0,
+            "delta_A_std": 1.0,
+        }
+        power_values = np.concatenate([np.asarray(x["power_w"], dtype=np.float64) for x in raw], axis=0)
+        gmm_fit = fit_power_gmm(
+            power_values=power_values,
+            k=2,
+            random_state=3,
+            n_init=3,
+            max_iter=100,
+            reg_covar=1e-6,
+        )
+        prepared = _prepare_split(raw, norm=norm, feature_set="f2", gmm_fit=gmm_fit)
+
+        self.assertEqual(len(prepared), 2)
+        for tr in prepared:
+            labels = np.asarray(tr["state_labels"], dtype=np.int64)
+            self.assertGreater(labels.size, 0)
+            self.assertGreaterEqual(int(labels.min()), 0)
+            self.assertLess(int(labels.max()), 2)
 
     def test_compute_delta_stats_basic(self):
         train_raw = [

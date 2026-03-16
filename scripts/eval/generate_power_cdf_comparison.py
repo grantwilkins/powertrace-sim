@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import os
 import re
 import sys
@@ -55,7 +54,7 @@ from model.classifiers.gmm_bigru import (  # noqa: E402
 )
 from model.classifiers.metrics import compute_power_metrics  # noqa: E402
 from model.classifiers.model_loading import load_gru_classifier  # noqa: E402
-from model.utils.io import safe_slug, write_json  # noqa: E402
+from model.utils.io import load_json, safe_slug, write_json  # noqa: E402
 from scripts.eval.azure_defaults import MODEL_NAME_MAP  # noqa: E402
 from scripts.eval.pipeline_utils import (  # noqa: E402
     resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
@@ -298,14 +297,6 @@ def _write_csv(
             writer.writerow(row)
 
 
-def _load_json(path: str) -> Dict[str, object]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}")
-    return payload
-
-
 def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
     raw = Path(path_str)
     if raw.is_absolute():
@@ -410,7 +401,7 @@ def _build_requests_from_stage0_json(
     trace_duration_s: float,
     dt: float,
 ) -> List[Dict[str, float]]:
-    payload = _load_json(request_json_path)
+    payload = load_json(request_json_path)
     required = ("input_lens", "output_lens")
     missing = [k for k in required if not isinstance(payload.get(k), list)]
     if missing:
@@ -572,9 +563,9 @@ def _collect_config_cdf(
     checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(
         run_cfg_row, run_manifest_base
     )
-    norm_payload = _load_json(norm_path)
+    norm_payload = load_json(norm_path)
     norm_cfg = _extract_norm_for_eval(norm_payload)
-    gmm_payload = _load_json(gmm_path)
+    gmm_payload = load_json(gmm_path)
     gmm_cfg = load_gmm_params_json_dict(gmm_payload)
     throughput = _resolve_throughput(throughput_payload, config_id)
 
@@ -608,7 +599,7 @@ def _collect_config_cdf(
         config_id=config_id,
         experimental_base=experimental_base,
     )
-    split_payload = _load_json(split_path)
+    split_payload = load_json(split_path)
     test_indices = [int(x) for x in split_payload.get("test_indices", [])]
     train_indices = [int(x) for x in split_payload.get("train_indices", [])]
     if len(test_indices) == 0:
@@ -896,15 +887,15 @@ def generate_power_cdf_comparison(
     if decode_mode not in {"stochastic", "argmax"}:
         raise ValueError("decode_mode must be one of {'stochastic','argmax'}")
 
-    run_payload = _load_json(run_manifest)
+    run_payload = load_json(run_manifest)
     run_cfgs = run_payload.get("configs", {})
     if not isinstance(run_cfgs, dict):
         raise ValueError("Invalid run manifest format")
     run_manifest_base = str(Path(run_manifest).resolve().parent)
 
-    experimental_payload = _load_json(experimental_manifest)
+    experimental_payload = load_json(experimental_manifest)
     experimental_base = str(Path(experimental_manifest).resolve().parent)
-    throughput_payload = _load_json(throughput_db)
+    throughput_payload = load_json(throughput_db)
     pair_map = _load_pair_manifest_map(pair_manifest_csv)
 
     seeds = [int(base_seed) + i for i in range(int(num_seeds))]
