@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\small
+\caption{Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations.}
+\label{tab:baselines-node}
+\vspace{0.4em}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Method} &
+\textbf{KS~$\downarrow$} &
+\textbf{ACF $R^2$~$\uparrow$} &
+\textbf{NRMSE~$\downarrow$} &
+\textbf{$\Delta$E (\%)~$\downarrow$} \\
+\midrule
+TDP & 1.00 & --- & 1.23 & 188.77 \\
+Mean & 0.63 & --- & 0.31 & 20.33 \\
+LUT-based & 0.64 & 0.56 & 0.27 & 13.71 \\
+Ours & 0.10 & 0.99 & 0.27 & 6.35 \\
+\bottomrule
+\end{tabular}
+\end{table}

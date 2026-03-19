@@ -1,0 +1,84 @@
+{
+  "formatting": {
+    "caption": "Baseline comparison at node level, averaged across held-out Llama-3.1-70B A100 TP=4/8 configurations.",
+    "decimals": 2,
+    "delta_energy_mode": "abs",
+    "force_mean_delta_energy_zero": false,
+    "hide_constant_acf": true,
+    "label": "tab:baselines-node"
+  },
+  "inputs": {
+    "allow_synthetic_request_timestamps": false,
+    "arch_filter": "dense",
+    "exclude_negative_acf_configs": true,
+    "excluded_negative_acf_configs": [],
+    "node_metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/baselines_node_level.csv",
+    "recompute_node_metrics": false,
+    "representative_only": true,
+    "selected_configs": [
+      "llama-3-70b_A100_tp4",
+      "llama-3-70b_A100_tp8"
+    ],
+    "third_method_key": "splitwise_strict"
+  },
+  "method_metrics": {
+    "LUT-based": {
+      "acf_r2": 0.5578136156907664,
+      "delta_energy_pct": 13.707153787766266,
+      "ks_stat": 0.6353286990404736,
+      "nrmse": 0.27111733608833305,
+      "num_configs": 2.0
+    },
+    "Mean": {
+      "acf_r2": NaN,
+      "delta_energy_pct": 20.33123494080388,
+      "ks_stat": 0.6341295139866192,
+      "nrmse": 0.31242428273905953,
+      "num_configs": 2.0
+    },
+    "Ours": {
+      "acf_r2": 0.990834020138286,
+      "delta_energy_pct": 6.354241715861176,
+      "ks_stat": 0.09645009708227117,
+      "nrmse": 0.2671785747058141,
+      "num_configs": 2.0
+    },
+    "TDP": {
+      "acf_r2": NaN,
+      "delta_energy_pct": 188.77041543088407,
+      "ks_stat": 1.0,
+      "nrmse": 1.2250671338228796,
+      "num_configs": 2.0
+    }
+  },
+  "table_rows": [
+    {
+      "acf_r2": "---",
+      "delta_e_pct": "188.77",
+      "ks": "1.00",
+      "method": "TDP",
+      "nrmse": "1.23"
+    },
+    {
+      "acf_r2": "---",
+      "delta_e_pct": "20.33",
+      "ks": "0.63",
+      "method": "Mean",
+      "nrmse": "0.31"
+    },
+    {
+      "acf_r2": "0.56",
+      "delta_e_pct": "13.71",
+      "ks": "0.64",
+      "method": "LUT-based",
+      "nrmse": "0.27"
+    },
+    {
+      "acf_r2": "0.99",
+      "delta_e_pct": "6.35",
+      "ks": "0.10",
+      "method": "Ours",
+      "nrmse": "0.27"
+    }
+  ]
+}

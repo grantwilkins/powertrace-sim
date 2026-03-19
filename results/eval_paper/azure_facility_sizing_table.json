@@ -1,0 +1,92 @@
+{
+  "formatting": {
+    "caption": "Infrastructure sizing from 24-hour facility simulation (240 nodes, PUE\\,$=$\\,1.3). Implied transformer sizing assumes 0.9 power factor.",
+    "decimals_power": 2,
+    "decimals_ramp": 2,
+    "decimals_ratio": 2,
+    "hide_redundant_cells": true,
+    "label": "tab:facility-sizing"
+  },
+  "inputs": {
+    "method_order": [
+      "tdp_baseline",
+      "mean_baseline",
+      "splitwise_strict",
+      "ours"
+    ],
+    "metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_metrics.csv",
+    "power_factor": 0.9,
+    "recompute_metrics": false
+  },
+  "method_metrics_15min": {
+    "mean_baseline": {
+      "avg_mw": 0.8547199523122527,
+      "load_factor": 0.9999999999999996,
+      "max_ramp_mw_per_hr": 0.0,
+      "par": 1.0000000000000004,
+      "peak_mw": 0.8547199523122531,
+      "transformer_mva": 0.9496888359025034
+    },
+    "ours": {
+      "avg_mw": 0.6333456087239583,
+      "load_factor": 0.8423785921485851,
+      "max_ramp_mw_per_hr": 0.11046199999999999,
+      "par": 1.1871146884791826,
+      "peak_mw": 0.751853875,
+      "transformer_mva": 0.8353931944444444
+    },
+    "splitwise_strict": {
+      "avg_mw": 0.7568933502604167,
+      "load_factor": 0.9210904445660874,
+      "max_ramp_mw_per_hr": 0.06573349999999982,
+      "par": 1.0856697145209078,
+      "peak_mw": 0.8217361875,
+      "transformer_mva": 0.9130402083333333
+    },
+    "tdp_baseline": {
+      "avg_mw": 1.1856000000000002,
+      "load_factor": 1.0000000000000002,
+      "max_ramp_mw_per_hr": 0.0,
+      "par": 0.9999999999999998,
+      "peak_mw": 1.1856,
+      "transformer_mva": 1.3173333333333332
+    }
+  },
+  "table_rows": [
+    {
+      "mean_baseline": "---",
+      "metric": "Peak facility power (MW)",
+      "ours": "0.75",
+      "splitwise_strict": "0.82",
+      "tdp_baseline": "1.19"
+    },
+    {
+      "mean_baseline": "0.85",
+      "metric": "Average facility power (MW)",
+      "ours": "0.63",
+      "splitwise_strict": "0.76",
+      "tdp_baseline": "---"
+    },
+    {
+      "mean_baseline": "1.00",
+      "metric": "Peak-to-average ratio",
+      "ours": "1.19",
+      "splitwise_strict": "1.09",
+      "tdp_baseline": "1.00"
+    },
+    {
+      "mean_baseline": "0.00",
+      "metric": "Max 15-min ramp rate (MW/hr)",
+      "ours": "0.11",
+      "splitwise_strict": "0.07",
+      "tdp_baseline": "0.00"
+    },
+    {
+      "mean_baseline": "1.00",
+      "metric": "Load factor",
+      "ours": "0.84",
+      "splitwise_strict": "0.92",
+      "tdp_baseline": "1.00"
+    }
+  ]
+}

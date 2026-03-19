@@ -1,0 +1,23 @@
+{
+  "active_mean": 1.5655813208378389,
+  "active_std": 2.2694725342521154,
+  "auto_k": false,
+  "config_id": "gpt-oss-120b_A100_tp4",
+  "delta_A_mean": 0.0,
+  "delta_A_std": 0.7644055558647295,
+  "dt": 0.25,
+  "feature_set": "f2",
+  "hidden_dim": 64,
+  "input_dim": 2,
+  "k": 10,
+  "k_selection_reason": "fixed",
+  "num_layers": 1,
+  "power_max": 1348.9,
+  "power_mean": 559.7634947334694,
+  "power_min": 259.63,
+  "power_std": 267.87046616338665,
+  "seed": 42,
+  "source_norm_path": "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp4.json",
+  "t_arrive_log_mean": 0.12234930501477523,
+  "t_arrive_log_std": 0.32205365749174775
+}

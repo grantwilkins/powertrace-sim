@@ -2,5 +2,9 @@ data/*
 data
 random_plots_training_data
 *__pycache__*
-wandb*
-wandb/
+*wandb*
+*.pdf
+figures/*
+eval_results
+eval_results/*
+AGENTS.md

@@ -1,0 +1,10 @@
+metric,value
+val_f1,0.524506399387252
+val_precision,0.5316065422649828
+val_recall,0.60423197492163
+ece,0.0440130015755366
+autocorr_r2,1.0
+transition_mae,98.04057
+final_train_loss,0.9537927334507307
+final_val_loss,1.0412603716055553
+val_accuracy,0.60423197492163

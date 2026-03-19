@@ -1,0 +1,557 @@
+import csv
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+import torch
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("KMP_USE_SHM", "0")
+
+from model.classifiers.gru import GRUClassifier
+from model.classifiers.gmm_bigru import (
+    estimate_ar1_params,
+    generate_gmm_bigru_trace_ar1_thresholded,
+)
+from model.utils.io import write_json as _write_json
+from model.pipeline.evaluation import (
+    _build_requests_from_stage0_json,
+    _build_trace_record,
+    _detect_first_power_spike,
+    _load_pair_manifest_map,
+    _estimate_request_alignment_offset_seconds,
+    _synthesize_request_timestamps,
+    evaluate_from_artifacts,
+)
+
+
+def _write_pair_manifest(path: Path, *, pair_key: str, json_path: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "family",
+                "dataset_dir",
+                "dataset_name",
+                "status",
+                "model_name",
+                "hardware",
+                "tensor_parallelism",
+                "rate",
+                "iteration",
+                "date_key",
+                "pair_key",
+                "power_csv_path",
+                "json_path",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "family": "toy",
+                "dataset_dir": "toy",
+                "dataset_name": "toy",
+                "status": "matched",
+                "model_name": "toy",
+                "hardware": "H100",
+                "tensor_parallelism": "1",
+                "rate": "1",
+                "iteration": "0",
+                "date_key": "20260101-000000",
+                "pair_key": pair_key,
+                "power_csv_path": "",
+                "json_path": json_path,
+            }
+        )
+
+
+class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
+    def setUp(self):
+        torch.manual_seed(0)
+        np.random.seed(0)
+
+    def test_synthesize_request_timestamps_uniform(self):
+        timestamps = _synthesize_request_timestamps({"duration": 8.0}, 4)
+        self.assertEqual(timestamps, [2.0, 4.0, 6.0, 8.0])
+
+    def test_build_requests_from_stage0_json_basic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "requests.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [16, 32],
+                    "output_lens": [8, 12],
+                    "request_timestamps": [1000.25, 1000.75],
+                },
+            )
+            requests = _build_requests_from_stage0_json(
+                str(request_path),
+                power_start_epoch_s=1000.0,
+                trace_duration_s=2.0,
+                dt=0.25,
+            )
+
+            self.assertEqual(len(requests), 2)
+            self.assertEqual(
+                set(requests[0].keys()),
+                {"arrival_time", "input_tokens", "output_tokens"},
+            )
+            self.assertAlmostEqual(float(requests[0]["arrival_time"]), 0.25, places=9)
+            self.assertAlmostEqual(float(requests[1]["output_tokens"]), 12.0, places=9)
+
+    def test_build_requests_from_stage0_json_alignment_offset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "requests_offset.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [10, 20],
+                    "output_lens": [5, 10],
+                    "request_timestamps": [1000.25, 1000.75],
+                },
+            )
+            requests = _build_requests_from_stage0_json(
+                str(request_path),
+                power_start_epoch_s=1000.0,
+                trace_duration_s=2.0,
+                dt=0.25,
+                alignment_offset_s=0.5,
+            )
+            arrivals = [float(r["arrival_time"]) for r in requests]
+            self.assertEqual(arrivals, [0.75, 1.25])
+
+    def test_detect_first_power_spike_basic(self):
+        power = np.asarray([100.0, 120.0, 260.0, 270.0, 265.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 2)
+
+    def test_detect_first_power_spike_all_below_threshold(self):
+        power = np.asarray([100.0, 120.0, 180.0, 190.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 0)
+
+    def test_detect_first_power_spike_trace_shorter_than_window(self):
+        power = np.asarray([100.0, 280.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 0)
+
+    def test_detect_first_power_spike_single_value_above_threshold(self):
+        power = np.asarray([100.0, 120.0, 260.0, 140.0, 130.0], dtype=np.float64)
+        idx = _detect_first_power_spike(power, active_threshold=250.0, window_bins=3)
+        self.assertEqual(idx, 2)
+
+    def test_build_trace_record_all_keys(self):
+        record = _build_trace_record(
+            trace_idx=3,
+            pair_key="tp=1|rate=1|date=20260101-000000",
+            rate="1",
+            power_start_epoch_s=1000.0,
+            power=np.asarray([100.0, 101.0, 103.0, 102.0], dtype=np.float64),
+            dt=0.25,
+        )
+        self.assertEqual(
+            set(record.keys()),
+            {
+                "trace_idx",
+                "pair_key",
+                "rate",
+                "power_start_epoch_s",
+                "power",
+                "ground_truth",
+                "p0",
+                "dt",
+                "num_points",
+            },
+        )
+        self.assertEqual(int(record["trace_idx"]), 3)
+        self.assertEqual(int(record["num_points"]), 3)
+
+    def test_estimate_request_alignment_offset_seconds(self):
+        power = np.asarray([120.0, 130.0, 360.0, 370.0, 380.0], dtype=np.float64)
+        a_t = np.asarray([0.0, 0.0, 0.0, 1.0, 1.0], dtype=np.float64)
+        offset = _estimate_request_alignment_offset_seconds(
+            power_trace=power,
+            a_t=a_t,
+            dt=0.25,
+            active_threshold=250.0,
+            window_bins=3,
+        )
+        self.assertAlmostEqual(float(offset), -0.25, places=9)
+
+    def test_load_pair_manifest_map_rebases_foreign_absolute_paths(self):
+        pair_key = "tp=1|rate=1|date=20260101-000000"
+        repo_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as tmp:
+            tmp_dir = Path(tmp)
+            request_path = tmp_dir / "requests_rebase.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [8],
+                    "output_lens": [4],
+                    "request_timestamps": [1.0],
+                },
+            )
+            rel_from_repo = request_path.resolve().relative_to(repo_root)
+            foreign_abs = Path("/Users/someone") / repo_root.name / rel_from_repo
+            pair_manifest_path = tmp_dir / "pair_manifest.csv"
+            _write_pair_manifest(
+                pair_manifest_path,
+                pair_key=pair_key,
+                json_path=str(foreign_abs),
+            )
+
+            pair_map = _load_pair_manifest_map(str(pair_manifest_path))
+            self.assertIn(pair_key, pair_map)
+            self.assertEqual(Path(pair_map[pair_key]).resolve(), request_path.resolve())
+
+    def _build_fixture(self, root: Path, *, include_throughput: bool = True):
+        cfg = "toy_H100_tp1"
+        pair_key = "tp=1|rate=1|date=20260101-000000"
+
+        checkpoint_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "checkpoints" / "toy_H100_tp1_k3_f2_best.pt"
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        model = GRUClassifier(Dx=2, K=3, H=8, num_layers=1)
+        torch.save(model.state_dict(), checkpoint_path)
+
+        norm_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "norm_params" / "toy_H100_tp1.json"
+        _write_json(
+            norm_path,
+            {
+                "config_id": cfg,
+                "dt": 0.25,
+                "k": 3,
+                "feature_set": "f2",
+                "input_dim": 2,
+                "hidden_dim": 8,
+                "num_layers": 1,
+                "active_mean": 0.0,
+                "active_std": 1.0,
+                "t_arrive_log_mean": 0.0,
+                "t_arrive_log_std": 1.0,
+                "delta_A_mean": 0.0,
+                "delta_A_std": 1.0,
+                "power_mean": 100.0,
+                "power_std": 10.0,
+                "power_min": 70.0,
+                "power_max": 140.0,
+            },
+        )
+
+        gmm_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "gmms" / "toy_H100_tp1_k3.json"
+        _write_json(
+            gmm_path,
+            {
+                "config_id": cfg,
+                "k": 3,
+                "covariance_type": "full",
+                "means": [90.0, 110.0, 130.0],
+                "variances": [4.0, 9.0, 16.0],
+                "weights": [0.3, 0.4, 0.3],
+                "order": [0, 1, 2],
+                "label_map": [0, 1, 2],
+                "aic": 0.0,
+                "bic": 0.0,
+            },
+        )
+
+        run_manifest_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "run_manifest.json"
+        _write_json(
+            run_manifest_path,
+            {
+                "schema_version": "continuous-v1-gmm-bigru-train-run-v1",
+                "configs": {
+                    cfg: {
+                        "status": "trained",
+                        "checkpoint_path": str(checkpoint_path),
+                        "norm_params_path": str(norm_path),
+                        "gmm_params_path": str(gmm_path),
+                        "k": 3,
+                        "feature_set": "f2",
+                        "input_dim": 2,
+                        "hidden_dim": 8,
+                        "num_layers": 1,
+                    }
+                },
+            },
+        )
+
+        power = np.array([100.0, 103.0, 107.0, 106.0, 102.0, 101.0], dtype=np.float64)
+        dataset_path = root / "results" / "experimental_continuous_v1" / "datasets" / "toy_H100_tp1.npz"
+        dataset_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            dataset_path,
+            config_id=np.asarray([cfg], dtype=object),
+            dt=np.asarray([0.25], dtype=np.float64),
+            pair_key=np.asarray([pair_key], dtype=object),
+            rate=np.asarray(["1"], dtype=object),
+            power_start_epoch_s=np.asarray([1000.0], dtype=np.float64),
+            power=np.asarray([power], dtype=object),
+        )
+
+        split_path = root / "results" / "experimental_continuous_v1" / "splits" / "toy_H100_tp1.json"
+        _write_json(split_path, {"train_indices": [], "val_indices": [], "test_indices": [0]})
+
+        experimental_manifest_path = root / "results" / "experimental_continuous_v1" / "manifest.json"
+        _write_json(
+            experimental_manifest_path,
+            {
+                "schema_version": "experimental-continuous-v1",
+                "configs": {
+                    cfg: {
+                        "dataset_npz": str(dataset_path),
+                        "split_json": str(split_path),
+                        "norm_params_json": str(norm_path),
+                        "written": True,
+                    }
+                },
+            },
+        )
+
+        throughput_db_path = root / "model" / "config" / "throughput_database.json"
+        throughput_cfg = (
+            {
+                cfg: {
+                    "prefill_rate_median_toks_per_s": 100.0,
+                    "decode_rate_median_toks_per_s": 50.0,
+                }
+            }
+            if include_throughput
+            else {}
+        )
+        _write_json(
+            throughput_db_path,
+            {
+                "schema_version": "stage0-throughput-v1",
+                "configs": throughput_cfg,
+            },
+        )
+
+        requests_path = root / "data" / "requests.json"
+        _write_json(
+            requests_path,
+            {
+                "input_lens": [32, 48],
+                "output_lens": [20, 12],
+                "request_timestamps": [1000.0, 1000.5],
+            },
+        )
+
+        pair_manifest_path = root / "results" / "stage0" / "pair_manifest.csv"
+        _write_pair_manifest(
+            pair_manifest_path,
+            pair_key=pair_key,
+            json_path=str(requests_path),
+        )
+
+        return {
+            "config_id": cfg,
+            "run_manifest": run_manifest_path,
+            "experimental_manifest": experimental_manifest_path,
+            "throughput_db": throughput_db_path,
+            "pair_manifest": pair_manifest_path,
+        }
+
+    def test_evaluate_from_artifacts_smoke(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fx = self._build_fixture(root, include_throughput=True)
+            out_dir = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "eval_metrics"
+
+            run = evaluate_from_artifacts(
+                run_manifest=str(fx["run_manifest"]),
+                experimental_manifest=str(fx["experimental_manifest"]),
+                throughput_db=str(fx["throughput_db"]),
+                pair_manifest_csv=str(fx["pair_manifest"]),
+                out_dir=str(out_dir),
+                config_ids=[fx["config_id"]],
+                num_seeds=2,
+                base_seed=11,
+                device="cpu",
+                decode_mode="stochastic",
+                median_filter_window=1,
+                plots=False,
+            )
+
+            self.assertEqual(int(run["summary"]["num_evaluated_configs"]), 1)
+            self.assertTrue((out_dir / "per_seed_metrics.csv").exists())
+            self.assertTrue((out_dir / "per_trace_metrics.csv").exists())
+            self.assertTrue((out_dir / "config_summary.csv").exists())
+            self.assertTrue((out_dir / "run_manifest.json").exists())
+
+            with open(out_dir / "config_summary.csv", "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["status"], "evaluated")
+            self.assertEqual(rows[0]["generation_mode"], "ar1_thresholded")
+            self.assertEqual(rows[0]["feature_set"], "f2")
+            self.assertEqual(rows[0]["decode_mode"], "stochastic")
+            self.assertTrue(np.isfinite(float(rows[0]["nrmse_median"])))
+            self.assertTrue(np.isfinite(float(rows[0]["phi_median"])))
+            self.assertTrue(Path(rows[0]["ar1_params_json"]).exists())
+            with open(rows[0]["ar1_params_json"], "r") as f:
+                ar1_payload = json.load(f)
+            self.assertEqual(int(ar1_payload["min_run_length"]), 5)
+            self.assertAlmostEqual(float(ar1_payload["phi_threshold"]), 0.3, places=8)
+            self.assertIn("phi_above_threshold", ar1_payload)
+
+            ar1_dir = Path(run["artifacts"]["ar1_params_dir"])
+            self.assertTrue(ar1_dir.exists())
+            self.assertTrue(any(ar1_dir.glob("*_ar1_params.json")))
+
+            self.assertEqual(str(run["schema_version"]), "continuous-v1-gmm-bigru-eval-run-v2")
+
+    def test_evaluate_from_artifacts_missing_throughput_fails_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fx = self._build_fixture(root, include_throughput=False)
+            out_dir = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "eval_metrics"
+
+            run = evaluate_from_artifacts(
+                run_manifest=str(fx["run_manifest"]),
+                experimental_manifest=str(fx["experimental_manifest"]),
+                throughput_db=str(fx["throughput_db"]),
+                pair_manifest_csv=str(fx["pair_manifest"]),
+                out_dir=str(out_dir),
+                config_ids=[fx["config_id"]],
+                num_seeds=2,
+                base_seed=11,
+                device="cpu",
+                decode_mode="stochastic",
+                median_filter_window=1,
+                plots=False,
+            )
+
+            self.assertEqual(int(run["summary"]["num_failed_configs"]), 1)
+            with open(out_dir / "config_summary.csv", "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["status"], "failed")
+            self.assertIn("throughput", rows[0]["reason"])
+
+    def test_estimate_ar1_params_clamp_and_fallback(self):
+        gmm = {
+            "k": 3,
+            "means": np.array([10.0, 20.0, 30.0], dtype=np.float64),
+            "variances": np.array([4.0, 9.0, 16.0], dtype=np.float64),
+            "weights": np.array([0.3, 0.4, 0.3], dtype=np.float64),
+        }
+        training_power_traces = [
+            np.array([10.0, 12.0, 13.0, 14.0, 15.0, 16.0], dtype=np.float64),
+            np.array([21.0, 19.0, 21.0, 19.0], dtype=np.float64),
+        ]
+        training_labels_traces = [
+            np.array([0, 0, 0, 0, 0, 0], dtype=np.int64),
+            np.array([1, 1, 1, 1], dtype=np.int64),
+        ]
+
+        phi, sigma_innov, sigma_marginal = estimate_ar1_params(
+            gmm_params=gmm,
+            training_power_traces=training_power_traces,
+            training_labels_traces=training_labels_traces,
+            K=3,
+            min_run_length=5,
+        )
+
+        self.assertAlmostEqual(float(phi[0]), 0.99, places=10)
+        self.assertAlmostEqual(float(phi[1]), 0.0, places=10)
+        self.assertAlmostEqual(float(phi[2]), 0.0, places=10)
+
+        self.assertTrue(np.allclose(sigma_marginal, np.array([2.0, 3.0, 4.0], dtype=np.float64)))
+        expected_sigma0 = 2.0 * np.sqrt(max(1e-12, 1.0 - (0.99**2)))
+        self.assertAlmostEqual(float(sigma_innov[0]), float(expected_sigma0), places=10)
+        self.assertAlmostEqual(float(sigma_innov[1]), 3.0, places=10)
+        self.assertAlmostEqual(float(sigma_innov[2]), 4.0, places=10)
+
+    def test_generate_ar1_deterministic_rollout_and_seed(self):
+        gmm = {
+            "k": 2,
+            "means": np.array([100.0, 200.0], dtype=np.float64),
+            "variances": np.array([1.0, 1.0], dtype=np.float64),
+            "weights": np.array([0.5, 0.5], dtype=np.float64),
+        }
+
+        deterministic_logits = np.array([[10.0, -10.0], [10.0, -10.0], [10.0, -10.0]], dtype=np.float64)
+        deterministic = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=deterministic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.5, 0.0], dtype=np.float64),
+            sigma_innov=np.array([0.0, 0.0], dtype=np.float64),
+            sigma_marginal=np.array([0.0, 0.0], dtype=np.float64),
+            p0=50.0,
+            seed=7,
+            decode_mode="argmax",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=None,
+        )
+        self.assertTrue(
+            np.allclose(
+                np.asarray(deterministic["power_w"], dtype=np.float64),
+                np.array([75.0, 87.5, 93.75], dtype=np.float64),
+            )
+        )
+
+        iid_logits = np.array([[10.0, -10.0], [10.0, -10.0], [10.0, -10.0]], dtype=np.float64)
+        iid_like = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=iid_logits,
+            gmm_params=gmm,
+            phi=np.array([0.2, 0.0], dtype=np.float64),
+            sigma_innov=np.array([2.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([0.0, 0.0], dtype=np.float64),
+            p0=180.0,
+            seed=9,
+            decode_mode="argmax",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=None,
+        )
+        self.assertTrue(
+            np.allclose(
+                np.asarray(iid_like["power_w"], dtype=np.float64),
+                np.array([100.0, 100.0, 100.0], dtype=np.float64),
+            )
+        )
+
+        stochastic_logits = np.zeros((6, 2), dtype=np.float64)
+        out_a = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=stochastic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.8, 0.7], dtype=np.float64),
+            sigma_innov=np.array([1.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([3.0, 4.0], dtype=np.float64),
+            p0=180.0,
+            seed=123,
+            decode_mode="stochastic",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=(150.0, 260.0),
+        )
+        out_b = generate_gmm_bigru_trace_ar1_thresholded(
+            logits=stochastic_logits,
+            gmm_params=gmm,
+            phi=np.array([0.8, 0.7], dtype=np.float64),
+            sigma_innov=np.array([1.0, 2.0], dtype=np.float64),
+            sigma_marginal=np.array([3.0, 4.0], dtype=np.float64),
+            p0=180.0,
+            seed=123,
+            decode_mode="stochastic",
+            median_filter_window=1,
+            phi_threshold=0.3,
+            clamp_range=(150.0, 260.0),
+        )
+        p_a = np.asarray(out_a["power_w"], dtype=np.float64)
+        p_b = np.asarray(out_b["power_w"], dtype=np.float64)
+        self.assertEqual(p_a.shape[0], 6)
+        self.assertTrue(np.allclose(p_a, p_b))
+
+
+if __name__ == "__main__":
+    unittest.main()

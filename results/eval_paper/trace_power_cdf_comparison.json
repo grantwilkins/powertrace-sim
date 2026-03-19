@@ -1,0 +1,197 @@
+{
+  "artifacts": {
+    "cdf_points_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/trace_power_cdf_comparison_points.csv",
+    "gpt_oss_120b_single_plot_files": [
+      {
+        "config_id": "gpt-oss-120b_A100_tp8",
+        "plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/gpt-oss-120b_A100_tp8_power_cdf.pdf",
+        "plot_png": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/gpt-oss-120b_A100_tp8_power_cdf.png"
+      }
+    ],
+    "plot_dir": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison",
+    "plot_files": [
+      {
+        "config_id": "deepseek-r1-distill-70b_A100_tp4",
+        "plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/deepseek-r1-distill-70b_A100_tp4_power_cdf.pdf",
+        "plot_png": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/deepseek-r1-distill-70b_A100_tp4_power_cdf.png"
+      },
+      {
+        "config_id": "llama-3-8b_H100_tp1",
+        "plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/llama-3-8b_H100_tp1_power_cdf.pdf",
+        "plot_png": "/Users/grantwilkins/powertrace-sim/figures/trace_power_cdf_comparison/llama-3-8b_H100_tp1_power_cdf.png"
+      }
+    ],
+    "summary_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/trace_power_cdf_comparison.csv"
+  },
+  "chosen_seed_rows": [
+    {
+      "chosen_nrmse": 0.1377719024235145,
+      "chosen_seed": 43,
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "median_nrmse": 0.1377719024235145,
+      "num_points": 2629,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=4|rate=4|date=20250518-101748",
+      "trace_idx": 15
+    },
+    {
+      "chosen_nrmse": 0.3668711473085799,
+      "chosen_seed": 42,
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "median_nrmse": 0.3668711473085799,
+      "num_points": 2494,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=4|rate=0.125|date=20250518-102821",
+      "trace_idx": 1
+    },
+    {
+      "chosen_nrmse": 0.08570735488494466,
+      "chosen_seed": 44,
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "median_nrmse": 0.08570735488494466,
+      "num_points": 2532,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=4|rate=2|date=20250518-111029",
+      "trace_idx": 13
+    },
+    {
+      "chosen_nrmse": 0.14303242761784055,
+      "chosen_seed": 42,
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "median_nrmse": 0.14303242761784055,
+      "num_points": 2476,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=4|rate=0.5|date=20250518-115249",
+      "trace_idx": 8
+    },
+    {
+      "chosen_nrmse": 0.35710105568241557,
+      "chosen_seed": 42,
+      "config_id": "llama-3-8b_H100_tp1",
+      "median_nrmse": 0.35710105568241557,
+      "num_points": 2482,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=1|rate=0.125|date=20250513-051325",
+      "trace_idx": 4
+    },
+    {
+      "chosen_nrmse": 0.06832300830126979,
+      "chosen_seed": 46,
+      "config_id": "llama-3-8b_H100_tp1",
+      "median_nrmse": 0.06832300830126979,
+      "num_points": 2534,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=1|rate=4|date=20250513-040036",
+      "trace_idx": 27
+    },
+    {
+      "chosen_nrmse": 0.37550570709804426,
+      "chosen_seed": 44,
+      "config_id": "llama-3-8b_H100_tp1",
+      "median_nrmse": 0.37550570709804426,
+      "num_points": 2480,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=1|rate=0.125|date=20250513-020618",
+      "trace_idx": 1
+    },
+    {
+      "chosen_nrmse": 0.4609251044597462,
+      "chosen_seed": 45,
+      "config_id": "llama-3-8b_H100_tp1",
+      "median_nrmse": 0.4609251044597462,
+      "num_points": 2458,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=1|rate=0.5|date=20250513-043141",
+      "trace_idx": 13
+    },
+    {
+      "chosen_nrmse": 0.45428685035309685,
+      "chosen_seed": 46,
+      "config_id": "llama-3-8b_H100_tp1",
+      "median_nrmse": 0.45428685035309685,
+      "num_points": 2455,
+      "num_seed_candidates": 5,
+      "pair_key": "tp=1|rate=0.25|date=20250513-042122",
+      "trace_idx": 8
+    }
+  ],
+  "config_summaries": [
+    {
+      "acf_r2": 0.9803256853019607,
+      "config_id": "deepseek-r1-distill-70b_A100_tp4",
+      "decode_mode": "stochastic",
+      "delta_energy_pct": 2.2147661861611385,
+      "display_label": "DeepSeek-R1-Distill-70B A100 TP=4",
+      "dt": 0.25,
+      "generation_mode": "iid",
+      "ks_stat": 0.06317244102260389,
+      "median_filter_window": 1,
+      "nrmse": 0.1999323619933348,
+      "num_eval_traces": 4,
+      "num_points": 10131,
+      "num_skipped_traces": 0,
+      "num_test_traces": 4,
+      "original_mean_w": 1101.266260981147,
+      "p95_error_pct": 0.5618918017613393,
+      "p99_error_pct": 0.1939248028935939,
+      "sampled_mean_w": 1125.6541427707552
+    },
+    {
+      "acf_r2": 0.9852931709833324,
+      "config_id": "llama-3-8b_H100_tp1",
+      "decode_mode": "stochastic",
+      "delta_energy_pct": 0.578700357091038,
+      "display_label": "Llama-3-8B H100 TP=1",
+      "dt": 0.25,
+      "generation_mode": "iid",
+      "ks_stat": 0.15279232814892416,
+      "median_filter_window": 1,
+      "nrmse": 0.33205508030669617,
+      "num_eval_traces": 5,
+      "num_points": 12409,
+      "num_skipped_traces": 0,
+      "num_test_traces": 5,
+      "original_mean_w": 262.65469900878395,
+      "p95_error_pct": 0.517199442605324,
+      "p99_error_pct": 0.5082554244201348,
+      "sampled_mean_w": 264.1735852674625
+    }
+  ],
+  "failures": [],
+  "gpt_oss_120b_single": {
+    "config_id": "gpt-oss-120b_A100_tp8",
+    "failure": null,
+    "summary": {
+      "acf_r2": 0.9007726130640539,
+      "delta_energy_pct": 1.3933503370445945,
+      "ks_stat": 0.13009103977000483,
+      "nrmse": 0.17742773532441755,
+      "original_mean_w": 810.421078901134,
+      "p95_error_pct": 0.6281534415452037,
+      "p99_error_pct": 0.5469537167308723,
+      "sampled_mean_w": 821.7125266872431
+    }
+  },
+  "inputs": {
+    "base_seed": 42,
+    "config_ids": [
+      "deepseek-r1-distill-70b_A100_tp4",
+      "llama-3-8b_H100_tp1"
+    ],
+    "decode_mode": "stochastic",
+    "device": "cpu",
+    "experimental_manifest": "/Users/grantwilkins/powertrace-sim/results/experimental_continuous_v1/manifest.json",
+    "generation_mode": "iid",
+    "median_filter_window": 1,
+    "num_seeds": 5,
+    "pair_manifest_csv": "/Users/grantwilkins/powertrace-sim/results/stage0/pair_manifest.csv",
+    "run_manifest": "/Users/grantwilkins/powertrace-sim/results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    "throughput_db": "/Users/grantwilkins/powertrace-sim/model/config/throughput_database.json"
+  },
+  "status": "ok",
+  "summary": {
+    "num_failed_configs": 0,
+    "num_requested_configs": 2,
+    "num_successful_configs": 2
+  }
+}

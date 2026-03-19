@@ -1,0 +1,12 @@
+{
+  "active_mean": 4.096785310578699,
+  "active_std": 4.961437950301493,
+  "config_id": "llama-3-70b_H100_tp4",
+  "dt": 0.25,
+  "power_max": 2309.48,
+  "power_mean": 1541.791875603099,
+  "power_min": 464.75,
+  "power_std": 577.5769849477019,
+  "t_arrive_log_mean": 0.11415824462313161,
+  "t_arrive_log_std": 0.3304895547782079
+}

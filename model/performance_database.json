@@ -1,4 +1,61 @@
 {
+  "llama-3.1_8b_h100_tp1": {
+    "model_name": "llama-3.1",
+    "model_size_b": 8,
+    "hardware": "H100",
+    "tensor_parallelism": 1,
+    "num_experiments": 72,
+    "total_requests": 329007,
+    "ttft_model": {
+      "type": "heteroskedastic_log_linear",
+      "intercept": -4.065959156146849,
+      "slope": 0.707641415042107,
+      "sigma_base": 2.8935670143454466,
+      "sigma_intercept": 1.0479829207160758,
+      "sigma_slope": -0.03098677259400586,
+      "n_train": 183269,
+      "nin_min": 4,
+      "nin_max": 23090,
+      "summary_stats": {
+        "mean_seconds": 18.91830883944642,
+        "median_seconds": 3.543922916000156,
+        "std_seconds": 46.091011719297505,
+        "min_observed": 0.010708894000345026,
+        "max_observed": 481.24204183799884
+      }
+    },
+    "tpot_distribution": {
+      "type": "gaussian",
+      "mean": 0.012977847300683588,
+      "std": 0.027875693572145147,
+      "summary_stats": {
+        "mean_seconds": 0.012977847300683588,
+        "median_seconds": 0.007615676000568783,
+        "std_seconds": 0.027875693572145147,
+        "min_observed": 7.308000022021588e-06,
+        "max_observed": 0.9183588920004695
+      }
+    },
+    "gmm_parameters": {
+      "mu": [
+        464.3801258026643,
+        119.50400229329571,
+        383.23180966206655,
+        284.9722818889698,
+        438.07897101425556,
+        177.10207799645113
+      ],
+      "sigma": [
+        10.998510682850327,
+        1.927537989909909,
+        30.891159305022843,
+        34.37696864590273,
+        8.985794193039258,
+        34.78283414773574
+      ],
+      "num_states": 6
+    }
+  },
   "deepseek-r1-distill_70b_a100_tp4": {
     "model_name": "deepseek-r1-distill",
     "model_size_b": 70,
@@ -36,6 +93,7 @@
         "max_observed": 0.30015872300282354
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -55,6 +113,26 @@
         13.339237056617717
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        1216.2886604833088,
+        288.0559949827239,
+        1568.9263906673834,
+        987.4796034211838,
+        1334.8433165317208,
+        365.3225933505925
+      ],
+      "sigma": [
+        18.497430762112188,
+        8.269210671201055,
+        60.955651618833926,
+        269.11189066998446,
+        76.42950852703373,
+        13.339217579069837
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_70b_a100_tp8": {
@@ -94,6 +172,7 @@
         "max_observed": 0.2273992560003535
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -113,6 +192,26 @@
         576.8097220517959
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        2031.8633661869367,
+        562.4781504692841,
+        2328.4666262639194,
+        711.2624724299229,
+        2072.7113778704183,
+        1349.3046592528917
+      ],
+      "sigma": [
+        23.225480675558877,
+        9.748906177176194,
+        300.6755004525271,
+        17.89260780551826,
+        24.946244383233445,
+        576.8093851555573
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_70b_h100_tp4": {
@@ -152,6 +251,7 @@
         "max_observed": 0.24124843699974008
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -171,6 +271,26 @@
         60.163078787006775
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        1777.223125126919,
+        484.70137871655805,
+        1850.4892833361762,
+        789.9574957834437,
+        1460.6192720265103,
+        1949.5991877942963
+      ],
+      "sigma": [
+        31.561206470645853,
+        12.14605654195947,
+        31.777302664733465,
+        205.85254491229088,
+        210.54292316565625,
+        60.16313830627652
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_70b_h100_tp8": {
@@ -210,6 +330,7 @@
         "max_observed": 0.3148098840001694
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -229,6 +350,26 @@
         75.69301569096037
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        2965.848646315186,
+        946.5720496482785,
+        2069.7714006248752,
+        2596.0884851594315,
+        1275.8578942278934,
+        3021.4305848065246
+      ],
+      "sigma": [
+        40.834789824839895,
+        7.363103062635374,
+        177.89532322826977,
+        287.40712443129524,
+        266.0131291179763,
+        75.6929034462225
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_a100_tp1": {
@@ -268,6 +409,7 @@
         "max_observed": 0.09625958700053161
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -287,6 +429,26 @@
         6.328559609992752
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        71.56968065463619,
+        285.38603546650575,
+        370.6609823677882,
+        218.61724702839538,
+        88.54100460992359,
+        296.7733184218874
+      ],
+      "sigma": [
+        1.4148825479381173,
+        4.489224098892443,
+        42.09275472330189,
+        66.1340785499988,
+        2.4528289598170825,
+        6.328521089148087
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_a100_tp2": {
@@ -326,6 +488,7 @@
         "max_observed": 0.20283714200013492
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -345,6 +508,26 @@
         10.546025669944258
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        522.0079258058943,
+        139.04949675793247,
+        389.75362688672936,
+        530.5816241219884,
+        598.9507525721114,
+        170.20668706015948
+      ],
+      "sigma": [
+        6.194224207397151,
+        1.3181036652974245,
+        97.83326861201542,
+        9.648703063618061,
+        67.59594002852798,
+        10.545830086880514
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_a100_tp4": {
@@ -384,6 +567,7 @@
         "max_observed": 0.2703284229974088
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -403,6 +587,26 @@
         104.07448072685823
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        850.1123188212141,
+        276.57493728817826,
+        470.2983140764165,
+        346.06525293527875,
+        289.81808101693514,
+        777.2513655459403
+      ],
+      "sigma": [
+        18.01881164121697,
+        1.6564075623588588,
+        121.62008297561,
+        6.77997619030051,
+        8.075868446030825,
+        104.07457107406292
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_a100_tp8": {
@@ -442,6 +646,7 @@
         "max_observed": 0.2225838490012393
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -461,6 +666,26 @@
         186.60602938771842
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        564.4201984020217,
+        1350.417050647856,
+        688.1606036774734,
+        669.5774135906399,
+        552.8536604623243,
+        1143.4856174760548
+      ],
+      "sigma": [
+        6.687676578077775,
+        23.602340174602592,
+        7.494588631586865,
+        68.73771510208452,
+        2.405550693565841,
+        186.60609716287027
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_h100_tp1": {
@@ -500,6 +725,7 @@
         "max_observed": 0.292019808999612
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -519,6 +745,26 @@
         7.414581405895717
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        373.15420803186066,
+        119.41749917430307,
+        464.10793533104135,
+        273.171807969636,
+        169.35826909645232,
+        440.40433079285884
+      ],
+      "sigma": [
+        36.9975549770931,
+        1.5402496923540352,
+        11.160047969341612,
+        33.83986976494513,
+        32.80211482522942,
+        7.4146032791920415
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_h100_tp2": {
@@ -558,6 +804,7 @@
         "max_observed": 0.21845363899774384
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -577,6 +824,26 @@
         40.619125669729776
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        237.46842874835292,
+        772.2112899556859,
+        553.504243851741,
+        438.2758295562217,
+        672.9592874668523,
+        305.32562501882114
+      ],
+      "sigma": [
+        4.651241622108879,
+        13.329935429432567,
+        42.79344846101641,
+        44.33887501692994,
+        47.22017613470624,
+        40.61912738632272
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_h100_tp4": {
@@ -616,6 +883,7 @@
         "max_observed": 0.23177359500550665
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -635,6 +903,26 @@
         50.22210345397731
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        472.96649582315933,
+        1280.755574244106,
+        923.1063201571656,
+        737.5504658596329,
+        1126.8128376937668,
+        536.7499314453623
+      ],
+      "sigma": [
+        2.6033650117720764,
+        22.602873130810092,
+        68.93892570045205,
+        70.69124929577629,
+        77.26807685739459,
+        50.22208887498256
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "deepseek-r1-distill_8b_h100_tp8": {
@@ -674,6 +962,7 @@
         "max_observed": 0.2283544370002346
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -693,6 +982,26 @@
         82.28687143261973
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        945.3493053636508,
+        2066.9526869727115,
+        1599.339805764095,
+        1868.102419470493,
+        1352.5147677418427,
+        1063.8286702454827
+      ],
+      "sigma": [
+        5.403645941746056,
+        23.001907727720358,
+        95.81415929104837,
+        104.7705181326816,
+        94.6462681286232,
+        82.28687570259011
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_405b_h100_tp8": {
@@ -731,6 +1040,25 @@
         "min_observed": 5.324000085238367e-06,
         "max_observed": 0.34465107699725195
       }
+    },
+    "gmm_parameters": {
+      "mu": [
+        3553.4551089732227,
+        1007.0875335548121,
+        3881.1746392437312,
+        2685.383819943607,
+        4188.400506209847,
+        3615.2923217243538
+      ],
+      "sigma": [
+        43.821440846388796,
+        18.662955890503078,
+        131.00845511122256,
+        839.8982001148117,
+        192.04219880800852,
+        63.047695130911364
+      ],
+      "num_states": 6
     }
   },
   "llama-3.1_70b_a100_tp4": {
@@ -770,6 +1098,7 @@
         "max_observed": 0.3014001580013428
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -789,6 +1118,26 @@
         332.89186511696147
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        1220.8841193186279,
+        290.65183508970784,
+        1439.587491764411,
+        1222.0919645572728,
+        364.0906913125799,
+        911.0904296920814
+      ],
+      "sigma": [
+        12.516609039153057,
+        6.45113404401173,
+        130.57798964440923,
+        28.405051241605285,
+        9.352798237383327,
+        332.8918054498932
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_70b_a100_tp8": {
@@ -828,6 +1177,7 @@
         "max_observed": 0.22706469699915033
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -847,6 +1197,26 @@
         41.44751121829171
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        1958.2409069386786,
+        551.7894467775085,
+        2368.9035543428995,
+        1471.446504047444,
+        677.8486716564155,
+        2057.7025630083936
+      ],
+      "sigma": [
+        32.35200533640291,
+        15.872513723237507,
+        266.988543421912,
+        436.2032036035043,
+        24.89489520462646,
+        41.44773689700126
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_70b_h100_tp4": {
@@ -886,6 +1256,7 @@
         "max_observed": 0.32528344399997877
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -905,6 +1276,26 @@
         139.8766096906187
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        490.0993668530311,
+        1847.64284939993,
+        1139.1406151170627,
+        1954.7000350680069,
+        1498.7495301370038,
+        711.518439615717
+      ],
+      "sigma": [
+        15.61456554286902,
+        48.45193946864764,
+        140.78449016863993,
+        71.19283254163858,
+        158.71075070973714,
+        139.87659384572228
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_70b_h100_tp8": {
@@ -944,6 +1335,7 @@
         "max_observed": 0.2247124159998748
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -963,6 +1355,26 @@
         28.24387865806555
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        2949.63498715156,
+        958.8016490838272,
+        1423.4577853216795,
+        2463.125116878905,
+        3108.484932871191,
+        3016.3198538349466
+      ],
+      "sigma": [
+        27.665874721798154,
+        11.069337507370728,
+        333.19989659871135,
+        325.81529572292555,
+        64.09620741164865,
+        28.243137600650833
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_a100_tp1": {
@@ -1002,6 +1414,7 @@
         "max_observed": 0.30745398399812984
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1021,6 +1434,26 @@
         4.261566888584819
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        68.3249425167883,
+        292.8991253386705,
+        368.7072985350467,
+        204.00470275717066,
+        83.30064036892433,
+        285.1209417625911
+      ],
+      "sigma": [
+        0.6599388561117812,
+        7.114283294572654,
+        51.22028600421388,
+        89.7232567696833,
+        1.5500247716170608,
+        4.261593924611214
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_a100_tp2": {
@@ -1060,6 +1493,7 @@
         "max_observed": 0.25246796799910953
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1079,6 +1513,26 @@
         7.796287211573861
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        135.09493738029474,
+        508.3382142225971,
+        383.05454300195436,
+        572.9938254036136,
+        161.4593244913998,
+        515.9768361376576
+      ],
+      "sigma": [
+        1.1669136699262306,
+        5.64371383199827,
+        100.49272867892745,
+        68.80219701721326,
+        8.148011411359036,
+        7.796166650744565
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_a100_tp4": {
@@ -1118,6 +1572,7 @@
         "max_observed": 0.26440370899945265
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1137,6 +1592,26 @@
         12.39582039393008
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        856.1697304217812,
+        277.7147196741364,
+        627.4173951560805,
+        291.111634467726,
+        341.3958463062713,
+        833.0229390410932
+      ],
+      "sigma": [
+        13.359146183294296,
+        1.6472273087856806,
+        168.9744838901115,
+        9.708963981324219,
+        6.348273831934145,
+        12.39569419201457
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_a100_tp8": {
@@ -1175,6 +1650,7 @@
         "min_observed": 8.005008567124605e-06,
         "max_observed": 0.3264865560049657
       }
+<<<<<<< HEAD:model/performance_database.json
     },
     "power_states": {
       "num_states": 6,
@@ -1253,6 +1729,27 @@
         34.78283945031978
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    },
+    "gmm_parameters": {
+      "mu": [
+        552.283365387983,
+        1322.1166238224898,
+        671.9203492268397,
+        1103.9172333240651,
+        650.9732445277913,
+        560.9886671211138
+      ],
+      "sigma": [
+        1.5494321934016022,
+        18.93196623878286,
+        5.403257107937414,
+        195.75226888547115,
+        50.561060498645496,
+        5.764186524294254
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_h100_tp2": {
@@ -1292,6 +1789,7 @@
         "max_observed": 0.25721235199671355
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1311,6 +1809,26 @@
         45.50785714668082
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        238.58429221691895,
+        774.4239253685776,
+        557.6504367672715,
+        302.00726335983035,
+        440.3446955117163,
+        670.3708530237756
+      ],
+      "sigma": [
+        1.7542531288642087,
+        18.650714795091993,
+        42.286466416506656,
+        41.749013442353395,
+        44.6051221369309,
+        39.031927059684506
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_h100_tp4": {
@@ -1350,6 +1868,7 @@
         "max_observed": 0.2605150469998989
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1369,6 +1888,26 @@
         56.890678808333064
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        1304.3970705328736,
+        483.7966798259043,
+        959.2903658320689,
+        773.3644128647078,
+        1154.9806709209968,
+        558.5437250824051
+      ],
+      "sigma": [
+        22.52342091760114,
+        2.4995037669883398,
+        69.44962388800887,
+        70.27558092782266,
+        74.07504903534054,
+        56.89067654439409
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   },
   "llama-3.1_8b_h100_tp8": {
@@ -1408,6 +1947,7 @@
         "max_observed": 0.3110037629958242
       }
     },
+<<<<<<< HEAD:model/performance_database.json
     "power_states": {
       "num_states": 6,
       "state_means": [
@@ -1427,6 +1967,26 @@
         67.84831969673164
       ],
       "clustering_method": "gaussian_mixture"
+=======
+    "gmm_parameters": {
+      "mu": [
+        957.8626617473004,
+        1862.0315992285825,
+        1575.8826814779704,
+        2074.449889569546,
+        1319.2753972336707,
+        1064.8045196510336
+      ],
+      "sigma": [
+        7.81828829100787,
+        111.08460230283528,
+        96.01998397019979,
+        24.523773938734614,
+        88.61246904279218,
+        67.84834773235205
+      ],
+      "num_states": 6
+>>>>>>> grant/moe-exploration:model/config/performance_database.json
     }
   }
 }

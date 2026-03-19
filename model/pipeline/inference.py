@@ -1,0 +1,273 @@
+from __future__ import annotations
+
+import csv
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import torch
+
+from model.classifiers.gmm_bigru import (
+    build_rollout_features_from_requests,
+    generate_gmm_bigru_trace,
+    load_gmm_params_json_dict,
+)
+from model.classifiers.gru import GRUClassifier
+from model.pipeline.artifact_resolution import resolve_throughput
+from model.pipeline.manifest_validation import validate_manifest
+from model.utils.config import resolve_device as _resolve_device
+from model.utils.io import (
+    ensure_dir as _ensure_dir,
+    load_json as _load_json,
+    resolve_existing_path as _resolve_existing_path,
+)
+
+
+def _load_requests_json(path: str) -> List[Dict[str, object]]:
+    with open(path, "r") as f:
+        payload = json.load(f)
+    if isinstance(payload, list):
+        reqs = payload
+    elif isinstance(payload, dict):
+        reqs = payload.get("requests")
+    else:
+        reqs = None
+    if not isinstance(reqs, list):
+        raise ValueError("requests JSON must be a list or object with key 'requests'.")
+
+    out: List[Dict[str, object]] = []
+    for i, req in enumerate(reqs):
+        if not isinstance(req, dict):
+            raise ValueError(f"request[{i}] must be an object")
+        for key in ("arrival_time", "input_tokens", "output_tokens"):
+            if key not in req:
+                raise ValueError(f"request[{i}] missing '{key}'")
+        out.append(req)
+    return out
+
+
+def _resolve_config_entry(run_manifest_path: str, config_id: str) -> Tuple[Dict[str, object], str]:
+    payload = _load_json(run_manifest_path)
+    validate_manifest(payload, "run_manifest")
+    cfgs = payload.get("configs", {})
+    if config_id not in cfgs:
+        raise ValueError(f"config_id '{config_id}' not found in run manifest")
+    row = cfgs[config_id]
+    if not isinstance(row, dict):
+        raise ValueError(f"Invalid config entry for '{config_id}'")
+    return row, str(Path(run_manifest_path).resolve().parent)
+
+
+def _resolve_paths(
+    *,
+    config_entry: Dict[str, object],
+    base_dir: str,
+    checkpoint: Optional[str],
+    gmm_params: Optional[str],
+    norm_params: Optional[str],
+) -> Tuple[str, str, str]:
+    checkpoint_raw = checkpoint if checkpoint is not None else str(config_entry.get("checkpoint_path", ""))
+    gmm_raw = gmm_params if gmm_params is not None else str(config_entry.get("gmm_params_path", ""))
+    norm_raw = norm_params if norm_params is not None else str(config_entry.get("norm_params_path", ""))
+
+    checkpoint_path = _resolve_existing_path(checkpoint_raw, base_dir)
+    gmm_path = _resolve_existing_path(gmm_raw, base_dir)
+    norm_path = _resolve_existing_path(norm_raw, base_dir)
+    if checkpoint_path is None:
+        raise ValueError(f"Checkpoint path not found: {checkpoint_raw}")
+    if gmm_path is None:
+        raise ValueError(f"GMM params path not found: {gmm_raw}")
+    if norm_path is None:
+        raise ValueError(f"Norm params path not found: {norm_raw}")
+    return checkpoint_path, gmm_path, norm_path
+
+
+def _extract_norm_for_inference(norm_payload: Dict[str, object]) -> Dict[str, float]:
+    required = (
+        "active_mean",
+        "active_std",
+        "t_arrive_log_mean",
+        "t_arrive_log_std",
+        "power_mean",
+        "power_std",
+        "power_min",
+        "power_max",
+        "delta_A_mean",
+        "delta_A_std",
+    )
+    missing = [k for k in required if k not in norm_payload]
+    if missing:
+        raise ValueError(f"Norm params missing keys: {missing}")
+
+    out = {k: float(norm_payload[k]) for k in required}
+    for k, v in out.items():
+        if not np.isfinite(v):
+            raise ValueError(f"Non-finite norm value for '{k}': {v}")
+    if out["active_std"] <= 0.0:
+        raise ValueError("active_std must be positive")
+    if out["t_arrive_log_std"] <= 0.0:
+        raise ValueError("t_arrive_log_std must be positive")
+    if out["power_std"] <= 0.0:
+        raise ValueError("power_std must be positive")
+    if out["delta_A_std"] <= 0.0:
+        raise ValueError("delta_A_std must be positive")
+    return out
+
+
+def _write_trace_csv(path: str, power: np.ndarray, dt: float) -> None:
+    _ensure_dir(os.path.dirname(path) or ".")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["t_bin", "time_s", "power_w"])
+        writer.writeheader()
+        for i, p in enumerate(np.asarray(power, dtype=np.float64).reshape(-1)):
+            writer.writerow({"t_bin": int(i), "time_s": float(i * dt), "power_w": float(p)})
+
+
+def run_inference_from_artifacts(
+    *,
+    config_id: str,
+    requests_json: str,
+    out_csv: str,
+    run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    throughput_db: str = "model/config/throughput_database.json",
+    device: str = "auto",
+    seed: Optional[int] = None,
+    dt: Optional[float] = None,
+    T: Optional[int] = None,
+    p0: Optional[float] = None,
+    decode_mode: str = "stochastic",
+    median_filter_window: int = 1,
+    checkpoint: Optional[str] = None,
+    gmm_params: Optional[str] = None,
+    norm_params: Optional[str] = None,
+    k: Optional[int] = None,
+    feature_set: Optional[str] = None,
+    hidden_dim: Optional[int] = None,
+    num_layers: Optional[int] = None,
+) -> Dict[str, object]:
+    config_entry, manifest_base = _resolve_config_entry(run_manifest, config_id)
+    if (
+        (checkpoint is None or gmm_params is None or norm_params is None)
+        and str(config_entry.get("status", "")) != "trained"
+    ):
+        raise ValueError(
+            f"Config '{config_id}' is not marked trained in run manifest. "
+            "Provide explicit --checkpoint, --gmm-params, and --norm-params to override."
+        )
+
+    checkpoint_path, gmm_path, norm_path = _resolve_paths(
+        config_entry=config_entry,
+        base_dir=manifest_base,
+        checkpoint=checkpoint,
+        gmm_params=gmm_params,
+        norm_params=norm_params,
+    )
+    norm_payload = _load_json(norm_path)
+    gmm_payload = _load_json(gmm_path)
+    norm_cfg = _extract_norm_for_inference(norm_payload)
+    gmm_cfg = load_gmm_params_json_dict(gmm_payload)
+    throughput_payload = _load_json(throughput_db)
+    validate_manifest(throughput_payload, "throughput_db")
+    throughput = resolve_throughput(throughput_payload, config_id)
+    requests = _load_requests_json(requests_json)
+
+    resolved_feature_set = str(
+        feature_set
+        if feature_set is not None
+        else config_entry.get("feature_set", norm_payload.get("feature_set", "f2"))
+    ).lower()
+    if resolved_feature_set == "f3":
+        raise ValueError("feature_set='f3' is no longer supported; use 'f2'.")
+    if resolved_feature_set != "f2":
+        raise ValueError(f"feature_set must be 'f2'; got {resolved_feature_set}")
+
+    resolved_dt = float(norm_payload.get("dt", 0.25) if dt is None else dt)
+    if (not np.isfinite(resolved_dt)) or resolved_dt <= 0.0:
+        raise ValueError(f"dt must be positive; got {resolved_dt}")
+
+    feat = build_rollout_features_from_requests(
+        requests=requests,
+        throughput=throughput,
+        norm=norm_cfg,
+        T=T,
+        dt=resolved_dt,
+        feature_set=resolved_feature_set,
+    )
+    features_norm = np.asarray(feat["features_norm"], dtype=np.float32)
+    resolved_T = int(features_norm.shape[0])
+    if resolved_T <= 0:
+        raise ValueError("Computed horizon T is zero; increase --T or provide non-empty requests.")
+
+    resolved_k = int(k if k is not None else config_entry.get("k", gmm_cfg["k"]))
+    if resolved_k != int(gmm_cfg["k"]):
+        raise ValueError(f"K mismatch between args/config ({resolved_k}) and GMM ({int(gmm_cfg['k'])})")
+    resolved_input_dim = int(features_norm.shape[1])
+    resolved_hidden_dim = int(hidden_dim if hidden_dim is not None else config_entry.get("hidden_dim", 64))
+    resolved_num_layers = int(num_layers if num_layers is not None else config_entry.get("num_layers", 1))
+    resolved_p0 = float(norm_cfg["power_min"] if p0 is None else p0)
+
+    resolved_device = _resolve_device(device)
+    model = GRUClassifier(
+        Dx=resolved_input_dim,
+        K=resolved_k,
+        H=resolved_hidden_dim,
+        num_layers=int(max(1, resolved_num_layers)),
+    ).to(resolved_device)
+    try:
+        state = torch.load(checkpoint_path, map_location=resolved_device, weights_only=True)
+    except TypeError:
+        state = torch.load(checkpoint_path, map_location=resolved_device)
+    if isinstance(state, dict) and "model_state_dict" in state and isinstance(state["model_state_dict"], dict):
+        state = state["model_state_dict"]
+    model.load_state_dict(state)
+    model.eval()
+
+    with torch.no_grad():
+        try:
+            x_tensor = torch.from_numpy(features_norm)
+        except RuntimeError as exc:
+            if "Numpy is not available" not in str(exc):
+                raise
+            x_tensor = torch.tensor(features_norm.tolist(), dtype=torch.float32)
+        x = x_tensor.to(device=resolved_device, dtype=torch.float32).unsqueeze(0)
+        logits_tensor = model(x)[0].detach().cpu()
+        try:
+            logits = logits_tensor.numpy()
+        except RuntimeError as exc:
+            if "Numpy is not available" not in str(exc):
+                raise
+            logits = np.asarray(logits_tensor.tolist(), dtype=np.float32)
+    generated = generate_gmm_bigru_trace(
+        logits=logits,
+        gmm_params=gmm_cfg,
+        seed=seed,
+        decode_mode=decode_mode,
+        median_filter_window=int(median_filter_window),
+        clamp_range=(norm_cfg["power_min"], norm_cfg["power_max"]),
+    )
+    power_w = np.asarray(generated["power_w"], dtype=np.float64).reshape(-1)
+    _write_trace_csv(out_csv, power_w, dt=resolved_dt)
+
+    return {
+        "config_id": config_id,
+        "checkpoint_path": checkpoint_path,
+        "gmm_params_path": gmm_path,
+        "norm_params_path": norm_path,
+        "throughput_db": throughput_db,
+        "requests_json": requests_json,
+        "out_csv": out_csv,
+        "dt": float(resolved_dt),
+        "T": int(resolved_T),
+        "p0": float(resolved_p0),
+        "k": int(resolved_k),
+        "feature_set": resolved_feature_set,
+        "input_dim": int(resolved_input_dim),
+        "hidden_dim": int(resolved_hidden_dim),
+        "num_layers": int(max(1, resolved_num_layers)),
+        "decode_mode": str(decode_mode),
+        "median_filter_window": int(median_filter_window),
+        "device": str(resolved_device),
+        "num_requests": int(len(requests)),
+    }

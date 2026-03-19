@@ -1,0 +1,6 @@
+metric,tdp_baseline,mean_baseline,splitwise_strict,ours
+Peak facility power (MW),1.19,---,0.82,0.75
+Average facility power (MW),---,0.85,0.76,0.63
+Peak-to-average ratio,1.00,1.00,1.09,1.19
+Max 15-min ramp rate (MW/hr),0.00,0.00,0.07,0.11
+Load factor,1.00,1.00,0.92,0.84

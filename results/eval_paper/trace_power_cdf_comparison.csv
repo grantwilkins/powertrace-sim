@@ -1,0 +1,3 @@
+config_id,display_label,generation_mode,decode_mode,median_filter_window,dt,num_test_traces,num_eval_traces,num_skipped_traces,num_points,ks_stat,nrmse,acf_r2,p95_error_pct,p99_error_pct,delta_energy_pct,original_mean_w,sampled_mean_w
+deepseek-r1-distill-70b_A100_tp4,DeepSeek-R1-Distill-70B A100 TP=4,iid,stochastic,1,0.25,4,4,0,10131,0.06317244102260389,0.1999323619933348,0.9803256853019607,0.5618918017613393,0.1939248028935939,2.2147661861611385,1101.266260981147,1125.6541427707552
+llama-3-8b_H100_tp1,Llama-3-8B H100 TP=1,iid,stochastic,1,0.25,5,5,0,12409,0.15279232814892416,0.33205508030669617,0.9852931709833324,0.517199442605324,0.5082554244201348,0.578700357091038,262.65469900878395,264.1735852674625
