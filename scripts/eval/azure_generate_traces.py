@@ -38,10 +38,10 @@ from scripts.eval.azure_defaults import (
 )
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
-    SPLITWISE_STRICT_CALIBRATION_MODE,
-    build_splitwise_lut_params,
-    generate_splitwise_strict_emulation,
-    normalize_splitwise_strict_calibration_mode,
+    SPLITWISE_STYLE_LUT_V1,
+    build_splitwise_style_lut_params,
+    generate_splitwise_style_lut_trace,
+    normalize_splitwise_style_lut_mode,
 )
 from scripts.eval.facility import FacilityLayout
 from scripts.eval.pipeline_utils import (
@@ -320,7 +320,7 @@ def generate_node_traces(
     splitwise_source_model: str = DEFAULT_SPLITWISE_SOURCE_MODEL,
     splitwise_source_hardware: str = DEFAULT_SPLITWISE_SOURCE_HARDWARE,
     splitwise_source_tp: Optional[int] = None,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     tp_gpus: Optional[int] = None,
     n_gpus_per_node: Optional[int] = None,
@@ -332,8 +332,8 @@ def generate_node_traces(
 
     _validate_config_id(config_id)
     method_list = _normalize_methods(methods)
-    splitwise_calibration_mode = normalize_splitwise_strict_calibration_mode(
-        splitwise_calibration_mode
+    splitwise_style_lut_mode = normalize_splitwise_style_lut_mode(
+        splitwise_style_lut_mode
     )
     if float(duration_s) <= 0:
         raise ValueError("duration_s must be > 0")
@@ -430,17 +430,17 @@ def generate_node_traces(
         "splitwise_source_model": str(splitwise_source_model),
         "splitwise_source_hardware": str(splitwise_source_hardware),
         "splitwise_source_tp": int(splitwise_requested_tp),
-        "splitwise_calibration_mode": str(splitwise_calibration_mode),
+        "splitwise_style_lut_mode": str(splitwise_style_lut_mode),
     }
     if "splitwise_strict" in method_list:
-        splitwise_strict_params = build_splitwise_lut_params(
+        splitwise_strict_params = build_splitwise_style_lut_params(
             config_id=config_id,
             perf_model_csv=splitwise_perf_model_csv,
             train_power_flat=train_power_flat_gpu,
             splitwise_source_model=splitwise_source_model,
             splitwise_source_hardware=splitwise_source_hardware,
             splitwise_source_tp=int(splitwise_requested_tp),
-            splitwise_calibration_mode=splitwise_calibration_mode,
+            splitwise_style_lut_mode=splitwise_style_lut_mode,
             n_gpus_per_node=int(resolved_n_gpus),
         )
         splitwise_meta.update(
@@ -576,7 +576,7 @@ def generate_node_traces(
                     elif method == "splitwise_strict":
                         if splitwise_strict_params is None:
                             raise ValueError("splitwise_strict params unavailable")
-                        trace, strict_runtime_meta = generate_splitwise_strict_emulation(
+                        trace, strict_runtime_meta = generate_splitwise_style_lut_trace(
                             requests=requests,
                             T=t_horizon,
                             dt=float(dt),
@@ -729,8 +729,8 @@ def generate_node_traces(
             "splitwise_source_model": str(splitwise_source_model),
             "splitwise_source_hardware": str(splitwise_source_hardware),
             "splitwise_source_tp": int(splitwise_requested_tp),
-            "splitwise_calibration_mode": str(
-                splitwise_meta.get("splitwise_calibration_mode", splitwise_calibration_mode)
+            "splitwise_style_lut_mode": str(
+                splitwise_meta.get("splitwise_style_lut_mode", splitwise_style_lut_mode)
             ),
             "meta": splitwise_meta,
         },
@@ -776,7 +776,7 @@ def main() -> None:
     parser.add_argument("--splitwise-source-model", default=DEFAULT_SPLITWISE_SOURCE_MODEL)
     parser.add_argument("--splitwise-source-hardware", default=DEFAULT_SPLITWISE_SOURCE_HARDWARE)
     parser.add_argument("--splitwise-source-tp", type=int, default=DEFAULT_SPLITWISE_SOURCE_TP)
-    parser.add_argument("--splitwise-calibration-mode", default=SPLITWISE_STRICT_CALIBRATION_MODE)
+    parser.add_argument("--splitwise-style-lut-mode", default=SPLITWISE_STYLE_LUT_V1)
     parser.add_argument(
         "--tp-gpus",
         type=int,
@@ -822,7 +822,7 @@ def main() -> None:
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
-        splitwise_calibration_mode=str(args.splitwise_calibration_mode),
+        splitwise_style_lut_mode=str(args.splitwise_style_lut_mode),
         pair_manifest_csv=str(args.pair_manifest_csv),
         tp_gpus=(int(args.tp_gpus) if args.tp_gpus is not None else None),
         n_gpus_per_node=(int(args.n_gpus_per_node) if args.n_gpus_per_node is not None else None),

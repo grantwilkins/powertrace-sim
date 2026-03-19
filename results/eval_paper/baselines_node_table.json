@@ -13,71 +13,72 @@
     "exclude_negative_acf_configs": true,
     "excluded_negative_acf_configs": [],
     "node_metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/baselines_node_level.csv",
-    "recompute_node_metrics": true,
+    "recompute_node_metrics": false,
     "representative_only": true,
     "selected_configs": [
-      "llama-3-70b_A100_tp4"
+      "llama-3-70b_A100_tp4",
+      "llama-3-70b_A100_tp8"
     ],
     "third_method_key": "splitwise_strict"
   },
   "method_metrics": {
+    "LUT-based": {
+      "acf_r2": 0.5578136156907664,
+      "delta_energy_pct": 13.707153787766266,
+      "ks_stat": 0.6353286990404736,
+      "nrmse": 0.27111733608833305,
+      "num_configs": 2.0
+    },
     "Mean": {
       "acf_r2": NaN,
-      "delta_energy_pct": 17.346822135937465,
-      "ks_stat": 0.6888482050465653,
-      "nrmse": 0.3248309094037557,
-      "num_configs": 1.0
+      "delta_energy_pct": 20.33123494080388,
+      "ks_stat": 0.6341295139866192,
+      "nrmse": 0.31242428273905953,
+      "num_configs": 2.0
     },
     "Ours": {
-      "acf_r2": 0.9873380270073931,
-      "delta_energy_pct": 6.085201790563038,
-      "ks_stat": 0.11677147178221764,
-      "nrmse": 0.27580256470678116,
-      "num_configs": 1.0
-    },
-    "Splitwise (Strict Emulation)": {
-      "acf_r2": 0.35851407217135456,
-      "delta_energy_pct": 91.84366095950487,
-      "ks_stat": 0.9997612035341877,
-      "nrmse": 0.6774246605265452,
-      "num_configs": 1.0
+      "acf_r2": 0.990834020138286,
+      "delta_energy_pct": 6.354241715861176,
+      "ks_stat": 0.09645009708227117,
+      "nrmse": 0.2671785747058141,
+      "num_configs": 2.0
     },
     "TDP": {
       "acf_r2": NaN,
-      "delta_energy_pct": 243.5973571088581,
+      "delta_energy_pct": 188.77041543088407,
       "ks_stat": 1.0,
-      "nrmse": 1.664273565610385,
-      "num_configs": 1.0
+      "nrmse": 1.2250671338228796,
+      "num_configs": 2.0
     }
   },
   "table_rows": [
     {
       "acf_r2": "---",
-      "delta_e_pct": "243.60",
+      "delta_e_pct": "188.77",
       "ks": "1.00",
       "method": "TDP",
-      "nrmse": "1.66"
+      "nrmse": "1.23"
     },
     {
       "acf_r2": "---",
-      "delta_e_pct": "17.35",
-      "ks": "0.69",
+      "delta_e_pct": "20.33",
+      "ks": "0.63",
       "method": "Mean",
-      "nrmse": "0.32"
+      "nrmse": "0.31"
     },
     {
-      "acf_r2": "0.36",
-      "delta_e_pct": "91.84",
-      "ks": "1.00",
-      "method": "Splitwise (Strict Emulation)",
-      "nrmse": "0.68"
+      "acf_r2": "0.56",
+      "delta_e_pct": "13.71",
+      "ks": "0.64",
+      "method": "LUT-based",
+      "nrmse": "0.27"
     },
     {
       "acf_r2": "0.99",
-      "delta_e_pct": "6.09",
-      "ks": "0.12",
+      "delta_e_pct": "6.35",
+      "ks": "0.10",
       "method": "Ours",
-      "nrmse": "0.28"
+      "nrmse": "0.27"
     }
   ]
 }

@@ -30,13 +30,13 @@ if str(REPO_ROOT) not in sys.path:
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
-    SPLITWISE_STRICT_CALIBRATION_MODE,
-    build_splitwise_lut_params,
+    SPLITWISE_STYLE_LUT_V1,
+    build_splitwise_style_lut_params,
     generate_mean,
     generate_ours,
-    generate_splitwise_strict_emulation,
+    generate_splitwise_style_lut_trace,
     generate_tdp,
-    normalize_splitwise_strict_calibration_mode,
+    normalize_splitwise_style_lut_mode,
 )
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
@@ -45,23 +45,29 @@ from scripts.eval.pipeline_utils import (
     load_gmm_params_json_dict,
     load_gru_classifier,
     predict_sorted_gmm_labels_from_params,
+)
+from scripts.eval.pipeline_utils import (
     resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
+)
+from scripts.eval.pipeline_utils import (
     resolve_experimental_paths as _shared_resolve_experimental_paths,
+)
+from scripts.eval.pipeline_utils import (
     resolve_throughput as _shared_resolve_throughput,
 )
 from scripts.eval.run_baselines_node import _resolve_per_gpu_chip_tdp_w
 
 DEFAULT_METHODS = ("tdp", "mean", "splitwise_strict", "ours")
 STYLE = {
-    "tdp": {"label": "TDP", "color": "#d62728", "linestyle": "--", "linewidth": 3.0},
-    "mean": {"label": "Mean", "color": "#ff7f0e", "linestyle": "--", "linewidth": 3.0},
+    "tdp": {"label": "TDP", "color": "#006CB8", "linestyle": "--", "linewidth": 3.0},
+    "mean": {"label": "Mean", "color": "#620059", "linestyle": "--", "linewidth": 3.0},
     "splitwise_strict": {
-        "label": "Splitwise",
-        "color": "#1b9e77",  # green
+        "label": "LUT-based",
+        "color": "#E50808",  # Stanford Cardinal red
         "linestyle": ":",
         "linewidth": 2.8,
     },
-    "ours": {"label": "Ours", "color": "#1f77b4", "linestyle": "-", "linewidth": 2.8},
+    "ours": {"label": "Ours", "color": "#006F54", "linestyle": "-", "linewidth": 2.8},
 }
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
@@ -672,7 +678,7 @@ def run_baselines_facility(
     splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: Optional[int] = None,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     splitwise_mode: str = "strict",
     traffic_model: str = "poisson",
     burst_rate_per_min: float = 2.0,
@@ -716,8 +722,8 @@ def run_baselines_facility(
         raise ValueError("ours_std_scale must be > 0")
     if float(ours_logit_temperature) <= 0:
         raise ValueError("ours_logit_temperature must be > 0")
-    splitwise_calibration_mode = normalize_splitwise_strict_calibration_mode(
-        splitwise_calibration_mode
+    splitwise_style_lut_mode = normalize_splitwise_style_lut_mode(
+        splitwise_style_lut_mode
     )
     methods = _resolve_methods(splitwise_mode)
     if not _is_70b_tp4_config(config_id):
@@ -846,14 +852,14 @@ def run_baselines_facility(
     requested_splitwise_tp = (
         int(splitwise_source_tp) if splitwise_source_tp is not None else int(tp_gpus)
     )
-    splitwise_strict_lut_params = build_splitwise_lut_params(
+    splitwise_strict_lut_params = build_splitwise_style_lut_params(
         config_id=config_id,
         perf_model_csv=splitwise_perf_model_csv,
         train_power_flat=train_power_flat_gpu,
         splitwise_source_model=splitwise_source_model,
         splitwise_source_hardware=splitwise_source_hardware,
         splitwise_source_tp=int(requested_splitwise_tp),
-        splitwise_calibration_mode=splitwise_calibration_mode,
+        splitwise_style_lut_mode=splitwise_style_lut_mode,
         n_gpus_per_node=int(n_gpus_for_gpu_power),
         per_gpu_tdp_cap_w=float(resolved_gpu_tdp_w),
     )
@@ -862,9 +868,9 @@ def run_baselines_facility(
             "splitwise_source_model": str(splitwise_source_model),
             "splitwise_source_hardware": str(splitwise_source_hardware),
             "splitwise_source_tp": int(requested_splitwise_tp),
-            "splitwise_calibration_mode": str(
+            "splitwise_style_lut_mode": str(
                 splitwise_strict_lut_params.get(
-                    "splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE
+                    "splitwise_style_lut_mode", SPLITWISE_STYLE_LUT_V1
                 )
             ),
             "splitwise_phase_detection_note": str(
@@ -909,7 +915,7 @@ def run_baselines_facility(
                 "splitwise_source_model": str(splitwise_source_model),
                 "splitwise_source_hardware": str(splitwise_source_hardware),
                 "splitwise_source_tp": int(requested_splitwise_tp),
-                "splitwise_calibration_mode": "",
+                "splitwise_style_lut_mode": "",
                 "splitwise_phase_detection_note": "",
                 "splitwise_decode_occupancy_note": "",
                 "splitwise_source_resolved_model": "",
@@ -1028,7 +1034,7 @@ def run_baselines_facility(
                 elif method == "mean":
                     pred = generate_mean(n_eval, {}, mean_train_power_flat_gpu)
                 elif method == "splitwise_strict":
-                    pred, strict_meta = generate_splitwise_strict_emulation(
+                    pred, strict_meta = generate_splitwise_style_lut_trace(
                         requests=requests,
                         T=n_eval,
                         dt=float(dt),
@@ -1154,8 +1160,8 @@ def run_baselines_facility(
                     "splitwise_source_tp": int(
                         method_splitwise_meta["splitwise_source_tp"]
                     ),
-                    "splitwise_calibration_mode": str(
-                        method_splitwise_meta["splitwise_calibration_mode"]
+                    "splitwise_style_lut_mode": str(
+                        method_splitwise_meta["splitwise_style_lut_mode"]
                     ),
                     "splitwise_phase_detection_note": str(
                         method_splitwise_meta["splitwise_phase_detection_note"]
@@ -1259,8 +1265,8 @@ def run_baselines_facility(
                 "splitwise_source_tp": int(
                     method_splitwise_meta["splitwise_source_tp"]
                 ),
-                "splitwise_calibration_mode": str(
-                    method_splitwise_meta["splitwise_calibration_mode"]
+                "splitwise_style_lut_mode": str(
+                    method_splitwise_meta["splitwise_style_lut_mode"]
                 ),
                 "splitwise_phase_detection_note": str(
                     method_splitwise_meta["splitwise_phase_detection_note"]
@@ -1335,7 +1341,7 @@ def run_baselines_facility(
         "splitwise_source_model",
         "splitwise_source_hardware",
         "splitwise_source_tp",
-        "splitwise_calibration_mode",
+        "splitwise_style_lut_mode",
         "splitwise_phase_detection_note",
         "splitwise_decode_occupancy_note",
         "splitwise_source_resolved_model",

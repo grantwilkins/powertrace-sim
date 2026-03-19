@@ -34,13 +34,19 @@ from model.classifiers.gmm_bigru import (
 )
 from model.classifiers.model_loading import load_gru_classifier
 from model.utils.config import resolve_device as _resolve_device
+from model.utils.gaussian_mixture import make_gaussian_mixture
 from model.utils.io import (
     load_json as _load_json,
+)
+from model.utils.io import (
     resolve_existing_path as _resolve_existing_path,
+)
+from model.utils.io import (
     safe_slug as _safe_slug,
+)
+from model.utils.io import (
     write_json as _write_json,
 )
-from model.utils.gaussian_mixture import make_gaussian_mixture
 
 COLOR_DARK = "#2c3e50"
 COLOR_RED = "#e74c3c"
@@ -136,6 +142,7 @@ def save_pdf(fig: Any, path: str | Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
+
 
 def _read_csv_rows(path: str | Path) -> List[Dict[str, str]]:
     with open(path, "r", newline="") as f:
@@ -815,9 +822,7 @@ def _plot_bic_curve(
         color=COLOR_DARK,
     )
     y_min = float(np.min(np.asarray(bic_values, dtype=np.float64)))
-    ax.axvline(
-        float(best_k), linestyle="--", linewidth=0.75, color=COLOR_RED, alpha=0.8
-    )
+    ax.axvline(float(best_k), linestyle="--", color=COLOR_RED, alpha=0.8)
     ax.annotate(
         f"K*={int(best_k)}",
         xy=(float(best_k), y_min),
@@ -836,7 +841,9 @@ def _plot_bic_normalized_overlay(
     k_values: Sequence[int],
     series: Sequence[Mapping[str, object]],
 ) -> None:
-    fig, ax = plt.subplots(figsize=(6, 3))
+    sns.set_style("whitegrid")
+    sns.set_context("talk", font_scale=1.0)
+    fig, ax = plt.subplots(figsize=(8, 4))
     palette = [COLOR_DARK, COLOR_RED, COLOR_ORANGE, COLOR_GREEN, COLOR_PURPLE]
     for i, row in enumerate(series):
         ax.plot(
@@ -848,26 +855,10 @@ def _plot_bic_normalized_overlay(
             color=palette[i % len(palette)],
             label=str(row["legend"]),
         )
-    ax.axvline(
-        10.0,
-        linestyle="--",
-        linewidth=1.0,
-        color=COLOR_PURPLE,
-        alpha=0.8,
-    )
-    ax.annotate(
-        "K=10 plateau",
-        xy=(10.0, 0.95),
-        xytext=(10.0 + 0.25, 0.95),
-        color=COLOR_PURPLE,
-    )
     ax.set_xlabel("Number of components K")
     ax.set_ylabel("Normalized BIC")
     ax.set_xlim(float(min(k_values)), float(max(k_values)))
-    ax.legend(
-        frameon=False,
-        loc="upper right",
-    )
+    ax.legend(loc="best")
     fig.tight_layout()
     save_pdf(fig, path)
 
@@ -913,8 +904,8 @@ def _plot_sim_overlay(
     sns.set_style("whitegrid")
     sns.set_context("talk", font_scale=0.9)
     fig, ax = plt.subplots(figsize=(10, 2.5))
-    ax.plot(time_s, measured, color=COLOR_DARK, label="Measured")
-    ax.plot(time_s, simulated, color=COLOR_RED, alpha=0.8, label="Simulated")
+    ax.plot(time_s, measured, color="#000000", label="Measured")
+    ax.plot(time_s, simulated, color="#008566", alpha=0.8, label="Simulated")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("GPU Power (W)")
     if "moe" in path.name:

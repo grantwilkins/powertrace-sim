@@ -36,13 +36,13 @@ from scripts.eval.pipeline_utils import (
     resolve_throughput as _shared_resolve_throughput,
 )
 from scripts.eval.baselines import (
-    SPLITWISE_STRICT_CALIBRATION_MODE,
-    build_splitwise_lut_params,
+    SPLITWISE_STYLE_LUT_V1,
+    build_splitwise_style_lut_params,
     generate_mean,
     generate_ours,
-    generate_splitwise_strict_emulation,
+    generate_splitwise_style_lut_trace,
     generate_tdp,
-    normalize_splitwise_strict_calibration_mode,
+    normalize_splitwise_style_lut_mode,
 )
 
 METHODS = ("tdp", "mean", "splitwise_strict", "ours")
@@ -546,7 +546,7 @@ def _make_failed_row(
     splitwise_source_model: str = "",
     splitwise_source_hardware: str = "",
     splitwise_source_tp: int = 4,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     splitwise_phase_detection_note: str = "",
     splitwise_decode_occupancy_note: str = "",
     splitwise_source_resolved_model: str = "",
@@ -586,7 +586,7 @@ def _make_failed_row(
         "splitwise_source_model": str(splitwise_source_model),
         "splitwise_source_hardware": str(splitwise_source_hardware),
         "splitwise_source_tp": int(splitwise_source_tp),
-        "splitwise_calibration_mode": str(splitwise_calibration_mode),
+        "splitwise_style_lut_mode": str(splitwise_style_lut_mode),
         "splitwise_phase_detection_note": str(splitwise_phase_detection_note),
         "splitwise_decode_occupancy_note": str(splitwise_decode_occupancy_note),
         "splitwise_source_resolved_model": str(splitwise_source_resolved_model),
@@ -626,7 +626,7 @@ def run_baselines_node(
     splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: Optional[int] = None,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     allow_synthetic_request_timestamps: bool = False,
 ) -> Dict[str, object]:
     if int(num_seeds) <= 0:
@@ -635,8 +635,8 @@ def run_baselines_node(
         raise ValueError("ours_std_scale must be > 0")
     if float(ours_logit_temperature) <= 0:
         raise ValueError("ours_logit_temperature must be > 0")
-    splitwise_calibration_mode = normalize_splitwise_strict_calibration_mode(
-        splitwise_calibration_mode
+    splitwise_style_lut_mode = normalize_splitwise_style_lut_mode(
+        splitwise_style_lut_mode
     )
     run_manifest_payload = load_json(run_manifest)
     run_cfgs = run_manifest_payload.get("configs", {})
@@ -676,7 +676,7 @@ def run_baselines_node(
                 "splitwise_source_model": str(splitwise_source_model),
                 "splitwise_source_hardware": str(splitwise_source_hardware),
                 "splitwise_source_tp": int(requested_splitwise_tp),
-                "splitwise_calibration_mode": "",
+                "splitwise_style_lut_mode": "",
                 "splitwise_phase_detection_note": "",
                 "splitwise_decode_occupancy_note": "",
                 "splitwise_source_resolved_model": "",
@@ -803,14 +803,14 @@ def run_baselines_node(
                 np.float64
             )
             train_power_flat_gpu = train_power_flat.copy()
-            splitwise_strict_lut_params = build_splitwise_lut_params(
+            splitwise_strict_lut_params = build_splitwise_style_lut_params(
                 config_id=config_id,
                 perf_model_csv=splitwise_perf_model_csv,
                 train_power_flat=train_power_flat_gpu,
                 splitwise_source_model=splitwise_source_model,
                 splitwise_source_hardware=splitwise_source_hardware,
                 splitwise_source_tp=int(requested_splitwise_tp),
-                splitwise_calibration_mode=splitwise_calibration_mode,
+                splitwise_style_lut_mode=splitwise_style_lut_mode,
                 n_gpus_per_node=8,
             )
             splitwise_method_meta = {
@@ -818,9 +818,9 @@ def run_baselines_node(
                     "splitwise_source_model": str(splitwise_source_model),
                     "splitwise_source_hardware": str(splitwise_source_hardware),
                     "splitwise_source_tp": int(requested_splitwise_tp),
-                    "splitwise_calibration_mode": str(
+                    "splitwise_style_lut_mode": str(
                         splitwise_strict_lut_params.get(
-                            "splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE
+                            "splitwise_style_lut_mode", SPLITWISE_STYLE_LUT_V1
                         )
                     ),
                     "splitwise_phase_detection_note": str(
@@ -946,7 +946,7 @@ def run_baselines_node(
                             elif method == "mean":
                                 pred = generate_mean(n_eval, {}, train_power_flat)
                             elif method == "splitwise_strict":
-                                pred, strict_meta = generate_splitwise_strict_emulation(
+                                pred, strict_meta = generate_splitwise_style_lut_trace(
                                     requests=requests,
                                     T=n_eval,
                                     dt=dt,
@@ -1038,7 +1038,7 @@ def run_baselines_node(
                         splitwise_source_model=str(method_meta["splitwise_source_model"]),
                         splitwise_source_hardware=str(method_meta["splitwise_source_hardware"]),
                         splitwise_source_tp=int(method_meta["splitwise_source_tp"]),
-                        splitwise_calibration_mode=str(method_meta["splitwise_calibration_mode"]),
+                        splitwise_style_lut_mode=str(method_meta["splitwise_style_lut_mode"]),
                         splitwise_phase_detection_note=str(method_meta["splitwise_phase_detection_note"]),
                         splitwise_decode_occupancy_note=str(method_meta["splitwise_decode_occupancy_note"]),
                         splitwise_source_resolved_model=str(method_meta["splitwise_source_resolved_model"]),
@@ -1082,7 +1082,7 @@ def run_baselines_node(
                         splitwise_source_model=str(method_meta["splitwise_source_model"]),
                         splitwise_source_hardware=str(method_meta["splitwise_source_hardware"]),
                         splitwise_source_tp=int(method_meta["splitwise_source_tp"]),
-                        splitwise_calibration_mode=str(method_meta["splitwise_calibration_mode"]),
+                        splitwise_style_lut_mode=str(method_meta["splitwise_style_lut_mode"]),
                         splitwise_phase_detection_note=str(method_meta["splitwise_phase_detection_note"]),
                         splitwise_decode_occupancy_note=str(method_meta["splitwise_decode_occupancy_note"]),
                         splitwise_source_resolved_model=str(method_meta["splitwise_source_resolved_model"]),
@@ -1127,7 +1127,7 @@ def run_baselines_node(
                     "splitwise_source_model": str(method_splitwise_meta["splitwise_source_model"]),
                     "splitwise_source_hardware": str(method_splitwise_meta["splitwise_source_hardware"]),
                     "splitwise_source_tp": int(method_splitwise_meta["splitwise_source_tp"]),
-                    "splitwise_calibration_mode": str(method_splitwise_meta["splitwise_calibration_mode"]),
+                    "splitwise_style_lut_mode": str(method_splitwise_meta["splitwise_style_lut_mode"]),
                     "splitwise_phase_detection_note": str(
                         method_splitwise_meta["splitwise_phase_detection_note"]
                     ),
@@ -1196,7 +1196,7 @@ def run_baselines_node(
         "splitwise_source_model",
         "splitwise_source_hardware",
         "splitwise_source_tp",
-        "splitwise_calibration_mode",
+        "splitwise_style_lut_mode",
         "splitwise_phase_detection_note",
         "splitwise_decode_occupancy_note",
         "splitwise_source_resolved_model",

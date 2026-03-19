@@ -38,7 +38,7 @@ METHOD_LABEL_MAP = {
     "tdp": "TDP",
     "mean": "Mean",
     "marginal_gmm": "Marginal GMM",
-    "splitwise_strict": "Splitwise (Strict Emulation)",
+    "splitwise_strict": "LUT-based",
     "ours": "Ours",
 }
 
@@ -277,7 +277,9 @@ def _aggregate_method_metrics(
 
     dem = str(delta_energy_mode).strip().lower()
     if dem == "abs":
-        delta_vals = [abs(v) if np.isfinite(v) else float("nan") for v in delta_vals_raw]
+        delta_vals = [
+            abs(v) if np.isfinite(v) else float("nan") for v in delta_vals_raw
+        ]
     elif dem == "signed":
         delta_vals = list(delta_vals_raw)
     else:
@@ -331,7 +333,9 @@ def _build_table_rows(
     return rows
 
 
-def _build_latex_table(*, rows: Sequence[Mapping[str, str]], caption: str, label: str) -> str:
+def _build_latex_table(
+    *, rows: Sequence[Mapping[str, str]], caption: str, label: str
+) -> str:
     lines = [
         r"\begin{table}[t]",
         r"\centering",
@@ -376,10 +380,18 @@ def _write_csv(path: str, rows: Sequence[Mapping[str, str]]) -> None:
 def _build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
-        "node_metrics_csv": str(repo_root / "results" / "eval_paper" / "baselines_node_level.csv"),
-        "out_csv": str(repo_root / "results" / "eval_paper" / "baselines_node_table.csv"),
-        "out_json": str(repo_root / "results" / "eval_paper" / "baselines_node_table.json"),
-        "out_tex": str(repo_root / "results" / "eval_paper" / "baselines_node_table.tex"),
+        "node_metrics_csv": str(
+            repo_root / "results" / "eval_paper" / "baselines_node_level.csv"
+        ),
+        "out_csv": str(
+            repo_root / "results" / "eval_paper" / "baselines_node_table.csv"
+        ),
+        "out_json": str(
+            repo_root / "results" / "eval_paper" / "baselines_node_table.json"
+        ),
+        "out_tex": str(
+            repo_root / "results" / "eval_paper" / "baselines_node_table.tex"
+        ),
     }
 
 
@@ -448,9 +460,7 @@ def generate_baselines_node_table(
             splitwise_source_tp=(
                 int(splitwise_source_tp) if splitwise_source_tp is not None else None
             ),
-            allow_synthetic_request_timestamps=bool(
-                allow_synthetic_request_timestamps
-            ),
+            allow_synthetic_request_timestamps=bool(allow_synthetic_request_timestamps),
         )
 
     rows_all = _load_rows(node_metrics_csv)
@@ -673,10 +683,20 @@ def main() -> None:
         action="store_true",
         help="Recompute baselines_node_level.csv before generating table.",
     )
-    parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
-    parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
-    parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
-    parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
+    parser.add_argument(
+        "--run-manifest",
+        default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
+    )
+    parser.add_argument(
+        "--experimental-manifest",
+        default="results/experimental_continuous_v1/manifest.json",
+    )
+    parser.add_argument(
+        "--throughput-db", default="model/config/throughput_database.json"
+    )
+    parser.add_argument(
+        "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
+    )
     parser.add_argument(
         "--ar1-params-dir",
         default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
@@ -685,7 +705,9 @@ def main() -> None:
     parser.add_argument("--base-seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--acf-max-lag", type=int, default=50)
-    parser.add_argument("--decode-mode", default="stochastic", choices=["stochastic", "argmax"])
+    parser.add_argument(
+        "--decode-mode", default="stochastic", choices=["stochastic", "argmax"]
+    )
     parser.add_argument("--median-filter-window", type=int, default=1)
     parser.add_argument("--ours-std-scale", type=float, default=1.0)
     parser.add_argument("--ours-logit-temperature", type=float, default=1.0)
@@ -718,7 +740,9 @@ def main() -> None:
         representative_only=not bool(args.no_representative_only),
         third_method_candidates=third_method_candidates,
         third_method_label=(
-            str(args.third_method_label) if args.third_method_label is not None else None
+            str(args.third_method_label)
+            if args.third_method_label is not None
+            else None
         ),
         decimals=int(args.decimals),
         delta_energy_mode=str(args.delta_energy_mode),
@@ -760,7 +784,9 @@ def main() -> None:
     print(f"  out_json         : {result['out_json']}")
     print(f"  out_tex          : {result['out_tex']}")
     print(f"  selected_configs : {len(result['selected_configs'])}")
-    print(f"  excluded_negative_acf_configs : {len(result.get('excluded_negative_acf_configs', []))}")
+    print(
+        f"  excluded_negative_acf_configs : {len(result.get('excluded_negative_acf_configs', []))}"
+    )
     for cfg in result.get("excluded_negative_acf_configs", []):
         print(f"    excluded: {cfg}")
     print(f"  third_method_key : {result['third_method_key']}")

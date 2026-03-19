@@ -44,9 +44,9 @@ METHOD_LABEL = {
     "ours": "Ours",
 }
 METHOD_COLOR = {
-    "mean_baseline": "#e67e22",
-    "splitwise_strict": "#17becf",
-    "ours": "#2c3e50",
+    "mean_baseline": "#620059",  # deep purple
+    "splitwise_strict": "#8C1515",  # Stanford Cardinal red
+    "ours": "#006F54",  # forest green
 }
 METHOD_LINESTYLE = {
     "mean_baseline": "--",

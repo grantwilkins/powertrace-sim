@@ -62,6 +62,17 @@ python -m model.scripts.infer_gmm_bigru \
     --out-csv generated_power.csv
 ```
 
+## Splitwise-Style LUT Baseline Notes
+
+The evaluation baseline API uses the Splitwise-style LUT entry points in `scripts/eval/baselines.py`:
+- `build_splitwise_style_lut_params(...)`
+- `generate_splitwise_style_lut_trace(...)`
+
+Returned LUT params are explicitly namespaced by layer:
+- `timing_support_*`
+- `power_support_*`
+- `scheduler_defaults_*`
+
 ## Testing
 
 ```bash

@@ -133,16 +133,19 @@ def _fit_affine_map(x: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
     return a, b
 
 
-SPLITWISE_STRICT_CALIBRATION_MODE = "splitwise_emulation_strict_v1"
+SPLITWISE_STYLE_LUT_V1 = "splitwise_style_lut_v1"
 SPLITWISE_REMOVED_MESSAGE = (
     "splitwise_lut was removed during the strict-emulation overhaul; use splitwise_strict"
 )
-SPLITWISE_ALLOWED_CALIBRATION_MODES = {
-    SPLITWISE_STRICT_CALIBRATION_MODE,
+SPLITWISE_ALLOWED_STYLE_LUT_MODES = {
+    SPLITWISE_STYLE_LUT_V1,
+    "splitwise_emulation_strict_v1",
     "legacy_scheduler_strict_v1",
     "strict",
     "splitwise_strict",
     "dgx_fixed_targets_v1",
+    "train_phase_matched_v1",
+    "train_phase_matched",
 }
 SPLITWISE_LLAMA_70B_FAMILY = frozenset({"llama2-70b", "llama-3-70b"})
 
@@ -158,10 +161,10 @@ def _normalize_splitwise_model_name(model: object) -> str:
     return aliases.get(raw, raw)
 
 
-def normalize_splitwise_strict_calibration_mode(mode: object) -> str:
+def normalize_splitwise_style_lut_mode(mode: object) -> str:
     mode_raw = str(mode).strip().lower()
-    if mode_raw in {"train_phase_matched_v1", "train_phase_matched"}:
-        return SPLITWISE_STRICT_CALIBRATION_MODE
+    if mode_raw in SPLITWISE_ALLOWED_STYLE_LUT_MODES:
+        return SPLITWISE_STYLE_LUT_V1
     return str(mode)
 
 
@@ -452,20 +455,20 @@ def _build_power_support(
     primary_peak_x, primary_peak = _group_median_by_batch_tokens(primary_valid, "peak_power")
     if primary_x.size >= 3 and primary_peak_x.size >= 3 and np.array_equal(primary_x, primary_peak_x):
         avg_support = np.asarray([float(row["average_power"]) for row in primary_valid], dtype=np.float64)
-        idle_ratio = _safe_percentile(avg_support, 10.0)
+        idle_ratio = float(np.min(avg_support))
         decode_ratio = float(np.median(avg_support))
         prefill_ratio = float(np.median(np.asarray([float(row["peak_power"]) for row in primary_valid], dtype=np.float64)))
         return {
-            "power_lookup_mode": "grouped",
+            "power_support_lookup_mode": "grouped",
             "power_support_batch_tokens": primary_x.astype(np.float64),
-            "average_power_support": primary_avg.astype(np.float64),
-            "peak_power_support": primary_peak.astype(np.float64),
-            "idle_ratio": float(max(1e-6, idle_ratio)),
-            "decode_ratio": float(max(idle_ratio, decode_ratio)),
-            "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
-            "splitwise_power_quality_flag": "clean",
-            "splitwise_power_support_status": "slice_grouped",
-            "splitwise_power_support_points": int(primary_x.size),
+            "power_support_average_ratio": primary_avg.astype(np.float64),
+            "power_support_peak_ratio": primary_peak.astype(np.float64),
+            "power_support_idle_ratio": float(max(1e-6, idle_ratio)),
+            "power_support_decode_ratio": float(max(idle_ratio, decode_ratio)),
+            "power_support_prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+            "power_support_quality_flag": "clean",
+            "power_support_status": "slice_grouped",
+            "power_support_points": int(primary_x.size),
         }
 
     family_valid = _filter_power_rows(family_rows)
@@ -473,20 +476,20 @@ def _build_power_support(
     family_peak_x, family_peak = _group_median_by_batch_tokens(family_valid, "peak_power")
     if family_x.size >= 3 and family_peak_x.size >= 3 and np.array_equal(family_x, family_peak_x):
         avg_support = np.asarray([float(row["average_power"]) for row in family_valid], dtype=np.float64)
-        idle_ratio = _safe_percentile(avg_support, 10.0)
+        idle_ratio = float(np.min(avg_support))
         decode_ratio = float(np.median(avg_support))
         prefill_ratio = float(np.median(np.asarray([float(row["peak_power"]) for row in family_valid], dtype=np.float64)))
         return {
-            "power_lookup_mode": "grouped",
+            "power_support_lookup_mode": "grouped",
             "power_support_batch_tokens": family_x.astype(np.float64),
-            "average_power_support": family_avg.astype(np.float64),
-            "peak_power_support": family_peak.astype(np.float64),
-            "idle_ratio": float(max(1e-6, idle_ratio)),
-            "decode_ratio": float(max(idle_ratio, decode_ratio)),
-            "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
-            "splitwise_power_quality_flag": "family_fallback",
-            "splitwise_power_support_status": "family_grouped",
-            "splitwise_power_support_points": int(family_x.size),
+            "power_support_average_ratio": family_avg.astype(np.float64),
+            "power_support_peak_ratio": family_peak.astype(np.float64),
+            "power_support_idle_ratio": float(max(1e-6, idle_ratio)),
+            "power_support_decode_ratio": float(max(idle_ratio, decode_ratio)),
+            "power_support_prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+            "power_support_quality_flag": "family_fallback",
+            "power_support_status": "family_grouped",
+            "power_support_points": int(family_x.size),
         }
 
     scalar_rows = family_valid if len(family_valid) > 0 else primary_valid
@@ -498,20 +501,20 @@ def _build_power_support(
     prefill_ratio = float(np.median(peak_arr))
     idle_ratio = float(min(decode_ratio, 0.7 * decode_ratio))
     return {
-        "power_lookup_mode": "scalar",
+        "power_support_lookup_mode": "scalar",
         "power_support_batch_tokens": np.zeros((0,), dtype=np.float64),
-        "average_power_support": np.zeros((0,), dtype=np.float64),
-        "peak_power_support": np.zeros((0,), dtype=np.float64),
-        "idle_ratio": float(max(1e-6, idle_ratio)),
-        "decode_ratio": float(max(idle_ratio, decode_ratio)),
-        "prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
-        "splitwise_power_quality_flag": "scalar_fallback",
-        "splitwise_power_support_status": "scalar_fallback",
-        "splitwise_power_support_points": int(len(scalar_rows)),
+        "power_support_average_ratio": np.zeros((0,), dtype=np.float64),
+        "power_support_peak_ratio": np.zeros((0,), dtype=np.float64),
+        "power_support_idle_ratio": float(max(1e-6, idle_ratio)),
+        "power_support_decode_ratio": float(max(idle_ratio, decode_ratio)),
+        "power_support_prefill_ratio": float(max(max(idle_ratio, decode_ratio), prefill_ratio)),
+        "power_support_quality_flag": "scalar_fallback",
+        "power_support_status": "scalar_fallback",
+        "power_support_points": int(len(scalar_rows)),
     }
 
 
-def build_splitwise_lut_params(
+def build_splitwise_style_lut_params(
     config_id: str,
     perf_model_csv: str,
     train_power_flat: np.ndarray,
@@ -519,7 +522,7 @@ def build_splitwise_lut_params(
     splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: Optional[int] = None,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     n_gpus_per_node: int = DEFAULT_NUM_GPUS_PER_NODE,
     per_gpu_tdp_cap_w: Optional[float] = None,
     target_idle_node_gpu_w: Optional[float] = None,
@@ -531,10 +534,10 @@ def build_splitwise_lut_params(
     del target_decode_node_gpu_w
     del target_prefill_node_gpu_w
 
-    mode_raw = str(splitwise_calibration_mode).strip().lower()
-    if mode_raw not in SPLITWISE_ALLOWED_CALIBRATION_MODES:
+    mode_raw = str(splitwise_style_lut_mode).strip().lower()
+    if mode_raw not in SPLITWISE_ALLOWED_STYLE_LUT_MODES:
         raise ValueError(
-            f"{SPLITWISE_REMOVED_MESSAGE}; requested calibration mode '{splitwise_calibration_mode}' is no longer supported"
+            f"{SPLITWISE_REMOVED_MESSAGE}; requested LUT mode '{splitwise_style_lut_mode}' is no longer supported"
         )
 
     try:
@@ -585,42 +588,56 @@ def build_splitwise_lut_params(
         "splitwise_source_model": str(splitwise_source_model),
         "splitwise_source_hardware": str(_normalize_splitwise_hardware_name(splitwise_source_hardware)),
         "splitwise_source_tp": int(resolved_requested_tp),
-        "splitwise_calibration_mode": SPLITWISE_STRICT_CALIBRATION_MODE,
+        "splitwise_style_lut_mode": SPLITWISE_STYLE_LUT_V1,
         "target_hardware": str(target_hardware),
         "target_tp": int(target_tp),
         "n_gpus_per_node": int(n_gpus),
         "per_gpu_tdp_cap_w": float(per_gpu_tdp_cap_w),
         "timing_support_batch_tokens": timing_batch_tokens.astype(np.float64),
-        "prompt_time_support_s": prompt_time_support_s.astype(np.float64),
-        "token_time_support_s": token_time_support_s.astype(np.float64),
-        "max_batch_size": int(
+        "timing_support_prompt_time_s": prompt_time_support_s.astype(np.float64),
+        "timing_support_token_time_s": token_time_support_s.astype(np.float64),
+        "timing_support_max_batch_size": int(
             max(1, int(np.max(np.asarray([float(row["batch_size"]) for row in timing_rows], dtype=np.float64))))
         ),
-        "max_batch_tokens_timing": float(
+        "timing_support_max_batch_tokens": float(
             np.max(np.asarray([float(row["batch_tokens"]) for row in timing_rows], dtype=np.float64))
         ),
-        "min_batch_tokens_timing": float(
+        "timing_support_min_batch_tokens": float(
             np.min(np.asarray([float(row["batch_tokens"]) for row in timing_rows], dtype=np.float64))
         ),
-        "splitwise_scheduler_policy": "prompt_biased_mixed_fifo",
+        "timing_support_mode": "grouped_median_interp_extrap",
+        "scheduler_defaults_policy": "prompt_biased_preemptive_fifo",
+        "scheduler_defaults_max_batch_size": int(
+            max(1, int(np.max(np.asarray([float(row["batch_size"]) for row in timing_rows], dtype=np.float64))))
+        ),
+        "scheduler_defaults_max_batch_tokens": float(
+            np.max(np.asarray([float(row["batch_tokens"]) for row in timing_rows], dtype=np.float64))
+        ),
+        "scheduler_defaults_max_preemptions": 4,
+        "scheduler_defaults_max_contiguous_decode_iters": 16,
+        "scheduler_defaults_prompt_interrupt_mode": "iteration_boundary",
         "phase_detection_note": (
             "Continuous-time request-centric emulation; no A_raw/delta_A_t phase labeling."
         ),
         "decode_occupancy_note": (
             "Decode uses average_power LUT ratios at the batch level; within-batch occupancy is not modeled."
         ),
+        "splitwise_power_quality_flag": str(power_support["power_support_quality_flag"]),
+        "splitwise_power_support_status": str(power_support["power_support_status"]),
+        "splitwise_power_support_points": int(power_support["power_support_points"]),
+        "splitwise_scheduler_policy": "prompt_biased_preemptive_fifo",
         **resolved_meta,
         **power_support,
     }
 
 
-def build_splitwise_strict_emulation_params(
+def build_splitwise_style_lut_trace_params(
     config_id: str,
     perf_model_csv: str,
     train_power_flat: np.ndarray,
     **kwargs: object,
 ) -> Dict[str, object]:
-    return build_splitwise_lut_params(
+    return build_splitwise_style_lut_params(
         config_id=config_id,
         perf_model_csv=perf_model_csv,
         train_power_flat=train_power_flat,
@@ -678,10 +695,10 @@ def _predict_splitwise_timing_s(
             generation_meta.get("splitwise_extrapolation_events", 0)
         ) + 1
     if str(phase_kind) == "decode":
-        y_support = np.asarray(lut_params["token_time_support_s"], dtype=np.float64).reshape(-1)
+        y_support = np.asarray(lut_params["timing_support_token_time_s"], dtype=np.float64).reshape(-1)
         duration = _interp_or_extrapolate(x_support, y_support, batch_tokens_safe, extrapolate=True)
     else:
-        y_support = np.asarray(lut_params["prompt_time_support_s"], dtype=np.float64).reshape(-1)
+        y_support = np.asarray(lut_params["timing_support_prompt_time_s"], dtype=np.float64).reshape(-1)
         duration = _interp_or_extrapolate(x_support, y_support, batch_tokens_safe, extrapolate=True)
         if str(phase_kind) == "mixed":
             duration *= 1.1
@@ -692,13 +709,16 @@ def _lookup_splitwise_power_ratio(
     lut_params: Mapping[str, object],
     *,
     batch_tokens: float,
+    batch_size: int,
+    num_prompt_tasks: int,
+    num_decode_tasks: int,
     phase_kind: str,
     generation_meta: Dict[str, object],
 ) -> float:
-    idle_ratio = float(lut_params["idle_ratio"])
-    decode_ratio = float(lut_params["decode_ratio"])
-    prefill_ratio = float(lut_params["prefill_ratio"])
-    lookup_mode = str(lut_params["power_lookup_mode"])
+    idle_ratio = float(lut_params["power_support_idle_ratio"])
+    decode_ratio = float(lut_params["power_support_decode_ratio"])
+    prefill_ratio = float(lut_params["power_support_prefill_ratio"])
+    lookup_mode = str(lut_params["power_support_lookup_mode"])
     batch_tokens_safe = float(max(1.0, batch_tokens))
     if lookup_mode == "scalar":
         if str(phase_kind) == "decode":
@@ -706,7 +726,10 @@ def _lookup_splitwise_power_ratio(
         if str(phase_kind) == "prompt":
             return float(max(decode_ratio, prefill_ratio))
         if str(phase_kind) == "mixed":
-            return float(max(decode_ratio, prefill_ratio))
+            denom = max(1.0, float(batch_size))
+            w_prompt = float(max(0.0, float(num_prompt_tasks)) / denom)
+            mixed_ratio = (w_prompt * prefill_ratio) + ((1.0 - w_prompt) * decode_ratio)
+            return float(max(decode_ratio, mixed_ratio))
         return float(idle_ratio)
 
     x_support = np.asarray(lut_params["power_support_batch_tokens"], dtype=np.float64).reshape(-1)
@@ -718,13 +741,22 @@ def _lookup_splitwise_power_ratio(
             generation_meta.get("splitwise_power_clamp_events", 0)
         ) + 1
     if str(phase_kind) == "decode":
-        y_support = np.asarray(lut_params["average_power_support"], dtype=np.float64).reshape(-1)
+        y_support = np.asarray(lut_params["power_support_average_ratio"], dtype=np.float64).reshape(-1)
         ratio = _interp_or_extrapolate(x_support, y_support, clamped_tokens, extrapolate=False)
         return float(max(idle_ratio, ratio))
-    if str(phase_kind) in {"prompt", "mixed"}:
-        y_support = np.asarray(lut_params["peak_power_support"], dtype=np.float64).reshape(-1)
+    if str(phase_kind) == "prompt":
+        y_support = np.asarray(lut_params["power_support_peak_ratio"], dtype=np.float64).reshape(-1)
         ratio = _interp_or_extrapolate(x_support, y_support, clamped_tokens, extrapolate=False)
         return float(max(decode_ratio, ratio))
+    if str(phase_kind) == "mixed":
+        prompt_support = np.asarray(lut_params["power_support_peak_ratio"], dtype=np.float64).reshape(-1)
+        decode_support = np.asarray(lut_params["power_support_average_ratio"], dtype=np.float64).reshape(-1)
+        prompt_ratio = _interp_or_extrapolate(x_support, prompt_support, clamped_tokens, extrapolate=False)
+        decode_batch_ratio = _interp_or_extrapolate(x_support, decode_support, clamped_tokens, extrapolate=False)
+        denom = max(1.0, float(batch_size))
+        w_prompt = float(max(0.0, float(num_prompt_tasks)) / denom)
+        mixed_ratio = (w_prompt * prompt_ratio) + ((1.0 - w_prompt) * decode_batch_ratio)
+        return float(max(decode_ratio, mixed_ratio))
     return float(idle_ratio)
 
 
@@ -776,7 +808,7 @@ def _rasterize_splitwise_segments(
     return np.asarray(energy / dt_s, dtype=np.float64).reshape(-1)
 
 
-def generate_splitwise_strict_emulation(
+def generate_splitwise_style_lut_trace(
     requests: object,
     *,
     T: int,
@@ -789,17 +821,24 @@ def generate_splitwise_strict_emulation(
         raise ValueError("T must be non-negative")
     if t_horizon == 0:
         generation_meta = {
-            "splitwise_calibration_mode": str(lut_params.get("splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE)),
-            "splitwise_power_support_status": str(lut_params.get("splitwise_power_support_status", "")),
-            "splitwise_power_quality_flag": str(lut_params.get("splitwise_power_quality_flag", "")),
+            "splitwise_style_lut_mode": str(lut_params.get("splitwise_style_lut_mode", SPLITWISE_STYLE_LUT_V1)),
+            "splitwise_power_support_status": str(lut_params.get("power_support_status", "")),
+            "splitwise_power_quality_flag": str(lut_params.get("power_support_quality_flag", "")),
             "splitwise_source_resolved_model": str(lut_params.get("splitwise_source_resolved_model", "")),
             "splitwise_source_resolved_hardware": str(lut_params.get("splitwise_source_resolved_hardware", "")),
             "splitwise_source_resolved_tp": int(lut_params.get("splitwise_source_resolved_tp", 0)),
-            "splitwise_source_match_status": str(lut_params.get("splitwise_source_match_status", "")),
-            "splitwise_scheduler_policy": str(lut_params.get("splitwise_scheduler_policy", "")),
+            "splitwise_source_match_status": str(
+                lut_params.get("splitwise_source_match_status", "")
+            ),
+            "splitwise_scheduler_policy": str(
+                lut_params.get("scheduler_defaults_policy", "")
+            ),
             "splitwise_extrapolation_events": 0,
             "splitwise_power_clamp_events": 0,
             "splitwise_max_batch_tokens_seen": 0.0,
+            "splitwise_preemption_events": 0,
+            "splitwise_prompt_interrupt_events": 0,
+            "splitwise_forced_decode_batches": 0,
         }
         return np.zeros((0,), dtype=np.float64), generation_meta
     dt_s = float(dt)
@@ -827,18 +866,44 @@ def generate_splitwise_strict_emulation(
         )
     )
     non_gpu_power_w = float(config.get("non_gpu_power_w", 0.0))
-    max_batch_size = int(max(1, int(lut_params["max_batch_size"])))
-    max_batch_tokens_timing = float(lut_params["max_batch_tokens_timing"])
+    max_batch_size = int(
+        max(
+            1,
+            int(
+                lut_params.get(
+                    "scheduler_defaults_max_batch_size",
+                    lut_params["timing_support_max_batch_size"],
+                )
+            ),
+        )
+    )
+    max_batch_tokens_timing = float(
+        lut_params.get(
+            "scheduler_defaults_max_batch_tokens",
+            lut_params["timing_support_max_batch_tokens"],
+        )
+    )
+    max_preemptions = int(
+        max(1, int(lut_params.get("scheduler_defaults_max_preemptions", 4)))
+    )
+    max_contiguous_decode_iters = int(
+        max(
+            1,
+            int(
+                lut_params.get("scheduler_defaults_max_contiguous_decode_iters", 16)
+            ),
+        )
+    )
     horizon_s = float(t_horizon) * dt_s
     generation_meta: Dict[str, object] = {
-        "splitwise_calibration_mode": str(
-            lut_params.get("splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE)
+        "splitwise_style_lut_mode": str(
+            lut_params.get("splitwise_style_lut_mode", SPLITWISE_STYLE_LUT_V1)
         ),
         "splitwise_power_support_status": str(
-            lut_params.get("splitwise_power_support_status", "")
+            lut_params.get("power_support_status", "")
         ),
         "splitwise_power_quality_flag": str(
-            lut_params.get("splitwise_power_quality_flag", "")
+            lut_params.get("power_support_quality_flag", "")
         ),
         "splitwise_source_resolved_model": str(
             lut_params.get("splitwise_source_resolved_model", "")
@@ -853,31 +918,51 @@ def generate_splitwise_strict_emulation(
             lut_params.get("splitwise_source_match_status", "")
         ),
         "splitwise_scheduler_policy": str(
-            lut_params.get("splitwise_scheduler_policy", "")
+            lut_params.get("scheduler_defaults_policy", "")
         ),
         "splitwise_extrapolation_events": 0,
         "splitwise_power_clamp_events": 0,
         "splitwise_max_batch_tokens_seen": 0.0,
+        "splitwise_preemption_events": 0,
+        "splitwise_prompt_interrupt_events": 0,
+        "splitwise_contiguous_decode_runs": 0,
+        "splitwise_contiguous_decode_iters_total": 0,
+        "splitwise_forced_decode_batches": 0,
     }
 
-    idle_ratio = float(lut_params["idle_ratio"])
+    idle_ratio = float(lut_params["power_support_idle_ratio"])
     idle_node_gpu_power_w = (float(tp) * idle_ratio * gpu_tdp_w) + (
         float(n_gpus - tp) * idle_ratio * gpu_tdp_w
     )
     prompt_queue: list[Dict[str, float]] = []
     decode_queue: list[Dict[str, float]] = []
+    blocked_queue: list[Dict[str, float]] = []
     segments: list[Tuple[float, float, float]] = []
     next_req_idx = 0
     current_time = 0.0
 
-    while current_time < horizon_s - 1e-12:
-        while next_req_idx < len(parsed_requests) and float(parsed_requests[next_req_idx]["arrival_time"]) <= current_time + 1e-12:
+    def _enqueue_arrivals_up_to(time_s: float) -> None:
+        nonlocal next_req_idx
+        while next_req_idx < len(parsed_requests) and float(parsed_requests[next_req_idx]["arrival_time"]) <= time_s + 1e-12:
             req = dict(parsed_requests[next_req_idx])
             req["remaining_decode_tokens"] = float(max(0.0, req["output_tokens"] - 1.0))
+            req["num_preemptions"] = 0.0
             prompt_queue.append(req)
             next_req_idx += 1
 
-        if len(prompt_queue) == 0 and len(decode_queue) == 0:
+    def _next_prompt_arrival() -> float:
+        if next_req_idx >= len(parsed_requests):
+            return float("inf")
+        return float(parsed_requests[next_req_idx]["arrival_time"])
+
+    def _candidate_sort_key(item: Dict[str, object]) -> Tuple[float, float]:
+        req = item["req"]
+        return (float(req["arrival_time"]), float(req["request_index"]))
+
+    while current_time < horizon_s - 1e-12:
+        _enqueue_arrivals_up_to(current_time)
+
+        if len(prompt_queue) == 0 and len(decode_queue) == 0 and len(blocked_queue) == 0:
             if next_req_idx >= len(parsed_requests):
                 _append_splitwise_segment(
                     segments,
@@ -887,7 +972,7 @@ def generate_splitwise_strict_emulation(
                     horizon_s=horizon_s,
                 )
                 break
-            next_arrival = float(parsed_requests[next_req_idx]["arrival_time"])
+            next_arrival = _next_prompt_arrival()
             _append_splitwise_segment(
                 segments,
                 start_time=current_time,
@@ -900,32 +985,69 @@ def generate_splitwise_strict_emulation(
 
         batch_prompt: list[Dict[str, float]] = []
         batch_decode: list[Dict[str, float]] = []
+        request_ids_in_batch: set[float] = set()
         batch_tokens = 0.0
 
-        while prompt_queue and (len(batch_prompt) + len(batch_decode)) < max_batch_size:
-            req = prompt_queue[0]
-            req_tokens = float(max(0.0, req["input_tokens"]))
-            if batch_tokens + req_tokens <= max_batch_tokens_timing + 1e-12:
-                batch_prompt.append(prompt_queue.pop(0))
-                batch_tokens += req_tokens
+        candidate_tasks: list[Dict[str, object]] = []
+        for req in blocked_queue:
+            if float(req.get("num_preemptions", 0.0)) >= float(max_preemptions):
+                candidate_tasks.append({"priority": 0, "task_type": "decode", "source": "blocked", "req": req})
+        for req in prompt_queue:
+            candidate_tasks.append({"priority": 1, "task_type": "prompt", "source": "prompt", "req": req})
+        for req in blocked_queue:
+            if float(req.get("num_preemptions", 0.0)) < float(max_preemptions):
+                candidate_tasks.append({"priority": 2, "task_type": "decode", "source": "blocked", "req": req})
+        for req in decode_queue:
+            if float(req.get("num_preemptions", 0.0)) >= float(max_preemptions):
+                candidate_tasks.append({"priority": 0, "task_type": "decode", "source": "decode", "req": req})
+            else:
+                candidate_tasks.append({"priority": 3, "task_type": "decode", "source": "decode", "req": req})
+        candidate_tasks.sort(key=lambda item: (int(item["priority"]), *_candidate_sort_key(item)))
+
+        selected_ids: set[int] = set()
+        forced_decode_in_batch = False
+        for item in candidate_tasks:
+            if (len(batch_prompt) + len(batch_decode)) >= max_batch_size:
+                break
+            req = item["req"]
+            request_id = float(req["request_index"])
+            if request_id in request_ids_in_batch:
                 continue
-            if len(batch_prompt) == 0 and len(batch_decode) == 0:
-                batch_prompt.append(prompt_queue.pop(0))
-                batch_tokens += req_tokens
+            task_tokens = (
+                float(max(0.0, req["input_tokens"]))
+                if str(item["task_type"]) == "prompt"
+                else 1.0
+            )
+            can_add = batch_tokens + task_tokens <= max_batch_tokens_timing + 1e-12
+            if (not can_add) and (len(batch_prompt) + len(batch_decode) > 0):
+                continue
+            if (not can_add) and (len(batch_prompt) + len(batch_decode) == 0):
                 generation_meta["splitwise_extrapolation_events"] = int(
                     generation_meta.get("splitwise_extrapolation_events", 0)
                 ) + 1
-            break
+            request_ids_in_batch.add(request_id)
+            selected_ids.add(id(req))
+            batch_tokens += task_tokens
+            if str(item["task_type"]) == "prompt":
+                batch_prompt.append(req)
+            else:
+                batch_decode.append(req)
+                if int(item["priority"]) == 0:
+                    forced_decode_in_batch = True
 
-        while decode_queue and (len(batch_prompt) + len(batch_decode)) < max_batch_size:
-            if batch_tokens + 1.0 > max_batch_tokens_timing + 1e-12:
-                break
-            batch_decode.append(decode_queue.pop(0))
-            batch_tokens += 1.0
+        if forced_decode_in_batch:
+            generation_meta["splitwise_forced_decode_batches"] = int(
+                generation_meta.get("splitwise_forced_decode_batches", 0)
+            ) + 1
+
+        if selected_ids:
+            prompt_queue = [req for req in prompt_queue if id(req) not in selected_ids]
+            decode_queue = [req for req in decode_queue if id(req) not in selected_ids]
+            blocked_queue = [req for req in blocked_queue if id(req) not in selected_ids]
 
         if len(batch_prompt) == 0 and len(batch_decode) == 0:
             next_arrival = (
-                float(parsed_requests[next_req_idx]["arrival_time"])
+                _next_prompt_arrival()
                 if next_req_idx < len(parsed_requests)
                 else horizon_s
             )
@@ -939,6 +1061,17 @@ def generate_splitwise_strict_emulation(
             current_time = float(max(current_time, min(next_arrival, horizon_s)))
             continue
 
+        if len(batch_prompt) > 0 and len(decode_queue) > 0:
+            newly_blocked: list[Dict[str, float]] = []
+            for req in decode_queue:
+                req["num_preemptions"] = float(req.get("num_preemptions", 0.0) + 1.0)
+                generation_meta["splitwise_preemption_events"] = int(
+                    generation_meta.get("splitwise_preemption_events", 0)
+                ) + 1
+                newly_blocked.append(req)
+            blocked_queue.extend(newly_blocked)
+            decode_queue = []
+
         generation_meta["splitwise_max_batch_tokens_seen"] = float(
             max(float(generation_meta.get("splitwise_max_batch_tokens_seen", 0.0)), batch_tokens)
         )
@@ -948,15 +1081,53 @@ def generate_splitwise_strict_emulation(
             phase_kind = "prompt"
         else:
             phase_kind = "decode"
-        duration_s = _predict_splitwise_timing_s(
+        iteration_duration_s = _predict_splitwise_timing_s(
             lut_params,
             batch_tokens=batch_tokens,
             phase_kind=phase_kind,
             generation_meta=generation_meta,
         )
+        contiguous_iters = 1
+        decode_interrupted = False
+        if str(phase_kind) == "decode":
+            min_remaining_decode_tokens = float(
+                min(float(req.get("remaining_decode_tokens", 0.0)) for req in batch_decode)
+            )
+            contiguous_iters = int(
+                max(
+                    1,
+                    min(
+                        int(np.floor(max(1.0, min_remaining_decode_tokens))),
+                        int(max_contiguous_decode_iters),
+                    ),
+                )
+            )
+            next_prompt_arrival = _next_prompt_arrival()
+            if np.isfinite(next_prompt_arrival):
+                window_s = float(contiguous_iters) * float(iteration_duration_s)
+                if float(next_prompt_arrival) < float(current_time + window_s) - 1e-12:
+                    boundary_iters = int(
+                        np.floor(
+                            max(0.0, float(next_prompt_arrival - current_time))
+                            / float(iteration_duration_s)
+                        )
+                    ) + 1
+                    contiguous_iters = int(max(1, min(contiguous_iters, boundary_iters)))
+                    decode_interrupted = True
+            generation_meta["splitwise_contiguous_decode_runs"] = int(
+                generation_meta.get("splitwise_contiguous_decode_runs", 0)
+            ) + 1
+            generation_meta["splitwise_contiguous_decode_iters_total"] = int(
+                generation_meta.get("splitwise_contiguous_decode_iters_total", 0)
+            ) + int(contiguous_iters)
+
+        duration_s = float(iteration_duration_s) * float(contiguous_iters)
         phase_ratio = _lookup_splitwise_power_ratio(
             lut_params,
             batch_tokens=batch_tokens,
+            batch_size=len(batch_prompt) + len(batch_decode),
+            num_prompt_tasks=len(batch_prompt),
+            num_decode_tasks=len(batch_decode),
             phase_kind=phase_kind,
             generation_meta=generation_meta,
         )
@@ -973,25 +1144,51 @@ def generate_splitwise_strict_emulation(
         )
         current_time = iteration_end
 
-        while next_req_idx < len(parsed_requests) and float(parsed_requests[next_req_idx]["arrival_time"]) <= current_time + 1e-12:
-            req = dict(parsed_requests[next_req_idx])
-            req["remaining_decode_tokens"] = float(max(0.0, req["output_tokens"] - 1.0))
-            prompt_queue.append(req)
-            next_req_idx += 1
+        _enqueue_arrivals_up_to(current_time)
 
         for req in batch_prompt:
-            remaining_decode = float(max(0.0, req.get("remaining_decode_tokens", max(0.0, req["output_tokens"] - 1.0))))
+            remaining_decode = float(
+                max(
+                    0.0,
+                    req.get(
+                        "remaining_decode_tokens",
+                        max(0.0, req["output_tokens"] - 1.0),
+                    ),
+                )
+            )
             if remaining_decode > 0.0:
                 decode_req = dict(req)
                 decode_req["remaining_decode_tokens"] = float(remaining_decode)
+                decode_req["num_preemptions"] = 0.0
                 decode_queue.append(decode_req)
 
         for req in batch_decode:
-            remaining_decode = float(max(0.0, req.get("remaining_decode_tokens", 0.0) - 1.0))
+            remaining_decode = float(
+                max(
+                    0.0,
+                    req.get("remaining_decode_tokens", 0.0)
+                    - float(contiguous_iters),
+                )
+            )
             if remaining_decode > 0.0:
                 decode_req = dict(req)
                 decode_req["remaining_decode_tokens"] = float(remaining_decode)
-                decode_queue.append(decode_req)
+                if decode_interrupted:
+                    decode_req["num_preemptions"] = float(
+                        decode_req.get("num_preemptions", 0.0) + 1.0
+                    )
+                    generation_meta["splitwise_preemption_events"] = int(
+                        generation_meta.get("splitwise_preemption_events", 0)
+                    ) + 1
+                    generation_meta["splitwise_prompt_interrupt_events"] = int(
+                        generation_meta.get("splitwise_prompt_interrupt_events", 0)
+                    ) + 1
+                    if float(decode_req["num_preemptions"]) >= float(max_preemptions):
+                        decode_queue.insert(0, decode_req)
+                    else:
+                        blocked_queue.append(decode_req)
+                else:
+                    decode_queue.append(decode_req)
 
     trace = _rasterize_splitwise_segments(segments, T=t_horizon, dt=dt_s)
     power_status = str(generation_meta.get("splitwise_power_support_status", ""))

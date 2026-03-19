@@ -22,11 +22,11 @@ from model.classifiers.gru import GRUClassifier
 from model.utils.config import is_moe_config
 from model.utils.io import write_json as _write_json
 from scripts.eval.baselines import (
-    build_splitwise_lut_params,
+    build_splitwise_style_lut_params,
     generate_marginal_gmm,
     generate_mean,
     generate_ours,
-    generate_splitwise_strict_emulation,
+    generate_splitwise_style_lut_trace,
     generate_splitwise_lut,
     generate_tdp,
 )
@@ -342,15 +342,27 @@ class TestBaselineGenerators(unittest.TestCase):
             perf_model_path = root / "data" / "perf_model.csv"
             _write_perf_model_csv(perf_model_path)
             train = np.array([1100.0, 1200.0, 1400.0, 1600.0, 1800.0], dtype=np.float64)
-            lut = build_splitwise_lut_params(
+            lut = build_splitwise_style_lut_params(
                 config_id="toy-70b_H100_tp4",
                 perf_model_csv=str(perf_model_path),
                 train_power_flat=train,
             )
-            self.assertEqual(lut["splitwise_calibration_mode"], "splitwise_emulation_strict_v1")
+            self.assertEqual(lut["splitwise_style_lut_mode"], "splitwise_style_lut_v1")
             self.assertEqual(lut["splitwise_source_resolved_model"], "llama2-70b")
             self.assertEqual(lut["splitwise_source_match_status"], "family_model_fallback")
-            out_a, meta_a = generate_splitwise_strict_emulation(
+            self.assertIn("timing_support_batch_tokens", lut)
+            self.assertIn("timing_support_prompt_time_s", lut)
+            self.assertIn("timing_support_token_time_s", lut)
+            self.assertIn("power_support_lookup_mode", lut)
+            self.assertIn("power_support_average_ratio", lut)
+            self.assertIn("power_support_peak_ratio", lut)
+            self.assertIn("scheduler_defaults_max_preemptions", lut)
+            self.assertIn("scheduler_defaults_max_contiguous_decode_iters", lut)
+            self.assertNotIn("prompt_time_support_s", lut)
+            self.assertNotIn("token_time_support_s", lut)
+            self.assertNotIn("average_power_support", lut)
+            self.assertNotIn("peak_power_support", lut)
+            out_a, meta_a = generate_splitwise_style_lut_trace(
                 requests=[
                     {"arrival_time": 0.0, "input_tokens": 32.0, "output_tokens": 4.0},
                     {"arrival_time": 0.5, "input_tokens": 16.0, "output_tokens": 2.0},
@@ -360,7 +372,7 @@ class TestBaselineGenerators(unittest.TestCase):
                 config={"config_id": "toy-70b_H100_tp4", "tp": 4, "n_gpus_per_node": 8, "gpu_tdp_w": 700.0},
                 lut_params=lut,
             )
-            out_b, meta_b = generate_splitwise_strict_emulation(
+            out_b, meta_b = generate_splitwise_style_lut_trace(
                 requests=[
                     {"arrival_time": 0.0, "input_tokens": 32.0, "output_tokens": 4.0},
                     {"arrival_time": 0.5, "input_tokens": 16.0, "output_tokens": 2.0},
@@ -375,8 +387,72 @@ class TestBaselineGenerators(unittest.TestCase):
             self.assertTrue(np.allclose(out_a, out_b))
             self.assertEqual(meta_a["splitwise_source_resolved_tp"], 4)
             self.assertEqual(meta_a["splitwise_power_quality_flag"], "clean")
-            self.assertEqual(meta_a["splitwise_scheduler_policy"], "prompt_biased_mixed_fifo")
+            self.assertEqual(meta_a["splitwise_scheduler_policy"], "prompt_biased_preemptive_fifo")
+            self.assertEqual(int(lut["scheduler_defaults_max_preemptions"]), 4)
+            self.assertEqual(int(lut["scheduler_defaults_max_contiguous_decode_iters"]), 16)
             self.assertEqual(meta_a, meta_b)
+
+    def test_splitwise_scheduler_defaults_are_applied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            perf_model_path = root / "data" / "perf_model.csv"
+            _write_perf_model_csv(perf_model_path)
+            lut = build_splitwise_style_lut_params(
+                config_id="toy-70b_H100_tp4",
+                perf_model_csv=str(perf_model_path),
+                train_power_flat=np.asarray([1200.0, 1300.0, 1500.0], dtype=np.float64),
+            )
+            base_config = {
+                "config_id": "toy-70b_H100_tp4",
+                "tp": 4,
+                "n_gpus_per_node": 8,
+                "gpu_tdp_w": 700.0,
+            }
+
+            single_req = [
+                {"arrival_time": 0.0, "input_tokens": 32.0, "output_tokens": 12.0},
+            ]
+            lut_cap1 = dict(lut)
+            lut_cap1["scheduler_defaults_max_contiguous_decode_iters"] = 1
+            _, meta_cap1 = generate_splitwise_style_lut_trace(
+                requests=single_req,
+                T=120,
+                dt=0.25,
+                config=base_config,
+                lut_params=lut_cap1,
+            )
+
+            lut_cap8 = dict(lut)
+            lut_cap8["scheduler_defaults_max_contiguous_decode_iters"] = 8
+            _, meta_cap8 = generate_splitwise_style_lut_trace(
+                requests=single_req,
+                T=120,
+                dt=0.25,
+                config=base_config,
+                lut_params=lut_cap8,
+            )
+            self.assertGreater(
+                int(meta_cap1["splitwise_contiguous_decode_runs"]),
+                int(meta_cap8["splitwise_contiguous_decode_runs"]),
+            )
+
+            bursty_requests = [
+                {"arrival_time": 0.0, "input_tokens": 32.0, "output_tokens": 24.0},
+                {"arrival_time": 0.3, "input_tokens": 32.0, "output_tokens": 24.0},
+                {"arrival_time": 0.6, "input_tokens": 32.0, "output_tokens": 24.0},
+                {"arrival_time": 0.9, "input_tokens": 32.0, "output_tokens": 24.0},
+            ]
+            lut_preempt = dict(lut)
+            lut_preempt["scheduler_defaults_max_preemptions"] = 1
+            _, meta_preempt = generate_splitwise_style_lut_trace(
+                requests=bursty_requests,
+                T=200,
+                dt=0.25,
+                config=base_config,
+                lut_params=lut_preempt,
+            )
+            self.assertGreater(int(meta_preempt["splitwise_preemption_events"]), 0)
+            self.assertGreaterEqual(int(meta_preempt["splitwise_forced_decode_batches"]), 1)
 
     def test_splitwise_lut_generation_raises_removed_error(self):
         with self.assertRaises(ValueError):

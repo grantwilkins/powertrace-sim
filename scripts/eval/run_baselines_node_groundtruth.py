@@ -30,13 +30,13 @@ from model.classifiers.metrics import compute_power_metrics
 from model.utils.io import load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
-    SPLITWISE_STRICT_CALIBRATION_MODE,
-    build_splitwise_lut_params,
+    SPLITWISE_STYLE_LUT_V1,
+    build_splitwise_style_lut_params,
     generate_mean,
     generate_ours,
-    generate_splitwise_strict_emulation,
+    generate_splitwise_style_lut_trace,
     generate_tdp,
-    normalize_splitwise_strict_calibration_mode,
+    normalize_splitwise_style_lut_mode,
 )
 from scripts.eval.pipeline_utils import (
     build_rollout_features_from_requests,
@@ -54,8 +54,8 @@ from scripts.eval.run_baselines_node import (
     _nanmedian,
     _resolve_checkpoint_norm_gmm_paths,
     _resolve_device,
-    _resolve_per_gpu_chip_tdp_w,
     _resolve_experimental_paths,
+    _resolve_per_gpu_chip_tdp_w,
     _resolve_throughput,
     _write_csv,
 )
@@ -73,10 +73,10 @@ METRIC_KEYS = (
 STYLE = {
     "ground_truth": {
         "label": "Measured",
-        "color": "#111111",
+        "color": "#000000",
         "linestyle": "-",
         "linewidth": 2.8,
-        "alpha": 0.5,
+        "alpha": 1.0,
         "zorder": 1,
     },
     "tdp": {
@@ -96,20 +96,20 @@ STYLE = {
         "zorder": 5,
     },
     "splitwise_strict": {
-        "label": "Splitwise (Strict Emulation)",
-        "color": "#CC79A7",
+        "label": "LUT-based",
+        "color": "#E50808",  # Stanford Cardinal red
         "linestyle": ":",
         "linewidth": 2.4,
         "alpha": 0.7,
-        "zorder": 4,
+        "zorder": 6,
     },
     "ours": {
         "label": "Ours",
-        "color": "#0072B2",
+        "color": "#006F54",  # forest green
         "linestyle": "-",
         "linewidth": 2.4,
         "alpha": 0.7,
-        "zorder": 5,
+        "zorder": 4,
     },
 }
 
@@ -194,7 +194,7 @@ def _select_plot_prediction(
 def _resolve_methods(splitwise_mode: str) -> List[str]:
     mode = str(splitwise_mode).strip().lower()
     if mode == "strict":
-        return ["tdp", "mean", "splitwise_strict", "ours"]
+        return ["splitwise_strict", "ours"]
     if mode in {"fitted", "both"}:
         raise ValueError(SPLITWISE_REMOVED_MESSAGE)
     raise ValueError("splitwise_mode must be 'strict'")
@@ -216,8 +216,8 @@ def _plot_trace_overlay(
     gt = np.asarray(gt_w, dtype=np.float64).reshape(-1)
     t_min = (np.arange(gt.size, dtype=np.float64) * float(dt)) / 60.0
     sns.set_style("whitegrid")
-    sns.set_context("talk", font_scale=0.9)
-    fig, ax = plt.subplots(figsize=(12, 4))
+    sns.set_context("talk", font_scale=1.2)
+    fig, ax = plt.subplots(figsize=(10, 4))
     gt_style = STYLE["ground_truth"]
     ax.plot(
         t_min,
@@ -248,10 +248,11 @@ def _plot_trace_overlay(
 
     sel_rate_label = f"{selected_rate:.3f}" if np.isfinite(selected_rate) else "N/A"
     ax.set_xlabel("Time (minutes)")
-    ax.set_ylabel("GPU power (kW)")
-    ax.grid(True, alpha=0.25)
-    ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left", frameon=False)
+    ax.set_ylabel("GPU Power (kW)")
+    ax.grid(True, alpha=0.5)
+    ax.legend(bbox_to_anchor=(1.01, 0.75), loc="upper left", frameon=False)
     ax.set_ylim(0.0, 3.0)
+    ax.set_xlim(0.0, 10.0)
     fig.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight")
     plt.close(fig)
@@ -283,7 +284,7 @@ def run_baselines_node_groundtruth(
     splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
     splitwise_source_tp: Optional[int] = None,
-    splitwise_calibration_mode: str = SPLITWISE_STRICT_CALIBRATION_MODE,
+    splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     splitwise_mode: str = "strict",
     out_csv: str = "results/eval_paper/baselines_node_groundtruth_metrics.csv",
     out_plot_pdf: str = "figures/baselines_node_groundtruth_trace.pdf",
@@ -305,8 +306,8 @@ def run_baselines_node_groundtruth(
         raise ValueError("ours_std_scale must be > 0")
     if float(ours_logit_temperature) <= 0.0:
         raise ValueError("ours_logit_temperature must be > 0")
-    splitwise_calibration_mode = normalize_splitwise_strict_calibration_mode(
-        splitwise_calibration_mode
+    splitwise_style_lut_mode = normalize_splitwise_style_lut_mode(
+        splitwise_style_lut_mode
     )
     methods = _resolve_methods(splitwise_mode)
 
@@ -413,15 +414,17 @@ def run_baselines_node_groundtruth(
     if json_path is None:
         raise ValueError(f"missing matched request json for pair_key '{pair_key}'")
 
-    requested_splitwise_tp = int(splitwise_source_tp) if splitwise_source_tp is not None else int(tp_gpus)
-    splitwise_strict_lut_params = build_splitwise_lut_params(
+    requested_splitwise_tp = (
+        int(splitwise_source_tp) if splitwise_source_tp is not None else int(tp_gpus)
+    )
+    splitwise_strict_lut_params = build_splitwise_style_lut_params(
         config_id=config_id,
         perf_model_csv=splitwise_perf_model_csv,
         train_power_flat=train_power_flat_gpu,
         splitwise_source_model=splitwise_source_model,
         splitwise_source_hardware=splitwise_source_hardware,
         splitwise_source_tp=int(requested_splitwise_tp),
-        splitwise_calibration_mode=splitwise_calibration_mode,
+        splitwise_style_lut_mode=splitwise_style_lut_mode,
         n_gpus_per_node=int(n_gpus_for_gpu_power),
         per_gpu_tdp_cap_w=float(resolved_gpu_tdp_w),
     )
@@ -430,9 +433,9 @@ def run_baselines_node_groundtruth(
             "splitwise_source_model": str(splitwise_source_model),
             "splitwise_source_hardware": str(splitwise_source_hardware),
             "splitwise_source_tp": int(requested_splitwise_tp),
-            "splitwise_calibration_mode": str(
+            "splitwise_style_lut_mode": str(
                 splitwise_strict_lut_params.get(
-                    "splitwise_calibration_mode", SPLITWISE_STRICT_CALIBRATION_MODE
+                    "splitwise_style_lut_mode", SPLITWISE_STYLE_LUT_V1
                 )
             ),
             "splitwise_phase_detection_note": str(
@@ -445,7 +448,9 @@ def run_baselines_node_groundtruth(
                 splitwise_strict_lut_params.get("splitwise_source_resolved_model", "")
             ),
             "splitwise_source_resolved_hardware": str(
-                splitwise_strict_lut_params.get("splitwise_source_resolved_hardware", "")
+                splitwise_strict_lut_params.get(
+                    "splitwise_source_resolved_hardware", ""
+                )
             ),
             "splitwise_source_resolved_tp": int(
                 splitwise_strict_lut_params.get("splitwise_source_resolved_tp", 0)
@@ -517,8 +522,7 @@ def run_baselines_node_groundtruth(
     for method in methods:
         seeds = (
             [int(base_seed)]
-            if method in CONSTANT_METHODS
-            or method in {"splitwise_strict"}
+            if method in CONSTANT_METHODS or method in {"splitwise_strict"}
             else [int(base_seed) + i for i in range(int(num_seeds))]
         )
         seed_preds_gpu: List[np.ndarray] = []
@@ -537,7 +541,7 @@ def run_baselines_node_groundtruth(
                 pred_gpu = generate_mean(n_eval, {}, gt_eval_gpu)
                 pred_gpu = np.asarray(pred_gpu, dtype=np.float64).reshape(-1)[:n_eval]
             elif method == "splitwise_strict":
-                pred_node, strict_meta = generate_splitwise_strict_emulation(
+                pred_node, strict_meta = generate_splitwise_style_lut_trace(
                     requests=requests,
                     T=n_eval,
                     dt=dt,
@@ -550,22 +554,42 @@ def run_baselines_node_groundtruth(
                     },
                     lut_params=splitwise_strict_lut_params,
                 )
-                splitwise_meta["splitwise_strict"]["splitwise_extrapolation_events"] = int(
-                    splitwise_meta["splitwise_strict"].get("splitwise_extrapolation_events", 0)
-                ) + int(strict_meta.get("splitwise_extrapolation_events", 0))
-                splitwise_meta["splitwise_strict"]["splitwise_power_clamp_events"] = int(
-                    splitwise_meta["splitwise_strict"].get("splitwise_power_clamp_events", 0)
-                ) + int(strict_meta.get("splitwise_power_clamp_events", 0))
-                splitwise_meta["splitwise_strict"]["splitwise_max_batch_tokens_seen"] = float(
+                splitwise_meta["splitwise_strict"]["splitwise_extrapolation_events"] = (
+                    int(
+                        splitwise_meta["splitwise_strict"].get(
+                            "splitwise_extrapolation_events", 0
+                        )
+                    )
+                    + int(strict_meta.get("splitwise_extrapolation_events", 0))
+                )
+                splitwise_meta["splitwise_strict"]["splitwise_power_clamp_events"] = (
+                    int(
+                        splitwise_meta["splitwise_strict"].get(
+                            "splitwise_power_clamp_events", 0
+                        )
+                    )
+                    + int(strict_meta.get("splitwise_power_clamp_events", 0))
+                )
+                splitwise_meta["splitwise_strict"][
+                    "splitwise_max_batch_tokens_seen"
+                ] = float(
                     max(
-                        float(splitwise_meta["splitwise_strict"].get("splitwise_max_batch_tokens_seen", 0.0)),
+                        float(
+                            splitwise_meta["splitwise_strict"].get(
+                                "splitwise_max_batch_tokens_seen", 0.0
+                            )
+                        ),
                         float(strict_meta.get("splitwise_max_batch_tokens_seen", 0.0)),
                     )
                 )
-                splitwise_meta["splitwise_strict"]["splitwise_power_support_status"] = str(
-                    strict_meta.get(
-                        "splitwise_power_support_status",
-                        splitwise_meta["splitwise_strict"].get("splitwise_power_support_status", ""),
+                splitwise_meta["splitwise_strict"]["splitwise_power_support_status"] = (
+                    str(
+                        strict_meta.get(
+                            "splitwise_power_support_status",
+                            splitwise_meta["splitwise_strict"].get(
+                                "splitwise_power_support_status", ""
+                            ),
+                        )
                     )
                 )
                 pred_gpu = np.asarray(pred_node, dtype=np.float64).reshape(-1)[:n_eval]
@@ -601,7 +625,7 @@ def run_baselines_node_groundtruth(
                 "splitwise_source_model": str(splitwise_source_model),
                 "splitwise_source_hardware": str(splitwise_source_hardware),
                 "splitwise_source_tp": int(requested_splitwise_tp),
-                "splitwise_calibration_mode": "",
+                "splitwise_style_lut_mode": "",
                 "splitwise_phase_detection_note": "",
                 "splitwise_decode_occupancy_note": "",
                 "splitwise_source_resolved_model": "",
@@ -648,11 +672,17 @@ def run_baselines_node_groundtruth(
                 "ours_logit_temperature": float(ours_logit_temperature)
                 if method == "ours"
                 else 1.0,
-                "splitwise_source_model": str(method_splitwise_meta["splitwise_source_model"]),
-                "splitwise_source_hardware": str(method_splitwise_meta["splitwise_source_hardware"]),
-                "splitwise_source_tp": int(method_splitwise_meta["splitwise_source_tp"]),
-                "splitwise_calibration_mode": str(
-                    method_splitwise_meta["splitwise_calibration_mode"]
+                "splitwise_source_model": str(
+                    method_splitwise_meta["splitwise_source_model"]
+                ),
+                "splitwise_source_hardware": str(
+                    method_splitwise_meta["splitwise_source_hardware"]
+                ),
+                "splitwise_source_tp": int(
+                    method_splitwise_meta["splitwise_source_tp"]
+                ),
+                "splitwise_style_lut_mode": str(
+                    method_splitwise_meta["splitwise_style_lut_mode"]
                 ),
                 "splitwise_phase_detection_note": str(
                     method_splitwise_meta["splitwise_phase_detection_note"]
@@ -723,7 +753,7 @@ def run_baselines_node_groundtruth(
         "splitwise_source_model",
         "splitwise_source_hardware",
         "splitwise_source_tp",
-        "splitwise_calibration_mode",
+        "splitwise_style_lut_mode",
         "splitwise_phase_detection_note",
         "splitwise_decode_occupancy_note",
         "splitwise_source_resolved_model",
@@ -843,9 +873,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--splitwise-source-model", default="llama-3-70b")
     parser.add_argument("--splitwise-source-hardware", default="a100-80gb")
     parser.add_argument("--splitwise-source-tp", type=int, default=None)
-    parser.add_argument(
-        "--splitwise-calibration-mode", default=SPLITWISE_STRICT_CALIBRATION_MODE
-    )
+    parser.add_argument("--splitwise-style-lut-mode", default=SPLITWISE_STYLE_LUT_V1)
     parser.add_argument(
         "--splitwise-mode",
         choices=["strict"],
@@ -889,7 +917,7 @@ def main() -> None:
         splitwise_source_model=args.splitwise_source_model,
         splitwise_source_hardware=args.splitwise_source_hardware,
         splitwise_source_tp=args.splitwise_source_tp,
-        splitwise_calibration_mode=args.splitwise_calibration_mode,
+        splitwise_style_lut_mode=args.splitwise_style_lut_mode,
         splitwise_mode=args.splitwise_mode,
         out_csv=args.out_csv,
         out_plot_pdf=args.out_plot_pdf,

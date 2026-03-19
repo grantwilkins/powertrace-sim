@@ -79,11 +79,16 @@ Contains implementations of all baseline generation methods:
 from scripts.eval.baselines import (
     generate_tdp,           # Constant TDP
     generate_mean,          # Training mean
-    generate_splitwise_strict_emulation, # Splitwise strict emulation
+    generate_splitwise_style_lut_trace, # Splitwise-style LUT trace surrogate
     generate_ours,          # GMM-BiGRU pipeline
-    build_splitwise_lut_params,  # strict emulation LUT parameter estimation
+    build_splitwise_style_lut_params,  # Splitwise-style LUT parameter estimation
 )
 ```
+
+Splitwise-style LUT params are namespaced by layer:
+- `timing_support_*`
+- `power_support_*`
+- `scheduler_defaults_*`
 
 ### 2. Azure Facility Pipeline
 

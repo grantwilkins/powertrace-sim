@@ -30,7 +30,7 @@ from scripts.eval.azure_defaults import (
 from scripts.eval.azure_figures import generate_azure_figures
 from scripts.eval.azure_generate_traces import generate_node_traces
 from scripts.eval.azure_metrics import compute_azure_facility_metrics
-from scripts.eval.baselines import SPLITWISE_STRICT_CALIBRATION_MODE
+from scripts.eval.baselines import SPLITWISE_STYLE_LUT_V1
 from scripts.eval.generate_azure_facility_sizing_table import (
     generate_azure_facility_sizing_table,
 )
@@ -89,7 +89,7 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
         splitwise_source_model=kwargs["splitwise_source_model"],
         splitwise_source_hardware=kwargs["splitwise_source_hardware"],
         splitwise_source_tp=kwargs["splitwise_source_tp"],
-        splitwise_calibration_mode=kwargs["splitwise_calibration_mode"],
+        splitwise_style_lut_mode=kwargs["splitwise_style_lut_mode"],
         pair_manifest_csv=kwargs["pair_manifest_csv"],
         tp_gpus=kwargs["tp_gpus"],
         n_gpus_per_node=kwargs["n_gpus_per_node"],
@@ -235,7 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--splitwise-source-model", default=DEFAULT_SPLITWISE_SOURCE_MODEL)
     parser.add_argument("--splitwise-source-hardware", default=DEFAULT_SPLITWISE_SOURCE_HARDWARE)
     parser.add_argument("--splitwise-source-tp", type=int, default=DEFAULT_SPLITWISE_SOURCE_TP)
-    parser.add_argument("--splitwise-calibration-mode", default=SPLITWISE_STRICT_CALIBRATION_MODE)
+    parser.add_argument("--splitwise-style-lut-mode", default=SPLITWISE_STYLE_LUT_V1)
 
     parser.add_argument("--tp-gpus", type=int, default=None)
     parser.add_argument("--n-gpus-per-node", type=int, default=None)
@@ -312,7 +312,7 @@ def main() -> None:
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
-        splitwise_calibration_mode=str(args.splitwise_calibration_mode),
+        splitwise_style_lut_mode=str(args.splitwise_style_lut_mode),
         tp_gpus=(int(args.tp_gpus) if args.tp_gpus is not None else None),
         n_gpus_per_node=(int(args.n_gpus_per_node) if args.n_gpus_per_node is not None else None),
         gpu_tdp_w=float(args.gpu_tdp_w),
