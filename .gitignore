@@ -7,3 +7,4 @@ random_plots_training_data
 figures/*
 eval_results
 eval_results/*
+AGENTS.md
