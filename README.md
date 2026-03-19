@@ -7,8 +7,8 @@ PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU
 ```text
 powertrace-sim/
 ├── model/
-│   ├── classifiers/      # GMM/GRU implementations and metrics
-│   ├── config/           # Throughput and performance JSON databases
+│   ├── classifiers/      # GMM/BiGRU helpers, features, metrics, trace generation
+│   ├── config/           # Throughput JSON databases
 │   ├── pipeline/         # Reusable train/eval/infer logic
 │   ├── scripts/          # Thin CLI wrappers
 │   ├── training_data/    # Inventory, throughput, manifest preparation modules
@@ -16,13 +16,14 @@ powertrace-sim/
 │   └── utils/            # Shared helpers
 ├── profiling/            # Data collection client/server/jobs
 │   ├── client/
-│   ├── server/
-│   └── jobs/
-├── scripts/eval/         # Evaluation and baseline scripts
+│   ├── jobs/
+│   └── server/
+├── scripts/
+│   └── eval/             # Evaluation and baseline scripts
 ├── data/
 ├── results/
-├── figures/
-└── training_results/
+├── pyproject.toml
+└── uv.lock
 ```
 
 ## Setup
@@ -69,6 +70,11 @@ uv run -m model.scripts.infer_gmm_bigru \
     --requests-json input_requests.json \
     --out-csv generated_power.csv
 ```
+
+Other available entry points:
+
+- `uv run -m model.scripts.compare_gmm_bigru`
+- `uv run -m model.scripts.generate_methods_figures`
 
 ## Splitwise-Style LUT Baseline Notes
 

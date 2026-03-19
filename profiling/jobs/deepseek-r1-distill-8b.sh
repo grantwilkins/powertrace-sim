@@ -33,12 +33,8 @@ for TENSOR_PARALLEL_SIZE in ${TENSOR_PARALLEL_SIZES[@]}; do
         sleep 10
     done
     echo "Server ready!"
-<<<<<<< HEAD:job-scripts/deepseek-r1-distill-8b.sh
-    cd ~/powertrace-sim/client
-=======
     
     cd ~/powertrace-sim/profiling/client/
->>>>>>> grant/moe-exploration:profiling/jobs/deepseek-r1-distill-8b.sh
 
     for ARRIVAL_RATE in ${ARRIVAL_RATES[@]}; do
         echo "Running arrival rate: ${ARRIVAL_RATE} req/s (TP=${TENSOR_PARALLEL_SIZE})"

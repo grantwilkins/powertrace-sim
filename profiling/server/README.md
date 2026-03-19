@@ -1,78 +1,60 @@
 # Server Scripts
 
-This directory contains shell scripts for launching vLLM inference servers for different model configurations. These scripts are used during data collection to serve models for benchmarking.
+This directory contains thin shell wrappers around `vllm serve` for the model configurations used during profiling.
 
 ## Scripts
 
 | Script | Model | Description |
 |--------|-------|-------------|
-| `serve-llama-3-8b.sh` | Llama-3 8B | Small Llama model |
-| `serve-llama-3-70b.sh` | Llama-3 70B | Large Llama model |
-| `serve-llama-3-405b.sh` | Llama-3 405B | Extra-large Llama model |
-| `serve-deepseek-r1-distill-8b.sh` | DeepSeek-R1-Distill 8B | Small reasoning model |
-| `serve-deepseek-r1-distill-70b.sh` | DeepSeek-R1-Distill 70B | Large reasoning model |
-| `serve-deepseek-r1.sh` | DeepSeek-R1 | Full reasoning model |
-| `serve-gpt-oss-20b.sh` | GPT-OSS 20B | Small GPT model |
-| `serve-gpt-oss-120b.sh` | GPT-OSS 120B | Large GPT model |
+| `serve-llama-3-8b.sh` | `meta-llama/Llama-3.1-8B-Instruct` | Llama 3 8B wrapper |
+| `serve-llama-3-70b.sh` | `meta-llama/Llama-3.1-70B-Instruct` | Llama 3 70B wrapper |
+| `serve-llama-3-405b.sh` | `meta-llama/Llama-3.1-405B-Instruct-FP8` | Llama 3 405B FP8 wrapper |
+| `serve-deepseek-r1-distill-8b.sh` | `deepseek-ai/DeepSeek-R1-Distill-Llama-8B` | Distilled reasoning model wrapper |
+| `serve-deepseek-r1-distill-70b.sh` | `deepseek-ai/DeepSeek-R1-Distill-Llama-70B` | Distilled reasoning model wrapper |
+| `serve-deepseek-r1.sh` | `deepseek-ai/DeepSeek-R1` | Full DeepSeek-R1 wrapper |
+| `serve-gpt-oss-20b.sh` | `openai/gpt-oss-20b` | GPT-OSS 20B wrapper |
+| `serve-gpt-oss-120b.sh` | `openai/gpt-oss-120b` | GPT-OSS 120B wrapper |
 
 ## Usage
+
+These scripts expect `TENSOR_PARALLEL_SIZE` to be set by the caller. They are usually launched from the job scripts in [`../jobs/`](../jobs/).
 
 ### Direct Invocation
 
 ```bash
-# Start a server manually
 cd profiling/server
+TENSOR_PARALLEL_SIZE=1 \
 bash serve-llama-3-8b.sh
 ```
 
-### From Job Scripts (Recommended)
+### Job Script Entry Point
 
-The server scripts are typically invoked by the job scripts in `profiling/jobs/`:
+Example job wrappers:
 
 ```bash
-# This will start the server, run benchmarks, and collect data
-bash profiling/jobs/llama-3-8b.sh
+bash profiling/jobs/gpt-oss-20b.sh
+bash profiling/jobs/gpt-oss-120b.sh
 ```
-
-## Server Configuration
-
-Each script configures vLLM with appropriate settings:
-
-- **Port**: `localhost:8000` (default)
-- **Tensor Parallelism**: Set via `--tensor-parallel-size`
-- **Model Path**: Configured for each model
-- **Max Model Length**: Set appropriately for each model size
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `VLLM_TORCH_PROFILER_DIR` | Enable vLLM profiler (optional) |
-| `VLLM_ALLOW_LONG_MAX_MODEL_LEN` | Allow longer context lengths |
-| `CUDA_VISIBLE_DEVICES` | Specify GPU devices to use |
-
-## Example Script Content
-
-```bash
-#!/bin/bash
-# serve-llama-3-8b.sh
-
-python -m vllm.entrypoints.openai.api_server \
-    --model meta-llama/Meta-Llama-3.1-8B-Instruct \
-    --port 8000 \
-    --tensor-parallel-size 1 \
-    --max-model-len 8192
-```
+- `TENSOR_PARALLEL_SIZE`: Required by the wrappers.
+- `OPENAI_API_KEY`: Required by `serve-deepseek-r1.sh`.
+- `VLLM_TORCH_PROFILER_DIR`: Used by profiling runs when enabled.
+- `VLLM_ALLOW_LONG_MAX_MODEL_LEN`: Used by the long-context wrappers when needed.
+- `CUDA_VISIBLE_DEVICES`: Standard CUDA device selection variable.
 
 ## Hardware Requirements
 
 | Model | Minimum GPUs | Recommended |
 |-------|--------------|-------------|
-| Llama-3 8B | 1x A100/H100 | 1x H100 |
-| Llama-3 70B | 4x A100/H100 | 8x H100 |
-| Llama-3 405B | 8x H100 | 8x H100 (80GB) |
-| DeepSeek-R1 8B | 1x A100/H100 | 1x H100 |
-| DeepSeek-R1 70B | 4x A100/H100 | 8x H100 |
+| Llama 3 8B | 1x A100/H100 | 1x H100 |
+| Llama 3 70B | 4x A100/H100 | 8x H100 |
+| Llama 3 405B | 8x H100 | 8x H100 (80GB) |
+| DeepSeek-R1 Distill 8B | 1x A100/H100 | 1x H100 |
+| DeepSeek-R1 Distill 70B | 4x A100/H100 | 8x H100 |
+| GPT-OSS 20B | 1x A100/H100 | 1x H100 |
+| GPT-OSS 120B | 4x A100/H100 | 8x H100 |
 
 ## See Also
 

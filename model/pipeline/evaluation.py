@@ -14,15 +14,19 @@ import numpy as np
 import torch
 
 from model.classifiers.gmm_bigru import (
-    AR1_MIN_RUN_LENGTH,
-    AR1_PHI_THRESHOLD,
-    build_rollout_features_from_requests,
-    estimate_ar1_params,
-    extract_norm_params,
-    generate_gmm_bigru_trace,
-    generate_gmm_bigru_trace_ar1_thresholded,
     load_gmm_params_json_dict,
     predict_sorted_gmm_labels_from_params,
+)
+from model.classifiers.features import (
+    build_rollout_features_from_requests,
+    extract_norm_params,
+)
+from model.classifiers.trace_generation import (
+    AR1_MIN_RUN_LENGTH,
+    AR1_PHI_THRESHOLD,
+    estimate_ar1_params,
+    generate_gmm_bigru_trace,
+    generate_gmm_bigru_trace_ar1_thresholded,
 )
 from model.classifiers.model_loading import load_gru_classifier
 from model.classifiers.metrics import (

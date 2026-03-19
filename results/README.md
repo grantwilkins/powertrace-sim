@@ -6,149 +6,124 @@ This directory contains training outputs, model checkpoints, evaluation metrics,
 
 ```
 results/
-├── stage0/                       # Preprocessed training data
-├── continuous_v1_gmm_bigru/      # Primary GMM-BiGRU experiments
-│   ├── k10_f2/                   # K=10 components, f2 features (main)
-│   ├── k10_f2_ar1/               # With AR(1) smoothing
-│   ├── k10_f2_ar1_thresh/        # With AR(1) + idle thresholding
-│   ├── k10_f3/                   # K=10, f3 features
-│   ├── k8_f2/                    # K=8 ablation
-│   └── k12_f2/                   # K=12 ablation
-├── continuous_v1/                # Legacy GRU-only experiments
-├── continuous_v1_stateless/      # Stateless baseline experiments
-├── continuous_v1_lambda_mu01/    # Lambda regularization experiments
-├── experimental_continuous_v1/   # Experimental preprocessing
-├── azure_facility/               # Azure facility-level results
-│   ├── node_traces/              # Per-node generated traces
-│   └── aggregated/               # Aggregated power traces
-└── eval_paper/                   # Paper evaluation outputs
-```
-
-## Primary Results: GMM-BiGRU
-
-### `continuous_v1_gmm_bigru/k10_f2/` (Recommended)
-
-Main experiment with K=10 GMM components and f2 feature set.
-
-```
-k10_f2/
-├── checkpoints/                  # Model weights
-│   ├── llama-3-8b_H100_tp1.pt
-│   ├── llama-3-70b_H100_tp4.pt
-│   └── ...
-├── gmms/                         # GMM parameters
-│   ├── llama-3-8b_H100_tp1.json
-│   └── ...
-├── norm_params/                  # Normalization parameters
-│   ├── llama-3-8b_H100_tp1.json
-│   └── ...
-├── eval_metrics/                 # Evaluation results
-│   ├── eval_metrics.csv
-│   ├── eval_metrics_summary.csv
-│   └── plots/
-└── training_curves/              # Training loss plots
-```
-
-### Checkpoint Format (.pt)
-
-```python
-{
-    "model_state_dict": {...},    # GRU classifier weights
-    "optimizer_state_dict": {...}, # Optimizer state
-    "epoch": int,                  # Training epoch
-    "loss": float,                 # Final training loss
-    "config": {                    # Configuration metadata
-        "input_size": 2,
-        "hidden_size": 64,
-        "num_layers": 2,
-        "num_classes": 10,
-        "bidirectional": True,
-    }
-}
-```
-
-### GMM Parameters Format (.json)
-
-```json
-{
-    "k": 10,
-    "means": [150.2, 245.7, 312.4, ...],
-    "stds": [12.3, 18.5, 22.1, ...],
-    "weights": [0.05, 0.12, 0.18, ...],
-    "label_map": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    "order": [0, 3, 1, 5, 2, 7, 4, 8, 6, 9]
-}
-```
-
-### Normalization Parameters Format (.json)
-
-```json
-{
-    "active_mean": 1.52,
-    "active_std": 0.87,
-    "delta_mean": 0.003,
-    "delta_std": 0.245,
-    "power_mean": 425.3,
-    "power_std": 85.2
-}
+├── stage0/
+├── continuous_v1_gmm_bigru/
+├── experimental_continuous_v1/
+├── azure_facility/
+├── eval_paper/
+└── training/
 ```
 
 ## Stage 0 Data
 
-### `stage0/`
-
-Preprocessed training data indexed by manifest.
+`results/stage0/` holds the stage-0 inventory and pairing manifest used to build the experimental datasets.
 
 ```
 stage0/
-├── manifest.json                 # Data index
-├── throughput.json               # Throughput statistics
-└── {config_id}/
-    ├── run_0.json                # Request data
-    ├── power_0.csv               # Power trace
-    ├── run_1.json
-    └── power_1.csv
+├── data_inventory.json
+└── pair_manifest.csv
 ```
 
-## Evaluation Results
+## Experimental Data
 
-### `eval_paper/`
-
-Paper-ready evaluation outputs.
+`results/experimental_continuous_v1/` contains the preprocessed datasets, splits, and normalization parameters used by the current continuous experiments.
 
 ```
-eval_paper/
-├── {config_id}_metrics.csv       # Per-config metrics
-├── {config_id}_summary.csv       # Summary statistics
-├── all_metrics.csv               # Aggregated results
-└── figures/                      # Generated figures
+experimental_continuous_v1/
+├── manifest.json
+├── datasets/
+├── norm_params/
+└── splits/
 ```
 
-### Metrics CSV Format
+## Primary Results
 
-```csv
-config_id,method,seed,ks_stat,acf_r2,nrmse,p95_error_pct,p99_error_pct,delta_energy_pct
-llama-3-8b_H100_tp1,ours,0,0.023,0.987,0.045,2.3,4.1,1.2
-llama-3-8b_H100_tp1,ours,1,0.025,0.985,0.048,2.5,4.3,1.4
-llama-3-8b_H100_tp1,tdp,0,0.312,0.000,0.234,15.2,18.7,12.3
+`results/continuous_v1_gmm_bigru/` holds the main GMM-BiGRU experiment family.
+
 ```
+continuous_v1_gmm_bigru/
+├── k10_f2/
+│   ├── checkpoints/
+│   ├── gmms/
+│   ├── norm_params/
+│   ├── eval_metrics/
+│   ├── eval_metrics_fullheldout/
+│   ├── eval_metrics_rerun_energy/
+│   ├── ar1_params/
+│   ├── run_manifest.json
+│   └── run_summary.csv
+├── k10_f2_ar1/
+├── k10_f2_ar1_thresh/
+└── ...
+```
+
+## Training Outputs
+
+`results/training/` contains per-configuration training checkpoints and CSV summaries for the profiling models.
+
+```
+training/
+├── gpt-oss-20b_a100_tp1/
+├── gpt-oss-20b_a100_tp2/
+├── gpt-oss-120b_a100_tp4/
+├── gpt-oss-120b_a100_tp8/
+├── llama-3-8b_h100_tp1/
+└── ...
+```
+
+Each run directory contains a `model_tp*_H*_biGRU.pt` checkpoint and one or more `training_*.csv` files.
 
 ## Azure Facility Results
 
-### `azure_facility/`
-
-Results from Azure facility-level evaluation.
+`results/azure_facility/` stores the node-level and aggregated Azure traces used by the facility-scale evaluation scripts.
 
 ```
 azure_facility/
-├── node_traces/                  # Per-node power traces
-│   ├── node_0_power.csv
-│   └── ...
-├── aggregated/                   # Aggregated traces
-│   ├── rack_0_power.csv
-│   ├── row_0_power.csv
-│   └── facility_power.csv
-└── metrics.csv                   # Facility-level metrics
+├── node_traces/
+│   ├── ours/
+│   └── splitwise_strict/
+└── aggregated/
+    ├── ours/
+    └── splitwise_strict/
+```
+
+The method subdirectories contain `.npy` traces plus `aggregation_metadata.json` files.
+
+## Evaluation Outputs
+
+`results/eval_paper/` contains the paper-facing CSV, JSON, and LaTeX artifacts generated by the evaluation scripts.
+
+```
+eval_paper/
+├── appendix_a1_config_summary.csv
+├── appendix_a1_manifest.json
+├── appendix_a1_trace_metrics.csv
+├── azure_facility_ldc_15min.csv
+├── azure_facility_metrics.csv
+├── azure_facility_site_traces_15min.csv
+├── azure_facility_sizing_table.csv
+├── azure_facility_sizing_table.json
+├── azure_facility_sizing_table.tex
+├── azure_hierarchy_figure.csv
+├── azure_hierarchy_figure.json
+├── azure_oversubscription_capacity.csv
+├── azure_oversubscription_capacity.json
+├── baselines_node_level.csv
+├── baselines_node_groundtruth_metrics.csv
+├── baselines_facility_metrics.csv
+├── baselines_node_table.csv
+├── baselines_node_table.json
+├── baselines_node_table.tex
+├── feature_sufficiency_manifest.json
+├── feature_sufficiency_per_config.csv
+├── feature_sufficiency_summary.csv
+├── node_level_summary.csv
+├── splitwise_arrival_alignment_summary.csv
+├── trace_fidelity_table.tex
+├── trace_fidelity_table_gptoss_a100.tex
+├── trace_power_cdf_comparison.csv
+├── trace_power_cdf_comparison.json
+└── trace_power_cdf_comparison_points.csv
 ```
 
 ## Using Results
@@ -167,9 +142,9 @@ model = GRUClassifier(**ckpt["config"])
 model.load_state_dict(ckpt["model_state_dict"])
 
 # Load GMM parameters
-gmm_params = load_gmm_params_json_dict(
-    "results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp1.json"
-)
+with open("results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp1.json") as f:
+    gmm_payload = json.load(f)
+gmm_params = load_gmm_params_json_dict(gmm_payload)
 
 # Load normalization parameters
 with open("results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp1.json") as f:
@@ -182,7 +157,7 @@ with open("results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp
 import pandas as pd
 
 # Load metrics
-df = pd.read_csv("results/eval_paper/all_metrics.csv")
+df = pd.read_csv("results/eval_paper/baselines_node_level.csv")
 
 # Filter by method
 ours = df[df["method"] == "ours"]
@@ -198,13 +173,11 @@ print(f"Mean ACF R²: {ours['acf_r2'].mean():.4f}")
 
 - `continuous_v1` - Original continuous power modeling
 - `continuous_v1_gmm_bigru` - GMM + BiGRU pipeline
-- `continuous_v1_stateless` - Stateless baseline
 - `experimental_*` - Experimental/in-progress work
 
 ### Variant Suffixes
 
 - `k{N}` - Number of GMM components
-- `f{N}` - Feature set (f2, f3)
+- `f{N}` - Feature set (`f2` in the current pipeline)
 - `ar1` - AR(1) smoothing enabled
 - `thresh` - Idle thresholding enabled
-- `lambda_mu{X}` - Regularization experiments

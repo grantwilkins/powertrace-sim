@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Mapping, Tuple
 
-from model.utils.io import resolve_existing_path
-from model.utils.numeric import finite_float
+from model.utils.io import finite_float, resolve_existing_path
 
 
 def resolve_experimental_paths(

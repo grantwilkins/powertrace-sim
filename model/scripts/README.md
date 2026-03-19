@@ -2,43 +2,43 @@
 
 This directory is for CLI entry points only. Core logic lives in `model.pipeline` and `model.training_data`.
 
-## Thin Wrapper Scripts
+## CLI Entry Points
 
-| Script | Delegates to | Purpose |
-|---|---|---|
-| `train_gmm_bigru.py` | `model.pipeline.training.run_training_from_manifest` | Train GMM-BiGRU artifacts from experimental manifest data |
-| `eval_gmm_bigru.py` | `model.pipeline.evaluation.evaluate_from_artifacts` | Evaluate trained artifacts on held-out traces |
-| `infer_gmm_bigru.py` | `model.pipeline.inference.run_inference_from_artifacts` | Generate a power trace from request JSON |
-| `stage0_inventory.py` | `model.training_data.stage0_inventory_and_throughput.main` | Build Stage0 inventory + pair manifest + throughput DB |
-| `prepare_manifest.py` | `model.training_data.manifest.main` | Build `experimental_continuous_v1` datasets/splits/norm params |
-
-## Other Scripts
-
-- `compare_gmm_bigru.py`: experiment comparison utility.
-- `generate_methods_figures.py`: methods-paper figure generation.
-- `power_regression_analysis.py`: regression and exploratory analysis.
+| Module | Purpose |
+|---|---|
+| `uv run -m model.scripts.stage0_inventory` | Build Stage0 inventory, pair manifest, and throughput database |
+| `uv run -m model.scripts.prepare_manifest` | Build `experimental_continuous_v1` datasets, splits, and norm params |
+| `uv run -m model.scripts.train_gmm_bigru` | Train GMM-BiGRU artifacts from an experimental manifest |
+| `uv run -m model.scripts.eval_gmm_bigru` | Evaluate trained artifacts on held-out traces |
+| `uv run -m model.scripts.infer_gmm_bigru` | Generate a power trace from request JSON |
+| `uv run -m model.scripts.compare_gmm_bigru` | Compare config-summary CSVs across runs |
+| `uv run -m model.scripts.generate_methods_figures` | Generate the methods-figure set used by the paper |
 
 ## Typical Workflow
 
 ```bash
 # 1) Discover Stage0 pairs + throughput model
-python -m model.scripts.stage0_inventory --data_root_dir data
+uv run -m model.scripts.stage0_inventory --data_root_dir data
 
 # 2) Build experimental manifest artifacts
-python -m model.scripts.prepare_manifest \
+uv run -m model.scripts.prepare_manifest \
     --pair-manifest-csv results/stage0/pair_manifest.csv \
     --out-dir results/experimental_continuous_v1
 
 # 3) Train
-python -m model.scripts.train_gmm_bigru \
+uv run -m model.scripts.train_gmm_bigru \
     --manifest results/experimental_continuous_v1/manifest.json \
     --out-root results/continuous_v1_gmm_bigru \
     --k 10
 
 # 4) Evaluate
-python -m model.scripts.eval_gmm_bigru \
+uv run -m model.scripts.eval_gmm_bigru \
     --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
     --experimental-manifest results/experimental_continuous_v1/manifest.json
 ```
 
-Use `--help` on each script for full argument details.
+Use `--help` on each module for full argument details, for example:
+
+```bash
+uv run -m model.scripts.train_gmm_bigru --help
+```

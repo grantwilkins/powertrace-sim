@@ -9,16 +9,20 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.classifiers.gmm_bigru import (
-    build_features_from_active,
-    build_rollout_features_from_requests,
     build_state_labels,
-    extract_norm_params,
     fit_power_gmm,
-    generate_gmm_bigru_trace,
-    generate_gmm_bigru_trace_ar1_thresholded,
     gmm_params_to_json_dict,
     load_gmm_params_json_dict,
     predict_sorted_gmm_labels_from_params,
+)
+from model.classifiers.features import (
+    build_features_from_active,
+    build_rollout_features_from_requests,
+    extract_norm_params,
+)
+from model.classifiers.trace_generation import (
+    generate_gmm_bigru_trace,
+    generate_gmm_bigru_trace_ar1_thresholded,
 )
 
 

@@ -1,8 +1,8 @@
 # Job Scripts
 
-These scripts run model servers and benchmark clients across tensor-parallel and arrival-rate grids while `nvidia-smi` records GPU power/utilization.
+These scripts launch a vLLM server, run a benchmark client, and record `nvidia-smi` power/utilization logs for profiling runs.
 
-## GPT-OSS ShareGPT benchmarking
+## Current GPT-OSS ShareGPT Runs
 
 ### Required environment variables
 
@@ -12,20 +12,15 @@ These scripts run model servers and benchmark clients across tensor-parallel and
 
 - `VLLM_TORCH_PROFILER_DIR`: If set for the vLLM server process, enables vLLM profiler endpoints.
 - `VLLM_ALLOW_LONG_MAX_MODEL_LEN`: Optional for custom long-context configs, if needed by your server setup.
+- `DEBUG=1`: Enables shell tracing in the current scripts.
 
 ### Run commands
 
-From repo root:
+From the repo root:
 
 ```bash
 bash profiling/jobs/gpt-oss-20b.sh
 bash profiling/jobs/gpt-oss-120b.sh
-```
-
-Enable shell tracing during troubleshooting:
-
-```bash
-DEBUG=1 bash profiling/jobs/gpt-oss-20b.sh
 ```
 
 ### Script behavior and grid
@@ -34,26 +29,25 @@ DEBUG=1 bash profiling/jobs/gpt-oss-20b.sh
   - TP: `1, 2`
   - Rates (qps): `0.125, 0.25, 0.5, 1, 2, 4`
   - Iterations: `5`
+  - Prompts per run: `round(600 * rate)`
 - `gpt-oss-120b.sh`
   - TP: `4, 8`
   - Rates (qps): `0.125, 0.25, 0.5, 1, 2, 4`
   - Iterations: `5`
-- Prompt count per run: `round(600 * rate)` (10-minute effective profiling horizon).
+  - Prompts per run: `round(600 * rate)`
 - Benchmark invocation uses:
   - `--backend vllm --endpoint /v1/completions`
   - `--dataset-name sharegpt --dataset-path "$SHAREGPT_DATASET_PATH"`
   - `--save-result --save-detailed`
 
-### Output directories (auto-detected hardware)
+### Output directories
 
-- 20B:
-  - `data/sharegpt-benchmark-gpt-oss-20b-a100`
-  - `data/sharegpt-benchmark-gpt-oss-20b-h100`
-- 120B:
-  - `data/sharegpt-benchmark-gpt-oss-120b-a100`
-  - `data/sharegpt-benchmark-gpt-oss-120b-h100`
+Current scripts write to:
 
-Hardware class is inferred from `nvidia-smi` (`A100`/`H100`) and selected automatically.
+- `data/sharegpt-benchmark-gpt-oss-20b-a100`
+- `data/sharegpt-benchmark-gpt-oss-120b-a100`
+
+The current implementations hardcode the `a100` suffix rather than inferring hardware class from `nvidia-smi`.
 
 ### Filename conventions
 
@@ -61,7 +55,3 @@ Hardware class is inferred from `nvidia-smi` (`A100`/`H100`) and selected automa
   - `vllm-{rate}qps-tp{tp}-gpt-oss-{size}b-{YYYYMMDD-HHMMSS}.json`
 - Power CSV:
   - `gpt-oss-{size}b_tp{tp}_p{rate}_d{YYYYMMDD-HHMMSS}.csv`
-
-### Matrix completeness note
-
-Run both scripts on both hardware classes (A100 and H100) to complete the full GPT-OSS ShareGPT profiling matrix.

@@ -14,7 +14,7 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("KMP_USE_SHM", "0")
 
 from model.classifiers.gru import GRUClassifier
-from model.classifiers.gmm_bigru import (
+from model.classifiers.trace_generation import (
     estimate_ar1_params,
     generate_gmm_bigru_trace_ar1_thresholded,
 )

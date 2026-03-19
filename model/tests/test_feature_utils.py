@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from model.classifiers.feature_utils import (
+from model.classifiers.features import (
     compute_delta_active_requests,
     compute_inference_features,
     normalize_delta_active_requests,

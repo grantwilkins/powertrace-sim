@@ -8,6 +8,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
+import numpy as np
+
+
+def finite_float(value: object) -> Optional[float]:
+    try:
+        out = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(out):
+        return None
+    return out
+
 
 def ensure_dir(path: str | Path) -> None:
     os.makedirs(path, exist_ok=True)

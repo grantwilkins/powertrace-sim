@@ -1,423 +1,263 @@
 # Evaluation Scripts
 
-This directory contains scripts for evaluating power trace generation methods, comparing against baselines, processing Azure traces, and generating paper figures and tables.
+This directory contains the maintained evaluation CLI entrypoints for node-level
+baselines, Azure facility processing, paper tables, and figures. The old
+`aggregation_variance.py` and `aggregation_resolution.py` references are no
+longer relevant because those scripts are not present.
 
-## Script Categories
+## Baseline Evaluation
 
-### 1. Baseline Evaluation
+### `run_baselines_node.py`
 
-#### `run_baselines_node.py` - Node-Level Baseline Comparison
-
-Compare GMM-BiGRU against baseline methods at the server/node level.
-
-```bash
-python -m scripts.eval.run_baselines_node \
-    --config-id llama-3-8b_H100_tp1 \
-    --num-seeds 5 \
-    --out-dir results/eval_paper
-```
-
-**Baselines Compared:**
-- **TDP**: Constant thermal design power
-- **Mean**: Average power from training data
-- **Splitwise Strict Emulation**: Request-centric LUT scheduler surrogate
-- **Ours**: GMM-BiGRU (with AR(1) variants)
-
-**Output:**
-- `{out-dir}/{config_id}_metrics.csv` - Per-seed metrics
-- `{out-dir}/{config_id}_summary.csv` - Aggregated statistics
-
-#### `run_baselines_node_groundtruth.py` - Ground Truth Comparison
-
-Evaluate against actual measured power traces.
+Node-level baseline comparison for TDP, Mean, Splitwise strict emulation, and Ours.
 
 ```bash
-python -m scripts.eval.run_baselines_node_groundtruth \
-    --config-id llama-3-8b_H100_tp1 \
-    --ground-truth-dir data/sharegpt-benchmark-llama-3-8b-h100 \
-    --out-dir results/eval_paper/groundtruth
+uv run -m scripts.eval.run_baselines_node \
+  --config-ids llama-3-8b_H100_tp1 llama-3-8b_H100_tp2 \
+  --num-seeds 5 \
+  --decode-mode stochastic \
+  --out-csv results/eval_paper/baselines_node_level.csv
 ```
 
-#### `run_baselines_facility.py` - Facility-Level Evaluation
+Key flags: `--run-manifest`, `--experimental-manifest`, `--throughput-db`,
+`--pair-manifest-csv`, `--ar1-params-dir`, `--out-csv`, `--config-ids`,
+`--num-seeds`, `--base-seed`, `--device`, `--acf-max-lag`, `--decode-mode`,
+`--median-filter-window`, `--ours-std-scale`, `--ours-logit-temperature`,
+`--splitwise-perf-model-csv`, `--splitwise-source-model`,
+`--splitwise-source-hardware`, `--splitwise-source-tp`.
 
-Evaluate at datacenter/facility scale using Azure facility traces.
+### `run_baselines_node_groundtruth.py`
+
+Held-out replay against measured GPU power traces.
 
 ```bash
-python -m scripts.eval.run_baselines_facility \
-    --facility-data results/azure_facility \
-    --out-dir results/eval_paper/facility
+uv run -m scripts.eval.run_baselines_node_groundtruth \
+  --config-id deepseek-r1-distill-70b_H100_tp4 \
+  --target-rate 0.25 \
+  --out-csv results/eval_paper/baselines_node_groundtruth_metrics.csv \
+  --out-plot-pdf figures/baselines_node_groundtruth_trace.pdf
 ```
 
-#### `appendix_surrogate_validity.py` - Appendix A1 Surrogate Validity
+Key flags: `--config-id`, `--target-rate`, `--test-trace-index`, `--tp-gpus`,
+`--n-gpus-for-gpu-power`, `--gpu-tdp-w`, `--non-gpu-overhead-w`, `--num-seeds`,
+`--base-seed`, `--device`, `--decode-mode`, `--median-filter-window`,
+`--ours-std-scale`, `--ours-logit-temperature`, `--splitwise-perf-model-csv`,
+`--splitwise-source-model`, `--splitwise-source-hardware`,
+`--splitwise-source-tp`, `--splitwise-style-lut-mode`, `--splitwise-mode`.
 
-Generate Appendix A1 sanity-check evidence for measured vs surrogate `A_t`
-without queue reconstruction. The script writes per-config `A_t` plots
-(time-series + histogram) and `\lambda` vs mean `A_t` saturation diagnostics.
+### `run_baselines_facility.py`
+
+Synthetic facility-level baseline comparison.
 
 ```bash
-python -m scripts.eval.appendix_surrogate_validity \
-    --config-pool all_trained \
-    --num-representative-configs 3 \
-    --min-eligible-traces 2 \
-    --stable-corr-threshold 0.80
+uv run -m scripts.eval.run_baselines_facility \
+  --config-id deepseek-r1-distill-70b_H100_tp4 \
+  --n-nodes 60 \
+  --duration-s 3600 \
+  --out-csv results/eval_paper/baselines_facility_metrics.csv \
+  --traces-pdf figures/baselines_facility_traces.pdf \
+  --ldc-pdf figures/baselines_load_duration.pdf
 ```
 
-**Output:**
-- `results/eval_paper/appendix_a1_trace_metrics.csv` - Per-trace metrics and skip reasons
-- `results/eval_paper/appendix_a1_config_summary.csv` - Per-config medians and saturation slopes
-- `figures/appendix_a1_at_{config_slug}_trace{idx}_at_timeseries.pdf` - Per-config `A_t` time-series overlay
-- `figures/appendix_a1_at_{config_slug}_trace{idx}_at_histogram.pdf` - Per-config `A_t` histogram overlay
-- `figures/appendix_a1_lambda_vs_mean_at.pdf` - `\lambda` vs mean `A_t` scatter panels
-- `results/eval_paper/appendix_a1_manifest.json` - Reproducibility manifest and selection notes
-- Manifest `surrogate_quality` section and stdout summary - Aggregate mean/median correlation, MAE, RMSE, and mean-`A_t` error
+Key flags: `--config-id`, `--n-nodes`, `--duration-s`, `--dt`,
+`--lambda-req-per-s-per-node`, `--tp-gpus`, `--n-gpus-for-gpu-power`,
+`--gpu-tdp-w`, `--pue`, `--non-gpu-overhead-w`, `--facility-power-mode`,
+`--traffic-model`, `--burst-rate-per-min`, `--burst-mean-duration-s`,
+`--burst-peak-scale`, `--burst-background-sigma`, `--burst-node-scale-sigma`,
+`--out-csv`, `--traces-pdf`, `--ldc-pdf`.
 
-#### `baselines.py` - Baseline Method Implementations
+### `appendix_surrogate_validity.py`
 
-Contains implementations of all baseline generation methods:
-
-```python
-from scripts.eval.baselines import (
-    generate_tdp,           # Constant TDP
-    generate_mean,          # Training mean
-    generate_splitwise_style_lut_trace, # Splitwise-style LUT trace surrogate
-    generate_ours,          # GMM-BiGRU pipeline
-    build_splitwise_style_lut_params,  # Splitwise-style LUT parameter estimation
-)
-```
-
-Splitwise-style LUT params are namespaced by layer:
-- `timing_support_*`
-- `power_support_*`
-- `scheduler_defaults_*`
-
-### 2. Azure Facility Pipeline
-
-The Azure facility pipeline is now baseline-inclusive by default at the top level. The maintained workflow is:
-- `ours`
-- `splitwise_strict`
-- plus facility baselines in downstream artifacts: `tdp_baseline`, `mean_baseline`
-
-Default Azure configuration:
-- `config_id`: `llama-3-70b_A100_tp4`
-- Splitwise source curves: `llama-3-70b` on `a100-80gb` with `tp=4`
-
-Default output roots:
-- `results/azure_facility/node_traces/{method}`
-- `results/azure_facility/aggregated/{method}`
-- `results/eval_paper/azure_facility_metrics.csv`
-- `results/eval_paper/azure_facility_ldc_15min.csv`
-- `results/eval_paper/azure_facility_site_traces_15min.csv`
-- `results/eval_paper/azure_oversubscription_capacity.{csv,json}`
-- `results/eval_paper/azure_facility_sizing_table.{csv,json,tex}`
-- `figures/azure_figure_*.pdf`
-
-#### `run_azure_pipeline.py`
-
-Run the full Azure facility workflow end to end.
+Appendix A1 sanity checks for measured vs surrogate `A_t`.
 
 ```bash
-python -m scripts.eval.run_azure_pipeline
+uv run -m scripts.eval.appendix_surrogate_validity \
+  --config-pool all_trained \
+  --num-representative-configs 3 \
+  --min-eligible-traces 2 \
+  --stable-corr-threshold 0.80
 ```
 
-#### `parse_azure_trace.py`
+Key flags: `--run-manifest`, `--experimental-manifest`, `--pair-manifest-csv`,
+`--throughput-db`, `--config-pool`, `--num-representative-configs`,
+`--min-eligible-traces`, `--stable-corr-threshold`, `--time-window-s`,
+`--out-csv`, `--out-summary-csv`, `--out-figure-overlays`,
+`--out-figure-scatter`, `--out-manifest-json`, `--dry-run`.
 
-Parse raw Azure conversation traces into usable format.
+## Azure Facility Pipeline
+
+### `run_azure_pipeline.py`
+
+End-to-end Azure workflow: node streams, node traces, aggregation, metrics,
+oversubscription, figures, and sizing table.
 
 ```bash
-python -m scripts.eval.parse_azure_trace \
-    --input data/azure_trace/raw/conversations.csv \
-    --output data/azure_trace/parsed
+uv run -m scripts.eval.run_azure_pipeline
 ```
 
-#### `split_azure_week_to_days.py`
+### `split_azure_week_to_days.py`
 
-Split week-long traces into daily segments.
+Split the week-long Azure trace into per-day CSV files.
 
 ```bash
-python -m scripts.eval.split_azure_week_to_days \
-    --input data/azure_trace/parsed/week.csv \
-    --output data/azure_trace/days
+uv run -m scripts.eval.split_azure_week_to_days \
+  --input-csv data/azure_trace/raw/AzureLLMInferenceTrace_code_1week.csv \
+  --output-dir data/azure_trace/days
 ```
 
-#### `azure_to_node_streams.py`
+### `parse_azure_trace.py`
 
-Convert parsed traces to per-node request streams.
+Normalize a day CSV into request tuples plus metadata.
 
 ```bash
-python -m scripts.eval.azure_to_node_streams \
-    --input data/azure_trace/parsed \
-    --output data/azure_facility/node_streams \
-    --num-nodes 240
+uv run -m scripts.eval.parse_azure_trace \
+  --input-csv data/azure_trace/days/2024-05-16.csv \
+  --output-dir data/azure_trace/parsed
 ```
 
-#### `azure_generate_traces.py`
+### `azure_to_node_streams.py`
 
-Generate per-node Azure power traces for `ours` and `splitwise_strict`.
+Convert parsed requests into per-node streams.
 
 ```bash
-python -m scripts.eval.azure_generate_traces \
-    --node-stream-dir data/azure_facility/node_streams \
-    --output-root results/azure_facility/node_traces
+uv run -m scripts.eval.azure_to_node_streams \
+  --input-csv data/azure_trace/parsed/day_2024-05-16_requests.csv \
+  --output-dir data/azure_facility/node_streams \
+  --rows 10 \
+  --racks-per-row 6 \
+  --nodes-per-rack 4 \
+  --seed 42
 ```
 
-#### `azure_aggregate.py`
+### `azure_generate_traces.py`
 
-Aggregate node traces into rack, row, and site traces under `aggregated/{method}`.
+Generate per-node power traces for `ours` and `splitwise_strict`.
 
 ```bash
-python -m scripts.eval.azure_aggregate \
-    --node-traces-root results/azure_facility/node_traces \
-    --output-root results/azure_facility/aggregated
+uv run -m scripts.eval.azure_generate_traces \
+  --node-stream-dir data/azure_facility/node_streams \
+  --output-root results/azure_facility/node_traces
 ```
 
-#### `azure_metrics.py`
+### `azure_aggregate.py`
 
-Write normalized multi-method facility metrics, 15-minute site traces, and load-duration rows.
+Aggregate node traces to rack, row, and site traces.
 
 ```bash
-python -m scripts.eval.azure_metrics \
-    --aggregated-root results/azure_facility/aggregated \
-    --node-traces-root results/azure_facility/node_traces \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
-    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
-    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv
+uv run -m scripts.eval.azure_aggregate \
+  --node-traces-root results/azure_facility/node_traces \
+  --output-root results/azure_facility/aggregated
 ```
 
-#### `oversubscription_figure.py`
+### `azure_metrics.py`
 
-Compute the max feasible rack count per method under the configured row-power risk rule.
+Write the Azure facility metrics CSVs used by the paper figures.
 
 ```bash
-python -m scripts.eval.oversubscription_figure \
-    --aggregated-root results/azure_facility/aggregated \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv
+uv run -m scripts.eval.azure_metrics \
+  --aggregated-root results/azure_facility/aggregated \
+  --node-traces-root results/azure_facility/node_traces \
+  --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+  --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
+  --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv
 ```
 
-#### `azure_figures.py`
+### `oversubscription_figure.py`
 
-Generate Azure facility figures. Figure 1 is `ours` only; comparison figures include TDP, Mean, Splitwise, and Ours.
+Compute the oversubscription capacity analysis and supporting plots.
 
 ```bash
-python -m scripts.eval.azure_figures \
-    --aggregated-root results/azure_facility/aggregated \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
-    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
-    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv \
-    --out-dir figures
+uv run -m scripts.eval.oversubscription_figure \
+  --aggregated-root results/azure_facility/aggregated \
+  --metrics-csv results/eval_paper/azure_facility_metrics.csv
 ```
 
-#### `azure_trace_utils.py`
+### `azure_figures.py`
 
-Utility functions for Azure trace handling:
-
-```python
-from scripts.eval.azure_trace_utils import (
-    load_azure_requests,
-    compute_arrival_rate,
-    bin_requests_to_intervals,
-    compute_token_statistics,
-)
-```
-
-### 3. Result Collection and Tables
-
-#### `collect_results.py`
-
-Aggregate evaluation results across configurations.
+Generate the Azure facility figures.
 
 ```bash
-python -m scripts.eval.collect_results \
-    --results-dir results/eval_paper \
-    --out-csv results/eval_paper/all_metrics.csv
+uv run -m scripts.eval.azure_figures \
+  --aggregated-root results/azure_facility/aggregated \
+  --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+  --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
+  --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv \
+  --out-dir figures
 ```
 
-#### `generate_baselines_node_table.py`
+### `hierarchy_figure.py`
 
-Generate LaTeX table for node-level baseline comparison.
+Generate the server/rack/row/site hierarchy figure outputs.
 
 ```bash
-python -m scripts.eval.generate_baselines_node_table \
-    --metrics-csv results/eval_paper/all_metrics.csv \
-    --out-tex figures/tables/baselines_node.tex
+uv run -m scripts.eval.hierarchy_figure \
+  --node-trace-dir results/azure_facility/node_traces/ours \
+  --aggregated-dir results/azure_facility/aggregated/ours \
+  --output-mode separate
 ```
 
-#### `generate_trace_fidelity_table.py`
+## Tables and Figures
 
-Generate trace fidelity metrics table.
+### `generate_baselines_node_table.py`
 
 ```bash
-python -m scripts.eval.generate_trace_fidelity_table \
-    --metrics-dir results/eval_paper \
-    --out-tex figures/tables/trace_fidelity.tex
+uv run -m scripts.eval.generate_baselines_node_table \
+  --metrics-csv results/eval_paper/baselines_node_level.csv \
+  --out-tex figures/tables/baselines_node.tex
 ```
 
-#### `generate_azure_facility_sizing_table.py`
-
-Generate the facility sizing comparison table for TDP, Mean, Splitwise, and Ours.
+### `generate_trace_fidelity_table.py`
 
 ```bash
-python -m scripts.eval.generate_azure_facility_sizing_table \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
-    --out-tex results/eval_paper/azure_facility_sizing_table.tex
+uv run -m scripts.eval.generate_trace_fidelity_table \
+  --iid-dir results/continuous_v1_gmm_bigru/k10_f2/eval_metrics_fullheldout \
+  --ar1-dir results/continuous_v1_gmm_bigru/k10_f2_ar1/eval_metrics_fullheldout \
+  --ar1-thresh-dir results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics_fullheldout \
+  --output figures/tables/trace_fidelity.tex \
+  --format latex
 ```
 
-### 4. Figure Generation
-
-#### `generate_power_cdf_comparison.py`
-
-Generate power CDF comparison figures.
+### `generate_azure_facility_sizing_table.py`
 
 ```bash
-python -m scripts.eval.generate_power_cdf_comparison \
-    --config-id llama-3-8b_H100_tp1 \
-    --ground-truth data/sharegpt-benchmark-llama-3-8b-h100 \
-    --generated results/eval_paper \
-    --out-dir figures/trace_power_cdf_comparison
+uv run -m scripts.eval.generate_azure_facility_sizing_table \
+  --metrics-csv results/eval_paper/azure_facility_metrics.csv \
+  --out-tex results/eval_paper/azure_facility_sizing_table.tex
 ```
 
-#### `azure_figures.py`
-
-Generate Azure-specific evaluation figures.
+### `generate_power_cdf_comparison.py`
 
 ```bash
-python -m scripts.eval.azure_figures \
-    --aggregated-root results/azure_facility/aggregated \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv \
-    --ldc-csv results/eval_paper/azure_facility_ldc_15min.csv \
-    --site-traces-15min-csv results/eval_paper/azure_facility_site_traces_15min.csv \
-    --out-dir figures
+uv run -m scripts.eval.generate_power_cdf_comparison \
+  --config-ids llama-3-8b_H100_tp1 \
+  --num-seeds 5 \
+  --out-plot-dir figures/trace_power_cdf_comparison
 ```
 
-#### `hierarchy_figure.py`
-
-Generate datacenter hierarchy visualization.
+### `feature_sufficiency_figure.py`
 
 ```bash
-python -m scripts.eval.hierarchy_figure \
-    --data-dir results/azure_facility/aggregated \
-    --out-file figures/hierarchy.pdf
+uv run -m scripts.eval.feature_sufficiency_figure \
+  --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
+  --training-data-dir model/training_data \
+  --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
+  --out-figure figures/feature_sufficiency_curve.pdf
 ```
 
-#### `oversubscription_figure.py`
+Key flags: `--bootstrap-samples`, `--seed`, `--out-per-config-csv`,
+`--out-summary-csv`, `--out-json`, `--include-configs`, `--device`, `--epochs`,
+`--hidden-dim`, `--lr`.
 
-Generate power oversubscription analysis figure.
+## Support Modules
+
+- `baselines.py` - Shared baseline generation helpers
+- `pipeline_utils.py` - Common loading, rollout, and checkpoint resolution helpers
+- `azure_defaults.py` - Default paths and constants for the Azure workflow
+- `azure_trace_utils.py` - Request loading and trace binning helpers
+- `facility.py` - Facility layout and aggregation utilities
+
+## Testing
 
 ```bash
-python -m scripts.eval.oversubscription_figure \
-    --aggregated-root results/azure_facility/aggregated \
-    --metrics-csv results/eval_paper/azure_facility_metrics.csv
-```
-
-#### `aggregation_variance.py`
-
-Generate aggregation variance analysis figure.
-
-```bash
-python -m scripts.eval.aggregation_variance \
-    --data-dir results/azure_facility \
-    --out-file figures/aggregation_variance.pdf
-```
-
-#### `aggregation_resolution.py`
-
-Generate time resolution analysis figure.
-
-```bash
-python -m scripts.eval.aggregation_resolution \
-    --data-dir results/azure_facility \
-    --out-file figures/aggregation_resolution.pdf
-```
-
-#### `feature_sufficiency_figure.py`
-
-Generate the A2 feature sufficiency curve using held-out predictive
-information retention for `A`, `ΔA`, `F2`, `F3`, and `F6` versus regime
-label `z_t`.
-
-Metric definitions:
-- `IR_abs = 1 - CE_subset / CE_null`
-- `IR_vs_F6 = (CE_null - CE_subset) / (CE_null - CE_F6)` (primary line)
-
-```bash
-python -m scripts.eval.feature_sufficiency_figure \
-    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
-    --training-data-dir model/training_data \
-    --gmm-dir results/continuous_v1_gmm_bigru/k10_f2/gmms \
-    --epochs 8 \
-    --hidden-dim 32 \
-    --lr 1e-3 \
-    --out-figure figures/feature_sufficiency_curve.pdf \
-    --out-per-config-csv results/eval_paper/feature_sufficiency_per_config.csv \
-    --out-summary-csv results/eval_paper/feature_sufficiency_summary.csv \
-    --out-json results/eval_paper/feature_sufficiency_manifest.json
-```
-
-Outputs:
-- Per-config scores: `config_id, subset, ce_subset, ce_null, ce_f6, ir_abs, ir_vs_f6, info_retained_abs_pct, info_retained_vs_f6_pct, n_test_samples, n_classes, input_dim, n_train_traces, n_test_traces`
-- Summary rows: `subset, median_ir_vs_f6, ci95_low_ir_vs_f6, ci95_high_ir_vs_f6, median_ir_abs, ci95_low_ir_abs, ci95_high_ir_abs, median_info_retained_vs_f6_pct, median_info_retained_abs_pct, n_configs`
-- Figure PDF and manifest JSON with selected/skipped configs, CE retention formulas, and sequence-model settings
-
-### 5. Utility Module
-
-#### `pipeline_utils.py`
-
-Re-exports commonly used functions for evaluation scripts:
-
-```python
-from scripts.eval.pipeline_utils import (
-    # From model.classifiers.gmm_bigru
-    build_rollout_features_from_requests,
-    generate_gmm_bigru_trace,
-    load_gmm_params_json_dict,
-
-    # From model.scripts.eval_gmm_bigru
-    predict_sorted_gmm_labels_from_params,
-    estimate_ar1_params,
-    generate_gmm_bigru_trace_ar1_thresholded,
-)
-```
-
-## Typical Evaluation Workflow
-
-```bash
-# 1. Run node-level baselines
-python -m scripts.eval.run_baselines_node \
-    --num-seeds 10 \
-    --out-dir results/eval_paper
-
-# 2. Collect results
-python -m scripts.eval.collect_results \
-    --results-dir results/eval_paper \
-    --out-csv results/eval_paper/all_metrics.csv
-
-# 3. Generate tables
-python -m scripts.eval.generate_baselines_node_table \
-    --metrics-csv results/eval_paper/all_metrics.csv \
-    --out-tex figures/tables/baselines_node.tex
-
-# 4. Generate figures
-python -m scripts.eval.generate_power_cdf_comparison \
-    --out-dir figures/trace_power_cdf_comparison
-```
-
-## Metrics Computed
-
-| Metric | Description | Better |
-|--------|-------------|--------|
-| `ks_stat` | Kolmogorov-Smirnov statistic | Lower |
-| `acf_r2` | Autocorrelation R² fit | Higher |
-| `nrmse` | Normalized RMSE | Lower |
-| `p95_error_pct` | 95th percentile error (%) | Lower |
-| `p99_error_pct` | 99th percentile error (%) | Lower |
-| `delta_energy_pct` | Absolute total-trace energy error from `sum(power) * dt` (%) | Lower |
-
-## Output Directory Structure
-
-```
-results/eval_paper/
-├── {config_id}_metrics.csv       # Per-config, per-seed metrics
-├── {config_id}_summary.csv       # Aggregated statistics
-├── all_metrics.csv               # Combined results
-├── groundtruth/                  # Ground truth comparisons
-└── facility/                     # Facility-level results
+uv run -m pytest -x
 ```

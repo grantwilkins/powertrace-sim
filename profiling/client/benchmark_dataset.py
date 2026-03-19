@@ -32,15 +32,6 @@ from datasets import load_dataset
 from PIL import Image
 from transformers import PreTrainedTokenizerBase
 from vllm.multimodal import MultiModalDataDict
-<<<<<<< HEAD:client/benchmark_dataset.py
-=======
-from vllm.transformers_utils.tokenizer import AnyTokenizer
-
-try:
-    from vllm.transformers_utils.tokenizer import get_lora_tokenizer
-except ImportError:
-    get_lora_tokenizer = None
->>>>>>> grant/moe-exploration:profiling/client/benchmark_dataset.py
 
 logger = logging.getLogger(__name__)
 _warned_missing_lora_tokenizer = False
@@ -116,61 +107,6 @@ class BenchmarkDataset(ABC):
         # TODO (jenniferzhao): add support for downloading data
         raise NotImplementedError("load_data must be implemented in subclasses.")
 
-<<<<<<< HEAD:client/benchmark_dataset.py
-=======
-    def get_random_lora_request(
-        self,
-        tokenizer: PreTrainedTokenizerBase,
-        max_loras: Optional[int] = None,
-        lora_path: Optional[str] = None,
-    ) -> tuple[Optional[LoRARequest], AnyTokenizer]:
-        """
-        Optionally select a random LoRA request and return its associated
-        tokenizer.
-
-        This method is used when LoRA parameters are provided.  It randomly
-        selects a LoRA based on max_loras and retrieves a cached tokenizer for
-        that LoRA if available. Otherwise, it returns the base tokenizer.
-
-        Args:
-            tokenizer (PreTrainedTokenizerBase): The base tokenizer to use if no
-            LoRA is selected.  max_loras (Optional[int]): The maximum number of
-            LoRAs available. If None, LoRA is not used.  lora_path
-            (Optional[str]): Path to the LoRA parameters on disk. If None, LoRA
-            is not used.
-
-        Returns:
-            tuple[Optional[LoRARequest], AnyTokenizer]: A tuple where the first
-            element is a LoRARequest (or None if not applicable) and the second
-            element is the tokenizer associated with the LoRA request (or the
-            base tokenizer).
-        """
-        if max_loras is None or lora_path is None:
-            return None, tokenizer
-
-        # Generate a random LoRA ID in the range [1, max_loras].
-        lora_id = random.randint(1, max_loras)
-        lora_request = LoRARequest(
-            lora_name=str(lora_id),
-            lora_int_id=lora_id,
-            lora_path=lora_path_on_disk(lora_path),
-        )
-        if get_lora_tokenizer is None:
-            global _warned_missing_lora_tokenizer
-            if not _warned_missing_lora_tokenizer:
-                logger.warning(
-                    "vLLM tokenizer API does not expose get_lora_tokenizer; "
-                    "falling back to base tokenizer for LoRA requests."
-                )
-                _warned_missing_lora_tokenizer = True
-            return lora_request, tokenizer
-        if lora_id not in lora_tokenizer_cache:
-            lora_tokenizer_cache[lora_id] = get_lora_tokenizer(lora_request)
-        # Return lora_request and the cached tokenizer if available; otherwise,
-        # return the base tokenizer
-        return lora_request, lora_tokenizer_cache[lora_id] or tokenizer
->>>>>>> grant/moe-exploration:profiling/client/benchmark_dataset.py
-
     @abstractmethod
     def sample(
         self, tokenizer: PreTrainedTokenizerBase, num_requests: int
@@ -240,8 +176,6 @@ def is_valid_sequence(
     return not (
         prompt_too_short or output_too_short or prompt_too_long or combined_too_long
     )
-
-
 
 
 def process_image(image: Any) -> Mapping[str, Any]:

@@ -1,17 +1,17 @@
 # Client
 
-This directory contains the benchmark client for collecting power traces from LLM inference servers. The client sends requests to a vLLM server, collects timing information, and records GPU power consumption.
+This directory contains the profiling clients and dataset helpers used to collect request timing and GPU power traces from serving endpoints.
 
 ## Main Scripts
 
-### `benchmark_serving.py` - Primary Benchmark Client
+### `benchmark_serving.py`
 
-The main benchmarking script that sends requests and collects detailed metrics.
+Primary benchmark runner for vLLM-compatible endpoints. It supports ShareGPT, BurstGPT, Sonnet, random, realistic, and HuggingFace-backed workloads.
 
 ```bash
 python profiling/client/benchmark_serving.py \
     --backend vllm \
-    --endpoint /v1/completions \
+    --model meta-llama/Meta-Llama-3.1-8B-Instruct \
     --dataset-name sharegpt \
     --dataset-path /path/to/sharegpt.json \
     --request-rate 1.0 \
@@ -20,173 +20,96 @@ python profiling/client/benchmark_serving.py \
     --save-detailed
 ```
 
-**Key Arguments:**
+Key flags:
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--backend` | Backend type (vllm, openai, etc.) | vllm |
-| `--endpoint` | API endpoint | /v1/completions |
-| `--dataset-name` | Dataset to use (sharegpt, random) | sharegpt |
-| `--dataset-path` | Path to dataset file | Required |
-| `--request-rate` | Requests per second | 1.0 |
-| `--num-prompts` | Total prompts to send | 100 |
-| `--save-result` | Save summary results | False |
-| `--save-detailed` | Save per-request details | False |
+| `--model` | Model name used for the benchmark request payload | Required |
+| `--backend` | Request backend | `vllm` |
+| `--base-url` | Server or API base URL; overrides `--host` and `--port` when set | `None` |
+| `--host` | Host used when `--base-url` is not provided | `127.0.0.1` |
+| `--port` | Port used when `--base-url` is not provided | `8000` |
+| `--endpoint` | API endpoint path | `/v1/completions` |
+| `--dataset-name` | Dataset family: `sharegpt`, `burstgpt`, `sonnet`, `random`, `realistic`, or `hf` | `sharegpt` |
+| `--dataset-path` | Dataset file path or HuggingFace dataset ID, depending on `--dataset-name` | `None` |
+| `--request-rate` | Requests per second | `inf` |
+| `--num-prompts` | Number of prompts to process | `1000` |
+| `--tensor-parallel-size` | Tensor parallelism recorded in the result metadata | `1` |
+| `--save-result` | Write the benchmark JSON result file | `False` |
+| `--save-detailed` | Include per-request detail in the JSON output | `False` |
+| `--append-result` | Append to an existing JSON result file | `False` |
 
-**Output Files:**
+When `--save-result` is enabled, the script writes:
 
-- `vllm-{rate}qps-tp{tp}-{model}-{timestamp}.json` - Detailed benchmark results
-- Power CSV files (recorded separately by nvidia-smi)
+- `{backend}-{request_rate}qps{max_concurrency_str}-tp{tp}-{model}-{timestamp}.json`
+- `{same-name-without-.json}.pytorch.json` if the summary conversion succeeds
 
-### `benchmark_dataset.py` - Dataset Utilities
+Power CSVs are recorded separately by the surrounding job or shell process.
 
-Dataset loading and preprocessing utilities.
+### `client.py`
 
-```python
-from client.benchmark_dataset import load_sharegpt_dataset
+Synchronous benchmark driver that samples `garage-bAInd/Open-Platypus` by default, sends chat-completion requests, and writes per-run CSV output.
 
-dataset = load_sharegpt_dataset("/path/to/sharegpt.json")
-```
+Required CLI flags:
 
-### `client.py` - Synchronous Client
+- `--date`
+- `--model-name`
 
-Basic synchronous HTTP client for simple testing.
+Other notable flags:
 
-```python
-from client.client import send_request
+- `--base-url`
+- `--api-key`
+- `--poisson-arrival-rate`
+- `--tensor-parallel-size`
+- `--time-window`
+- `--reasoning`
 
-response = send_request(
-    prompt="Hello, how are you?",
-    max_tokens=100,
-    endpoint="http://localhost:8000/v1/completions"
-)
-```
+Output files are written as:
 
-### `client_async.py` - Asynchronous Client
+- `results_<model>_<poisson_arrival_rate>_<tensor_parallel_size>_d<date>.csv`
+- `results_<model>_<poisson_arrival_rate>_<tensor_parallel_size>_d<date>_final.csv`
 
-High-performance async client for load testing.
+### `client_async.py`
 
-```python
-from client.client_async import AsyncBenchmarkClient
+Fully asynchronous version of the same benchmark flow. It uses `AsyncOpenAI` plus `aiohttp` for `/info` and `/metrics` collection and writes the same CSV naming pattern as `client.py`.
 
-client = AsyncBenchmarkClient(base_url="http://localhost:8000")
-results = await client.benchmark(
-    prompts=prompts,
-    request_rate=2.0,
-    max_tokens=100
-)
-```
+### `benchmark_dataset.py`
 
-### `backend_request_func.py` - Backend Adapters
-
-Request functions for different inference backends.
+Dataset sampling helpers used by the benchmark runners.
 
 ```python
-from client.backend_request_func import get_request_func
+from benchmark_dataset import RealisticRandomDataset, ShareGPTDataset
 
-request_func = get_request_func("vllm", "/v1/completions")
-result = await request_func(prompt, max_tokens, session)
+dataset = ShareGPTDataset(dataset_path="/path/to/sharegpt.json")
+requests = dataset.sample(tokenizer=tokenizer, num_requests=600)
 ```
 
-### `benchmark_utils.py` - Utility Functions
+### `benchmark_utils.py`
 
-Common utilities for benchmarking.
+Shared result-format conversion and JSON writing helpers used by `benchmark_serving.py`.
 
-```python
-from client.benchmark_utils import (
-    compute_latency_stats,
-    compute_throughput,
-    format_results,
-)
-```
+### `backend_request_func.py`
+
+Backend adapters that define the request functions used by the benchmark runner.
 
 ## Data Collection Workflow
 
-1. **Start the vLLM server** (see `profiling/server/` directory)
-
-2. **Run the benchmark client:**
-
-   ```bash
-   python profiling/client/benchmark_serving.py \
-       --backend vllm \
-       --endpoint /v1/completions \
-       --dataset-name sharegpt \
-       --dataset-path $SHAREGPT_DATASET_PATH \
-       --request-rate 1.0 \
-       --num-prompts 600 \
-       --save-result \
-       --save-detailed
-   ```
-
-3. **Collect power data** (typically done by job scripts):
-
-   ```bash
-   nvidia-smi --query-gpu=timestamp,power.draw \
-       --format=csv -l 1 > power.csv &
-   ```
+1. Start the serving endpoint described in [`profiling/server/README.md`](../server/README.md).
+2. Run `benchmark_serving.py` or one of the client scripts above.
+3. Capture GPU power data separately with the job wrapper or `nvidia-smi`.
 
 ## Test Scripts
 
 | Script | Description |
 |--------|-------------|
-| `test_benchmark_serving_timestamps.py` | Test timestamp alignment |
-| `test_distributions_standalone.py` | Test request distribution generation |
-| `test_preset_distributions.py` | Test preset distribution configurations |
-| `test_simple_integration.py` | Basic integration tests |
-| `test_integration.sh` | Full integration test script |
-
-## Output Format
-
-### Benchmark JSON
-
-```json
-{
-  "backend": "vllm",
-  "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-  "request_rate": 1.0,
-  "num_prompts": 600,
-  "duration": 600.5,
-  "completed_requests": 598,
-  "requests": [
-    {
-      "request_id": 0,
-      "prompt_len": 512,
-      "output_len": 128,
-      "arrival_time": 0.0,
-      "start_time": 0.001,
-      "first_token_time": 0.045,
-      "end_time": 2.134,
-      "ttft": 0.044,
-      "tpot": 0.016
-    }
-  ],
-  "metrics": {
-    "throughput_tps": 45.2,
-    "latency_p50": 2.1,
-    "latency_p95": 5.4,
-    "latency_p99": 8.2
-  }
-}
-```
-
-### Power CSV
-
-```csv
-timestamp,power.draw [W]
-2025-05-12 01:10:05.123,450.23
-2025-05-12 01:10:05.223,487.65
-...
-```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `SHAREGPT_DATASET_PATH` | Path to ShareGPT dataset |
-| `VLLM_SERVER_URL` | Server URL (default: http://localhost:8000) |
+| `test_benchmark_serving_timestamps.py` | Verifies request timestamps stay aligned with mixed benchmark outcomes |
+| `test_distributions_standalone.py` | Validates request distribution generation |
+| `test_preset_distributions.py` | Validates preset workload distributions |
+| `test_simple_integration.py` | Exercises the realistic random dataset sampler |
+| `test_integration.sh` | Shell integration test for the client workflow |
 
 ## See Also
 
-- [profiling/server/README.md](../server/README.md) - Server launch scripts
-- [profiling/jobs/README.md](../jobs/README.md) - Automated benchmarking
-- [data/README.md](../../data/README.md) - Collected data format
+- [`profiling/server/README.md`](../server/README.md) - Server launch scripts
+- [`profiling/jobs/README.md`](../jobs/README.md) - Automated benchmarking jobs
+- [`data/README.md`](../../data/README.md) - Collected data layout

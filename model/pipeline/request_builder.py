@@ -7,10 +7,10 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from model.utils.io import (
+    finite_float,
     load_json as _load_json,
     resolve_existing_path as _resolve_existing_path,
 )
-from model.utils.numeric import finite_float
 
 
 def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:

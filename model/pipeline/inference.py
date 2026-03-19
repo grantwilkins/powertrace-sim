@@ -9,11 +9,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from model.classifiers.gmm_bigru import (
-    build_rollout_features_from_requests,
-    generate_gmm_bigru_trace,
-    load_gmm_params_json_dict,
-)
+from model.classifiers.gmm_bigru import load_gmm_params_json_dict
+from model.classifiers.features import build_rollout_features_from_requests
+from model.classifiers.trace_generation import generate_gmm_bigru_trace
 from model.classifiers.gru import GRUClassifier
 from model.pipeline.artifact_resolution import resolve_throughput
 from model.pipeline.manifest_validation import validate_manifest

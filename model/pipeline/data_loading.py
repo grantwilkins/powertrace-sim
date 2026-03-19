@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from model.classifiers.gmm_bigru import build_features_from_active, build_state_labels
+from model.classifiers.features import build_features_from_active
+from model.classifiers.gmm_bigru import build_state_labels
 from model.pipeline.manifest_validation import validate_manifest
 from model.utils.io import resolve_existing_path as _resolve_existing_path
 

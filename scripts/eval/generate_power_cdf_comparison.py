@@ -39,18 +39,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model.classifiers.feature_utils import (  # noqa: E402
+from model.classifiers.features import (  # noqa: E402
     compute_delta_active_requests,
     compute_inference_features,
+    extract_norm_params,
     normalize_delta_active_requests,
 )
 from model.classifiers.gmm_bigru import (  # noqa: E402
+    predict_sorted_gmm_labels_from_params,
+)
+from model.classifiers.trace_generation import (  # noqa: E402
     AR1_MIN_RUN_LENGTH,
     AR1_PHI_THRESHOLD,
     estimate_ar1_params,
-    extract_norm_params,
     generate_gmm_bigru_trace_ar1_thresholded,
-    predict_sorted_gmm_labels_from_params,
 )
 from model.classifiers.metrics import compute_power_metrics  # noqa: E402
 from model.classifiers.model_loading import load_gru_classifier  # noqa: E402

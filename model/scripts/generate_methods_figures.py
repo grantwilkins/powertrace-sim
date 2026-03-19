@@ -25,12 +25,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from model.classifiers.gmm_bigru import (
+from model.classifiers.gmm_bigru import load_gmm_params_json_dict
+from model.classifiers.features import (
     build_rollout_features_from_requests,
     extract_norm_params,
+)
+from model.classifiers.trace_generation import (
     generate_gmm_bigru_trace,
     generate_gmm_bigru_trace_ar1_thresholded,
-    load_gmm_params_json_dict,
 )
 from model.classifiers.model_loading import load_gru_classifier
 from model.utils.config import resolve_device as _resolve_device
