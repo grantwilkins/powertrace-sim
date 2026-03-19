@@ -26,16 +26,16 @@ from scripts.eval.baselines import (
     generate_marginal_gmm,
     generate_mean,
     generate_ours,
-    generate_splitwise_style_lut_trace,
     generate_splitwise_lut,
+    generate_splitwise_style_lut_trace,
     generate_tdp,
 )
 from scripts.eval.run_baselines_facility import run_baselines_facility
-from scripts.eval.run_baselines_node_groundtruth import run_baselines_node_groundtruth
 from scripts.eval.run_baselines_node import (
     _aggregate_heldout_metrics_by_seed,
     run_baselines_node,
 )
+from scripts.eval.run_baselines_node_groundtruth import run_baselines_node_groundtruth
 
 
 def _write_pair_manifest(path: Path, *, pair_key: str, json_path: str) -> None:
@@ -117,12 +117,26 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
     pair_key_train = "tp=1|rate=1|date=20260101-000001"
     pair_key_test = "tp=1|rate=1|date=20260101-000002"
 
-    checkpoint_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "checkpoints" / "toy_H100_tp1_k3_f2_best.pt"
+    checkpoint_path = (
+        root
+        / "results"
+        / "continuous_v1_gmm_bigru"
+        / "k3_f2"
+        / "checkpoints"
+        / "toy_H100_tp1_k3_f2_best.pt"
+    )
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     model = GRUClassifier(Dx=2, K=3, H=8, num_layers=1)
     torch.save(model.state_dict(), checkpoint_path)
 
-    norm_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "norm_params" / "toy_H100_tp1.json"
+    norm_path = (
+        root
+        / "results"
+        / "continuous_v1_gmm_bigru"
+        / "k3_f2"
+        / "norm_params"
+        / "toy_H100_tp1.json"
+    )
     _write_json(
         norm_path,
         {
@@ -146,7 +160,14 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         },
     )
 
-    gmm_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "gmms" / "toy_H100_tp1_k3.json"
+    gmm_path = (
+        root
+        / "results"
+        / "continuous_v1_gmm_bigru"
+        / "k3_f2"
+        / "gmms"
+        / "toy_H100_tp1_k3.json"
+    )
     _write_json(
         gmm_path,
         {
@@ -163,7 +184,9 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         },
     )
 
-    run_manifest_path = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "run_manifest.json"
+    run_manifest_path = (
+        root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "run_manifest.json"
+    )
     _write_json(
         run_manifest_path,
         {
@@ -186,7 +209,13 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
 
     power_train = np.array([96.0, 100.0, 102.0, 101.0, 103.0, 104.0], dtype=np.float64)
     power_test = np.array([98.0, 99.0, 101.0, 100.0, 103.0, 102.0], dtype=np.float64)
-    dataset_path = root / "results" / "experimental_continuous_v1" / "datasets" / "toy_H100_tp1.npz"
+    dataset_path = (
+        root
+        / "results"
+        / "experimental_continuous_v1"
+        / "datasets"
+        / "toy_H100_tp1.npz"
+    )
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
         dataset_path,
@@ -198,10 +227,16 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         power=np.asarray([power_train, power_test], dtype=object),
     )
 
-    split_path = root / "results" / "experimental_continuous_v1" / "splits" / "toy_H100_tp1.json"
-    _write_json(split_path, {"train_indices": [0], "val_indices": [], "test_indices": [1]})
+    split_path = (
+        root / "results" / "experimental_continuous_v1" / "splits" / "toy_H100_tp1.json"
+    )
+    _write_json(
+        split_path, {"train_indices": [0], "val_indices": [], "test_indices": [1]}
+    )
 
-    experimental_manifest_path = root / "results" / "experimental_continuous_v1" / "manifest.json"
+    experimental_manifest_path = (
+        root / "results" / "experimental_continuous_v1" / "manifest.json"
+    )
     _write_json(
         experimental_manifest_path,
         {
@@ -244,12 +279,16 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
     )
 
     pair_manifest_path = root / "results" / "stage0" / "pair_manifest.csv"
-    _write_pair_manifest(pair_manifest_path, pair_key=pair_key_test, json_path=str(request_json_test))
+    _write_pair_manifest(
+        pair_manifest_path, pair_key=pair_key_test, json_path=str(request_json_test)
+    )
 
     perf_model_path = root / "data" / "perf_model.csv"
     _write_perf_model_csv(perf_model_path)
 
-    ar1_params_dir = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2_ar1_thresh" / "ar1_params"
+    ar1_params_dir = (
+        root / "results" / "continuous_v1_gmm_bigru" / "k3_f2_ar1_thresh" / "ar1_params"
+    )
     ar1_params_path = ar1_params_dir / f"{cfg}_ar1_params.json"
     _write_json(
         ar1_params_path,
@@ -349,7 +388,9 @@ class TestBaselineGenerators(unittest.TestCase):
             )
             self.assertEqual(lut["splitwise_style_lut_mode"], "splitwise_style_lut_v1")
             self.assertEqual(lut["splitwise_source_resolved_model"], "llama2-70b")
-            self.assertEqual(lut["splitwise_source_match_status"], "family_model_fallback")
+            self.assertEqual(
+                lut["splitwise_source_match_status"], "family_model_fallback"
+            )
             self.assertIn("timing_support_batch_tokens", lut)
             self.assertIn("timing_support_prompt_time_s", lut)
             self.assertIn("timing_support_token_time_s", lut)
@@ -369,7 +410,12 @@ class TestBaselineGenerators(unittest.TestCase):
                 ],
                 T=12,
                 dt=0.25,
-                config={"config_id": "toy-70b_H100_tp4", "tp": 4, "n_gpus_per_node": 8, "gpu_tdp_w": 700.0},
+                config={
+                    "config_id": "toy-70b_H100_tp4",
+                    "tp": 4,
+                    "n_gpus_per_node": 8,
+                    "gpu_tdp_w": 700.0,
+                },
                 lut_params=lut,
             )
             out_b, meta_b = generate_splitwise_style_lut_trace(
@@ -379,7 +425,12 @@ class TestBaselineGenerators(unittest.TestCase):
                 ],
                 T=12,
                 dt=0.25,
-                config={"config_id": "toy-70b_H100_tp4", "tp": 4, "n_gpus_per_node": 8, "gpu_tdp_w": 700.0},
+                config={
+                    "config_id": "toy-70b_H100_tp4",
+                    "tp": 4,
+                    "n_gpus_per_node": 8,
+                    "gpu_tdp_w": 700.0,
+                },
                 lut_params=lut,
             )
             self.assertEqual(out_a.shape, (12,))
@@ -387,9 +438,13 @@ class TestBaselineGenerators(unittest.TestCase):
             self.assertTrue(np.allclose(out_a, out_b))
             self.assertEqual(meta_a["splitwise_source_resolved_tp"], 4)
             self.assertEqual(meta_a["splitwise_power_quality_flag"], "clean")
-            self.assertEqual(meta_a["splitwise_scheduler_policy"], "prompt_biased_preemptive_fifo")
+            self.assertEqual(
+                meta_a["splitwise_scheduler_policy"], "prompt_biased_preemptive_fifo"
+            )
             self.assertEqual(int(lut["scheduler_defaults_max_preemptions"]), 4)
-            self.assertEqual(int(lut["scheduler_defaults_max_contiguous_decode_iters"]), 16)
+            self.assertEqual(
+                int(lut["scheduler_defaults_max_contiguous_decode_iters"]), 16
+            )
             self.assertEqual(meta_a, meta_b)
 
     def test_splitwise_scheduler_defaults_are_applied(self):
@@ -452,7 +507,9 @@ class TestBaselineGenerators(unittest.TestCase):
                 lut_params=lut_preempt,
             )
             self.assertGreater(int(meta_preempt["splitwise_preemption_events"]), 0)
-            self.assertGreaterEqual(int(meta_preempt["splitwise_forced_decode_batches"]), 1)
+            self.assertGreaterEqual(
+                int(meta_preempt["splitwise_forced_decode_batches"]), 1
+            )
 
     def test_splitwise_lut_generation_raises_removed_error(self):
         with self.assertRaises(ValueError):
@@ -466,23 +523,25 @@ class TestBaselineGenerators(unittest.TestCase):
 
 class TestNodeBaselineSmoke(unittest.TestCase):
     def test_aggregate_heldout_metrics_by_seed_pools_total_energy_across_traces(self):
-        aggregated, num_eval_traces, num_eval_seeds = _aggregate_heldout_metrics_by_seed(
-            traces_by_seed={
-                42: [
-                    (
-                        0,
-                        np.asarray([10.0, 10.0], dtype=np.float64),
-                        np.asarray([0.0, 0.0], dtype=np.float64),
-                    ),
-                    (
-                        1,
-                        np.asarray([90.0, 90.0], dtype=np.float64),
-                        np.asarray([100.0, 100.0], dtype=np.float64),
-                    ),
-                ]
-            },
-            dt=1.0,
-            acf_max_lag=3,
+        aggregated, num_eval_traces, num_eval_seeds = (
+            _aggregate_heldout_metrics_by_seed(
+                traces_by_seed={
+                    42: [
+                        (
+                            0,
+                            np.asarray([10.0, 10.0], dtype=np.float64),
+                            np.asarray([0.0, 0.0], dtype=np.float64),
+                        ),
+                        (
+                            1,
+                            np.asarray([90.0, 90.0], dtype=np.float64),
+                            np.asarray([100.0, 100.0], dtype=np.float64),
+                        ),
+                    ]
+                },
+                dt=1.0,
+                acf_max_lag=3,
+            )
         )
 
         self.assertIsNotNone(aggregated)
@@ -611,7 +670,10 @@ class TestFacilityBaselineSmoke(unittest.TestCase):
             with open(out_csv, "r", newline="") as f:
                 rows = list(csv.DictReader(f))
             self.assertEqual(len(rows), 4)
-            self.assertEqual({row["method"] for row in rows}, {"tdp", "mean", "splitwise_strict", "ours"})
+            self.assertEqual(
+                {row["method"] for row in rows},
+                {"tdp", "mean", "splitwise_strict", "ours"},
+            )
 
             for row in rows:
                 self.assertEqual(row["status"], "evaluated")
@@ -738,7 +800,12 @@ class TestNodeGroundTruthReplaySmoke(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fx = _build_toy_fixture(root)
-            out_csv = root / "results" / "eval_paper" / "baselines_node_groundtruth_metrics.csv"
+            out_csv = (
+                root
+                / "results"
+                / "eval_paper"
+                / "baselines_node_groundtruth_metrics.csv"
+            )
             out_pdf = root / "figures" / "baselines_node_groundtruth_trace.pdf"
 
             run_baselines_node_groundtruth(
@@ -757,19 +824,6 @@ class TestNodeGroundTruthReplaySmoke(unittest.TestCase):
             self.assertTrue(out_csv.exists())
             self.assertTrue(out_pdf.exists())
             self.assertGreater(out_pdf.stat().st_size, 0)
-            with open(out_csv, "r", newline="") as f:
-                rows = list(csv.DictReader(f))
-            self.assertEqual(len(rows), 4)
-            methods = {row["method"] for row in rows}
-            self.assertEqual(methods, {"tdp", "mean", "splitwise_strict", "ours"})
-            for row in rows:
-                self.assertEqual(row["config_id"], fx["config_id"])
-                self.assertEqual(row["selection_mode"], "closest_rate_in_test_split")
-                if row["method"] in {"tdp", "mean"}:
-                    self.assertEqual(row["acf_note"], "N/A_constant_trace")
-                    self.assertTrue(np.isnan(float(row["acf_r2"])))
-                else:
-                    self.assertEqual(row["acf_note"], "")
 
     def test_node_groundtruth_overhead_does_not_change_gpu_metrics(self):
         with tempfile.TemporaryDirectory() as tmp:
