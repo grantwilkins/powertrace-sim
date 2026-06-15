@@ -194,7 +194,7 @@ def _select_plot_prediction(
 def _resolve_methods(splitwise_mode: str) -> List[str]:
     mode = str(splitwise_mode).strip().lower()
     if mode == "strict":
-        return ["splitwise_strict", "ours"]
+        return ["ours"]
     if mode in {"fitted", "both"}:
         raise ValueError(SPLITWISE_REMOVED_MESSAGE)
     raise ValueError("splitwise_mode must be 'strict'")
@@ -250,8 +250,8 @@ def _plot_trace_overlay(
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("GPU Power (kW)")
     ax.grid(True, alpha=0.5)
-    ax.legend(bbox_to_anchor=(1.01, 0.75), loc="upper left", frameon=False)
-    ax.set_ylim(0.0, 3.0)
+    # ax.legend(bbox_to_anchor=(1.01, 0.75), loc="upper left", frameon=False)
+    ax.set_ylim(0.0, 2.0)
     ax.set_xlim(0.0, 10.0)
     fig.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight")
@@ -262,16 +262,16 @@ def run_baselines_node_groundtruth(
     *,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
-    config_id: str = "deepseek-r1-distill-70b_H100_tp4",
+    config_id: str = "llama-3-70b_A100_tp4",
     target_rate: float = 4.0,
     test_trace_index: Optional[int] = None,
     tp_gpus: int = 4,
     n_gpus_for_gpu_power: int = 4,
     gpu_tdp_w: Optional[float] = None,
-    non_gpu_overhead_w: float = 1000.0,
+    non_gpu_overhead_w: float = 0.0,
     num_seeds: int = 5,
     base_seed: int = 42,
     device: str = "auto",
@@ -805,13 +805,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--experimental-manifest",
         default="results/experimental_continuous_v1/manifest.json",
     )
-    parser.add_argument(
-        "--throughput-db", default="model/config/throughput_database.json"
-    )
+    parser.add_argument("--throughput-db", default="model/throughput_database.json")
     parser.add_argument(
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
     )
-    parser.add_argument("--config-id", default="deepseek-r1-distill-70b_H100_tp4")
+    parser.add_argument("--config-id", default="llama-3-70b_A100_tp4")
     parser.add_argument(
         "--target-rate",
         type=float,

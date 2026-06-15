@@ -1,0 +1,20 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "agentic",
+  "_note": "Tier-3 agentic validation: multi-turn growing-context sessions with tool-execution gaps. Run with prefix_cache TRUE and FALSE (both regimes occur in production); enable_prefix_caching on the server is set from sessions.prefix_cache.",
+  "server": {"tp": 1, "max_num_seqs": 256, "max_model_len": 32768, "enable_prefix_caching": true},
+  "sessions": {
+    "n_sessions": 8,
+    "min_turns": 3,
+    "max_turns": 10,
+    "user_tokens_mean": 256,
+    "assistant_tokens_mean": 256,
+    "prefix_tokens": 512,
+    "gap_mean_s": 3.0,
+    "gap_sigma": 0.8,
+    "prefix_cache": true,
+    "seed": 0
+  }
+}

@@ -306,7 +306,7 @@ def compute_oversubscription_capacity(
     samples_per_count: int = 200,
     trace_samples: int = 80,
     tdp_racks: Optional[int] = None,
-    max_racks_to_evaluate: Optional[int] = None,
+    max_racks_to_evaluate: Optional[int] = 75,
 ) -> Dict[str, object]:
     selected_methods = _normalize_methods(methods)
     row_limit = _validate_positive("row_limit_kw", float(row_limit_kw))

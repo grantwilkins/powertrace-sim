@@ -1,0 +1,135 @@
+{
+  "A100": {
+    "features": {
+      "tp": {
+        "label": "p_idle [W/GPU]",
+        "value": 40.12326778394999
+      },
+      "tp_link": {
+        "label": "p_link [W/GPU, TP>1]",
+        "value": 19.43625252377423
+      },
+      "busy_tp": {
+        "label": "p_active_floor [W/GPU]",
+        "value": 20.353032897035792
+      },
+      "sat_cmp_lo": {
+        "label": "p_sat_cmp_u0.03 [W/GPU]",
+        "value": 29.848261831082294
+      },
+      "sat_cmp_hi": {
+        "label": "p_sat_cmp_u0.2 [W/GPU]",
+        "value": 0.0
+      },
+      "sat_mem_lo": {
+        "label": "p_sat_mem_u0.1 [W/GPU]",
+        "value": 24.52863759341056
+      },
+      "sat_mem_hi": {
+        "label": "p_sat_mem_u0.4 [W/GPU]",
+        "value": 0.0
+      },
+      "flops_pre": {
+        "label": "e_f_prefill [J/FLOP]",
+        "value": 0.0
+      },
+      "flops_dec": {
+        "label": "e_f_decode [J/FLOP]",
+        "value": 1.4905295808320731e-12
+      },
+      "w_read_pre": {
+        "label": "e_w_prefill [J/B]",
+        "value": 1.6593838960120564e-10
+      },
+      "w_read_dec": {
+        "label": "e_w_decode [J/B]",
+        "value": 1.4146711854142405e-10
+      },
+      "kv_read": {
+        "label": "e_kv [J/B]",
+        "value": 8.154107436151296e-10
+      },
+      "kv_write": {
+        "label": "e_kv_write [J/B]",
+        "value": 0.0
+      },
+      "comm": {
+        "label": "e_comm [J/B]",
+        "value": 0.0
+      }
+    },
+    "family_multipliers": {
+      "dense-70b": 1.0044108301781878,
+      "dense-8b": 0.9306733413957217,
+      "moe-120b": 1.0618571669829462,
+      "moe-20b": 1.1101384872804212
+    },
+    "lag": "EMA(0.6)"
+  },
+  "H100": {
+    "features": {
+      "tp": {
+        "label": "p_idle [W/GPU]",
+        "value": 42.0401080768633
+      },
+      "tp_link": {
+        "label": "p_link [W/GPU, TP>1]",
+        "value": 58.05696566793496
+      },
+      "busy_tp": {
+        "label": "p_active_floor [W/GPU]",
+        "value": 35.23378571661584
+      },
+      "sat_cmp_lo": {
+        "label": "p_sat_cmp_u0.03 [W/GPU]",
+        "value": 116.87749890072122
+      },
+      "sat_cmp_hi": {
+        "label": "p_sat_cmp_u0.2 [W/GPU]",
+        "value": 0.0
+      },
+      "sat_mem_lo": {
+        "label": "p_sat_mem_u0.1 [W/GPU]",
+        "value": 0.0
+      },
+      "sat_mem_hi": {
+        "label": "p_sat_mem_u0.4 [W/GPU]",
+        "value": 0.0
+      },
+      "flops_pre": {
+        "label": "e_f_prefill [J/FLOP]",
+        "value": 8.855195437480077e-14
+      },
+      "flops_dec": {
+        "label": "e_f_decode [J/FLOP]",
+        "value": 1.1190222924181683e-12
+      },
+      "w_read_pre": {
+        "label": "e_w_prefill [J/B]",
+        "value": 0.0
+      },
+      "w_read_dec": {
+        "label": "e_w_decode [J/B]",
+        "value": 1.4577580817733273e-10
+      },
+      "kv_read": {
+        "label": "e_kv [J/B]",
+        "value": 3.966553903616684e-11
+      },
+      "kv_write": {
+        "label": "e_kv_write [J/B]",
+        "value": 0.0
+      },
+      "comm": {
+        "label": "e_comm [J/B]",
+        "value": 0.0
+      }
+    },
+    "family_multipliers": {
+      "dense-405b": 1.0510139907487104,
+      "dense-70b": 0.974729791256551,
+      "dense-8b": 0.9684592651500822
+    },
+    "lag": "MA(2)+EMA(0.7)"
+  }
+}

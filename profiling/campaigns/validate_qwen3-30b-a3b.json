@@ -1,0 +1,9 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "Qwen/Qwen3-30B-A3B",
+  "campaign_type": "validate",
+  "_note": "Validate-first: completes the 30B->235B MoE ladder; zero-shot from the Qwen3-235B anchor. Escalate to tier2 only if error > ~6%.",
+  "server": {"tp": 2, "max_num_seqs": 256, "max_model_len": 32768},
+  "workload": {"dataset": "sharegpt", "num_prompts": 200, "request_rate": 4}
+}

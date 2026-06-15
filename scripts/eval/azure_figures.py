@@ -75,14 +75,20 @@ def save_pdf(fig: Any, path: str | Path) -> None:
 
 
 def _normalize_trace_kinds(trace_kinds: Sequence[str] | str) -> List[str]:
-    values = parse_csv_list(trace_kinds) if isinstance(trace_kinds, str) else [str(x).strip() for x in trace_kinds]
+    values = (
+        parse_csv_list(trace_kinds)
+        if isinstance(trace_kinds, str)
+        else [str(x).strip() for x in trace_kinds]
+    )
     out: List[str] = []
     allowed = set(DEFAULT_TRACE_KINDS)
     for value in values:
         if not value:
             continue
         if value not in allowed:
-            raise ValueError(f"Unsupported trace_kind '{value}'. Allowed: {sorted(allowed)}")
+            raise ValueError(
+                f"Unsupported trace_kind '{value}'. Allowed: {sorted(allowed)}"
+            )
         if value not in out:
             out.append(value)
     if not out:
@@ -139,7 +145,9 @@ def _load_arrival_rate_binned(
                 raise ValueError(f"Negative arrival_time at row {row_idx}: {arrival}")
             bucket = int(np.floor(arrival / float(bin_seconds)))
             if bucket < 0 or bucket >= n_bins:
-                raise ValueError(f"arrival_time out of [0, {day_seconds}) at row {row_idx}: {arrival}")
+                raise ValueError(
+                    f"arrival_time out of [0, {day_seconds}) at row {row_idx}: {arrival}"
+                )
             counts[bucket] += 1
             n_rows += 1
             min_arrival = min(min_arrival, arrival)
@@ -148,7 +156,9 @@ def _load_arrival_rate_binned(
     if n_rows <= 0:
         raise ValueError("Parsed requests CSV has no rows")
     if max_arrival < float(day_seconds - 300):
-        raise ValueError(f"Parsed request horizon appears too short for a full day: max arrival={max_arrival:.3f}s")
+        raise ValueError(
+            f"Parsed request horizon appears too short for a full day: max arrival={max_arrival:.3f}s"
+        )
 
     rate_req_per_s = counts.astype(np.float64) / float(bin_seconds)
     hours = (np.arange(n_bins, dtype=np.float64) + 0.5) * (float(bin_seconds) / 3600.0)
@@ -162,7 +172,9 @@ def _load_arrival_rate_binned(
     }
 
 
-def _load_metrics_15min_rows(metrics_csv: str, trace_kinds: Sequence[str]) -> Dict[str, Dict[str, float]]:
+def _load_metrics_15min_rows(
+    metrics_csv: str, trace_kinds: Sequence[str]
+) -> Dict[str, Dict[str, float]]:
     if not os.path.exists(metrics_csv):
         raise FileNotFoundError(f"Metrics CSV not found: {metrics_csv}")
 
@@ -200,8 +212,12 @@ def _load_metrics_15min_rows(metrics_csv: str, trace_kinds: Sequence[str]) -> Di
                 "peak_kw": safe_float(row["peak_kw"], "peak_kw"),
                 "avg_kw": safe_float(row["avg_kw"], "avg_kw"),
                 "par": safe_float(row["par"], "par"),
-                "ramp_max_up_kw_per_step": safe_float(row["ramp_max_up_kw_per_step"], "ramp_max_up_kw_per_step"),
-                "ramp_max_down_kw_per_step": safe_float(row["ramp_max_down_kw_per_step"], "ramp_max_down_kw_per_step"),
+                "ramp_max_up_kw_per_step": safe_float(
+                    row["ramp_max_up_kw_per_step"], "ramp_max_up_kw_per_step"
+                ),
+                "ramp_max_down_kw_per_step": safe_float(
+                    row["ramp_max_down_kw_per_step"], "ramp_max_down_kw_per_step"
+                ),
                 "ldc_p99_kw": safe_float(row["ldc_p99_kw"], "ldc_p99_kw"),
             }
 
@@ -215,7 +231,9 @@ def _load_ldc_15min(ldc_csv: str, trace_kinds: Sequence[str]) -> Dict[str, np.nd
     if not os.path.exists(ldc_csv):
         raise FileNotFoundError(f"LDC CSV not found: {ldc_csv}")
 
-    grouped: Dict[str, List[tuple[int, float, float]]] = {kind: [] for kind in trace_kinds}
+    grouped: Dict[str, List[tuple[int, float, float]]] = {
+        kind: [] for kind in trace_kinds
+    }
     with open(ldc_csv, "r", newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames is None:
@@ -231,7 +249,9 @@ def _load_ldc_15min(ldc_csv: str, trace_kinds: Sequence[str]) -> Dict[str, np.nd
             if trace_kind not in grouped:
                 continue
             rank = int(float(row["rank"]))
-            fraction_exceeded = safe_float(row["fraction_exceeded"], "fraction_exceeded")
+            fraction_exceeded = safe_float(
+                row["fraction_exceeded"], "fraction_exceeded"
+            )
             power_kw = safe_float(row["power_kw"], "power_kw")
             grouped[trace_kind].append((rank, fraction_exceeded, power_kw))
 
@@ -241,16 +261,24 @@ def _load_ldc_15min(ldc_csv: str, trace_kinds: Sequence[str]) -> Dict[str, np.nd
         if len(rows) == 0:
             raise ValueError(f"Missing LDC rows for trace_kind='{trace_kind}'")
         rows_sorted = sorted(rows, key=lambda x: int(x[0]))
-        out[f"{trace_kind}_fraction"] = np.asarray([row[1] for row in rows_sorted], dtype=np.float64)
-        out[f"{trace_kind}_power_mw"] = np.asarray([row[2] / 1000.0 for row in rows_sorted], dtype=np.float64)
+        out[f"{trace_kind}_fraction"] = np.asarray(
+            [row[1] for row in rows_sorted], dtype=np.float64
+        )
+        out[f"{trace_kind}_power_mw"] = np.asarray(
+            [row[2] / 1000.0 for row in rows_sorted], dtype=np.float64
+        )
     return out
 
 
-def _load_site_traces_15min(site_traces_15min_csv: str, trace_kinds: Sequence[str]) -> Dict[str, np.ndarray]:
+def _load_site_traces_15min(
+    site_traces_15min_csv: str, trace_kinds: Sequence[str]
+) -> Dict[str, np.ndarray]:
     if not os.path.exists(site_traces_15min_csv):
         raise FileNotFoundError(f"Site traces CSV not found: {site_traces_15min_csv}")
 
-    grouped: Dict[str, List[tuple[int, float, float]]] = {kind: [] for kind in trace_kinds}
+    grouped: Dict[str, List[tuple[int, float, float]]] = {
+        kind: [] for kind in trace_kinds
+    }
     with open(site_traces_15min_csv, "r", newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames is None:
@@ -274,8 +302,12 @@ def _load_site_traces_15min(site_traces_15min_csv: str, trace_kinds: Sequence[st
         if len(rows) == 0:
             raise ValueError(f"Missing site 15-min rows for trace_kind='{kind}'")
         rows_sorted = sorted(rows, key=lambda x: int(x[0]))
-        out[f"{kind}_hours"] = np.asarray([row[1] for row in rows_sorted], dtype=np.float64)
-        out[f"{kind}_power_mw"] = np.asarray([row[2] for row in rows_sorted], dtype=np.float64)
+        out[f"{kind}_hours"] = np.asarray(
+            [row[1] for row in rows_sorted], dtype=np.float64
+        )
+        out[f"{kind}_power_mw"] = np.asarray(
+            [row[2] for row in rows_sorted], dtype=np.float64
+        )
     return out
 
 
@@ -311,7 +343,9 @@ def _load_rack_matrix_15min_kw(
         raise ValueError(f"Rack traces have mismatched lengths: {sorted(lengths)}")
     n_1s = int(rack_series[0].size)
     if n_1s % factor != 0:
-        raise ValueError(f"Rack 1s length {n_1s} is not divisible by downsample factor={factor}")
+        raise ValueError(
+            f"Rack 1s length {n_1s} is not divisible by downsample factor={factor}"
+        )
 
     n_bins = int(n_1s // factor)
     matrix = np.zeros((len(rack_series), n_bins), dtype=np.float64)
@@ -326,7 +360,9 @@ def _load_rack_matrix_15min_kw(
     }
 
 
-def _compute_baseline_comparison_stats(metrics_rows_15min: Mapping[str, Mapping[str, float]]) -> Dict[str, float]:
+def _compute_baseline_comparison_stats(
+    metrics_rows_15min: Mapping[str, Mapping[str, float]],
+) -> Dict[str, float]:
     ours_peak = float(metrics_rows_15min["ours"]["peak_kw"])
     ours_avg = float(metrics_rows_15min["ours"]["avg_kw"])
     tdp_peak = float(metrics_rows_15min["tdp_baseline"]["peak_kw"])
@@ -339,16 +375,22 @@ def _compute_baseline_comparison_stats(metrics_rows_15min: Mapping[str, Mapping[
     }
 
 
-def _compute_splitwise_vs_ours_stats(metrics_rows_15min: Mapping[str, Mapping[str, float]]) -> Dict[str, float]:
+def _compute_splitwise_vs_ours_stats(
+    metrics_rows_15min: Mapping[str, Mapping[str, float]],
+) -> Dict[str, float]:
     ours_peak = float(metrics_rows_15min["ours"]["peak_kw"])
     ours_avg = float(metrics_rows_15min["ours"]["avg_kw"])
     out: Dict[str, float] = {}
     if "splitwise_strict" in metrics_rows_15min:
         out["splitwise_strict_over_peak_pct_vs_ours"] = float(
-            (float(metrics_rows_15min["splitwise_strict"]["peak_kw"]) - ours_peak) / ours_peak * 100.0
+            (float(metrics_rows_15min["splitwise_strict"]["peak_kw"]) - ours_peak)
+            / ours_peak
+            * 100.0
         )
         out["splitwise_strict_over_avg_pct_vs_ours"] = float(
-            (float(metrics_rows_15min["splitwise_strict"]["avg_kw"]) - ours_avg) / ours_avg * 100.0
+            (float(metrics_rows_15min["splitwise_strict"]["avg_kw"]) - ours_avg)
+            / ours_avg
+            * 100.0
         )
     return out
 
@@ -385,26 +427,36 @@ def _plot_figure_1_diurnal_overlay(
     sns.set_style("whitegrid")
     sns.set_context("talk", font_scale=1.0)
     fig, ax1 = plt.subplots(figsize=(10, 4))
-    line1 = ax1.plot(power_hours, site_mw, color=COLOR_DARK, linewidth=1.8, label="Site Power (15-min)")[0]
+    line1 = ax1.plot(
+        power_hours, site_mw, color="#B1040E", linewidth=1.8, label="Site Power"
+    )[0]
     ax1.set_xlim(0.0, 24.0)
     ax1.set_xlabel("Hour of Day")
-    ax1.set_ylabel("Site Power (MW)", color=COLOR_DARK)
-    ax1.tick_params(axis="y", colors=COLOR_DARK)
+    ax1.set_ylabel("Site Power (MW)", color="#B1040E")
+    ax1.tick_params(axis="y", colors="#B1040E")
     ax1.grid(True, alpha=0.25)
 
     ax2 = ax1.twinx()
     line2 = ax2.plot(
         arrival_hours,
         arrival_rate_req_per_s,
-        color=COLOR_LIGHT_GRAY,
+        color=COLOR_DARK,
         linewidth=1.6,
         alpha=0.95,
-        label="Arrival Rate (5-min)",
+        label="Arrival Rate",
     )[0]
     ax2.set_ylabel("Arrival Rate (req/s)", color=COLOR_DARK)
     ax2.tick_params(axis="y", colors=COLOR_DARK)
+    ax2.set_ylim(0.0, 100.0)
     ax2.grid(False)
-    ax1.legend([line1, line2], [line1.get_label(), line2.get_label()], loc="upper left")
+    ax1.legend(
+        [line1, line2],
+        [line1.get_label(), line2.get_label()],
+        loc="upper center",
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.2),
+        ncol=2,
+    )
     fig.tight_layout()
     save_pdf(fig, out_path)
     return {
@@ -525,7 +577,12 @@ def _plot_figure_3_ldc(
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", fontsize=8)
 
-    p99_text = "\n".join([f"{TRACE_KIND_LABEL[k]} P99: {float(p99_mw_by_method[k]):.3f} MW" for k in trace_kinds])
+    p99_text = "\n".join(
+        [
+            f"{TRACE_KIND_LABEL[k]} P99: {float(p99_mw_by_method[k]):.3f} MW"
+            for k in trace_kinds
+        ]
+    )
     ax.text(
         0.015,
         0.985,
@@ -541,7 +598,9 @@ def _plot_figure_3_ldc(
     return {
         "file": str(out_path),
         "title": "Load Duration Curve (15-min)",
-        "n_points_per_method": int(np.asarray(ldc_data[f"{trace_kinds[0]}_power_mw"]).size),
+        "n_points_per_method": int(
+            np.asarray(ldc_data[f"{trace_kinds[0]}_power_mw"]).size
+        ),
         "stats": {"p99_mw": {k: float(v) for k, v in p99_mw_by_method.items()}},
     }
 
@@ -560,7 +619,11 @@ def _plot_figure_4_heatmap(
 
     site_kw = np.sum(matrix, axis=0, dtype=np.float64)
     peak_idx = int(np.argmax(site_kw))
-    dt_hours = float(np.median(np.diff(hours_arr))) if hours_arr.size > 1 else 24.0 / float(matrix.shape[1])
+    dt_hours = (
+        float(np.median(np.diff(hours_arr)))
+        if hours_arr.size > 1
+        else 24.0 / float(matrix.shape[1])
+    )
     half_window_bins = max(1, int(np.ceil((float(peak_window_hours) * 0.5) / dt_hours)))
     idx_lo = max(0, peak_idx - half_window_bins)
     idx_hi = min(int(matrix.shape[1]), peak_idx + half_window_bins + 1)
@@ -582,7 +645,12 @@ def _plot_figure_4_heatmap(
         origin="lower",
         aspect="auto",
         interpolation="nearest",
-        extent=[0.0, float(peak_window_hours_rel[-1] + dt_hours), 0.0, float(peak_window_kw.shape[0])],
+        extent=[
+            0.0,
+            float(peak_window_hours_rel[-1] + dt_hours),
+            0.0,
+            float(peak_window_kw.shape[0]),
+        ],
         cmap="RdYlBu_r",
         vmin=vmin,
         vmax=vmax,
@@ -678,7 +746,9 @@ def generate_azure_figures(
     dry_run: bool = False,
 ) -> Dict[str, object]:
     if int(power_resolution_seconds) != 900:
-        raise ValueError("power_resolution_seconds is fixed to 900 for figure generation")
+        raise ValueError(
+            "power_resolution_seconds is fixed to 900 for figure generation"
+        )
 
     trace_order = _normalize_trace_kinds(trace_kinds)
     apply_publication_style()
@@ -703,7 +773,9 @@ def generate_azure_figures(
     n_power = int(np.asarray(site_traces["ours_power_mw"]).size)
     n_ldc = int(np.asarray(ldc_data[f"{trace_order[0]}_power_mw"]).size)
     if n_power != n_ldc:
-        raise ValueError(f"LDC rows ({n_ldc}) do not match site 15-min points ({n_power})")
+        raise ValueError(
+            f"LDC rows ({n_ldc}) do not match site 15-min points ({n_power})"
+        )
 
     baseline_stats = _compute_baseline_comparison_stats(metrics_rows)
     splitwise_vs_ours = _compute_splitwise_vs_ours_stats(metrics_rows)
@@ -712,7 +784,9 @@ def generate_azure_figures(
         trace_order,
         power_resolution_seconds=900,
     )
-    p99_mw_by_method = {kind: float(metrics_rows[kind]["ldc_p99_kw"]) / 1000.0 for kind in trace_order}
+    p99_mw_by_method = {
+        kind: float(metrics_rows[kind]["ldc_p99_kw"]) / 1000.0 for kind in trace_order
+    }
 
     paths = {
         "figure_1": str(Path(out_dir) / "azure_figure_1_diurnal_profile.pdf"),
@@ -724,18 +798,40 @@ def generate_azure_figures(
     }
 
     if dry_run:
-        fig1_meta = {"file": paths["figure_1"], "title": "24-hour Site Power with Arrival Overlay", "notes": "Dry-run"}
-        fig2_meta = {"file": paths["figure_2"], "title": "15-minute Baseline Comparison", "notes": "Dry-run"}
-        fig3_meta = {"file": paths["figure_3"], "title": "Load Duration Curve (15-min)", "notes": "Dry-run"}
-        fig4_meta = {"file": paths["figure_4"], "title": "Rack Power Heatmap", "notes": "Dry-run"}
-        fig5_meta = {"file": paths["figure_5"], "title": "Infrastructure Sizing Metrics", "notes": "Dry-run"}
+        fig1_meta = {
+            "file": paths["figure_1"],
+            "title": "24-hour Site Power with Arrival Overlay",
+            "notes": "Dry-run",
+        }
+        fig2_meta = {
+            "file": paths["figure_2"],
+            "title": "15-minute Baseline Comparison",
+            "notes": "Dry-run",
+        }
+        fig3_meta = {
+            "file": paths["figure_3"],
+            "title": "Load Duration Curve (15-min)",
+            "notes": "Dry-run",
+        }
+        fig4_meta = {
+            "file": paths["figure_4"],
+            "title": "Rack Power Heatmap",
+            "notes": "Dry-run",
+        }
+        fig5_meta = {
+            "file": paths["figure_5"],
+            "title": "Infrastructure Sizing Metrics",
+            "notes": "Dry-run",
+        }
     else:
         fig1_meta = _plot_figure_1_diurnal_overlay(
             out_path=paths["figure_1"],
             power_hours=np.asarray(site_traces["ours_hours"], dtype=np.float64),
             site_mw=np.asarray(site_traces["ours_power_mw"], dtype=np.float64),
             arrival_hours=np.asarray(arrivals["hours"], dtype=np.float64),
-            arrival_rate_req_per_s=np.asarray(arrivals["rate_req_per_s"], dtype=np.float64),
+            arrival_rate_req_per_s=np.asarray(
+                arrivals["rate_req_per_s"], dtype=np.float64
+            ),
         )
         fig2_meta = _plot_figure_2_baseline_comparison(
             out_path=paths["figure_2"],
@@ -791,10 +887,17 @@ def generate_azure_figures(
         "derived_metrics": {
             "tdp_over_peak_pct": float(baseline_stats["tdp_over_peak_pct"]),
             "tdp_over_avg_pct": float(baseline_stats["tdp_over_avg_pct"]),
-            "splitwise_vs_ours": {key: float(value) for key, value in splitwise_vs_ours.items()},
-            "p99_mw_by_method": {key: float(value) for key, value in p99_mw_by_method.items()},
+            "splitwise_vs_ours": {
+                key: float(value) for key, value in splitwise_vs_ours.items()
+            },
+            "p99_mw_by_method": {
+                key: float(value) for key, value in p99_mw_by_method.items()
+            },
             "sizing_metrics": {
-                method: {metric: float(value) for metric, value in sizing_metrics[method].items()}
+                method: {
+                    metric: float(value)
+                    for metric, value in sizing_metrics[method].items()
+                }
                 for method in trace_order
             },
         },
@@ -813,12 +916,18 @@ def generate_azure_figures(
 
 def main() -> None:
     defaults = build_default_paths()
-    parser = argparse.ArgumentParser(description="Generate Azure facility figures from top-level outputs.")
-    parser.add_argument("--parsed-requests-csv", default=defaults["parsed_requests_csv"])
+    parser = argparse.ArgumentParser(
+        description="Generate Azure facility figures from top-level outputs."
+    )
+    parser.add_argument(
+        "--parsed-requests-csv", default=defaults["parsed_requests_csv"]
+    )
     parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
     parser.add_argument("--metrics-csv", default=defaults["metrics_csv"])
     parser.add_argument("--ldc-csv", default=defaults["ldc_csv"])
-    parser.add_argument("--site-traces-15min-csv", default=defaults["site_traces_15min_csv"])
+    parser.add_argument(
+        "--site-traces-15min-csv", default=defaults["site_traces_15min_csv"]
+    )
     parser.add_argument("--out-dir", default=defaults["figures_out_dir"])
     parser.add_argument("--trace-kinds", default=",".join(DEFAULT_TRACE_KINDS))
     parser.add_argument("--arrival-bin-seconds", type=int, default=300)
@@ -846,7 +955,11 @@ def main() -> None:
         racks_per_row=int(args.racks_per_row),
         dry_run=bool(args.dry_run),
     )
-    print("[azure_figures] Dry run complete" if bool(args.dry_run) else "[azure_figures] Done")
+    print(
+        "[azure_figures] Dry run complete"
+        if bool(args.dry_run)
+        else "[azure_figures] Done"
+    )
     print(f"  manifest: {run['output_paths']['manifest']}")
 
 

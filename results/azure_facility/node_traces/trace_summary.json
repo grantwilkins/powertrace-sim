@@ -34,25 +34,25 @@
   "out_root": "/Users/grantwilkins/powertrace-sim/results/azure_facility/node_traces",
   "splitwise": {
     "meta": {
-      "splitwise_calibration_mode": "splitwise_emulation_strict_v1",
-      "splitwise_extrapolation_events": 57381344,
+      "splitwise_extrapolation_events": 5484298,
       "splitwise_max_batch_tokens_seen": 26220.0,
-      "splitwise_power_clamp_events": 57389687,
+      "splitwise_power_clamp_events": 5492641,
       "splitwise_power_quality_flag": "clean",
       "splitwise_power_support_status": "slice_grouped_clamped",
-      "splitwise_scheduler_policy": "prompt_biased_mixed_fifo",
+      "splitwise_scheduler_policy": "prompt_biased_preemptive_fifo",
       "splitwise_source_hardware": "a100-80gb",
       "splitwise_source_match_status": "family_model_fallback",
       "splitwise_source_model": "llama-3-70b",
       "splitwise_source_resolved_hardware": "a100-80gb",
       "splitwise_source_resolved_model": "llama2-70b",
       "splitwise_source_resolved_tp": 8,
-      "splitwise_source_tp": 8
+      "splitwise_source_tp": 8,
+      "splitwise_style_lut_mode": "splitwise_style_lut_v1"
     },
-    "splitwise_calibration_mode": "splitwise_emulation_strict_v1",
     "splitwise_source_hardware": "a100-80gb",
     "splitwise_source_model": "llama-3-70b",
-    "splitwise_source_tp": 8
+    "splitwise_source_tp": 8,
+    "splitwise_style_lut_mode": "splitwise_style_lut_v1"
   },
   "status": "ok",
   "timing": {

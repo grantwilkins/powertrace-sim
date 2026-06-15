@@ -1,0 +1,19 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "MiniMaxAI/MiniMax-M2.7",
+  "campaign_type": "tier1_partial",
+  "_note": "Hybrid lightning/linear attention: only the attention/KV-identifying probes are re-run. The linear-attention fit term is downstream follow-up; arch_extract sets linear_attention=1.",
+  "server": {
+    "tp": 8,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072,
+    "extra_args": ["--trust-remote-code"],
+    "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
+  },
+  "probes": ["decode_staircase", "prefill_staircase", "context_holds"]
+}

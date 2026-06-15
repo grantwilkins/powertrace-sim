@@ -1,0 +1,9 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "validate",
+  "_note": "Validate-first: predict zero-shot from the anchors; escalate to a tier2 campaign only if run-mean error > ~6%.",
+  "server": {"tp": 1, "max_num_seqs": 256, "max_model_len": 32768},
+  "workload": {"dataset": "sharegpt", "num_prompts": 200, "request_rate": 4}
+}

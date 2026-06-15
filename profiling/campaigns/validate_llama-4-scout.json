@@ -1,0 +1,9 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+  "campaign_type": "validate",
+  "_note": "Validate-first: cross-architecture MoE generalization (16 experts). TP4 minimum fit (~218 GB BF16). Escalate to tier2 only if error > ~6%.",
+  "server": {"tp": 4, "max_num_seqs": 256, "max_model_len": 131072, "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}},
+  "workload": {"dataset": "sharegpt", "num_prompts": 200, "request_rate": 4}
+}

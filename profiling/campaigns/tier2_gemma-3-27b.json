@@ -1,0 +1,17 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-3-27b-it",
+  "campaign_type": "tier2",
+  "_note": "Sliding-window (5:1 local/global) KV regime; condensed decode+prefill staircase at deploy TP. arch_extract records swa_window=1024, swa_global_ratio=5.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"]
+}

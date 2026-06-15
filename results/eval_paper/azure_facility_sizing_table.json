@@ -21,11 +21,11 @@
   "method_metrics_15min": {
     "mean_baseline": {
       "avg_mw": 0.8547199523122527,
-      "load_factor": 0.9999999999999996,
+      "load_factor": 1.0,
       "max_ramp_mw_per_hr": 0.0,
-      "par": 1.0000000000000004,
-      "peak_mw": 0.8547199523122531,
-      "transformer_mva": 0.9496888359025034
+      "par": 1.0,
+      "peak_mw": 0.8547199523122527,
+      "transformer_mva": 0.949688835902503
     },
     "ours": {
       "avg_mw": 0.6333456087239583,
@@ -36,12 +36,12 @@
       "transformer_mva": 0.8353931944444444
     },
     "splitwise_strict": {
-      "avg_mw": 0.7568933502604167,
-      "load_factor": 0.9210904445660874,
-      "max_ramp_mw_per_hr": 0.06573349999999982,
-      "par": 1.0856697145209078,
-      "peak_mw": 0.8217361875,
-      "transformer_mva": 0.9130402083333333
+      "avg_mw": 0.5719525511067708,
+      "load_factor": 0.8553945332378847,
+      "max_ramp_mw_per_hr": 0.08258750000000009,
+      "par": 1.1690511935056995,
+      "peak_mw": 0.6686418125,
+      "transformer_mva": 0.7429353472222222
     },
     "tdp_baseline": {
       "avg_mw": 1.1856000000000002,
@@ -57,35 +57,35 @@
       "mean_baseline": "---",
       "metric": "Peak facility power (MW)",
       "ours": "0.75",
-      "splitwise_strict": "0.82",
+      "splitwise_strict": "0.67",
       "tdp_baseline": "1.19"
     },
     {
       "mean_baseline": "0.85",
       "metric": "Average facility power (MW)",
       "ours": "0.63",
-      "splitwise_strict": "0.76",
+      "splitwise_strict": "0.57",
       "tdp_baseline": "---"
     },
     {
       "mean_baseline": "1.00",
       "metric": "Peak-to-average ratio",
       "ours": "1.19",
-      "splitwise_strict": "1.09",
+      "splitwise_strict": "1.17",
       "tdp_baseline": "1.00"
     },
     {
       "mean_baseline": "0.00",
       "metric": "Max 15-min ramp rate (MW/hr)",
       "ours": "0.11",
-      "splitwise_strict": "0.07",
+      "splitwise_strict": "0.08",
       "tdp_baseline": "0.00"
     },
     {
       "mean_baseline": "1.00",
       "metric": "Load factor",
       "ours": "0.84",
-      "splitwise_strict": "0.92",
+      "splitwise_strict": "0.86",
       "tdp_baseline": "1.00"
     }
   ]

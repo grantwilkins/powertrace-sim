@@ -1,0 +1,538 @@
+hardware,model,eval,held,metric,value
+A100,M0_baseline,lomo,dense-70b,run_mean_err_med_pct,4.8420800278617335
+A100,M0_baseline,lomo,dense-8b,run_mean_err_med_pct,20.552232480745992
+A100,M0_baseline,lomo,moe-120b,run_mean_err_med_pct,9.319495224090181
+A100,M0_baseline,lomo,moe-20b,run_mean_err_med_pct,5.890453305704923
+A100,M0_baseline,loto,tp1,run_mean_err_med_pct,19.581414678354605
+A100,M0_baseline,loto,tp2,run_mean_err_med_pct,12.526264196207912
+A100,M0_baseline,loto,tp4,run_mean_err_med_pct,4.9446625792078045
+A100,M0_baseline,loto,tp8,run_mean_err_med_pct,6.685575878815406
+A100,M0_baseline,cv,,r2,0.9394938181108675
+A100,M0_baseline,cv,,rmse,151.1485194058516
+A100,M0_baseline,cv,,mape,16.83304059336773
+A100,M0_baseline,coef,,p_idle [W/GPU],79.34148804720216
+A100,M0_baseline,coef,,e_f [J/FLOP],3.6115156021924144e-13
+A100,M0_baseline,coef,,e_w [J/B],1.6910932105102747e-10
+A100,M0_baseline,coef,,e_kv [J/B],4.17995454912531e-09
+A100,M1_comm,lomo,dense-70b,run_mean_err_med_pct,6.424314494163067
+A100,M1_comm,lomo,dense-8b,run_mean_err_med_pct,20.364075857719296
+A100,M1_comm,lomo,moe-120b,run_mean_err_med_pct,8.645142255671319
+A100,M1_comm,lomo,moe-20b,run_mean_err_med_pct,6.069301586975293
+A100,M1_comm,loto,tp1,run_mean_err_med_pct,18.1579067489578
+A100,M1_comm,loto,tp2,run_mean_err_med_pct,12.471456497676897
+A100,M1_comm,loto,tp4,run_mean_err_med_pct,4.999787017418461
+A100,M1_comm,loto,tp8,run_mean_err_med_pct,6.376769410357552
+A100,M1_comm,cv,,r2,0.9400570440018092
+A100,M1_comm,cv,,rmse,150.4433865114216
+A100,M1_comm,cv,,mape,16.510367307729616
+A100,M1_comm,coef,,p_idle [W/GPU],79.08052858560023
+A100,M1_comm,coef,,e_f [J/FLOP],0.0
+A100,M1_comm,coef,,e_w [J/B],1.6866742403166572e-10
+A100,M1_comm,coef,,e_kv [J/B],3.812090245749589e-09
+A100,M1_comm,coef,,e_comm [J/B],1.9424114281264125e-08
+A100,M2_phase_split,lomo,dense-70b,run_mean_err_med_pct,4.969998110453494
+A100,M2_phase_split,lomo,dense-8b,run_mean_err_med_pct,20.092011363879436
+A100,M2_phase_split,lomo,moe-120b,run_mean_err_med_pct,10.088613635483942
+A100,M2_phase_split,lomo,moe-20b,run_mean_err_med_pct,6.707227998731389
+A100,M2_phase_split,loto,tp1,run_mean_err_med_pct,17.4096558020632
+A100,M2_phase_split,loto,tp2,run_mean_err_med_pct,11.090449335927033
+A100,M2_phase_split,loto,tp4,run_mean_err_med_pct,4.741747237130217
+A100,M2_phase_split,loto,tp8,run_mean_err_med_pct,6.495846910879457
+A100,M2_phase_split,cv,,r2,0.9407766257897338
+A100,M2_phase_split,cv,,rmse,149.53766562015892
+A100,M2_phase_split,cv,,mape,16.311153125255505
+A100,M2_phase_split,coef,,p_idle [W/GPU],79.96040118737568
+A100,M2_phase_split,coef,,e_f_prefill [J/FLOP],0.0
+A100,M2_phase_split,coef,,e_f_decode [J/FLOP],1.8988093936699363e-12
+A100,M2_phase_split,coef,,e_w [J/B],1.6733339623007078e-10
+A100,M2_phase_split,coef,,e_kv [J/B],2.5180543658197e-09
+A100,M2_phase_split,coef,,e_comm [J/B],7.113544571195943e-09
+A100,M3_active_floor,lomo,dense-70b,run_mean_err_med_pct,11.897584525449087
+A100,M3_active_floor,lomo,dense-8b,run_mean_err_med_pct,16.02575600770602
+A100,M3_active_floor,lomo,moe-120b,run_mean_err_med_pct,8.374419616040326
+A100,M3_active_floor,lomo,moe-20b,run_mean_err_med_pct,4.4254592644779045
+A100,M3_active_floor,loto,tp1,run_mean_err_med_pct,12.76133484519738
+A100,M3_active_floor,loto,tp2,run_mean_err_med_pct,8.746712039228152
+A100,M3_active_floor,loto,tp4,run_mean_err_med_pct,5.703010690418095
+A100,M3_active_floor,loto,tp8,run_mean_err_med_pct,5.922796298702938
+A100,M3_active_floor,cv,,r2,0.9434259050222007
+A100,M3_active_floor,cv,,rmse,146.1547150880853
+A100,M3_active_floor,cv,,mape,14.728021713900283
+A100,M3_active_floor,coef,,p_idle [W/GPU],72.68218805394518
+A100,M3_active_floor,coef,,p_active_floor [W/GPU],20.91965126964138
+A100,M3_active_floor,coef,,e_f_prefill [J/FLOP],0.0
+A100,M3_active_floor,coef,,e_f_decode [J/FLOP],2.652680424572705e-12
+A100,M3_active_floor,coef,,e_w [J/B],1.5100768696554342e-10
+A100,M3_active_floor,coef,,e_kv [J/B],1.876722906560257e-09
+A100,M3_active_floor,coef,,e_comm [J/B],2.7182701859743483e-09
+A100,M4_dtype,lomo,dense-70b,run_mean_err_med_pct,11.897584525449087
+A100,M4_dtype,lomo,dense-8b,run_mean_err_med_pct,16.02575600770602
+A100,M4_dtype,lomo,moe-120b,run_mean_err_med_pct,8.374419616040326
+A100,M4_dtype,lomo,moe-20b,run_mean_err_med_pct,4.4254592644779045
+A100,M4_dtype,loto,tp1,run_mean_err_med_pct,12.76133484519738
+A100,M4_dtype,loto,tp2,run_mean_err_med_pct,8.746712039228152
+A100,M4_dtype,loto,tp4,run_mean_err_med_pct,5.703010690418095
+A100,M4_dtype,loto,tp8,run_mean_err_med_pct,5.922796298702938
+A100,M4_dtype,cv,,r2,0.9434259050222007
+A100,M4_dtype,cv,,rmse,146.1547150880853
+A100,M4_dtype,cv,,mape,14.728021713900283
+A100,M4_dtype,coef,,p_idle [W/GPU],72.68218805394518
+A100,M4_dtype,coef,,p_active_floor [W/GPU],20.91965126964138
+A100,M4_dtype,coef,,e_f_prefill_bf16 [J/FLOP],0.0
+A100,M4_dtype,coef,,e_f_decode_bf16 [J/FLOP],2.652680424572705e-12
+A100,M4_dtype,coef,,e_f_prefill_fp8 [J/FLOP],0.0
+A100,M4_dtype,coef,,e_f_decode_fp8 [J/FLOP],0.0
+A100,M4_dtype,coef,,e_w [J/B],1.5100768696554342e-10
+A100,M4_dtype,coef,,e_kv [J/B],1.876722906560257e-09
+A100,M4_dtype,coef,,e_comm [J/B],2.7182701859743483e-09
+A100,M5_dvfs,lomo,dense-70b,run_mean_err_med_pct,13.701024964737096
+A100,M5_dvfs,lomo,dense-8b,run_mean_err_med_pct,15.237707126919245
+A100,M5_dvfs,lomo,moe-120b,run_mean_err_med_pct,8.596881083464215
+A100,M5_dvfs,lomo,moe-20b,run_mean_err_med_pct,4.286865417848391
+A100,M5_dvfs,loto,tp1,run_mean_err_med_pct,11.543931493607861
+A100,M5_dvfs,loto,tp2,run_mean_err_med_pct,8.060318408780114
+A100,M5_dvfs,loto,tp4,run_mean_err_med_pct,6.649755306242801
+A100,M5_dvfs,loto,tp8,run_mean_err_med_pct,5.161305898437073
+A100,M5_dvfs,cv,,r2,0.9445164837358162
+A100,M5_dvfs,cv,,rmse,144.73914784636113
+A100,M5_dvfs,cv,,mape,14.375249799437775
+A100,M5_dvfs,coef,,p_idle [W/GPU],72.3103938372713
+A100,M5_dvfs,coef,,p_active_floor [W/GPU],0.0
+A100,M5_dvfs,coef,,p_boost_mem [W/GPU],77.51765917475622
+A100,M5_dvfs,coef,,p_boost_cmp [W/GPU],82.50693769848607
+A100,M5_dvfs,coef,,e_f_prefill [J/FLOP],0.0
+A100,M5_dvfs,coef,,e_f_decode [J/FLOP],1.8090977360101222e-12
+A100,M5_dvfs,coef,,e_w [J/B],1.1096019775226638e-10
+A100,M5_dvfs,coef,,e_kv [J/B],1.5606202320512234e-09
+A100,M5_dvfs,coef,,e_comm [J/B],0.0
+A100,M6_phase_traffic,lomo,dense-70b,run_mean_err_med_pct,12.15480543214939
+A100,M6_phase_traffic,lomo,dense-8b,run_mean_err_med_pct,16.989527678656838
+A100,M6_phase_traffic,lomo,moe-120b,run_mean_err_med_pct,9.397994157795578
+A100,M6_phase_traffic,lomo,moe-20b,run_mean_err_med_pct,4.994282628444964
+A100,M6_phase_traffic,loto,tp1,run_mean_err_med_pct,12.838941474116197
+A100,M6_phase_traffic,loto,tp2,run_mean_err_med_pct,8.548232735917374
+A100,M6_phase_traffic,loto,tp4,run_mean_err_med_pct,5.813614042960455
+A100,M6_phase_traffic,loto,tp8,run_mean_err_med_pct,5.875849258436696
+A100,M6_phase_traffic,cv,,r2,0.9436029542818333
+A100,M6_phase_traffic,cv,,rmse,145.92583947713874
+A100,M6_phase_traffic,cv,,mape,14.64172793987553
+A100,M6_phase_traffic,coef,,p_idle [W/GPU],72.68218805394615
+A100,M6_phase_traffic,coef,,p_active_floor [W/GPU],21.409778810480887
+A100,M6_phase_traffic,coef,,e_f_prefill [J/FLOP],0.0
+A100,M6_phase_traffic,coef,,e_f_decode [J/FLOP],2.752450236698602e-12
+A100,M6_phase_traffic,coef,,e_w_prefill [J/B],2.6155613031329063e-11
+A100,M6_phase_traffic,coef,,e_w_decode [J/B],1.5087730867197077e-10
+A100,M6_phase_traffic,coef,,e_kv [J/B],1.7647995227135696e-09
+A100,M6_phase_traffic,coef,,e_kv_write [J/B],0.0
+A100,M6_phase_traffic,coef,,e_comm [J/B],1.2221048194671689e-08
+A100,M7_full,lomo,dense-70b,run_mean_err_med_pct,16.061810243744482
+A100,M7_full,lomo,dense-8b,run_mean_err_med_pct,15.934630537959253
+A100,M7_full,lomo,moe-120b,run_mean_err_med_pct,8.942432713694279
+A100,M7_full,lomo,moe-20b,run_mean_err_med_pct,4.269916239825885
+A100,M7_full,loto,tp1,run_mean_err_med_pct,11.389905930549277
+A100,M7_full,loto,tp2,run_mean_err_med_pct,7.908078699121468
+A100,M7_full,loto,tp4,run_mean_err_med_pct,9.835651028983516
+A100,M7_full,loto,tp8,run_mean_err_med_pct,4.86848826873806
+A100,M7_full,cv,,r2,0.944860551188913
+A100,M7_full,cv,,rmse,144.28966771861366
+A100,M7_full,cv,,mape,14.295890704372297
+A100,M7_full,coef,,p_idle [W/GPU],72.5175819063434
+A100,M7_full,coef,,p_active_floor [W/GPU],0.0
+A100,M7_full,coef,,p_sat_cmp_u0.03 [W/GPU],25.50458993542311
+A100,M7_full,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M7_full,coef,,p_sat_mem_u0.1 [W/GPU],29.2347304386882
+A100,M7_full,coef,,p_sat_mem_u0.4 [W/GPU],14.114549144558572
+A100,M7_full,coef,,e_f_prefill [J/FLOP],0.0
+A100,M7_full,coef,,e_f_decode [J/FLOP],2.4148411065538967e-12
+A100,M7_full,coef,,e_w_prefill [J/B],0.0
+A100,M7_full,coef,,e_w_decode [J/B],1.27593192239764e-10
+A100,M7_full,coef,,e_kv [J/B],1.3927668116042688e-09
+A100,M7_full,coef,,e_kv_write [J/B],0.0
+A100,M7_full,coef,,e_comm [J/B],0.0
+A100,M8_link,lomo,dense-70b,run_mean_err_med_pct,16.06181024374633
+A100,M8_link,lomo,dense-8b,run_mean_err_med_pct,16.007670227018885
+A100,M8_link,lomo,moe-120b,run_mean_err_med_pct,9.241116902836247
+A100,M8_link,lomo,moe-20b,run_mean_err_med_pct,11.097462707008429
+A100,M8_link,loto,tp1,run_mean_err_med_pct,11.389905930549277
+A100,M8_link,loto,tp2,run_mean_err_med_pct,8.243186050190705
+A100,M8_link,loto,tp4,run_mean_err_med_pct,9.639824734867105
+A100,M8_link,loto,tp8,run_mean_err_med_pct,4.927207085105778
+A100,M8_link,cv,,r2,0.9450510490870873
+A100,M8_link,cv,,rmse,144.0402033078958
+A100,M8_link,cv,,mape,14.919390846966122
+A100,M8_link,coef,,p_idle [W/GPU],51.21657890487894
+A100,M8_link,coef,,"p_link [W/GPU, TP>1]",21.447858730367848
+A100,M8_link,coef,,p_active_floor [W/GPU],0.0
+A100,M8_link,coef,,p_sat_cmp_u0.03 [W/GPU],26.009648155324005
+A100,M8_link,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M8_link,coef,,p_sat_mem_u0.1 [W/GPU],31.496226066994357
+A100,M8_link,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+A100,M8_link,coef,,e_f_prefill [J/FLOP],0.0
+A100,M8_link,coef,,e_f_decode [J/FLOP],2.2707641483459985e-12
+A100,M8_link,coef,,e_w_prefill [J/B],1.0823405775842927e-12
+A100,M8_link,coef,,e_w_decode [J/B],1.3543660582065134e-10
+A100,M8_link,coef,,e_kv [J/B],1.602228233088029e-09
+A100,M8_link,coef,,e_kv_write [J/B],0.0
+A100,M8_link,coef,,e_comm [J/B],0.0
+A100,M8_link+lag_a0.8,lomo,dense-70b,run_mean_err_med_pct,14.626448873535924
+A100,M8_link+lag_a0.8,lomo,dense-8b,run_mean_err_med_pct,14.397215673472083
+A100,M8_link+lag_a0.8,lomo,moe-120b,run_mean_err_med_pct,5.291497702102429
+A100,M8_link+lag_a0.8,lomo,moe-20b,run_mean_err_med_pct,9.420045023821514
+A100,M8_link+lag_a0.8,loto,tp1,run_mean_err_med_pct,10.833146473925547
+A100,M8_link+lag_a0.8,loto,tp2,run_mean_err_med_pct,8.521755006846343
+A100,M8_link+lag_a0.8,loto,tp4,run_mean_err_med_pct,9.102539830225151
+A100,M8_link+lag_a0.8,loto,tp8,run_mean_err_med_pct,3.102211969718852
+A100,M8_link+lag_a0.8,cv,,r2,0.9559651006032708
+A100,M8_link+lag_a0.8,cv,,rmse,128.94441236132633
+A100,M8_link+lag_a0.8,cv,,mape,13.378905051342043
+A100,M8_link+lag_a0.8,coef,,p_idle [W/GPU],45.86155556842353
+A100,M8_link+lag_a0.8,coef,,"p_link [W/GPU, TP>1]",20.005459570576058
+A100,M8_link+lag_a0.8,coef,,p_active_floor [W/GPU],4.865175352321233
+A100,M8_link+lag_a0.8,coef,,p_sat_cmp_u0.03 [W/GPU],27.626708574177794
+A100,M8_link+lag_a0.8,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M8_link+lag_a0.8,coef,,p_sat_mem_u0.1 [W/GPU],36.14108466282514
+A100,M8_link+lag_a0.8,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+A100,M8_link+lag_a0.8,coef,,e_f_prefill [J/FLOP],0.0
+A100,M8_link+lag_a0.8,coef,,e_f_decode [J/FLOP],1.9167439490173026e-12
+A100,M8_link+lag_a0.8,coef,,e_w_prefill [J/B],6.965654200510203e-11
+A100,M8_link+lag_a0.8,coef,,e_w_decode [J/B],1.3629691715945866e-10
+A100,M8_link+lag_a0.8,coef,,e_kv [J/B],1.1894676504959048e-09
+A100,M8_link+lag_a0.8,coef,,e_kv_write [J/B],0.0
+A100,M8_link+lag_a0.8,coef,,e_comm [J/B],0.0
+A100,M8_link+lag_a0.7,lomo,dense-70b,run_mean_err_med_pct,14.05071490448966
+A100,M8_link+lag_a0.7,lomo,dense-8b,run_mean_err_med_pct,12.999416550437111
+A100,M8_link+lag_a0.7,lomo,moe-120b,run_mean_err_med_pct,4.199585492965095
+A100,M8_link+lag_a0.7,lomo,moe-20b,run_mean_err_med_pct,8.980487884613524
+A100,M8_link+lag_a0.7,loto,tp1,run_mean_err_med_pct,11.010276454281179
+A100,M8_link+lag_a0.7,loto,tp2,run_mean_err_med_pct,8.31088823390257
+A100,M8_link+lag_a0.7,loto,tp4,run_mean_err_med_pct,8.483147317582134
+A100,M8_link+lag_a0.7,loto,tp8,run_mean_err_med_pct,3.24266574316958
+A100,M8_link+lag_a0.7,cv,,r2,0.9589699525983248
+A100,M8_link+lag_a0.7,cv,,rmse,124.46723226706469
+A100,M8_link+lag_a0.7,cv,,mape,13.705640720334191
+A100,M8_link+lag_a0.7,coef,,p_idle [W/GPU],42.95386079716123
+A100,M8_link+lag_a0.7,coef,,"p_link [W/GPU, TP>1]",19.675910759605962
+A100,M8_link+lag_a0.7,coef,,p_active_floor [W/GPU],12.145159065092754
+A100,M8_link+lag_a0.7,coef,,p_sat_cmp_u0.03 [W/GPU],28.722774107745575
+A100,M8_link+lag_a0.7,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M8_link+lag_a0.7,coef,,p_sat_mem_u0.1 [W/GPU],31.182015929287434
+A100,M8_link+lag_a0.7,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+A100,M8_link+lag_a0.7,coef,,e_f_prefill [J/FLOP],0.0
+A100,M8_link+lag_a0.7,coef,,e_f_decode [J/FLOP],1.7119851564528314e-12
+A100,M8_link+lag_a0.7,coef,,e_w_prefill [J/B],1.1401033726799537e-10
+A100,M8_link+lag_a0.7,coef,,e_w_decode [J/B],1.3866822618417114e-10
+A100,M8_link+lag_a0.7,coef,,e_kv [J/B],1.0018866898197603e-09
+A100,M8_link+lag_a0.7,coef,,e_kv_write [J/B],0.0
+A100,M8_link+lag_a0.7,coef,,e_comm [J/B],0.0
+A100,M8_link+lag_a0.6,lomo,dense-70b,run_mean_err_med_pct,13.514873018925266
+A100,M8_link+lag_a0.6,lomo,dense-8b,run_mean_err_med_pct,12.591139059686505
+A100,M8_link+lag_a0.6,lomo,moe-120b,run_mean_err_med_pct,3.889075373071756
+A100,M8_link+lag_a0.6,lomo,moe-20b,run_mean_err_med_pct,8.616116016240927
+A100,M8_link+lag_a0.6,loto,tp1,run_mean_err_med_pct,10.892809373015094
+A100,M8_link+lag_a0.6,loto,tp2,run_mean_err_med_pct,7.908293069916663
+A100,M8_link+lag_a0.6,loto,tp4,run_mean_err_med_pct,8.900809615862844
+A100,M8_link+lag_a0.6,loto,tp8,run_mean_err_med_pct,3.2978986401102057
+A100,M8_link+lag_a0.6,cv,,r2,0.9598565827676775
+A100,M8_link+lag_a0.6,cv,,rmse,123.11506329611738
+A100,M8_link+lag_a0.6,cv,,mape,14.311270828064092
+A100,M8_link+lag_a0.6,coef,,p_idle [W/GPU],40.12326778394999
+A100,M8_link+lag_a0.6,coef,,"p_link [W/GPU, TP>1]",19.43625252377423
+A100,M8_link+lag_a0.6,coef,,p_active_floor [W/GPU],20.353032897035792
+A100,M8_link+lag_a0.6,coef,,p_sat_cmp_u0.03 [W/GPU],29.848261831082294
+A100,M8_link+lag_a0.6,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M8_link+lag_a0.6,coef,,p_sat_mem_u0.1 [W/GPU],24.52863759341056
+A100,M8_link+lag_a0.6,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+A100,M8_link+lag_a0.6,coef,,e_f_prefill [J/FLOP],0.0
+A100,M8_link+lag_a0.6,coef,,e_f_decode [J/FLOP],1.4905295808320731e-12
+A100,M8_link+lag_a0.6,coef,,e_w_prefill [J/B],1.6593838960120564e-10
+A100,M8_link+lag_a0.6,coef,,e_w_decode [J/B],1.4146711854142405e-10
+A100,M8_link+lag_a0.6,coef,,e_kv [J/B],8.154107436151296e-10
+A100,M8_link+lag_a0.6,coef,,e_kv_write [J/B],0.0
+A100,M8_link+lag_a0.6,coef,,e_comm [J/B],0.0
+A100,M8_link+lag_a0.5,lomo,dense-70b,run_mean_err_med_pct,13.802768354261197
+A100,M8_link+lag_a0.5,lomo,dense-8b,run_mean_err_med_pct,12.564346189345343
+A100,M8_link+lag_a0.5,lomo,moe-120b,run_mean_err_med_pct,4.025897796280161
+A100,M8_link+lag_a0.5,lomo,moe-20b,run_mean_err_med_pct,10.25476474430328
+A100,M8_link+lag_a0.5,loto,tp1,run_mean_err_med_pct,10.895680956658502
+A100,M8_link+lag_a0.5,loto,tp2,run_mean_err_med_pct,7.843834489033078
+A100,M8_link+lag_a0.5,loto,tp4,run_mean_err_med_pct,8.764097317115542
+A100,M8_link+lag_a0.5,loto,tp8,run_mean_err_med_pct,3.214146042015547
+A100,M8_link+lag_a0.5,cv,,r2,0.9580433010055375
+A100,M8_link+lag_a0.5,cv,,rmse,125.86491275383887
+A100,M8_link+lag_a0.5,cv,,mape,15.21294350913505
+A100,M8_link+lag_a0.5,coef,,p_idle [W/GPU],37.4029682002796
+A100,M8_link+lag_a0.5,coef,,"p_link [W/GPU, TP>1]",19.288286975633774
+A100,M8_link+lag_a0.5,coef,,p_active_floor [W/GPU],29.419329216394672
+A100,M8_link+lag_a0.5,coef,,p_sat_cmp_u0.03 [W/GPU],31.058864369305823
+A100,M8_link+lag_a0.5,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+A100,M8_link+lag_a0.5,coef,,p_sat_mem_u0.1 [W/GPU],16.181720312234596
+A100,M8_link+lag_a0.5,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+A100,M8_link+lag_a0.5,coef,,e_f_prefill [J/FLOP],0.0
+A100,M8_link+lag_a0.5,coef,,e_f_decode [J/FLOP],1.2517142388109603e-12
+A100,M8_link+lag_a0.5,coef,,e_w_prefill [J/B],2.255905643147454e-10
+A100,M8_link+lag_a0.5,coef,,e_w_decode [J/B],1.4470328662225367e-10
+A100,M8_link+lag_a0.5,coef,,e_kv [J/B],6.282003212646154e-10
+A100,M8_link+lag_a0.5,coef,,e_kv_write [J/B],0.0
+A100,M8_link+lag_a0.5,coef,,e_comm [J/B],0.0
+H100,M0_baseline,lomo,dense-405b,run_mean_err_med_pct,17.820412053068814
+H100,M0_baseline,lomo,dense-70b,run_mean_err_med_pct,6.205243323030171
+H100,M0_baseline,lomo,dense-8b,run_mean_err_med_pct,20.634475542831552
+H100,M0_baseline,loto,tp1,run_mean_err_med_pct,30.439447163870746
+H100,M0_baseline,loto,tp2,run_mean_err_med_pct,17.996366649159384
+H100,M0_baseline,loto,tp4,run_mean_err_med_pct,7.291970117655484
+H100,M0_baseline,loto,tp8,run_mean_err_med_pct,6.989301870778035
+H100,M0_baseline,cv,,r2,0.9171312253748454
+H100,M0_baseline,cv,,rmse,300.36261255142665
+H100,M0_baseline,cv,,mape,20.39238924140358
+H100,M0_baseline,coef,,p_idle [W/GPU],125.49366856147569
+H100,M0_baseline,coef,,e_f [J/FLOP],8.368005413928378e-13
+H100,M0_baseline,coef,,e_w [J/B],1.5057134352551876e-10
+H100,M0_baseline,coef,,e_kv [J/B],4.157166844879797e-09
+H100,M1_comm,lomo,dense-405b,run_mean_err_med_pct,18.618256323382823
+H100,M1_comm,lomo,dense-70b,run_mean_err_med_pct,6.205243323030159
+H100,M1_comm,lomo,dense-8b,run_mean_err_med_pct,20.634475542831552
+H100,M1_comm,loto,tp1,run_mean_err_med_pct,30.43944716387074
+H100,M1_comm,loto,tp2,run_mean_err_med_pct,17.996366649159384
+H100,M1_comm,loto,tp4,run_mean_err_med_pct,7.291970117655502
+H100,M1_comm,loto,tp8,run_mean_err_med_pct,6.776877057562548
+H100,M1_comm,cv,,r2,0.9171312253748454
+H100,M1_comm,cv,,rmse,300.36261255142665
+H100,M1_comm,cv,,mape,20.39238924140358
+H100,M1_comm,coef,,p_idle [W/GPU],125.49366856147569
+H100,M1_comm,coef,,e_f [J/FLOP],8.368005413928378e-13
+H100,M1_comm,coef,,e_w [J/B],1.5057134352551876e-10
+H100,M1_comm,coef,,e_kv [J/B],4.157166844879797e-09
+H100,M1_comm,coef,,e_comm [J/B],0.0
+H100,M2_phase_split,lomo,dense-405b,run_mean_err_med_pct,13.479531961516194
+H100,M2_phase_split,lomo,dense-70b,run_mean_err_med_pct,4.107227228692916
+H100,M2_phase_split,lomo,dense-8b,run_mean_err_med_pct,16.4110401832191
+H100,M2_phase_split,loto,tp1,run_mean_err_med_pct,26.340987438158415
+H100,M2_phase_split,loto,tp2,run_mean_err_med_pct,16.66908855578258
+H100,M2_phase_split,loto,tp4,run_mean_err_med_pct,5.199643668470096
+H100,M2_phase_split,loto,tp8,run_mean_err_med_pct,7.777612134747836
+H100,M2_phase_split,cv,,r2,0.9225386716369282
+H100,M2_phase_split,cv,,rmse,290.3975077311833
+H100,M2_phase_split,cv,,mape,19.461884909384036
+H100,M2_phase_split,coef,,p_idle [W/GPU],126.35130897126517
+H100,M2_phase_split,coef,,e_f_prefill [J/FLOP],0.0
+H100,M2_phase_split,coef,,e_f_decode [J/FLOP],2.3971790279734925e-12
+H100,M2_phase_split,coef,,e_w [J/B],1.4965888472063048e-10
+H100,M2_phase_split,coef,,e_kv [J/B],2.5021044945363513e-09
+H100,M2_phase_split,coef,,e_comm [J/B],0.0
+H100,M3_active_floor,lomo,dense-405b,run_mean_err_med_pct,13.60400093491483
+H100,M3_active_floor,lomo,dense-70b,run_mean_err_med_pct,4.107227228692916
+H100,M3_active_floor,lomo,dense-8b,run_mean_err_med_pct,19.512211584960223
+H100,M3_active_floor,loto,tp1,run_mean_err_med_pct,26.340987438158415
+H100,M3_active_floor,loto,tp2,run_mean_err_med_pct,16.66908855578258
+H100,M3_active_floor,loto,tp4,run_mean_err_med_pct,5.199643668470096
+H100,M3_active_floor,loto,tp8,run_mean_err_med_pct,7.777612134747836
+H100,M3_active_floor,cv,,r2,0.9225386716369282
+H100,M3_active_floor,cv,,rmse,290.3975077311833
+H100,M3_active_floor,cv,,mape,19.461884909384036
+H100,M3_active_floor,coef,,p_idle [W/GPU],126.35130897126517
+H100,M3_active_floor,coef,,p_active_floor [W/GPU],0.0
+H100,M3_active_floor,coef,,e_f_prefill [J/FLOP],0.0
+H100,M3_active_floor,coef,,e_f_decode [J/FLOP],2.3971790279734925e-12
+H100,M3_active_floor,coef,,e_w [J/B],1.4965888472063048e-10
+H100,M3_active_floor,coef,,e_kv [J/B],2.5021044945363513e-09
+H100,M3_active_floor,coef,,e_comm [J/B],0.0
+H100,M4_dtype,lomo,dense-405b,run_mean_err_med_pct,23.9630986955604
+H100,M4_dtype,lomo,dense-70b,run_mean_err_med_pct,4.182092397747809
+H100,M4_dtype,lomo,dense-8b,run_mean_err_med_pct,21.47304841265054
+H100,M4_dtype,loto,tp1,run_mean_err_med_pct,29.285713832487765
+H100,M4_dtype,loto,tp2,run_mean_err_med_pct,17.19322286753735
+H100,M4_dtype,loto,tp4,run_mean_err_med_pct,4.604098053354573
+H100,M4_dtype,loto,tp8,run_mean_err_med_pct,7.911279476136913
+H100,M4_dtype,cv,,r2,0.9222931336853422
+H100,M4_dtype,cv,,rmse,290.85739652533744
+H100,M4_dtype,cv,,mape,19.570321449195124
+H100,M4_dtype,coef,,p_idle [W/GPU],125.99671213897868
+H100,M4_dtype,coef,,p_active_floor [W/GPU],0.0
+H100,M4_dtype,coef,,e_f_prefill_bf16 [J/FLOP],0.0
+H100,M4_dtype,coef,,e_f_decode_bf16 [J/FLOP],1.8327156294222754e-12
+H100,M4_dtype,coef,,e_f_prefill_fp8 [J/FLOP],3.460665188009735e-14
+H100,M4_dtype,coef,,e_f_decode_fp8 [J/FLOP],2.2943635075533436e-12
+H100,M4_dtype,coef,,e_w [J/B],1.5032971470139587e-10
+H100,M4_dtype,coef,,e_kv [J/B],2.919806231854284e-09
+H100,M4_dtype,coef,,e_comm [J/B],0.0
+H100,M5_dvfs,lomo,dense-405b,run_mean_err_med_pct,11.743808073803283
+H100,M5_dvfs,lomo,dense-70b,run_mean_err_med_pct,3.4278574944593503
+H100,M5_dvfs,lomo,dense-8b,run_mean_err_med_pct,17.997325365476527
+H100,M5_dvfs,loto,tp1,run_mean_err_med_pct,24.329345112183553
+H100,M5_dvfs,loto,tp2,run_mean_err_med_pct,15.39001075652799
+H100,M5_dvfs,loto,tp4,run_mean_err_med_pct,4.739960385956227
+H100,M5_dvfs,loto,tp8,run_mean_err_med_pct,7.353635876249729
+H100,M5_dvfs,cv,,r2,0.9242408607346121
+H100,M5_dvfs,cv,,rmse,287.1890854032186
+H100,M5_dvfs,cv,,mape,18.99031264172643
+H100,M5_dvfs,coef,,p_idle [W/GPU],125.7162511620057
+H100,M5_dvfs,coef,,p_active_floor [W/GPU],0.0
+H100,M5_dvfs,coef,,p_boost_mem [W/GPU],0.0
+H100,M5_dvfs,coef,,p_boost_cmp [W/GPU],209.23653299347083
+H100,M5_dvfs,coef,,e_f_prefill [J/FLOP],0.0
+H100,M5_dvfs,coef,,e_f_decode [J/FLOP],1.5260425893329647e-12
+H100,M5_dvfs,coef,,e_w [J/B],1.4179047661958925e-10
+H100,M5_dvfs,coef,,e_kv [J/B],2.0946161140614967e-09
+H100,M5_dvfs,coef,,e_comm [J/B],0.0
+H100,M6_phase_traffic,lomo,dense-405b,run_mean_err_med_pct,13.900456234278877
+H100,M6_phase_traffic,lomo,dense-70b,run_mean_err_med_pct,3.877050346597606
+H100,M6_phase_traffic,lomo,dense-8b,run_mean_err_med_pct,18.4624174977013
+H100,M6_phase_traffic,loto,tp1,run_mean_err_med_pct,26.683735615176982
+H100,M6_phase_traffic,loto,tp2,run_mean_err_med_pct,16.83421283621917
+H100,M6_phase_traffic,loto,tp4,run_mean_err_med_pct,4.67697166642097
+H100,M6_phase_traffic,loto,tp8,run_mean_err_med_pct,7.6327348947088405
+H100,M6_phase_traffic,cv,,r2,0.9234529638896808
+H100,M6_phase_traffic,cv,,rmse,288.6786092987984
+H100,M6_phase_traffic,cv,,mape,19.372538268901078
+H100,M6_phase_traffic,coef,,p_idle [W/GPU],125.81916896873628
+H100,M6_phase_traffic,coef,,p_active_floor [W/GPU],0.0
+H100,M6_phase_traffic,coef,,e_f_prefill [J/FLOP],1.0492995409224151e-13
+H100,M6_phase_traffic,coef,,e_f_decode [J/FLOP],2.617458501861386e-12
+H100,M6_phase_traffic,coef,,e_w_prefill [J/B],0.0
+H100,M6_phase_traffic,coef,,e_w_decode [J/B],1.5092882482553528e-10
+H100,M6_phase_traffic,coef,,e_kv [J/B],2.638446102297003e-09
+H100,M6_phase_traffic,coef,,e_kv_write [J/B],0.0
+H100,M6_phase_traffic,coef,,e_comm [J/B],0.0
+H100,M7_full,lomo,dense-405b,run_mean_err_med_pct,13.89425580197555
+H100,M7_full,lomo,dense-70b,run_mean_err_med_pct,3.8495450154597313
+H100,M7_full,lomo,dense-8b,run_mean_err_med_pct,15.62538188288273
+H100,M7_full,loto,tp1,run_mean_err_med_pct,24.4495872673995
+H100,M7_full,loto,tp2,run_mean_err_med_pct,15.348954990372011
+H100,M7_full,loto,tp4,run_mean_err_med_pct,4.759964826397373
+H100,M7_full,loto,tp8,run_mean_err_med_pct,7.47995955877652
+H100,M7_full,cv,,r2,0.9264139058124583
+H100,M7_full,cv,,rmse,283.0403096281174
+H100,M7_full,cv,,mape,19.052203652899223
+H100,M7_full,coef,,p_idle [W/GPU],126.58877449340216
+H100,M7_full,coef,,p_active_floor [W/GPU],0.0
+H100,M7_full,coef,,p_sat_cmp_u0.03 [W/GPU],70.9390736612063
+H100,M7_full,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M7_full,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M7_full,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M7_full,coef,,e_f_prefill [J/FLOP],0.0
+H100,M7_full,coef,,e_f_decode [J/FLOP],1.8168985180938875e-12
+H100,M7_full,coef,,e_w_prefill [J/B],0.0
+H100,M7_full,coef,,e_w_decode [J/B],1.4378868209157376e-10
+H100,M7_full,coef,,e_kv [J/B],1.9331110644432783e-09
+H100,M7_full,coef,,e_kv_write [J/B],0.0
+H100,M7_full,coef,,e_comm [J/B],0.0
+H100,M8_link,lomo,dense-405b,run_mean_err_med_pct,11.822980210384976
+H100,M8_link,lomo,dense-70b,run_mean_err_med_pct,4.831879490275245
+H100,M8_link,lomo,dense-8b,run_mean_err_med_pct,15.62538188288273
+H100,M8_link,loto,tp1,run_mean_err_med_pct,24.44958726739951
+H100,M8_link,loto,tp2,run_mean_err_med_pct,15.617639223621707
+H100,M8_link,loto,tp4,run_mean_err_med_pct,5.2022956031578484
+H100,M8_link,loto,tp8,run_mean_err_med_pct,7.25580393768052
+H100,M8_link,cv,,r2,0.9271554102410078
+H100,M8_link,cv,,rmse,281.6106438796178
+H100,M8_link,cv,,mape,19.550921804958254
+H100,M8_link,coef,,p_idle [W/GPU],51.67330470980402
+H100,M8_link,coef,,"p_link [W/GPU, TP>1]",74.57456860072818
+H100,M8_link,coef,,p_active_floor [W/GPU],0.0
+H100,M8_link,coef,,p_sat_cmp_u0.03 [W/GPU],68.22621775177755
+H100,M8_link,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M8_link,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M8_link,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M8_link,coef,,e_f_prefill [J/FLOP],0.0
+H100,M8_link,coef,,e_f_decode [J/FLOP],1.7834233586467855e-12
+H100,M8_link,coef,,e_w_prefill [J/B],0.0
+H100,M8_link,coef,,e_w_decode [J/B],1.4436886065410476e-10
+H100,M8_link,coef,,e_kv [J/B],2.217241653558139e-09
+H100,M8_link,coef,,e_kv_write [J/B],0.0
+H100,M8_link,coef,,e_comm [J/B],0.0
+H100,M8_link+lag_a0.8,lomo,dense-405b,run_mean_err_med_pct,12.03392274171567
+H100,M8_link+lag_a0.8,lomo,dense-70b,run_mean_err_med_pct,7.0260835926925544
+H100,M8_link+lag_a0.8,lomo,dense-8b,run_mean_err_med_pct,10.531036467975921
+H100,M8_link+lag_a0.8,loto,tp1,run_mean_err_med_pct,23.330249046475117
+H100,M8_link+lag_a0.8,loto,tp2,run_mean_err_med_pct,14.223774214646298
+H100,M8_link+lag_a0.8,loto,tp4,run_mean_err_med_pct,5.399763685875811
+H100,M8_link+lag_a0.8,loto,tp8,run_mean_err_med_pct,2.981217519685835
+H100,M8_link+lag_a0.8,cv,,r2,0.9441329922242492
+H100,M8_link+lag_a0.8,cv,,rmse,246.61990168867553
+H100,M8_link+lag_a0.8,cv,,mape,17.083894069038465
+H100,M8_link+lag_a0.8,coef,,p_idle [W/GPU],42.43606261362515
+H100,M8_link+lag_a0.8,coef,,"p_link [W/GPU, TP>1]",73.17166086455862
+H100,M8_link+lag_a0.8,coef,,p_active_floor [W/GPU],8.965753530512414
+H100,M8_link+lag_a0.8,coef,,p_sat_cmp_u0.03 [W/GPU],80.67658568686414
+H100,M8_link+lag_a0.8,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M8_link+lag_a0.8,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M8_link+lag_a0.8,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M8_link+lag_a0.8,coef,,e_f_prefill [J/FLOP],0.0
+H100,M8_link+lag_a0.8,coef,,e_f_decode [J/FLOP],1.5846449546330724e-12
+H100,M8_link+lag_a0.8,coef,,e_w_prefill [J/B],0.0
+H100,M8_link+lag_a0.8,coef,,e_w_decode [J/B],1.499747482315476e-10
+H100,M8_link+lag_a0.8,coef,,e_kv [J/B],1.5563417844269547e-09
+H100,M8_link+lag_a0.8,coef,,e_kv_write [J/B],0.0
+H100,M8_link+lag_a0.8,coef,,e_comm [J/B],0.0
+H100,M8_link+lag_a0.7,lomo,dense-405b,run_mean_err_med_pct,12.019873411216546
+H100,M8_link+lag_a0.7,lomo,dense-70b,run_mean_err_med_pct,7.576425860834896
+H100,M8_link+lag_a0.7,lomo,dense-8b,run_mean_err_med_pct,9.940247582793807
+H100,M8_link+lag_a0.7,loto,tp1,run_mean_err_med_pct,22.012015311238038
+H100,M8_link+lag_a0.7,loto,tp2,run_mean_err_med_pct,12.734090063256469
+H100,M8_link+lag_a0.7,loto,tp4,run_mean_err_med_pct,4.191025631994801
+H100,M8_link+lag_a0.7,loto,tp8,run_mean_err_med_pct,4.140664176532257
+H100,M8_link+lag_a0.7,cv,,r2,0.9504340132559428
+H100,M8_link+lag_a0.7,cv,,rmse,232.2963002219667
+H100,M8_link+lag_a0.7,cv,,mape,16.836290347479384
+H100,M8_link+lag_a0.7,coef,,p_idle [W/GPU],40.12206246707444
+H100,M8_link+lag_a0.7,coef,,"p_link [W/GPU, TP>1]",69.15730195905259
+H100,M8_link+lag_a0.7,coef,,p_active_floor [W/GPU],18.72383996345738
+H100,M8_link+lag_a0.7,coef,,p_sat_cmp_u0.03 [W/GPU],88.31630863361919
+H100,M8_link+lag_a0.7,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M8_link+lag_a0.7,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M8_link+lag_a0.7,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M8_link+lag_a0.7,coef,,e_f_prefill [J/FLOP],0.0
+H100,M8_link+lag_a0.7,coef,,e_f_decode [J/FLOP],1.4916645327513347e-12
+H100,M8_link+lag_a0.7,coef,,e_w_prefill [J/B],0.0
+H100,M8_link+lag_a0.7,coef,,e_w_decode [J/B],1.4947341226406266e-10
+H100,M8_link+lag_a0.7,coef,,e_kv [J/B],1.1186121439189153e-09
+H100,M8_link+lag_a0.7,coef,,e_kv_write [J/B],0.0
+H100,M8_link+lag_a0.7,coef,,e_comm [J/B],0.0
+H100,M8_link+lag_a0.6,lomo,dense-405b,run_mean_err_med_pct,11.922132981875489
+H100,M8_link+lag_a0.6,lomo,dense-70b,run_mean_err_med_pct,7.028256731001335
+H100,M8_link+lag_a0.6,lomo,dense-8b,run_mean_err_med_pct,9.829082956314513
+H100,M8_link+lag_a0.6,loto,tp1,run_mean_err_med_pct,21.03362259000923
+H100,M8_link+lag_a0.6,loto,tp2,run_mean_err_med_pct,11.269005340623306
+H100,M8_link+lag_a0.6,loto,tp4,run_mean_err_med_pct,3.514756064688993
+H100,M8_link+lag_a0.6,loto,tp8,run_mean_err_med_pct,5.508810547430613
+H100,M8_link+lag_a0.6,cv,,r2,0.9547220090636238
+H100,M8_link+lag_a0.6,cv,,rmse,222.02096643344748
+H100,M8_link+lag_a0.6,cv,,mape,16.750019519754698
+H100,M8_link+lag_a0.6,coef,,p_idle [W/GPU],38.448783418393866
+H100,M8_link+lag_a0.6,coef,,"p_link [W/GPU, TP>1]",64.77067030223678
+H100,M8_link+lag_a0.6,coef,,p_active_floor [W/GPU],28.329460351793863
+H100,M8_link+lag_a0.6,coef,,p_sat_cmp_u0.03 [W/GPU],96.2869530256151
+H100,M8_link+lag_a0.6,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M8_link+lag_a0.6,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M8_link+lag_a0.6,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M8_link+lag_a0.6,coef,,e_f_prefill [J/FLOP],0.0
+H100,M8_link+lag_a0.6,coef,,e_f_decode [J/FLOP],1.4034841908331105e-12
+H100,M8_link+lag_a0.6,coef,,e_w_prefill [J/B],0.0
+H100,M8_link+lag_a0.6,coef,,e_w_decode [J/B],1.4878912333502154e-10
+H100,M8_link+lag_a0.6,coef,,e_kv [J/B],6.521637084514551e-10
+H100,M8_link+lag_a0.6,coef,,e_kv_write [J/B],0.0
+H100,M8_link+lag_a0.6,coef,,e_comm [J/B],0.0
+H100,M8_link+lag_a0.5,lomo,dense-405b,run_mean_err_med_pct,11.70222652261674
+H100,M8_link+lag_a0.5,lomo,dense-70b,run_mean_err_med_pct,7.180392880640687
+H100,M8_link+lag_a0.5,lomo,dense-8b,run_mean_err_med_pct,10.175775422485849
+H100,M8_link+lag_a0.5,loto,tp1,run_mean_err_med_pct,19.56503258238252
+H100,M8_link+lag_a0.5,loto,tp2,run_mean_err_med_pct,10.65911672595205
+H100,M8_link+lag_a0.5,loto,tp4,run_mean_err_med_pct,3.5860088825725382
+H100,M8_link+lag_a0.5,loto,tp8,run_mean_err_med_pct,5.551605529554763
+H100,M8_link+lag_a0.5,cv,,r2,0.956374161116321
+H100,M8_link+lag_a0.5,cv,,rmse,217.9326552349863
+H100,M8_link+lag_a0.5,cv,,mape,16.90224316518154
+H100,M8_link+lag_a0.5,coef,,p_idle [W/GPU],37.111216873065665
+H100,M8_link+lag_a0.5,coef,,"p_link [W/GPU, TP>1]",60.39433240669036
+H100,M8_link+lag_a0.5,coef,,p_active_floor [W/GPU],37.484006695968965
+H100,M8_link+lag_a0.5,coef,,p_sat_cmp_u0.03 [W/GPU],102.92123036497223
+H100,M8_link+lag_a0.5,coef,,p_sat_cmp_u0.2 [W/GPU],0.0
+H100,M8_link+lag_a0.5,coef,,p_sat_mem_u0.1 [W/GPU],0.0
+H100,M8_link+lag_a0.5,coef,,p_sat_mem_u0.4 [W/GPU],0.0
+H100,M8_link+lag_a0.5,coef,,e_f_prefill [J/FLOP],5.1899680286020624e-14
+H100,M8_link+lag_a0.5,coef,,e_f_decode [J/FLOP],1.2986234463209286e-12
+H100,M8_link+lag_a0.5,coef,,e_w_prefill [J/B],0.0
+H100,M8_link+lag_a0.5,coef,,e_w_decode [J/B],1.4819560946960898e-10
+H100,M8_link+lag_a0.5,coef,,e_kv [J/B],1.8145829275522718e-10
+H100,M8_link+lag_a0.5,coef,,e_kv_write [J/B],0.0
+H100,M8_link+lag_a0.5,coef,,e_comm [J/B],0.0

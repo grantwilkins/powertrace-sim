@@ -52,9 +52,7 @@ def build_default_paths() -> Dict[str, str]:
         "experimental_manifest": str(
             repo_root / "results" / "experimental_continuous_v1" / "manifest.json"
         ),
-        "throughput_db": str(
-            repo_root / "model" / "config" / "throughput_database.json"
-        ),
+        "throughput_db": str(repo_root / "model" / "throughput_database.json"),
         "pair_manifest_csv": str(
             repo_root / "results" / "stage0" / "pair_manifest.csv"
         ),
