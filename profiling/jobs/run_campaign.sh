@@ -33,6 +33,24 @@ fi
 # ----------------------------- live execution ----------------------------- #
 source "$SCRIPT_DIR/server_lifecycle.sh"
 
+# validate / agentic campaigns: one server per TP, then their own entrypoint
+# (which carries the campaign's max_model_len, so length pruning auto-tracks the
+# served context for any model size).
+CTYPE="$($CC "$CAMPAIGN" --emit type)"
+if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ]; then
+    for TP in $($CC "$CAMPAIGN" --emit tps); do
+        echo "### $CTYPE TP=$TP ###"
+        SERVER_LOG="$REPO_ROOT/server-tp${TP}.log" \
+            start_server "$($CC "$CAMPAIGN" --emit serve --tp "$TP")" || exit 1
+        RUNCMD="$($CC "$CAMPAIGN" --emit run-cmd --tp "$TP")"
+        echo "+ uv run $RUNCMD"
+        ( cd "$REPO_ROOT" && uv run $RUNCMD )
+        stop_server
+    done
+    echo "Campaign complete."
+    exit 0
+fi
+
 for TP in $($CC "$CAMPAIGN" --emit tps); do
     echo "### TP=$TP ###"
     # One server per probe: probes need different launch flags (e.g. prefill

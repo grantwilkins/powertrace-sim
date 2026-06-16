@@ -156,6 +156,52 @@ def probe_commands(c: dict, tp: int) -> list[str]:
     return cmds
 
 
+def validate_command(c: dict, tp: int) -> str:
+    """`validate_run` invocation for a validate campaign (real dataset traffic).
+
+    Carries the campaign's ``server.max_model_len`` so the dataset length pruner
+    tracks the SAME served context the server uses — automatically correct for any
+    model size, never the fixed 1024/2048.
+    """
+    s, w = c["server"], c["workload"]
+    cmd = (
+        f"python -m profiling.probes.validate_run "
+        f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
+        f"--gpus-per-node {c['gpus_per_node']} "
+        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']} "
+        f"--kv-cache-dtype {s['kv_cache_dtype']} "
+        f"--dataset {w.get('dataset', 'sharegpt')} "
+        f"--num-prompts {w.get('num_prompts')} --request-rate {w.get('request_rate')}"
+    )
+    if w.get("dataset_path"):
+        cmd += f" --dataset-path {w['dataset_path']}"
+    return cmd
+
+
+def agentic_command(c: dict, tp: int) -> str:
+    """`agentic_run` invocation for an agentic campaign (multi-turn sessions)."""
+    s, ss = c["server"], c["sessions"]
+    pc = "--prefix-cache " if ss.get("prefix_cache") else ""
+    return (
+        f"python -m profiling.probes.agentic_run "
+        f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
+        f"--gpus-per-node {c['gpus_per_node']} "
+        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']} "
+        f"--n-sessions {ss.get('n_sessions', 8)} --gap-mean-s {ss.get('gap_mean_s', 3.0)} "
+        f"{pc}--seed {ss.get('seed', 0)}"
+    )
+
+
+def run_command(c: dict, tp: int) -> str:
+    """The non-probe entrypoint command for validate / agentic campaigns."""
+    t = c["campaign_type"]
+    if t == "validate":
+        return validate_command(c, tp)
+    if t == "agentic":
+        return agentic_command(c, tp)
+    raise CampaignError(f"run_command is only for validate/agentic, not '{t}'")
+
+
 def render_plan(c: dict) -> str:
     lines = [
         f"# Campaign: {c['campaign_type']} | {c['model']} | {c['hardware']}",
@@ -191,14 +237,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("campaign")
     ap.add_argument("--emit", default="plan",
-                    choices=["plan", "json", "tps", "serve", "probes", "probe-serves"])
+                    choices=["plan", "json", "tps", "type", "serve", "probes",
+                             "probe-serves", "run-cmd"])
     ap.add_argument("--tp", type=int, default=None)
     args = ap.parse_args()
     c = load_campaign(args.campaign)
     if args.emit == "json":
         print(json.dumps(c, indent=2))
+    elif args.emit == "type":
+        print(c["campaign_type"])
     elif args.emit == "tps":
         print("\n".join(str(t) for t in tp_degrees(c)))
+    elif args.emit == "run-cmd":
+        if args.tp is None:
+            raise CampaignError("--emit run-cmd requires --tp")
+        print(run_command(c, args.tp))
     elif args.emit == "serve":
         if args.tp is None:
             raise CampaignError("--emit serve requires --tp")

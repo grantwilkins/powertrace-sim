@@ -151,21 +151,48 @@ class BenchmarkDataset(ABC):
 # -----------------------------------------------------------------------------
 
 
+# Dataset pruning length budget. Defaults match vLLM's historical sharegpt/hf
+# pruning (1024/2048). `configure_length_budget(max_model_len)` rebinds them to the
+# SERVED context window so long-context prompts the model/GPU can actually handle
+# are kept instead of being silently dropped at 1024. See kv_budget.py for the
+# model+GPU reasoning (and how LMCache/Mooncake raise the practical ceiling).
+_LENGTH_BUDGET = {"max_prompt_len": 1024, "max_total_len": 2048}
+
+
+def configure_length_budget(max_model_len: Optional[int]) -> None:
+    """Make the pruning caps track the served context window (opt-in).
+
+    No-op when ``max_model_len`` is falsy, so default behaviour is unchanged.
+    """
+    if not max_model_len:
+        return
+    from kv_budget import length_budget
+
+    mp, mt = length_budget(int(max_model_len))
+    _LENGTH_BUDGET["max_prompt_len"] = mp
+    _LENGTH_BUDGET["max_total_len"] = mt
+
+
 def is_valid_sequence(
     prompt_len: int,
     output_len: int,
     min_len: int = 4,
-    max_prompt_len: int = 1024,
-    max_total_len: int = 2048,
+    max_prompt_len: Optional[int] = None,
+    max_total_len: Optional[int] = None,
     skip_min_output_len_check: bool = False,
 ) -> bool:
     """
     Validate a sequence based on prompt and output lengths.
 
-    Default pruning criteria are copied from the original `sample_hf_requests`
-    and `sample_sharegpt_requests` functions in benchmark_serving.py, as well as
-    from `sample_requests` in benchmark_throughput.py.
+    ``max_prompt_len`` / ``max_total_len`` default to the configured length budget
+    (``_LENGTH_BUDGET``), which is 1024/2048 unless ``configure_length_budget`` has
+    rebound it to the served ``max_model_len``. Historical pruning criteria are
+    copied from the original sharegpt/hf sampling in benchmark_serving.py.
     """
+    if max_prompt_len is None:
+        max_prompt_len = _LENGTH_BUDGET["max_prompt_len"]
+    if max_total_len is None:
+        max_total_len = _LENGTH_BUDGET["max_total_len"]
     # Check for invalid conditions
     prompt_too_short = prompt_len < min_len
     output_too_short = (not skip_min_output_len_check) and (output_len < min_len)

@@ -101,10 +101,19 @@ uv run python -m profiling.probes.agentic_run --model Qwen/Qwen3-8B --hardware H
 uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*'
 ```
 
-> **Live-execution wiring note:** `run_campaign.sh --execute` currently auto-drives
-> *probe* campaigns. `validate` and `agentic` campaigns render their plan in dry-run
-> and are launched via their own entrypoints (the `benchmark_serving`/`agentic_run`
-> commands shown in the plan); wiring them into `--execute` is a small follow-up.
+> **Live-execution wiring:** `run_campaign.sh --execute` drives *probe*, *validate*,
+> and *agentic* campaigns. For validate/agentic it launches one server per TP then
+> the matching entrypoint (`validate_run` / `agentic_run`) via `campaign_config
+> --emit run-cmd`, which forwards the campaign's `server.max_model_len`.
+>
+> **Length budget (model + GPU aware):** the real-dataset (`validate`) path passes
+> `--max-model-len` to the vendored `benchmark_serving.py`, so its dataset length
+> pruning (`is_valid_sequence`) tracks the **served context window** instead of the
+> fixed 1024/2048 — long-context prompts the model/GPU can serve are no longer
+> dropped at 1024. Because the cap comes from `server.max_model_len`, it is
+> automatically correct for any model size. `profiling/client/kv_budget.py` holds the
+> KV-cache reserved-memory math used to choose `max_model_len` per (model, GPU,
+> `gpu_memory_utilization`), and notes how LMCache / Mooncake raise the ceiling.
 
 ## Tests (acceptance gate)
 

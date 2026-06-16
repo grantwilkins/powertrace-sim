@@ -58,6 +58,7 @@ from benchmark_dataset import (
     AIMODataset,
     ASRDataset,
     BurstGPTDataset,
+    configure_length_budget,
     ConversationDataset,
     HuggingFaceDataset,
     InstructCoderDataset,
@@ -634,6 +635,10 @@ def main(args: argparse.Namespace):
             "'--dataset-path' if required."
         )
 
+    # Make dataset length pruning track the served context window (model + GPU),
+    # instead of the fixed 1024/2048 that silently drops long-context prompts.
+    configure_length_budget(args.max_model_len)
+
     # Apply workload intensity presets if specified
     # Based on ServeGen paper findings with Pareto tail for realistic long-tail behavior
     # Bifurcated by task type (conversation vs coding) and intensity level
@@ -1048,6 +1053,15 @@ if __name__ == "__main__":
         "if the server is not processing requests fast enough to keep up.",
     )
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
+    parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=None,
+        help="Served context window. When set, dataset prompt/total length "
+        "pruning tracks it (prompt+output <= max_model_len) instead of the "
+        "fixed 1024/2048 defaults, so long-context prompts are kept. Choose it "
+        "from the GPU KV-cache budget (see kv_budget.py).",
+    )
 
     parser.add_argument(
         "--model",

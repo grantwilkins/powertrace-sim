@@ -121,3 +121,22 @@ def test_probe_commands_nonempty_for_probe_campaign():
     cmds = cc.probe_commands(c, 8)
     assert len(cmds) == len(c["probes"])
     assert all(cmd.startswith("python -m profiling.probes.") for cmd in cmds)
+
+
+def test_validate_run_command_carries_campaign_max_model_len():
+    """run-cmd forwards the campaign's max_model_len so length pruning tracks the
+    served context for whatever model size the campaign uses (same value the
+    server is launched with -> they can never disagree)."""
+    c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
+    mml = c["server"]["max_model_len"]
+    cmd = cc.run_command(c, c["server"]["tp"])
+    assert cmd.startswith("python -m profiling.probes.validate_run")
+    assert f"--max-model-len {mml}" in cmd
+    assert f"--max-model-len {mml}" in cc.serve_command(c, c["server"]["tp"])
+    assert f"--dataset {c['workload']['dataset']}" in cmd
+
+
+def test_run_command_rejects_probe_campaign():
+    c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    with pytest.raises(cc.CampaignError):
+        cc.run_command(c, 8)

@@ -1,0 +1,9 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "validate",
+  "_note": "Single-A100 pipeline validation: real ShareGPT prompts paced by a synthetic Poisson arrival schedule (request_rate). Emits the §2 bundle via validate_run (power.csv + engine.csv + requests.json + manifest.json).",
+  "server": {"tp": 1, "max_num_seqs": 256, "max_model_len": 32768},
+  "workload": {"dataset": "sharegpt", "num_prompts": 200, "request_rate": 4}
+}
