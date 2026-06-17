@@ -43,6 +43,8 @@ def main():
     p = base_parser(__doc__)
     p.add_argument("--prefix-cache", action="store_true", default=False)
     p.add_argument("--n-sessions", type=int, default=8)
+    p.add_argument("--concurrency", default="auto",
+                   help="'auto' (KV-budget), an int (fixed), or 0 (all sessions)")
     p.add_argument("--seed", type=int, default=0)
     # replay mode
     p.add_argument("--replay", action="store_true", default=False)
@@ -64,7 +66,13 @@ def main():
         gpus_per_node=args.gpus_per_node, server_cfg=server_cfg(args),
         out_root=args.out_root, base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
-        dtype_hint=args.dtype_hint, n_active_override=args.n_active_override))
+        dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
+        max_concurrency=_concurrency(args.concurrency)))
+
+
+def _concurrency(value):
+    """'auto' -> auto; '0' -> None (all sessions); 'N' -> N."""
+    return value if value == "auto" else (int(value) or None)
 
 
 if __name__ == "__main__":

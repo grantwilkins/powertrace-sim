@@ -69,6 +69,40 @@ def test_requests_json_is_reconstruction_compatible_superset():
     assert rj["prefix_cache"] == [1, 1]
 
 
+_ARCH = {"n_layers": 36, "n_kv": 8, "head_dim": 128, "w_bytes": 16.4e9}  # Qwen3-8B
+_HBM = 80 * 1024**3  # A100-80GB
+
+
+def _ac(**kw):
+    base = dict(arch=_ARCH, avg_context=15000, tp=1, hbm_bytes_per_gpu=_HBM,
+                max_num_seqs=256)
+    return session_runner.auto_concurrency(**{**base, **kw})
+
+
+def test_auto_concurrency_fits_a_healthy_batch():
+    assert 1 < _ac() <= 256                       # 8B @ TP1 admits a real batch
+
+
+def test_auto_concurrency_shrinks_with_context():
+    assert _ac(avg_context=4000) > _ac(avg_context=60000)
+
+
+def test_auto_concurrency_grows_with_tp():
+    assert _ac(tp=8) > _ac(tp=1)                   # more GPUs -> more KV budget
+
+
+def test_auto_concurrency_clamps_to_max_num_seqs():
+    assert _ac(avg_context=10, max_num_seqs=4) == 4
+
+
+def test_auto_concurrency_floors_at_one_when_weights_fill_hbm():
+    assert _ac(arch={**_ARCH, "w_bytes": _HBM * 0.99}) == 1
+
+
+def test_auto_concurrency_fp8_kv_roughly_doubles():
+    assert _ac(kv_cache_dtype="fp8") >= 2 * _ac(kv_cache_dtype="auto") - 1
+
+
 def test_session_window_records_epoch_and_context():
     plan = agentic.build_synthetic_sessions(n_sessions=1, min_turns=3, max_turns=3, seed=0)
     w = session_runner.build_session_window(plan.sessions[0], 1000.0, 1050.0, 3)

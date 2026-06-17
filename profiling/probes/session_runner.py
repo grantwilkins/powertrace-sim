@@ -22,6 +22,40 @@ import probe_runner  # noqa: E402  (logging_session, _client_mod)
 import session_driver  # noqa: E402
 
 
+_HBM_DEFAULT_GIB = {"A100": 80, "H100": 80}  # fallback if nvidia-smi is unavailable
+
+
+def gpu_hbm_bytes(hardware: str) -> int:
+    """Total HBM per GPU in bytes, from nvidia-smi (fallback: hardware default)."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10, check=True)
+        return int(out.stdout.split("\n")[0]) * 1024 * 1024  # MiB -> bytes
+    except Exception:
+        return _HBM_DEFAULT_GIB.get(hardware, 80) * 1024**3
+
+
+def auto_concurrency(*, arch, avg_context, tp, hbm_bytes_per_gpu, max_num_seqs,
+                     kv_cache_dtype="auto", target_fill=0.7, overhead_frac=0.1) -> int:
+    """Sessions that fit the KV-cache budget at a target fill (CAMPAIGN.md §4).
+
+    Decode batch is bounded by KV cache, not parameter count: the budget is the
+    aggregate HBM left after weights, divided by the per-token KV cost times the
+    typical context. TP adds budget (more GPUs); weights and context spend it. All
+    inputs come from ``manifest.arch`` + the launched HBM/TP, so it's portable across
+    model sizes. Clamped to ``[1, max_num_seqs]``.
+    """
+    kv_dtype_bytes = 1 if "fp8" in str(kv_cache_dtype).lower() else 2
+    kv_per_token = 2 * arch["n_layers"] * arch["n_kv"] * arch["head_dim"] * kv_dtype_bytes
+    total_hbm = tp * hbm_bytes_per_gpu
+    kv_budget = max(total_hbm * (1 - overhead_frac) - arch["w_bytes"], 0.0) * target_fill
+    fit = int(kv_budget // max(kv_per_token * avg_context, 1))
+    return max(1, min(fit, max_num_seqs))
+
+
 def build_session_window(session, t_start_epoch, t_end_epoch, n_records) -> dict:
     """Manifest entry locating one conversation in absolute time (pure)."""
     return {
@@ -37,8 +71,14 @@ def build_session_window(session, t_start_epoch, t_end_epoch, n_records) -> dict
 
 def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
-        dtype_hint=None, n_active_override=None, run_id=None):
-    """Execute an AgenticPlan and write the bundle. Returns the run directory."""
+        dtype_hint=None, n_active_override=None, run_id=None, max_concurrency=None):
+    """Execute an AgenticPlan and write the bundle. Returns the run directory.
+
+    Sessions run concurrently — turns *within* a session stay ordered because its
+    context grows turn by turn. ``max_concurrency`` caps how many are in flight:
+    ``"auto"`` sizes it to the KV-cache budget (default), an int fixes it, and
+    ``None`` runs all sessions at once.
+    """
     run_manifest = probe_runner._client_mod("run_manifest")
     arch_extract = probe_runner._client_mod("arch_extract")
     import aiohttp
@@ -56,21 +96,39 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     tokenizer = transformers.AutoTokenizer.from_pretrained(model)
 
     window_start = time.time()
-    all_records, session_windows = [], []
+    if max_concurrency == "auto":
+        ctx = [c for s in plan.sessions for c in s.context_lengths()]
+        avg_context = sum(ctx) / len(ctx) if ctx else 1
+        concurrency = auto_concurrency(
+            arch=arch, avg_context=avg_context, tp=tp,
+            hbm_bytes_per_gpu=gpu_hbm_bytes(hardware),
+            max_num_seqs=server_cfg["max_num_seqs"],
+            kv_cache_dtype=server_cfg.get("kv_cache_dtype", "auto"))
+        print(f"[agentic] auto concurrency={concurrency} "
+              f"(avg_context={avg_context:.0f} tok, tp={tp})")
+    else:
+        concurrency = max_concurrency or len(plan.sessions)
+    concurrency = min(concurrency, len(plan.sessions))
 
     async def _drive():
-        async with aiohttp.ClientSession() as http:
-            for sess in plan.sessions:
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _one(http, sess):
+            async with sem:
                 t0 = time.time()
                 recs = await session_driver.send_session(
                     http, base_url, model, sess, plan.prefix_cache, tokenizer)
-                t1 = time.time()
-                all_records.extend(recs)
-                session_windows.append(build_session_window(sess, t0, t1, len(recs)))
+                return build_session_window(sess, t0, time.time(), len(recs)), recs
+
+        async with aiohttp.ClientSession() as http:
+            return await asyncio.gather(*(_one(http, s) for s in plan.sessions))
 
     with probe_runner.logging_session(run_dir, base_url) as clock:
-        asyncio.run(_drive())
+        results = asyncio.run(_drive())
     window_end = time.time()
+
+    session_windows = [w for w, _ in results]
+    all_records = [r for _, recs in results for r in recs]
 
     (run_dir / "requests.json").write_text(
         json.dumps(session_driver.build_requests_json(all_records)))
@@ -80,6 +138,7 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         run_id=run_id,
         probe={"type": "agentic", "label": plan.label,
                "prefix_cache": bool(plan.prefix_cache),
+               "concurrency": concurrency,
                "window": {"start_epoch": window_start, "end_epoch": window_end},
                "sessions": session_windows},
         model=model, arch=arch, hardware=hardware, tp=tp,

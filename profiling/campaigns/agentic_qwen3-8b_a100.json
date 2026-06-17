@@ -7,7 +7,8 @@
   "server": {"tp": 1, "max_num_seqs": 256, "max_model_len": 32768},
   "sessions": {
     "corpus": "swe_smith",
-    "n_sessions": 8,
+    "n_sessions": 32,
+    "concurrency": "auto",
     "seed": 0,
     "gap_params": "profiling/agentic_traces/gap_params.json",
     "regimes": [{"prefix_cache": false}, {"prefix_cache": true}]

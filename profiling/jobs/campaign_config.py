@@ -217,6 +217,8 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
     ]
+    if ss.get("concurrency") is not None:
+        parts.append(f"--concurrency {ss['concurrency']}")
     if ss.get("corpus"):
         parts.append(f"--replay --corpus {ss['corpus']} --gap-params {ss['gap_params']}")
     else:
