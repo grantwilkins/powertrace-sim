@@ -20,11 +20,21 @@ import numpy as np
 
 @dataclass(frozen=True)
 class SessionTurn:
-    """One turn: new user tokens this turn, assistant reply length, then a gap."""
+    """One turn: new user tokens this turn, assistant reply length, then a gap.
+
+    The text fields are populated on the *replay* path (real SWE-agent traces);
+    they stay empty/``None`` on the synthetic path, where ``session_driver`` falls
+    back to ``_filler``. ``assistant_text`` is the trace's real reply, injected as
+    context so the grown prompt matches the real trajectory (faithful replay).
+    """
     turn_idx: int
     new_input_tokens: int     # tokens added this turn (user/tool message)
     output_tokens: int        # assistant reply length
     post_gap_s: float         # tool-execution / think-time idle after this turn
+    user_text: str = ""               # real new-input text; "" => synthetic _filler
+    assistant_text: str | None = None  # real reply to inject as context; None => use live reply
+    tool_class: str = ""              # tool that produced this turn's observation (provenance)
+    observation_tokens: int = 0       # token length of the observation feeding this turn
 
 
 @dataclass
@@ -33,6 +43,7 @@ class SessionPlan:
     session_id: str
     prefix_tokens: int        # system prompt (shared, prefix-cacheable)
     turns: list[SessionTurn]
+    system_text: str = ""     # real system prompt text (replay); "" => synthetic _filler
 
     def context_lengths(self) -> list[int]:
         """Full prompt length seen at each turn (prefix + all prior + this input)."""
@@ -110,3 +121,28 @@ def from_transcript(transcripts, prefix_cache: bool = False) -> AgenticPlan:
         sessions.append(SessionPlan(
             session_id=f"replay_{i}", prefix_tokens=0, turns=turns))
     return AgenticPlan(sessions=sessions, prefix_cache=prefix_cache, label="agentic_replay")
+
+
+def from_text_transcript(text_sessions, *, prefix_cache=False,
+                         label="agentic_replay") -> AgenticPlan:
+    """Replay real agent transcripts WITH text (Gap 1).
+
+    Each item is ``(session_id, system_text, system_prefix_tokens, turns)`` where
+    every ``turn`` is an 7-tuple ``(new_input_tokens, output_tokens, post_gap_s,
+    user_text, assistant_text, tool_class, observation_tokens)``. Token counts and
+    the gap are precomputed upstream (``replay_loader``) so this module stays
+    tokenizer-free; the text rides along for the live sender to inject verbatim.
+    """
+    sessions = []
+    for session_id, system_text, sys_tokens, turns_in in text_sessions:
+        turns = [
+            SessionTurn(
+                turn_idx=k, new_input_tokens=int(ni), output_tokens=int(no),
+                post_gap_s=float(g), user_text=ut, assistant_text=at,
+                tool_class=tc, observation_tokens=int(ot))
+            for k, (ni, no, g, ut, at, tc, ot) in enumerate(turns_in)
+        ]
+        sessions.append(SessionPlan(
+            session_id=session_id, prefix_tokens=int(sys_tokens),
+            turns=turns, system_text=system_text))
+    return AgenticPlan(sessions=sessions, prefix_cache=prefix_cache, label=label)

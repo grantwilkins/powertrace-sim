@@ -166,7 +166,7 @@ server launched with large `--max-model-len`, `VLLM_ALLOW_LONG_MAX_MODEL_LEN=1`,
 and a `--random-prefix-len` sweep for the context-decode holds. Add a
 `long_context.py` probe wrapping these. No core dataset change needed.
 
-### D. Agentic session client — `profiling/client/agentic_client.py` (**L**)
+### D. Agentic session client — `profiling/probes/{agentic,session_driver,session_runner,agentic_run}.py` (**L**, scaffolding built)
 The one genuinely new workload generator. A *session* = a sequence of turns where
 each turn's prompt = full prior context + new user/tool message, so context grows
 monotonically; between turns, a **tool-execution gap** (idle, lognormal duration).
@@ -176,6 +176,14 @@ parallel tool fan-out, prefix-cache on/off. Two modes: (i) **synthetic**
 `(prompt, output_len, post_gap_s)` triples). Emits the same bundle, so the ledger
 and model consume it unchanged — agentic is just a schedule with idle gaps and
 large recurring prefills.
+
+**Status:** the live multi-turn sender (`session_driver.send_session`), plan
+generators (`agentic.build_synthetic_sessions` / `from_transcript`), bundle emitter
+(`session_runner`), CLI (`agentic_run`), and campaign wiring (`jobs/campaign_config.py`
+`agentic` type, `run_campaign.sh`) are built and unit-tested. What remains to make
+agentic numbers *admissible and trustworthy* is scoped in **§9** — the synthetic
+`_filler` content path does not satisfy the real-data constraint, prefix-caching is
+unmodeled in both ledger and twin, and the grading loop is not closed.
 
 ### E. Run manifest + bundling — `profiling/client/run_manifest.py` (**S**)
 Emit `manifest.json`; pull arch fields from the served model's `config.json`
@@ -228,4 +236,76 @@ as ~30-min validation passes plus the one-time §5-C/§5-D builds.
    `feature-test/` fit.
 3. **C** (long-context) — closes the `e_kv` / attention-L² identifiability gap.
 4. **D** (agentic client) — the new frontier workload; validate the scheduler twin
-   on growing-context, gap-driven traffic with prefix caching on and off.
+   on growing-context, gap-driven traffic with prefix caching on and off. The
+   generator scaffolding is built; **§9** is the remaining readiness plan (real
+   traces, measured-state ledger, prefix-cache modeling, grading).
+
+---
+
+## 9. Agentic readiness plan
+
+The model is validated on a single A100 setup via the normal (probe + `validate`)
+path. Agentic Tier-3 (§3, §5-D) is the next workload class. The session generator,
+live sender, bundle emitter, and campaign wiring already exist and are unit-tested;
+GPU cost is small (A100 is characterized — this is Tier-3 validation, ~30 min/run).
+The remaining work is **almost entirely software**: making the data admissible, the
+ledger honest, and the grading loop closed. Five gaps, in priority order.
+
+### What's built vs. what's missing
+
+Built: `agentic.py` (synthetic + `from_transcript` plans), `session_driver.py`
+(live multi-turn sender — context grows by appending real replies, lognormal
+tool-gap idle, rich `requests.json` superset), `session_runner.py` + `agentic_run.py`
+(emit the §2 bundle, record the `prefix_cache` regime), `jobs/campaign_config.py`
+`agentic` type + `run_campaign.sh`, `campaigns/agentic_qwen3-8b.json`.
+
+Missing: real content, measured-state consumption, both cache regimes on the target
+hardware, prefix-cache modeling in the twin, and an agentic grade step.
+
+### Twin verification (done — informs Gaps 2 & 4)
+
+The twin's request path (`model/pipeline/request_builder.py` → `inference.py`)
+consumes **only** `input_lens`, `output_lens`, `request_timestamps`; it ignores the
+agentic extensions (`session_ids`, `turn_idx`, `post_gap_s`, `prefix_cache`).
+Consequence:
+
+- **Idle tool-gaps** — handled implicitly: a gap is just an interval with no new
+  arrival, so idle falls out for free. Low risk.
+- **Growing context** — handled: each turn's `input_len` carries the full grown
+  prompt, so per-turn KV/prefill scale is captured. Low risk.
+- **Prefix-cache hits** — **not modeled**: the twin sees the full `input_len` and
+  simulates full prefill on every turn even when the engine skipped it. So
+  **prefix-cache-*on* agentic runs are systematically over-predicted on prefill
+  power.** Same root cause as Gap 2 (a cache hit means prefill work didn't happen,
+  but `input_lens` still says it did). Prefix-caching is the *single* unmodeled
+  dynamic, on both the ledger (training) and inference (grading) sides.
+
+### The gaps
+
+| # | item | effort | blocking? |
+|---|---|---|---|
+| 1 | **Real agent-trace loader** (SWE-agent / tool-use trajectories) → ordered turns with **real message strings** + observed `post_gap_s`; thread real text through `session_driver.send_session` (replace `_filler` on the replay path); extend `from_transcript` to carry text, not just `(in_tok, out_tok, gap)`. | M | Yes — satisfies the real-data constraint |
+| 2 | **`bins_from_engine_csv`** (currently `NotImplementedError` in `feature-test/build_ledger_bundle.py`) so the ledger uses *measured* state from `engine.csv` (already collected) instead of reconstructing it; route agentic bundles through it so cache-skipped prefill is not fabricated. | M | Yes — for cache-on data |
+| 3 | **A100 agentic configs**, paired `prefix_cache` true/false; confirm `run_campaign.sh` relaunches the server with matching `--enable-prefix-caching` per regime. (Existing `agentic_qwen3-8b.json` is H100, cache-on only.) | S | Yes |
+| 4 | **Twin prefix-cache modeling** — *deferred.* Verified needed for cache-*on* grading (see above). Until built, grade **cache-off only** and treat cache-on as a known over-prediction. | (verified, deferred) | — |
+| 5 | **Agentic grade harness** — agentic bundle → twin → predicted-vs-measured power, sliced by regime, against the ~6 % held-out bar (cf. `validate_runner` for ShareGPT). | S | No |
+
+### Decisions taken
+
+- **Data source: real agent traces (SWE-agent / tool-use).** Synthetic `_filler`
+  remains only as a smoke-test. The replay path must send real text, not
+  token-count-matched filler. **Open input:** which corpus and whether it carries
+  real inter-turn gap timestamps (no agent-transcript dataset is staged in-repo
+  today — only the WildChat+OpenCodeInstruct mix from `mix_dataset.py`, used by
+  `validate`). The choice sets the parser shape and whether `post_gap_s` is observed
+  or must be synthesized.
+- **Twin (Gap 4): verify-only for now.** Verification is done (above); modeling is a
+  flagged follow-up, not part of this pass.
+
+### Recommended order
+
+1. **Gaps 1 + 3** — real-trace data flowing on already-characterized A100, both
+   prefix-cache regimes (~30 min/run × 2).
+2. **Gap 2** — measured-state ledger, so cache-on runs are honest.
+3. **Gap 5** — close the grading loop (cache-off is fully gradable without Gap 4).
+4. **Gap 4** — twin prefix-cache modeling unblocks cache-*on* grading; deferred.

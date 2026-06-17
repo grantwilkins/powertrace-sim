@@ -38,14 +38,20 @@ source "$SCRIPT_DIR/server_lifecycle.sh"
 # served context for any model size).
 CTYPE="$($CC "$CAMPAIGN" --emit type)"
 if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ]; then
+    # One prefix-cache regime per pass (1 for validate; cache off+on for agentic).
+    # The server is relaunched per regime so --enable-prefix-caching always matches
+    # the run's --prefix-cache (same regime index -> they can't disagree).
+    NREG="$($CC "$CAMPAIGN" --emit regimes)"
     for TP in $($CC "$CAMPAIGN" --emit tps); do
-        echo "### $CTYPE TP=$TP ###"
-        SERVER_LOG="$REPO_ROOT/server-tp${TP}.log" \
-            start_server "$($CC "$CAMPAIGN" --emit serve --tp "$TP")" || exit 1
-        RUNCMD="$($CC "$CAMPAIGN" --emit run-cmd --tp "$TP")"
-        echo "+ uv run $RUNCMD"
-        ( cd "$REPO_ROOT" && uv run $RUNCMD )
-        stop_server
+        for R in $(seq 0 $((NREG - 1))); do
+            echo "### $CTYPE TP=$TP regime=$R/$((NREG - 1)) ###"
+            SERVER_LOG="$REPO_ROOT/server-tp${TP}-r${R}.log" \
+                start_server "$($CC "$CAMPAIGN" --emit serve --tp "$TP" --regime-idx "$R")" || exit 1
+            RUNCMD="$($CC "$CAMPAIGN" --emit run-cmd --tp "$TP" --regime-idx "$R")"
+            echo "+ uv run $RUNCMD"
+            ( cd "$REPO_ROOT" && uv run $RUNCMD )
+            stop_server
+        done
     done
     echo "Campaign complete."
     exit 0

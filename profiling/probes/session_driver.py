@@ -18,7 +18,8 @@ import time
 
 
 def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
-                request_timestamp, post_gap_s, prefix_cache) -> dict:
+                request_timestamp, post_gap_s, prefix_cache,
+                tool_class="", observation_tokens=0) -> dict:
     """One per-turn record (pure)."""
     return {
         "session_id": session_id,
@@ -30,6 +31,8 @@ def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
         "request_timestamp": float(request_timestamp),
         "post_gap_s": float(post_gap_s),
         "prefix_cache": int(bool(prefix_cache)),
+        "tool_class": str(tool_class),          # provenance (replay); ignored by the ledger
+        "observation_tokens": int(observation_tokens),
     }
 
 
@@ -47,6 +50,9 @@ def build_requests_json(records: list[dict]) -> dict:
         "turn_idx": [r["turn_idx"] for r in records],
         "post_gap_s": [r["post_gap_s"] for r in records],
         "prefix_cache": [r["prefix_cache"] for r in records],
+        # replay provenance (ignored by the reconstruction ledger; for slicing)
+        "tool_class": [r.get("tool_class", "") for r in records],
+        "observation_tokens": [r.get("observation_tokens", 0) for r in records],
     }
 
 
@@ -70,18 +76,32 @@ async def send_session(http, base_url, model, session, prefix_cache,
 
     url = base_url.rsplit("/v1", 1)[0].rstrip("/") + "/v1/chat/completions"
     messages = []
-    if session.prefix_tokens > 0:
+    system_text = getattr(session, "system_text", "")
+    if system_text:                                           # replay: real system prompt
+        messages.append({"role": "system", "content": system_text})
+    elif session.prefix_tokens > 0:                           # synthetic: filler prefix
         messages.append({"role": "system", "content": _filler(tokenizer, session.prefix_tokens)})
 
     records = []
     for turn in session.turns:
-        messages.append({"role": "user", "content": _filler(tokenizer, turn.new_input_tokens)})
+        replay = turn.assistant_text is not None
+        user_content = turn.user_text or _filler(tokenizer, turn.new_input_tokens)
+        messages.append({"role": "user", "content": user_content})
         payload = {"model": model, "messages": messages,
                    "max_tokens": turn.output_tokens, "stream": True,
                    "stream_options": {"include_usage": True}, "temperature": 0.0}
+        if replay:
+            # Force exact decode length so the measured decode work matches the
+            # trace (the live content differs from the trace, but token count does
+            # not, and only counts/timing feed the power ledger).
+            payload["ignore_eos"] = True
         t_send = time.time()
         ttft, last, n_out, reply, prompt_tokens = None, t_send, 0, [], None
         async with http.post(url, json=payload) as resp:
+            if resp.status >= 400:
+                # A turn the server rejected (e.g. context-length) breaks the
+                # conversation downstream; stop here rather than record a bad turn.
+                break
             async for raw in resp.content:
                 line = raw.decode("utf-8", "ignore").strip()
                 if not line.startswith("data:"):
@@ -107,13 +127,17 @@ async def send_session(http, base_url, model, session, prefix_cache,
                 reply.append(delta)
         latency = max(last - t_send, 1e-6)
         tpot = (latency - (ttft or 0.0)) / max(n_out - 1, 1)
-        messages.append({"role": "assistant", "content": "".join(reply)})
+        # Faithful replay: grow context with the trace's REAL reply so the next
+        # turn's prompt (and prefix-cache hit pattern) matches the real trajectory.
+        ctx_reply = turn.assistant_text if replay else "".join(reply)
+        messages.append({"role": "assistant", "content": ctx_reply})
         records.append(turn_record(
             session_id=session.session_id, turn_idx=turn.turn_idx,
             input_len=prompt_tokens if prompt_tokens else session.prefix_tokens,
             output_len=n_out, ttft=ttft or latency, tpot=tpot,
             request_timestamp=t_send, post_gap_s=turn.post_gap_s,
-            prefix_cache=prefix_cache))
+            prefix_cache=prefix_cache, tool_class=turn.tool_class,
+            observation_tokens=turn.observation_tokens))
         if turn.post_gap_s > 0:
             await asyncio.sleep(turn.post_gap_s)   # tool-execution gap (idle)
     return records

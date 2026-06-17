@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "literature_prior",
+  "fit_commit": null,
+  "n_total_samples": 0,
+  "_note": "Per-tool-class log-normal for the inter-turn (tool-execution) gap: gap_s ~ LogNormal(mu + b1*log(observation_tokens+1), sigma). These are literature priors (AgentServeSim / Claude-Code workload tables); openhands_gap_fit.py overwrites them with values fit on real OpenHands timing.",
+  "classes": {
+    "local_io": {"mu": -2.5, "sigma": 0.4, "b1": 0.05, "n": 0, "source": "literature_prior"},
+    "bash":     {"mu":  0.18, "sigma": 1.0, "b1": 0.18, "n": 0, "source": "literature_prior"},
+    "remote":   {"mu":  1.4,  "sigma": 1.3, "b1": 0.22, "n": 0, "source": "literature_prior"},
+    "subagent": {"mu":  4.1,  "sigma": 1.0, "b1": 0.10, "n": 0, "source": "literature_prior"}
+  }
+}

@@ -53,6 +53,49 @@ def test_agentic_campaign_loads():
     c = cc.load_campaign(CAMPAIGNS_DIR / "agentic_qwen3-8b.json")
     assert c["campaign_type"] == "agentic"
     assert "sessions" in c and c["sessions"]["n_sessions"] > 0
+    assert cc.regimes(c) == [{"prefix_cache": False}, {"prefix_cache": True}]
+
+
+def test_agentic_regime_flags_agree_per_index():
+    """The server's --enable-prefix-caching and the run's --prefix-cache are both
+    derived from the same regime index, so they can never disagree."""
+    c = cc.load_campaign(CAMPAIGNS_DIR / "agentic_qwen3-8b_a100.json")
+    for idx, want in enumerate([False, True]):
+        reg = cc.regimes(c)[idx]
+        serve = cc.serve_command(c, 1, reg.get("prefix_cache"))
+        run = cc.run_command(c, 1, reg)
+        assert ("--enable-prefix-caching" in serve) is want
+        assert ("--prefix-cache" in run) is want
+    # replay campaign threads the corpus + gap params into the run command
+    run0 = cc.run_command(c, 1, cc.regimes(c)[0])
+    assert "--replay --corpus swe_smith" in run0
+    assert "gap_params.json" in run0
+
+
+def test_agentic_rejects_derived_prefix_cache_fields(tmp_path):
+    bad = tmp_path / "a.json"
+    bad.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "agentic",
+        "server": {"tp": 1, "enable_prefix_caching": True},
+        "sessions": {"n_sessions": 4, "regimes": [{"prefix_cache": True}]},
+    }))
+    with pytest.raises(cc.CampaignError):
+        cc.load_campaign(bad)
+
+
+def test_agentic_requires_regimes(tmp_path):
+    bad = tmp_path / "a.json"
+    bad.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "agentic",
+        "server": {"tp": 1}, "sessions": {"n_sessions": 4},
+    }))
+    with pytest.raises(cc.CampaignError):
+        cc.load_campaign(bad)
+
+
+def test_non_agentic_has_single_empty_regime():
+    c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
+    assert cc.regimes(c) == [{}]
 
 
 def test_validate_requires_workload(tmp_path):

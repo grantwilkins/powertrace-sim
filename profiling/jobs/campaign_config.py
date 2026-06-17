@@ -49,8 +49,19 @@ def _validate(c: dict, path) -> None:
         if "workload" not in c:
             raise CampaignError(f"{where}validate campaigns need a 'workload' block")
     elif c["campaign_type"] == "agentic":
-        if "sessions" not in c:
+        ss = c.get("sessions")
+        if not ss:
             raise CampaignError(f"{where}agentic campaigns need a 'sessions' block")
+        regs = ss.get("regimes")
+        if not (isinstance(regs, list) and regs
+                and all(isinstance(r, dict) and "prefix_cache" in r for r in regs)):
+            raise CampaignError(
+                f"{where}agentic sessions need a non-empty 'regimes' list, each "
+                f"with a 'prefix_cache' boolean")
+        if "enable_prefix_caching" in c["server"] or "prefix_cache" in ss:
+            raise CampaignError(
+                f"{where}agentic prefix-caching is derived per regime; drop "
+                f"server.enable_prefix_caching and sessions.prefix_cache")
     else:
         probes = c.get("probes", [])
         if not probes:
@@ -81,9 +92,15 @@ def _with_defaults(c: dict) -> dict:
     return c
 
 
-def serve_command(c: dict, tp: int) -> str:
-    """The ``vllm serve`` command for this campaign at a given TP."""
+def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
+    """The ``vllm serve`` command for this campaign at a given TP.
+
+    ``prefix_cache`` overrides ``server.enable_prefix_caching`` when given — agentic
+    campaigns pass the per-regime value so the launched server always matches the
+    run's regime (the two can never disagree).
+    """
     s = c["server"]
+    pc = s["enable_prefix_caching"] if prefix_cache is None else prefix_cache
     parts = [f"vllm serve {c['model']}", f"--tensor-parallel-size {tp}",
              f"--max-num-seqs {s['max_num_seqs']}",
              f"--max-num-batched-tokens {s['max_num_batched_tokens']}",
@@ -91,10 +108,17 @@ def serve_command(c: dict, tp: int) -> str:
              f"--max-model-len {s['max_model_len']}"]
     if s["enable_chunked_prefill"]:
         parts.append("--enable-chunked-prefill")
-    if s["enable_prefix_caching"]:
+    if pc:
         parts.append("--enable-prefix-caching")
     parts.extend(s["extra_args"])
     return " ".join(parts)
+
+
+def regimes(c: dict) -> list[dict]:
+    """Prefix-cache regimes to run: one per regime for agentic, a single pass else."""
+    if c["campaign_type"] == "agentic":
+        return list(c["sessions"]["regimes"])
+    return [{}]
 
 
 def tp_degrees(c: dict) -> list[int]:
@@ -178,27 +202,37 @@ def validate_command(c: dict, tp: int) -> str:
     return cmd
 
 
-def agentic_command(c: dict, tp: int) -> str:
-    """`agentic_run` invocation for an agentic campaign (multi-turn sessions)."""
+def agentic_command(c: dict, tp: int, regime: dict) -> str:
+    """`agentic_run` invocation for one prefix-cache regime (multi-turn sessions).
+
+    Replay campaigns (``sessions.corpus`` set) stream real traces; otherwise the
+    synthetic generator runs. ``--prefix-cache`` comes from the regime, matching
+    the server launched for the same regime index.
+    """
     s, ss = c["server"], c["sessions"]
-    pc = "--prefix-cache " if ss.get("prefix_cache") else ""
-    return (
-        f"python -m profiling.probes.agentic_run "
-        f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
-        f"--gpus-per-node {c['gpus_per_node']} "
-        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']} "
-        f"--n-sessions {ss.get('n_sessions', 8)} --gap-mean-s {ss.get('gap_mean_s', 3.0)} "
-        f"{pc}--seed {ss.get('seed', 0)}"
-    )
+    parts = [
+        "python -m profiling.probes.agentic_run",
+        f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--gpus-per-node {c['gpus_per_node']}",
+        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
+        f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
+    ]
+    if ss.get("corpus"):
+        parts.append(f"--replay --corpus {ss['corpus']} --gap-params {ss['gap_params']}")
+    else:
+        parts.append(f"--gap-mean-s {ss.get('gap_mean_s', 3.0)}")
+    if regime.get("prefix_cache"):
+        parts.append("--prefix-cache")
+    return " ".join(parts)
 
 
-def run_command(c: dict, tp: int) -> str:
+def run_command(c: dict, tp: int, regime=None) -> str:
     """The non-probe entrypoint command for validate / agentic campaigns."""
     t = c["campaign_type"]
     if t == "validate":
         return validate_command(c, tp)
     if t == "agentic":
-        return agentic_command(c, tp)
+        return agentic_command(c, tp, regime or {})
     raise CampaignError(f"run_command is only for validate/agentic, not '{t}'")
 
 
@@ -218,13 +252,12 @@ def render_plan(c: dict) -> str:
                 f"--request-rate {w.get('request_rate')}"
             )
         elif c["campaign_type"] == "agentic":
-            s = c["sessions"]
-            lines.append(f"SERVE: {serve_command(c, tp)}")
-            lines.append(
-                f"AGENTIC: session_runner n_sessions={s.get('n_sessions')} "
-                f"prefix_cache={s.get('prefix_cache')} "
-                f"(run with prefix_cache on AND off)"
-            )
+            ss = c["sessions"]
+            for r in regimes(c):
+                pc = bool(r.get("prefix_cache"))
+                lines.append(f"SERVE[prefix_cache={pc}]: {serve_command(c, tp, pc)}")
+                lines.append(
+                    f"AGENTIC[prefix_cache={pc}]: {run_command(c, tp, r)}")
         else:
             # one server per probe (probes need different launch flags)
             for probe, cmd in zip(c["probes"], probe_commands(c, tp)):
@@ -238,8 +271,10 @@ def main():
     ap.add_argument("campaign")
     ap.add_argument("--emit", default="plan",
                     choices=["plan", "json", "tps", "type", "serve", "probes",
-                             "probe-serves", "run-cmd"])
+                             "probe-serves", "run-cmd", "regimes"])
     ap.add_argument("--tp", type=int, default=None)
+    ap.add_argument("--regime-idx", type=int, default=0,
+                    help="prefix-cache regime index (agentic; see --emit regimes)")
     args = ap.parse_args()
     c = load_campaign(args.campaign)
     if args.emit == "json":
@@ -248,14 +283,16 @@ def main():
         print(c["campaign_type"])
     elif args.emit == "tps":
         print("\n".join(str(t) for t in tp_degrees(c)))
+    elif args.emit == "regimes":
+        print(len(regimes(c)))
     elif args.emit == "run-cmd":
         if args.tp is None:
             raise CampaignError("--emit run-cmd requires --tp")
-        print(run_command(c, args.tp))
+        print(run_command(c, args.tp, regimes(c)[args.regime_idx]))
     elif args.emit == "serve":
         if args.tp is None:
             raise CampaignError("--emit serve requires --tp")
-        print(serve_command(c, args.tp))
+        print(serve_command(c, args.tp, regimes(c)[args.regime_idx].get("prefix_cache")))
     elif args.emit == "probes":
         if args.tp is None:
             raise CampaignError("--emit probes requires --tp")
