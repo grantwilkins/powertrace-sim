@@ -163,7 +163,49 @@ def test_probe_commands_nonempty_for_probe_campaign():
     c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
     cmds = cc.probe_commands(c, 8)
     assert len(cmds) == len(c["probes"])
-    assert all(cmd.startswith("python -m profiling.probes.") for cmd in cmds)
+    # Direct-script form (not `python -m`): probe drivers use top-level imports and
+    # there is no profiling/__init__.py, so only the script-path form resolves.
+    assert all(cmd.startswith("python3 profiling/probes/") and ".py " in cmd
+               for cmd in cmds)
+
+
+def test_probe_commands_carry_out_root(monkeypatch):
+    """Every emitted probe command carries --out-root, sourced from $RUNS so the
+    sbatch can point bundles at $SCRATCH (never the repo-local default)."""
+    c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    monkeypatch.setenv("RUNS", "/scratch/users/x/ptsim/runs")
+    cmds = cc.probe_commands(c, 8)
+    assert all("--out-root /scratch/users/x/ptsim/runs" in cmd for cmd in cmds)
+    monkeypatch.delenv("RUNS", raising=False)
+    assert "--out-root data/runs" in cc.probe_commands(c, 8)[0]
+
+
+def test_tp_pair_second_leg_runs_only_decode_prefill():
+    """CAMPAIGN.md §3: the tp_pair second leg repeats decode+prefill only (e_comm),
+    while the primary TP runs the full probe set."""
+    c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    primary, second = cc.tp_degrees(c)  # [8, 4]
+    assert cc.probes_for_tp(c, primary) == c["probes"]
+    assert cc.probes_for_tp(c, second) == ["decode_staircase", "prefill_staircase"]
+    # probe_commands honours the per-leg selection
+    assert len(cc.probe_commands(c, second)) == 2
+
+
+def test_tp_pair_probes_default_when_absent():
+    """Configs without an explicit tp_pair_probes get the decode+prefill default."""
+    c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    assert c["tp_pair_probes"] == ["decode_staircase", "prefill_staircase"]
+
+
+def test_tp_pair_probes_rejects_unknown(tmp_path):
+    bad = tmp_path / "b.json"
+    bad.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "tier1",
+        "server": {"tp": 4}, "probes": ["decode_staircase"],
+        "tp_pair": [4, 2], "tp_pair_probes": ["decode_staircase", "nope"],
+    }))
+    with pytest.raises(cc.CampaignError):
+        cc.load_campaign(bad)
 
 
 def test_validate_run_command_carries_campaign_max_model_len():
@@ -173,7 +215,7 @@ def test_validate_run_command_carries_campaign_max_model_len():
     c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
     mml = c["server"]["max_model_len"]
     cmd = cc.run_command(c, c["server"]["tp"])
-    assert cmd.startswith("python -m profiling.probes.validate_run")
+    assert cmd.startswith("python3 profiling/probes/validate_run.py")
     assert f"--max-model-len {mml}" in cmd
     assert f"--max-model-len {mml}" in cc.serve_command(c, c["server"]["tp"])
     assert f"--dataset {c['workload']['dataset']}" in cmd

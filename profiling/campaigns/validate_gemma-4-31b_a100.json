@@ -1,0 +1,10 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-31B-it",
+  "campaign_type": "validate",
+  "container": "vllm-openai-gemma4.sandbox",
+  "_note": "HELD-OUT TEST for gemma-4-31B: real ShareGPT prompts (Poisson arrivals), NEVER used to fit the model. Graded against the staircase-trained model to measure honest generalization. tp=2 matches the probe runs so the held-out axis is the workload, not the TP.",
+  "server": {"tp": 2, "max_num_seqs": 256, "max_model_len": 32768},
+  "workload": {"dataset": "sharegpt", "num_prompts": 300, "request_rate": 6}
+}

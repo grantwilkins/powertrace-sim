@@ -1,0 +1,106 @@
+{
+  "R0_roofline": {
+    "r2": 0.7182020768535113,
+    "rmse": 93.62721446178101,
+    "coefficients": {
+      "p_idle [W/GPU]": 168.72542347445759,
+      "p_link [W/GPU, TP>1]": 0.0,
+      "e_f_decode [J/FLOP]": 4.060516200724782e-12,
+      "e_w [J/B]": 7.266103199843275e-11,
+      "e_kv_read [J/B]": 0.0
+    },
+    "family_multipliers": {
+      "dense-32b": 1.1000056288729043,
+      "moe-8b": 0.808437836398035
+    }
+  },
+  "R1_phase": {
+    "r2": 0.820301539799248,
+    "rmse": 74.76621350254005,
+    "coefficients": {
+      "p_idle [W/GPU]": 127.688317775466,
+      "p_link [W/GPU, TP>1]": 0.0,
+      "e_f_prefill [J/FLOP]": 1.723073089284431e-12,
+      "e_f_decode [J/FLOP]": 4.702126131573407e-12,
+      "e_w_prefill [J/B]": 1.243916157942686e-10,
+      "e_w_decode [J/B]": 1.0196472742647381e-10,
+      "e_kv_read [J/B]": 0.0,
+      "e_kv_write [J/B]": 0.0,
+      "e_comm [J/B]": 0.0
+    },
+    "family_multipliers": {
+      "dense-32b": 1.0891055920120378,
+      "moe-8b": 0.8735151427029421
+    }
+  },
+  "F0_floor": {
+    "r2": 0.9011370335691137,
+    "rmse": 55.456189806859015,
+    "coefficients": {
+      "p_idle [W/GPU]": 94.0244561371443,
+      "p_link [W/GPU, TP>1]": 0.0,
+      "p_active_floor [W/GPU]": 123.70118016376213,
+      "e_f_decode [J/FLOP]": 3.325340003357269e-12,
+      "e_w [J/B]": 3.643663148977794e-11,
+      "e_kv_read [J/B]": 0.0
+    },
+    "family_multipliers": {
+      "dense-32b": 1.085301600485686,
+      "moe-8b": 0.8974774131406524
+    }
+  },
+  "F1_phase": {
+    "r2": 0.9018394326073126,
+    "rmse": 55.25883679580953,
+    "coefficients": {
+      "p_idle [W/GPU]": 46.70415538984429,
+      "p_link [W/GPU, TP>1]": 46.634251003108005,
+      "p_active_floor [W/GPU]": 117.98534672500277,
+      "e_f_prefill [J/FLOP]": 1.9184653865522705e-13,
+      "e_f_decode [J/FLOP]": 3.424815986363683e-12,
+      "e_w_prefill [J/B]": 0.0,
+      "e_w_decode [J/B]": 4.100009221019718e-11,
+      "e_kv_read [J/B]": 0.0,
+      "e_kv_write [J/B]": 0.0,
+      "e_comm [J/B]": 0.0
+    },
+    "family_multipliers": {
+      "dense-32b": 1.0851205914512179,
+      "moe-8b": 0.8979776776449031
+    }
+  },
+  "S_sat": {
+    "r2": 0.931830473520712,
+    "rmse": 46.04986351563849,
+    "coefficients": {
+      "p_idle [W/GPU]": 90.53060918190911,
+      "p_link [W/GPU, TP>1]": 0.0,
+      "p_active_floor [W/GPU]": 0.0,
+      "p_sat_mem_u0.1 [W/GPU]": 77.74115151817577,
+      "p_sat_mem_u0.4 [W/GPU]": 124.08165273389663,
+      "p_sat_cmp_u0.03 [W/GPU]": 0.0,
+      "p_sat_cmp_u0.2 [W/GPU]": 204.64052834925633
+    },
+    "family_multipliers": {
+      "dense-32b": 1.0973393978977062,
+      "moe-8b": 0.8900911127004419
+    }
+  },
+  "B_best": {
+    "r2": 0.9091296802729676,
+    "rmse": 53.167254790440495,
+    "coefficients": {
+      "p_idle [W/GPU]": 46.80926574535017,
+      "p_link [W/GPU, TP>1]": 46.74460183912081,
+      "p_active_floor [W/GPU]": 115.86348253157031,
+      "p_sat_mem_u0.1 [W/GPU]": 0.0,
+      "p_sat_mem_u0.4 [W/GPU]": 73.17279589000962,
+      "e_f_decode [J/FLOP]": 2.5508484213787597e-12,
+      "e_kv_read [J/B]": 0.0
+    },
+    "family_multipliers": {
+      "dense-32b": 1.0883944650139634,
+      "moe-8b": 0.8950055335148545
+    }
+  }
+}

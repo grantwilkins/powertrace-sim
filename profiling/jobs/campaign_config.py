@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,6 +21,17 @@ KNOWN_PROBES = {
 }
 CAMPAIGN_TYPES = {"tier1", "tier1_partial", "tier2", "validate", "agentic"}
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The tp_pair second leg only repeats decode+prefill (CAMPAIGN.md §3): those two
+# probes identify e_comm; re-running the full set at the 2nd TP is wasted budget.
+DEFAULT_TP_PAIR_PROBES = ["decode_staircase", "prefill_staircase"]
+
+
+def out_root() -> str:
+    """Bundle output root. The sbatch exports ``RUNS=$SCRATCH/...``; off-cluster
+    (dry run / tests) it falls back to the repo-local ``data/runs``. Never $HOME
+    on Sherlock — the sbatch is responsible for pointing RUNS at $SCRATCH."""
+    return os.environ.get("RUNS") or "data/runs"
 
 
 class CampaignError(ValueError):
@@ -75,6 +87,14 @@ def _validate(c: dict, path) -> None:
         if not (isinstance(tp_pair, list) and len(tp_pair) == 2):
             raise CampaignError(f"{where}tp_pair must be a 2-element list")
 
+    tpp = c.get("tp_pair_probes")
+    if tpp is not None:
+        if not isinstance(tpp, list):
+            raise CampaignError(f"{where}tp_pair_probes must be a list")
+        unknown = set(tpp) - KNOWN_PROBES
+        if unknown:
+            raise CampaignError(f"{where}unknown tp_pair_probes: {sorted(unknown)}")
+
 
 def _with_defaults(c: dict) -> dict:
     s = c["server"]
@@ -89,6 +109,7 @@ def _with_defaults(c: dict) -> dict:
     s.setdefault("extra_env", {})
     c.setdefault("gpus_per_node", 8)
     c.setdefault("probes", [])
+    c.setdefault("tp_pair_probes", list(DEFAULT_TP_PAIR_PROBES))
     return c
 
 
@@ -101,7 +122,11 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
     """
     s = c["server"]
     pc = s["enable_prefix_caching"] if prefix_cache is None else prefix_cache
-    parts = [f"vllm serve {c['model']}", f"--tensor-parallel-size {tp}",
+    # Pin the served name to the HF id: with HF_HUB_OFFLINE, vLLM 0.19 otherwise
+    # registers the model under its local snapshot PATH, and the benchmark client
+    # (which requests --model <hf id>) then 404s ("model not found").
+    parts = [f"vllm serve {c['model']}", f"--served-model-name {c['model']}",
+             f"--tensor-parallel-size {tp}",
              f"--max-num-seqs {s['max_num_seqs']}",
              f"--max-num-batched-tokens {s['max_num_batched_tokens']}",
              f"--kv-cache-dtype {s['kv_cache_dtype']}",
@@ -119,6 +144,21 @@ def regimes(c: dict) -> list[dict]:
     if c["campaign_type"] == "agentic":
         return list(c["sessions"]["regimes"])
     return [{}]
+
+
+def probes_for_tp(c: dict, tp: int) -> list[str]:
+    """Probes to run at a given TP.
+
+    The primary TP (``server.tp``) runs the full ``probes`` list. The tp_pair
+    second leg runs only ``tp_pair_probes`` (decode+prefill by default) — those
+    identify e_comm and re-running the full set there is wasted budget
+    (CAMPAIGN.md §3). The subset is intersected with ``probes`` so the leg never
+    runs a probe the campaign didn't declare.
+    """
+    if int(tp) == int(c["server"]["tp"]):
+        return list(c["probes"])
+    subset = c.get("tp_pair_probes") or DEFAULT_TP_PAIR_PROBES
+    return [p for p in subset if p in c["probes"]]
 
 
 def tp_degrees(c: dict) -> list[int]:
@@ -163,21 +203,31 @@ def probe_serve_command(c: dict, probe: str, tp: int) -> str:
 
 
 def probe_commands(c: dict, tp: int) -> list[str]:
-    """`python -m profiling.probes.<probe>` invocations for one TP."""
+    """Direct-script probe invocations for one TP.
+
+    Emits ``python3 profiling/probes/<probe>.py …`` (run with cwd at the repo
+    root) rather than ``python -m …``: the probe drivers use top-level imports
+    (``from _cli import …``) and there is no ``profiling/__init__.py``, so only
+    the direct-script form resolves — the same form the validate pipeline runs.
+    ``run_campaign.sh`` prepends the container ``$APP`` prefix.
+    """
     s = c["server"]
-    cmds = []
     common = (
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
         f"--gpus-per-node {c['gpus_per_node']} "
         f"--max-num-seqs {s['max_num_seqs']} "
         f"--max-model-len {s['max_model_len']} "
-        f"--kv-cache-dtype {s['kv_cache_dtype']}"
+        f"--kv-cache-dtype {s['kv_cache_dtype']} "
+        f"--out-root {out_root()}"
     )
     if s.get("dtype_hint"):
         common += f" --dtype-hint {s['dtype_hint']}"
-    for probe in c["probes"]:
-        cmds.append(f"python -m profiling.probes.{probe} {common}")
-    return cmds
+    # MoE models: prefer the vendor-published active-param count ("A<N>B") over the
+    # analytic estimate (good only to ~10-30%); n_active scales the FLOPs work rate.
+    if c.get("n_active_override"):
+        common += f" --n-active-override {c['n_active_override']}"
+    return [f"python3 profiling/probes/{probe}.py {common}"
+            for probe in probes_for_tp(c, tp)]
 
 
 def validate_command(c: dict, tp: int) -> str:
@@ -189,16 +239,20 @@ def validate_command(c: dict, tp: int) -> str:
     """
     s, w = c["server"], c["workload"]
     cmd = (
-        f"python -m profiling.probes.validate_run "
+        f"python3 profiling/probes/validate_run.py "
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
         f"--gpus-per-node {c['gpus_per_node']} "
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']} "
-        f"--kv-cache-dtype {s['kv_cache_dtype']} "
+        f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()} "
         f"--dataset {w.get('dataset', 'sharegpt')} "
         f"--num-prompts {w.get('num_prompts')} --request-rate {w.get('request_rate')}"
     )
     if w.get("dataset_path"):
         cmd += f" --dataset-path {w['dataset_path']}"
+    # Keep MoE active-param count identical to the probe (training) bundles so the
+    # held-out validate test isn't graded against a different arch for the same model.
+    if c.get("n_active_override"):
+        cmd += f" --n-active-override {c['n_active_override']}"
     return cmd
 
 
@@ -211,12 +265,15 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
     """
     s, ss = c["server"], c["sessions"]
     parts = [
-        "python -m profiling.probes.agentic_run",
+        "python3 profiling/probes/agentic_run.py",
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
         f"--gpus-per-node {c['gpus_per_node']}",
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
+        f"--out-root {out_root()}",
         f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
     ]
+    if c.get("n_active_override"):
+        parts.append(f"--n-active-override {c['n_active_override']}")
     if ss.get("concurrency") is not None:
         parts.append(f"--concurrency {ss['concurrency']}")
     if ss.get("corpus"):
@@ -262,7 +319,7 @@ def render_plan(c: dict) -> str:
                     f"AGENTIC[prefix_cache={pc}]: {run_command(c, tp, r)}")
         else:
             # one server per probe (probes need different launch flags)
-            for probe, cmd in zip(c["probes"], probe_commands(c, tp)):
+            for probe, cmd in zip(probes_for_tp(c, tp), probe_commands(c, tp)):
                 lines.append(f"SERVE[{probe}]: {probe_serve_command(c, probe, tp)}")
                 lines.append(f"PROBE: {cmd}")
     return "\n".join(lines)
@@ -273,7 +330,7 @@ def main():
     ap.add_argument("campaign")
     ap.add_argument("--emit", default="plan",
                     choices=["plan", "json", "tps", "type", "serve", "probes",
-                             "probe-serves", "run-cmd", "regimes"])
+                             "probe-names", "probe-serves", "run-cmd", "regimes"])
     ap.add_argument("--tp", type=int, default=None)
     ap.add_argument("--regime-idx", type=int, default=0,
                     help="prefix-cache regime index (agentic; see --emit regimes)")
@@ -299,10 +356,15 @@ def main():
         if args.tp is None:
             raise CampaignError("--emit probes requires --tp")
         print("\n".join(probe_commands(c, args.tp)))
+    elif args.emit == "probe-names":
+        if args.tp is None:
+            raise CampaignError("--emit probe-names requires --tp")
+        print("\n".join(probes_for_tp(c, args.tp)))
     elif args.emit == "probe-serves":
         if args.tp is None:
             raise CampaignError("--emit probe-serves requires --tp")
-        print("\n".join(probe_serve_command(c, p, args.tp) for p in c["probes"]))
+        print("\n".join(probe_serve_command(c, p, args.tp)
+                        for p in probes_for_tp(c, args.tp)))
     else:
         print(render_plan(c))
 

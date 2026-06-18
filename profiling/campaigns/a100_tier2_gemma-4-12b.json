@@ -1,0 +1,19 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-12B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4-unified.sandbox",
+  "_deferred": "DEFERRED on Sherlock — do not submit. 12B is the gemma4_unified (multimodal) checkpoint, supported only by bleeding-edge vLLM (0.1.dev / cu128+) which needs NVIDIA driver >=570 (CUDA >=12.8). Sherlock's cluster driver is 550 (CUDA 12.4), so the gemma4-unified image fails at GPU init ('driver too old, found 12040'). The plain gemma4 image (vLLM 0.19.1, cu124) can't build gemma4_unified. Revisit when Sherlock updates its driver or on a cluster with >=570. Config kept for that future run.",
+  "_note": "A100 Tier-2 calibration (tp=1; 12B bf16 ~24GB). Needs the vllm-openai:gemma4-unified sandbox.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"]
+}

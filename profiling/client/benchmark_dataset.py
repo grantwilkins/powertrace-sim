@@ -31,7 +31,14 @@ import pandas as pd
 from datasets import load_dataset
 from PIL import Image
 from transformers import PreTrainedTokenizerBase
-from vllm.multimodal import MultiModalDataDict
+
+try:
+    from vllm.multimodal import MultiModalDataDict
+except ImportError:  # relocated in newer vLLM (>=0.11); only a type hint here
+    try:
+        from vllm.multimodal.inputs import MultiModalDataDict
+    except ImportError:
+        MultiModalDataDict = dict  # type: ignore
 
 logger = logging.getLogger(__name__)
 _warned_missing_lora_tokenizer = False

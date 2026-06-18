@@ -41,11 +41,17 @@ SUMMARY_KEYS = (
 def build_command(model: str, base_url: str, tp: int, level, result_path) -> list[str]:
     """Construct the ``benchmark_serving.py`` argv for one probe level (pure)."""
     r = level.request
+    # benchmark_serving composes its URL as ``base_url + endpoint``; ``base_url``
+    # carries the ``/v1`` that the loggers derive ``/metrics`` from, so strip it
+    # here and pass the full ``--endpoint`` (else the URL doubles to /v1/v1/... ->
+    # 404). Same handling as validate_runner.build_validate_command.
+    root = base_url.rsplit("/v1", 1)[0].rstrip("/")
     cmd = [
         sys.executable, str(BENCH_SCRIPT),
         "--model", model,
         "--backend", "vllm",
-        "--base-url", base_url,
+        "--base-url", root,
+        "--endpoint", "/v1/completions",
         "--dataset-name", "random",
         "--random-input-len", str(r.input_len),
         "--random-output-len", str(r.output_len),

@@ -1,0 +1,19 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "_note": "A100 Tier-2 calibration on ramr at tp=2 (MoE, 26B total / 4B active; ~52GB weights need tp=2 for KV headroom on the N=256 decode staircase). arch_extract detects 128 experts/top-8; n_active_override carries the vendor A4B count (analytic estimate is ~3.2e9). Gemma-4 needs the newer vLLM container.",
+  "n_active_override": 4.0e9,
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"]
+}

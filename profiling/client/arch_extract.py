@@ -113,7 +113,8 @@ def _moe_fields(config: dict) -> Optional[dict]:
         "moe_num_experts",
     )
     # NB: do NOT fall back to ``n_group`` (DeepSeek expert-GROUP count, not top-k).
-    top_k = _get(config, "num_experts_per_tok", "moe_topk", "num_selected_experts")
+    top_k = _get(config, "num_experts_per_tok", "moe_topk", "num_selected_experts",
+                 "top_k_experts", "num_experts_per_token")  # gemma-4: top_k_experts
     if not n_experts or not top_k:
         return None
     n_experts = int(n_experts)
@@ -283,7 +284,15 @@ def extract_arch(
     swa_window = float(_get(cfg, "sliding_window", default=0) or 0)
     # Gemma-3 style interleave: ``sliding_window_pattern: 6`` -> 5 local : 1 global.
     pattern = _get(cfg, "sliding_window_pattern", "global_attn_every_n_layers")
-    swa_global_ratio = float(int(pattern) - 1) if pattern else 0.0
+    if pattern:
+        swa_global_ratio = float(int(pattern) - 1)
+    else:
+        # Gemma-4 encodes the split as an explicit per-layer list instead of a
+        # period (e.g. 40 ``sliding_attention`` : 8 ``full_attention`` = 5:1).
+        lt = _get(cfg, "layer_types", default=None)
+        n_full = sum(1 for t in lt if "full" in str(t).lower()) if isinstance(lt, list) else 0
+        n_local = sum(1 for t in lt if "slid" in str(t).lower()) if isinstance(lt, list) else 0
+        swa_global_ratio = float(n_local / n_full) if n_full else 0.0
 
     n_linear = _linear_attention_layers(cfg, n_layers)
     linear_attention = 1 if n_linear > 0 else 0
@@ -327,8 +336,20 @@ def _synth_family(n_active: float, is_moe: bool) -> str:
 
 
 def load_config(model_id: str) -> dict:
-    """Thin network helper: fetch a model's ``config.json`` (not unit-tested)."""
-    from transformers import AutoConfig
+    """Fetch a model's ``config.json`` as a dict (not unit-tested).
 
-    cfg = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-    return cfg.to_dict()
+    Prefers ``transformers.AutoConfig``, but falls back to the raw ``config.json``
+    when AutoConfig can't build the architecture — e.g. very new model_types like
+    ``gemma4_unified`` that vLLM serves but the installed transformers doesn't yet
+    register. ``extract_arch`` consumes the dict either way (it normalises nested
+    ``text_config`` and reads fields by name), so the raw config is equivalent for
+    the fields the power model needs.
+    """
+    try:
+        from transformers import AutoConfig
+        return AutoConfig.from_pretrained(model_id, trust_remote_code=True).to_dict()
+    except Exception:
+        import json
+        from huggingface_hub import hf_hub_download
+        with open(hf_hub_download(model_id, "config.json")) as f:
+            return json.load(f)

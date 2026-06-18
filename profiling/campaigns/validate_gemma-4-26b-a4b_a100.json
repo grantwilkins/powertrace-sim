@@ -1,0 +1,11 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "validate",
+  "container": "vllm-openai-gemma4.sandbox",
+  "n_active_override": 4.0e9,
+  "_note": "HELD-OUT TEST for gemma-4-26B-A4B (MoE): real ShareGPT prompts (Poisson arrivals), NEVER used to fit the model. n_active_override matches the probe bundles so train/test arch is identical. tp=2 matches the probe runs so the held-out axis is the workload, not the TP.",
+  "server": {"tp": 2, "max_num_seqs": 256, "max_model_len": 32768},
+  "workload": {"dataset": "sharegpt", "num_prompts": 300, "request_rate": 6}
+}
