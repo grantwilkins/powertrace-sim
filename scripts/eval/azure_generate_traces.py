@@ -45,6 +45,7 @@ from scripts.eval.baselines import (
 )
 from scripts.eval.facility import FacilityLayout
 from scripts.eval.pipeline_utils import (
+    _load_or_estimate_ar1_params,
     build_rollout_features_from_requests,
     estimate_ar1_params,
     extract_norm_params,
@@ -138,46 +139,6 @@ def _load_training_bundle(
 
 
 _load_model = load_gru_classifier
-
-
-def _load_or_estimate_ar1_params(
-    *,
-    config_id: str,
-    gmm_params: Dict[str, object],
-    train_power_traces: Sequence[np.ndarray],
-    ar1_params_dir: str,
-) -> Dict[str, np.ndarray]:
-    ar1_path = Path(ar1_params_dir) / f"{config_id}_ar1_params.json"
-    k = int(gmm_params["k"])
-    if ar1_path.exists():
-        payload = load_json(str(ar1_path))
-        phi = np.asarray(payload.get("phi", []), dtype=np.float64).reshape(-1)
-        sigma_innov = np.asarray(payload.get("sigma_innov", []), dtype=np.float64).reshape(-1)
-        sigma_marginal = np.asarray(payload.get("sigma_marginal", []), dtype=np.float64).reshape(-1)
-        if phi.size == k and sigma_innov.size == k and sigma_marginal.size == k:
-            return {
-                "phi": phi,
-                "sigma_innov": sigma_innov,
-                "sigma_marginal": sigma_marginal,
-                "phi_threshold": float(payload.get("phi_threshold", 0.3)),
-            }
-
-    train_labels = [
-        predict_sorted_gmm_labels_from_params(trace, gmm_params).astype(np.int64)
-        for trace in train_power_traces
-    ]
-    phi, sigma_innov, sigma_marginal = estimate_ar1_params(
-        gmm_params=gmm_params,
-        training_power_traces=train_power_traces,
-        training_labels_traces=train_labels,
-        K=k,
-    )
-    return {
-        "phi": np.asarray(phi, dtype=np.float64).reshape(-1),
-        "sigma_innov": np.asarray(sigma_innov, dtype=np.float64).reshape(-1),
-        "sigma_marginal": np.asarray(sigma_marginal, dtype=np.float64).reshape(-1),
-        "phi_threshold": 0.3,
-    }
 
 
 def _load_node_requests(path: str) -> List[Dict[str, float]]:
@@ -415,6 +376,14 @@ def generate_node_traces(
     train_power_traces = list(train_bundle["train_power_traces"])
 
     use_ar1 = bool(_is_moe_config(config_id))
+    generation_mode_by_method = {
+        method: (
+            "ar1_thresholded"
+            if method == "ours" and use_ar1
+            else ("iid" if method == "ours" else "splitwise_style_lut")
+        )
+        for method in method_list
+    }
     ar1_params: Optional[Mapping[str, np.ndarray]] = None
     if use_ar1 and "ours" in method_list:
         ar1_params = _load_or_estimate_ar1_params(
@@ -519,6 +488,7 @@ def generate_node_traces(
                             "rack": int(rack),
                             "node": int(node),
                             "file": f"{method}/node_{row}_{rack}_{node}.npy",
+                            "generation_mode": str(generation_mode_by_method[method]),
                             "num_requests": 0,
                             "seed": int(base_seed + node_id * 1009),
                             "status": "failed",
@@ -631,6 +601,7 @@ def generate_node_traces(
                             "rack": int(rack),
                             "node": int(node),
                             "file": f"{method}/{os.path.basename(out_path)}",
+                            "generation_mode": str(generation_mode_by_method[method]),
                             "num_requests": int(num_requests),
                             "seed": int(node_seed),
                             "status": "evaluated",
@@ -652,6 +623,7 @@ def generate_node_traces(
                             "rack": int(rack),
                             "node": int(node),
                             "file": f"{method}/node_{row}_{rack}_{node}.npy",
+                            "generation_mode": str(generation_mode_by_method[method]),
                             "num_requests": int(num_requests),
                             "seed": int(node_seed),
                             "status": "failed",
@@ -675,6 +647,7 @@ def generate_node_traces(
                 "rack",
                 "node",
                 "file",
+                "generation_mode",
                 "num_requests",
                 "seed",
                 "status",
@@ -717,6 +690,9 @@ def generate_node_traces(
             "ours_std_scale": float(ours_std_scale),
             "ours_logit_temperature": float(ours_logit_temperature),
             "uses_ar1": bool(use_ar1),
+            "generation_mode_by_method": {
+                key: str(value) for key, value in generation_mode_by_method.items()
+            },
             "tp_gpus": int(resolved_tp),
             "n_gpus_per_node": int(resolved_n_gpus),
             "non_gpu_overhead_w": float(non_gpu_overhead_w),

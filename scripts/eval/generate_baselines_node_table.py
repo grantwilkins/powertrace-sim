@@ -31,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.utils.io import write_json
+from scripts.eval.pipeline_utils import _fmt
 
 CONFIG_ID_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
@@ -294,14 +295,6 @@ def _aggregate_method_metrics(
     }
 
 
-def _fmt(value: Optional[float], decimals: int, dash: str = "---") -> str:
-    if value is None:
-        return dash
-    if not np.isfinite(float(value)):
-        return dash
-    return f"{float(value):.{int(decimals)}f}"
-
-
 def _build_table_rows(
     *,
     method_metrics: Mapping[str, Mapping[str, float]],
@@ -417,7 +410,7 @@ def generate_baselines_node_table(
     recompute_node_metrics: bool = False,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
     num_seeds: int = 5,
@@ -692,7 +685,7 @@ def main() -> None:
         default="results/experimental_continuous_v1/manifest.json",
     )
     parser.add_argument(
-        "--throughput-db", default="model/config/throughput_database.json"
+        "--throughput-db", default="model/throughput_database.json"
     )
     parser.add_argument(
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"

@@ -59,6 +59,10 @@ from model.classifiers.model_loading import load_gru_classifier  # noqa: E402
 from model.utils.io import load_json, safe_slug, write_json  # noqa: E402
 from scripts.eval.azure_defaults import MODEL_NAME_MAP  # noqa: E402
 from scripts.eval.pipeline_utils import (  # noqa: E402
+    _finite_float,
+    _load_pair_manifest_map,
+    _parse_config_ids,
+    _resolve_existing_path,
     resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
     resolve_experimental_paths as _shared_resolve_experimental_paths,
     resolve_throughput as _shared_resolve_throughput,
@@ -299,19 +303,6 @@ def _write_csv(
             writer.writerow(row)
 
 
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
-
-
 def _resolve_device(device: Optional[torch.device | str]) -> torch.device:
     if device is None:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -320,24 +311,6 @@ def _resolve_device(device: Optional[torch.device | str]) -> torch.device:
     if str(device).lower() == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(str(device))
-
-
-def _parse_config_ids(config_ids: Optional[Sequence[str]]) -> List[str]:
-    if not config_ids:
-        return []
-    out: List[str] = []
-    for token in config_ids:
-        if token is None:
-            continue
-        out.extend([x.strip() for x in str(token).split(",") if x.strip()])
-    deduped: List[str] = []
-    seen = set()
-    for cid in out:
-        if cid in seen:
-            continue
-        deduped.append(cid)
-        seen.add(cid)
-    return deduped
 
 
 def _select_single_gpt_oss_120b_config_id(
@@ -361,16 +334,6 @@ def _select_single_gpt_oss_120b_config_id(
         return None
     fallback.sort()
     return fallback[0]
-
-
-def _finite_float(value: object) -> Optional[float]:
-    try:
-        out = float(value)
-    except Exception:
-        return None
-    if not np.isfinite(out):
-        return None
-    return out
 
 
 def _synthesize_request_timestamps(
@@ -453,24 +416,6 @@ def _build_requests_from_stage0_json(
     return requests
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
-
-
 _extract_norm_for_eval = extract_norm_params
 
 
@@ -525,9 +470,7 @@ def _build_default_paths() -> Dict[str, str]:
         "experimental_manifest": str(
             repo_root / "results" / "experimental_continuous_v1" / "manifest.json"
         ),
-        "throughput_db": str(
-            repo_root / "model" / "config" / "throughput_database.json"
-        ),
+        "throughput_db": str(repo_root / "model" / "throughput_database.json"),
         "pair_manifest_csv": str(
             repo_root / "results" / "stage0" / "pair_manifest.csv"
         ),

@@ -39,6 +39,9 @@ from scripts.eval.baselines import (
     normalize_splitwise_style_lut_mode,
 )
 from scripts.eval.pipeline_utils import (
+    _is_70b_tp4_config,
+    _load_pair_manifest_map,
+    _resolve_existing_path,
     build_rollout_features_from_requests,
     estimate_ar1_params,
     extract_norm_params,
@@ -70,7 +73,6 @@ STYLE = {
     "ours": {"label": "Ours", "color": "#006F54", "linestyle": "-", "linewidth": 2.8},
 }
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
-CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
 
@@ -105,19 +107,6 @@ def _write_csv(
             writer.writerow(row)
 
 
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
-
-
 def _resolve_device(device: Optional[Union[torch.device, str]]) -> torch.device:
     if device is None:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,24 +123,6 @@ _extract_norm_for_eval = extract_norm_params
 _resolve_checkpoint_norm_gmm_paths = _shared_resolve_checkpoint_norm_gmm_paths
 _resolve_throughput = _shared_resolve_throughput
 _resolve_experimental_paths = _shared_resolve_experimental_paths
-
-
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
 
 
 _load_model = load_gru_classifier
@@ -551,10 +522,6 @@ def _pretty_config_label(config_id: str) -> str:
     return f"{model_name}, {hw} TP{tp}"
 
 
-def _is_70b_tp4_config(config_id: str) -> bool:
-    return CONFIG_70B_TP4_RE.match(str(config_id).strip()) is not None
-
-
 def _resolve_methods(splitwise_mode: str) -> List[str]:
     mode = str(splitwise_mode).strip().lower()
     if mode == "strict":
@@ -651,7 +618,7 @@ def run_baselines_facility(
     *,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
     out_csv: str = "results/eval_paper/baselines_facility_metrics.csv",
@@ -1416,7 +1383,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="results/experimental_continuous_v1/manifest.json",
     )
     parser.add_argument(
-        "--throughput-db", default="model/config/throughput_database.json"
+        "--throughput-db", default="model/throughput_database.json"
     )
     parser.add_argument(
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"

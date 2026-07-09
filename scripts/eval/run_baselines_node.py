@@ -25,6 +25,12 @@ if str(REPO_ROOT) not in sys.path:
 from model.classifiers.metrics import compute_aggregate_power_metrics
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.pipeline_utils import (
+    _finite_float,
+    _is_70b_tp4_config,
+    _load_or_estimate_ar1_params,
+    _load_pair_manifest_map,
+    _parse_config_ids,
+    _resolve_existing_path,
     build_rollout_features_from_requests,
     estimate_ar1_params,
     extract_norm_params,
@@ -68,7 +74,6 @@ DEFAULT_PER_GPU_CHIP_TDP_W = {
     "A100": 400.0,
     "H100": 700.0,
 }
-CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 
 # Backward-compatible alias used by run_baselines_node_groundtruth imports.
@@ -84,19 +89,6 @@ def _write_csv(path: str, rows: Sequence[Dict[str, object]], fieldnames: Sequenc
             writer.writerow(row)
 
 
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
-
-
 def _resolve_device(device: Optional[Union[torch.device, str]]) -> torch.device:
     if device is None:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -105,28 +97,6 @@ def _resolve_device(device: Optional[Union[torch.device, str]]) -> torch.device:
     if str(device).lower() == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(str(device))
-
-
-def _parse_config_ids(config_ids: Optional[Sequence[str]]) -> List[str]:
-    if not config_ids:
-        return []
-    out: List[str] = []
-    for token in config_ids:
-        if token is None:
-            continue
-        out.extend([x.strip() for x in str(token).split(",") if x.strip()])
-    deduped: List[str] = []
-    seen = set()
-    for cid in out:
-        if cid in seen:
-            continue
-        deduped.append(cid)
-        seen.add(cid)
-    return deduped
-
-
-def _is_70b_tp4_config(config_id: str) -> bool:
-    return CONFIG_70B_TP4_RE.match(str(config_id).strip()) is not None
 
 
 def _parse_tp_from_config_id(config_id: str) -> int:
@@ -182,6 +152,17 @@ def _is_moe_config(config_id: str) -> bool:
     if "gpt-oss" in model_family and model_size >= 20:
         return True
     return False
+
+
+def _generation_mode_for_method(method: str, config_id: str) -> str:
+    method_name = str(method)
+    if method_name == "ours":
+        return "ar1_thresholded" if _is_moe_config(config_id) else "iid"
+    if method_name == "splitwise_strict":
+        return "splitwise_style_lut"
+    if method_name in CONSTANT_METHODS:
+        return "deterministic_constant"
+    return ""
 
 
 def _nanmedian(values: Iterable[float]) -> float:
@@ -370,16 +351,6 @@ def _estimate_splitwise_phase_targets_from_indices(
     return out
 
 
-def _finite_float(value: object) -> Optional[float]:
-    try:
-        out = float(value)
-    except Exception:
-        return None
-    if not np.isfinite(out):
-        return None
-    return out
-
-
 def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
     if n <= 0:
         return []
@@ -473,64 +444,6 @@ _resolve_experimental_paths = _shared_resolve_experimental_paths
 _load_model = load_gru_classifier
 
 
-def _load_pair_manifest_map(pair_manifest_csv: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    base_dir = str(Path(pair_manifest_csv).resolve().parent)
-    with open(pair_manifest_csv, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if str(row.get("status", "")).strip() != "matched":
-                continue
-            key = str(row.get("pair_key", "")).strip()
-            json_path_raw = str(row.get("json_path", "")).strip()
-            if key == "" or json_path_raw == "":
-                continue
-            json_path = _resolve_existing_path(json_path_raw, base_dir)
-            if json_path is not None:
-                out[key] = json_path
-    return out
-
-
-def _load_or_estimate_ar1_params(
-    *,
-    config_id: str,
-    gmm_params: Dict[str, object],
-    train_power_traces: Sequence[np.ndarray],
-    ar1_params_dir: str,
-) -> Dict[str, np.ndarray]:
-    ar1_path = Path(ar1_params_dir) / f"{config_id}_ar1_params.json"
-    k = int(gmm_params["k"])
-    if ar1_path.exists():
-        payload = load_json(str(ar1_path))
-        phi = np.asarray(payload.get("phi", []), dtype=np.float64).reshape(-1)
-        sigma_innov = np.asarray(payload.get("sigma_innov", []), dtype=np.float64).reshape(-1)
-        sigma_marginal = np.asarray(payload.get("sigma_marginal", []), dtype=np.float64).reshape(-1)
-        if phi.size == k and sigma_innov.size == k and sigma_marginal.size == k:
-            return {
-                "phi": phi,
-                "sigma_innov": sigma_innov,
-                "sigma_marginal": sigma_marginal,
-                "phi_threshold": float(payload.get("phi_threshold", 0.3)),
-            }
-
-    train_labels = [
-        predict_sorted_gmm_labels_from_params(trace, gmm_params).astype(np.int64)
-        for trace in train_power_traces
-    ]
-    phi, sigma_innov, sigma_marginal = estimate_ar1_params(
-        gmm_params=gmm_params,
-        training_power_traces=train_power_traces,
-        training_labels_traces=train_labels,
-        K=k,
-    )
-    return {
-        "phi": np.asarray(phi, dtype=np.float64).reshape(-1),
-        "sigma_innov": np.asarray(sigma_innov, dtype=np.float64).reshape(-1),
-        "sigma_marginal": np.asarray(sigma_marginal, dtype=np.float64).reshape(-1),
-        "phi_threshold": 0.3,
-    }
-
-
 def _make_failed_row(
     *,
     config_id: str,
@@ -563,11 +476,14 @@ def _make_failed_row(
     return {
         "config_id": config_id,
         "method": method,
+        "generation_mode": _generation_mode_for_method(method, config_id),
         "status": "failed",
         "reason": reason,
         "num_test_traces": 0,
         "num_eval_traces": 0,
+        "num_skipped_traces": 0,
         "num_failed_traces": 0,
+        "num_skipped_or_failed_traces": 0,
         "num_seeds": 0,
         "ks_stat": float("nan"),
         "acf_r2": float("nan"),
@@ -609,7 +525,7 @@ def run_baselines_node(
     *,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
     out_csv: str = "results/eval_paper/baselines_node_level.csv",
@@ -660,6 +576,9 @@ def run_baselines_node(
             str, Dict[int, List[Tuple[int, np.ndarray, np.ndarray]]]
         ] = {method: {} for method in METHODS}
         method_errors: Dict[str, List[str]] = {method: [] for method in METHODS}
+        method_skipped_trace_ids: Dict[str, set[int]] = {
+            method: set() for method in METHODS
+        }
         splitwise_method_meta: Dict[str, Dict[str, object]] = {}
         splitwise_generation_meta: Dict[str, Dict[str, object]] = {}
         total_test_traces = 0
@@ -876,18 +795,21 @@ def run_baselines_node(
                 if test_idx < 0 or test_idx >= n_total:
                     for method in METHODS:
                         method_errors[method].append(f"trace_idx={test_idx}:out_of_bounds")
+                        method_skipped_trace_ids[method].add(int(test_idx))
                     continue
 
                 power = np.asarray(power_arr[test_idx], dtype=np.float64).reshape(-1)
                 if power.size < 2:
                     for method in METHODS:
                         method_errors[method].append(f"trace_idx={test_idx}:trace_too_short")
+                        method_skipped_trace_ids[method].add(int(test_idx))
                     continue
                 pair_key = str(pair_key_arr[test_idx])
                 json_path = pair_map.get(pair_key)
                 if json_path is None:
                     for method in METHODS:
                         method_errors[method].append(f"trace_idx={test_idx}:missing_pair_key")
+                        method_skipped_trace_ids[method].add(int(test_idx))
                     continue
 
                 p0 = float(power[0])
@@ -913,12 +835,14 @@ def run_baselines_node(
                 if features_norm.ndim != 2:
                     for method in METHODS:
                         method_errors[method].append(f"trace_idx={test_idx}:invalid_feature_shape")
+                        method_skipped_trace_ids[method].add(int(test_idx))
                     continue
 
                 n_eval = int(min(gt.size, features_norm.shape[0]))
                 if n_eval <= 0:
                     for method in METHODS:
                         method_errors[method].append(f"trace_idx={test_idx}:empty_aligned_horizon")
+                        method_skipped_trace_ids[method].add(int(test_idx))
                     continue
 
                 gt_eval = gt[:n_eval]
@@ -1064,6 +988,13 @@ def run_baselines_node(
                     force_nan_acf=bool(method in CONSTANT_METHODS),
                 )
             )
+            num_skipped_traces = int(len(method_skipped_trace_ids[method]))
+            num_skipped_or_failed_traces = int(
+                max(0, total_test_traces - num_eval_traces)
+            )
+            num_failed_traces = int(
+                max(0, num_skipped_or_failed_traces - num_skipped_traces)
+            )
             if aggregated is None:
                 reason = method_errors[method][0] if method_errors[method] else "no_valid_trace_metrics"
                 method_meta = _splitwise_meta_for_method(method)
@@ -1097,6 +1028,13 @@ def run_baselines_node(
                         splitwise_max_batch_tokens_seen=float(method_meta["splitwise_max_batch_tokens_seen"]),
                     )
                 )
+                rows[-1]["num_test_traces"] = int(total_test_traces)
+                rows[-1]["num_eval_traces"] = int(num_eval_traces)
+                rows[-1]["num_skipped_traces"] = int(num_skipped_traces)
+                rows[-1]["num_failed_traces"] = int(num_failed_traces)
+                rows[-1]["num_skipped_or_failed_traces"] = int(
+                    num_skipped_or_failed_traces
+                )
                 continue
 
             method_splitwise_meta = _splitwise_meta_for_method(method)
@@ -1104,11 +1042,16 @@ def run_baselines_node(
                 {
                     "config_id": config_id,
                     "method": method,
+                    "generation_mode": _generation_mode_for_method(method, config_id),
                     "status": "evaluated",
                     "reason": "",
                     "num_test_traces": int(total_test_traces),
                     "num_eval_traces": int(num_eval_traces),
-                    "num_failed_traces": int(max(0, total_test_traces - num_eval_traces)),
+                    "num_skipped_traces": int(num_skipped_traces),
+                    "num_failed_traces": int(num_failed_traces),
+                    "num_skipped_or_failed_traces": int(
+                        num_skipped_or_failed_traces
+                    ),
                     "num_seeds": int(num_eval_seeds),
                     "ks_stat": float(aggregated["ks_stat"]),
                     "acf_r2": float(aggregated["acf_r2"]),
@@ -1173,11 +1116,14 @@ def run_baselines_node(
     fieldnames = [
         "config_id",
         "method",
+        "generation_mode",
         "status",
         "reason",
         "num_test_traces",
         "num_eval_traces",
+        "num_skipped_traces",
         "num_failed_traces",
+        "num_skipped_or_failed_traces",
         "num_seeds",
         "ks_stat",
         "acf_r2",
@@ -1228,7 +1174,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
     parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
-    parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
+    parser.add_argument("--throughput-db", default="model/throughput_database.json")
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
         "--ar1-params-dir",

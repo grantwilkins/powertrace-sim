@@ -31,6 +31,7 @@ from scripts.eval.azure_defaults import (
     write_json,
 )
 from scripts.eval.azure_metrics import compute_azure_facility_metrics
+from scripts.eval.pipeline_utils import _fmt
 
 TRACE_KIND_HEADER = {
     "tdp_baseline": "TDP",
@@ -132,14 +133,6 @@ def _derive_method_metrics(
             "transformer_mva": float(transformer_mva),
         }
     return out
-
-
-def _fmt(value: Optional[float], decimals: int, dash: str = "---") -> str:
-    if value is None:
-        return dash
-    if not np.isfinite(float(value)):
-        return dash
-    return f"{float(value):.{int(decimals)}f}"
 
 
 def _build_table_rows(

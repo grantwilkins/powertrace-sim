@@ -36,6 +36,7 @@ import numpy as np
 import seaborn as sns
 
 from model.utils.io import ensure_dir, load_json, safe_slug, write_json
+from scripts.eval.pipeline_utils import _resolve_existing_path
 
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_70B_ALL_TP_RE = re.compile(r"^.+-70b_(A100|H100)_tp\d+$")
@@ -126,19 +127,6 @@ def _write_csv(
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
-
-
-def _resolve_existing_path(path_str: str, base_dir: str) -> Optional[str]:
-    raw = Path(path_str)
-    if raw.is_absolute():
-        return str(raw) if raw.exists() else None
-    local = Path(path_str)
-    if local.exists():
-        return str(local)
-    from_base = Path(base_dir) / raw
-    if from_base.exists():
-        return str(from_base)
-    return None
 
 
 def _safe_float(value: object) -> Optional[float]:
@@ -1476,7 +1464,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--pair-manifest-csv", default="results/stage0/pair_manifest.csv"
     )
     parser.add_argument(
-        "--throughput-db", default="model/config/throughput_database.json"
+        "--throughput-db", default="model/throughput_database.json"
     )
     parser.add_argument(
         "--config-pool",
