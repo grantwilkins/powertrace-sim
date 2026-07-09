@@ -83,7 +83,7 @@ fit, R² 0.91–0.99, is the price of the 3-number model). The knee column doubl
 as the hardware-class signature: ℓ ≈ 0.03–0.15 for dense 70B+ (step-like),
 0.3–0.6 for 8B/MoE (gradual).
 
-**Artifacts.** Model table: `operator_table.csv` (`scripts/eval/operator_table.py`).
+**Artifacts.** Model table: `operator_table.csv` (`scripts/legacy/operator_table.py`).
 Validation: `saturating_summary.csv`, `summary.csv`, figures in
 `figures/two_price_fit/sat_*.png` (Figure 2: `sat_llama-3-70b-a100_tp4.png`
 step regime 42×, paired with `sat_gpt-oss-120b-a100_tp4.png` smooth regime 4×).

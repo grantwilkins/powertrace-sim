@@ -1,17 +1,15 @@
 # Scripts
 
-This directory contains the evaluation entrypoints and a few shell wrappers.
-The current command-line surface lives in `scripts/eval/`; training entrypoints
-live under `model/scripts/`.
+This directory contains the evaluation entrypoints. The current command-line
+surface lives in `scripts/eval/`; training entrypoints live under
+`model/scripts/`. Archived scripts live in `scripts/legacy/`.
 
 ## Layout
 
 ```text
 scripts/
 ├── eval/                 # Evaluation, Azure pipeline, tables, figures
-├── collect_random_weights.sh
-├── run_ablation_study.sh
-└── run_training.sh
+└── legacy/               # Archived scripts cut from the e-Energy paper path
 ```
 
 ## Common Entry Points
