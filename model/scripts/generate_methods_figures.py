@@ -55,7 +55,6 @@ COLOR_RED = "#e74c3c"
 COLOR_ORANGE = "#e67e22"
 COLOR_GREEN = "#27ae60"
 COLOR_PURPLE = "#8e44ad"
-COLOR_LIGHT_GRAY = "#bdc3c7"
 
 BIC_CONFIGS = {
     "bic_config1": {
@@ -95,19 +94,6 @@ AT_OVERLAY_WINDOW_SECONDS: Optional[float] = None
 MOE_PROXY_CONFIG_ID = "gpt-oss-120b_A100_tp4"
 MOE_PROXY_RATE = 1.0
 DEEPSEEK_DENSE_CONFIG_ID = "deepseek-r1-distill-70b_H100_tp4"
-
-GMM_STRUCTURE_CONFIGS = {
-    "dense": {
-        "config_id": "llama-3-8b_H100_tp1",
-        "trace_idx": 16,
-        "title": "Llama-3.1-8B / A100 / TP=1",
-    },
-    "moe": {
-        "config_id": "gpt-oss-120b_A100_tp4",
-        "trace_idx": 19,
-        "title": "GPT-OSS-120B / A100 / TP=4 (MoE Proxy)",
-    },
-}
 
 VALIDATION_PDFS = [
     "validation_deepseek-r1-distill_8b_h100_tp8_ttft.pdf",
@@ -466,12 +452,6 @@ def select_seed_nearest_median_nrmse(
     return int(candidates[0][0])
 
 
-def _gaussian_pdf(x: np.ndarray, mean: float, std: float) -> np.ndarray:
-    sigma = max(float(std), 1e-12)
-    z = (x - float(mean)) / sigma
-    return (1.0 / (sigma * np.sqrt(2.0 * np.pi))) * np.exp(-0.5 * z * z)
-
-
 def bic_sweep(
     power_values: np.ndarray,
     *,
@@ -517,23 +497,6 @@ def normalize_bic_values(bic_values: Sequence[float]) -> List[float]:
     max_v = float(np.max(arr))
     denom = max(max_v - min_v, 1e-12)
     return ((arr - min_v) / denom).astype(np.float64).tolist()
-
-
-def _fit_gmm(power_values: np.ndarray, k: int) -> Any:
-    y = np.asarray(power_values, dtype=np.float64).reshape(-1)
-    y = y[np.isfinite(y)]
-    if y.size < int(k):
-        raise ValueError(f"Need at least k points for GMM fit; got n={y.size}, k={k}")
-    x = y.reshape(-1, 1)
-    gmm = make_gaussian_mixture(
-        n_components=int(k),
-        random_state=42,
-        n_init=10,
-        max_iter=300,
-        reg_covar=1e-6,
-    )
-    gmm.fit(x)
-    return gmm
 
 
 def detect_first_power_spike(
@@ -807,36 +770,6 @@ def _resolve_throughput_entry(
     return {"lambda_prefill": float(prefill), "lambda_decode": float(decode)}
 
 
-def _plot_bic_curve(
-    path: Path,
-    title: str,
-    k_values: Sequence[int],
-    bic_values: Sequence[float],
-    best_k: int,
-) -> None:
-    fig, ax = plt.subplots(figsize=(3.5, 2.5))
-    ax.plot(
-        list(k_values),
-        list(bic_values),
-        "o-",
-        markersize=3,
-        linewidth=1.25,
-        color=COLOR_DARK,
-    )
-    y_min = float(np.min(np.asarray(bic_values, dtype=np.float64)))
-    ax.axvline(float(best_k), linestyle="--", color=COLOR_RED, alpha=0.8)
-    ax.annotate(
-        f"K*={int(best_k)}",
-        xy=(float(best_k), y_min),
-        xytext=(float(best_k) + 1.2, y_min),
-        color=COLOR_RED,
-    )
-    ax.set_xlabel("Number of components K")
-    ax.set_ylabel("BIC")
-    ax.set_xlim(float(min(k_values)), float(max(k_values)))
-    save_pdf(fig, path)
-
-
 def _plot_bic_normalized_overlay(
     path: Path,
     *,
@@ -921,31 +854,6 @@ def _plot_sim_overlay(
     save_pdf(fig, path)
 
 
-def _plot_gmm_structure(
-    path: Path,
-    *,
-    title: str,
-    power_values: np.ndarray,
-    weights: np.ndarray,
-    means: np.ndarray,
-    stds: np.ndarray,
-) -> None:
-    fig, ax = plt.subplots(figsize=(3.5, 2.5))
-    y = np.asarray(power_values, dtype=np.float64).reshape(-1)
-    y = y[np.isfinite(y)]
-    ax.hist(y, bins=100, density=True, color=COLOR_LIGHT_GRAY, alpha=0.5)
-    x = np.linspace(float(np.min(y)), float(np.max(y)), 500)
-    k = int(len(weights))
-    cmap = plt.cm.viridis
-    for i in range(k):
-        pdf = float(weights[i]) * _gaussian_pdf(x, float(means[i]), float(stds[i]))
-        denom = max(k - 1, 1)
-        ax.plot(x, pdf, color=cmap(float(i) / float(denom)), linewidth=1.0)
-    ax.set_xlabel("GPU Power (W)")
-    ax.set_ylabel("Density")
-    save_pdf(fig, path)
-
-
 _load_model_from_artifacts = load_gru_classifier
 
 
@@ -963,7 +871,7 @@ class MethodsFigureGenerator:
         per_seed_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv",
         per_seed_ar1_csv_path: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics/per_seed_metrics.csv",
         ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
-        throughput_db_path: str = "model/config/throughput_database.json",
+        throughput_db_path: str = "model/throughput_database.json",
         validation_source_dir: str = "model/tests/validation_results",
         dense_config_id: str = DENSE_CONFIG_ID,
         deepseek_dense_config_id: str = DEEPSEEK_DENSE_CONFIG_ID,
@@ -1516,15 +1424,6 @@ class MethodsFigureGenerator:
                 k_values_ref = [int(v) for v in sweep["k_values"]]
             elif [int(v) for v in sweep["k_values"]] != k_values_ref:
                 raise ValueError("Inconsistent K grid across BIC sweeps.")
-            file_name = f"{tag}.pdf"
-            if not self.dry_run:
-                _plot_bic_curve(
-                    self.out_dir / file_name,
-                    title=title,
-                    k_values=sweep["k_values"],
-                    bic_values=sweep["bic_values"],
-                    best_k=int(sweep["best_k"]),
-                )
             out[tag] = {
                 "config_id": cid,
                 "title": title,
@@ -1535,7 +1434,6 @@ class MethodsFigureGenerator:
                 "bic_norm_values": bic_norm,
                 "best_k": int(sweep["best_k"]),
                 "n_points": int(sweep["n_points"]),
-                "file": str(self.out_dir / file_name),
             }
             overlay_series.append(
                 {
@@ -1858,61 +1756,8 @@ class MethodsFigureGenerator:
             copied.append(str(dst))
         return {"files": copied}
 
-    def _generate_gmm_structure_figures(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
-        for tag, spec in GMM_STRUCTURE_CONFIGS.items():
-            tr = self.get_trace(str(spec["config_id"]), int(spec["trace_idx"]))
-            sweep = bic_sweep(tr.power, k_values=K_VALUES)
-            k_star = int(sweep["best_k"])
-            gmm = _fit_gmm(tr.power, k_star)
-            means = np.asarray(gmm.means_, dtype=np.float64).reshape(-1)
-            order = np.argsort(means)
-            means_s = means[order]
-            cov = np.asarray(gmm.covariances_, dtype=np.float64)
-            if cov.ndim == 3:
-                vars_s = cov.reshape(len(order), -1)[:, 0][order]
-            elif cov.ndim == 2:
-                vars_s = cov[:, 0][order]
-            else:
-                vars_s = cov.reshape(len(order))[order]
-            vars_s = np.clip(vars_s, a_min=1e-12, a_max=None)
-            stds_s = np.sqrt(vars_s)
-            weights_s = np.asarray(gmm.weights_, dtype=np.float64).reshape(-1)[order]
-
-            out_name = (
-                "gmm_structure_dense.pdf" if tag == "dense" else "gmm_structure_moe.pdf"
-            )
-            out_path = self.out_dir / out_name
-            if not self.dry_run:
-                _plot_gmm_structure(
-                    out_path,
-                    title=str(spec["title"]),
-                    power_values=tr.power,
-                    weights=weights_s,
-                    means=means_s,
-                    stds=stds_s,
-                )
-            out[tag] = {
-                "config_id": tr.config_id,
-                "trace_idx": int(tr.trace_idx),
-                "pair_key": tr.pair_key,
-                "rate": tr.rate,
-                "best_k": k_star,
-                "k_values": sweep["k_values"],
-                "bic_values": sweep["bic_values"],
-                "weights": weights_s.tolist(),
-                "means": means_s.tolist(),
-                "stds": stds_s.tolist(),
-                "file": str(out_path),
-            }
-        return out
-
     def _completion_check(self) -> None:
         required = [
-            "bic_config1.pdf",
-            "bic_config2.pdf",
-            "bic_config3.pdf",
-            "bic_config4.pdf",
             "bic_normalized_overlay.pdf",
             "at-overlay.pdf",
             "simulated_power_trace_sparse.pdf",
@@ -1921,8 +1766,6 @@ class MethodsFigureGenerator:
             "simulated_power_trace_moe.pdf",
             "validation_deepseek-r1-distill_8b_h100_tp8_ttft.pdf",
             "validation_deepseek-r1-distill_8b_h100_tp8_decode.pdf",
-            "gmm_structure_dense.pdf",
-            "gmm_structure_moe.pdf",
         ]
         missing = [
             str(self.out_dir / name)
@@ -2130,7 +1973,6 @@ class MethodsFigureGenerator:
             "at_overlay": self._generate_at_overlay(),
             "simulated_dense": self._generate_dense_overlays(),
             "validation_reused": self._ensure_validation_pdfs(),
-            "gmm_structure": self._generate_gmm_structure_figures(),
             "simulated_moe": self._generate_moe_overlay(),
         }
 
@@ -2200,7 +2042,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
     )
     parser.add_argument(
-        "--throughput-db", default="model/config/throughput_database.json"
+        "--throughput-db", default="model/throughput_database.json"
     )
     parser.add_argument(
         "--validation-source-dir", default="model/tests/validation_results"
