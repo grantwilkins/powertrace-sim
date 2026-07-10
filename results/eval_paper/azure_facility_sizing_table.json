@@ -44,12 +44,12 @@
       "transformer_mva": 0.7429353472222222
     },
     "tdp_baseline": {
-      "avg_mw": 1.1856000000000002,
+      "avg_mw": 2.0592,
       "load_factor": 1.0000000000000002,
       "max_ramp_mw_per_hr": 0.0,
       "par": 0.9999999999999998,
-      "peak_mw": 1.1856,
-      "transformer_mva": 1.3173333333333332
+      "peak_mw": 2.0591999999999997,
+      "transformer_mva": 2.288
     }
   },
   "table_rows": [
@@ -58,7 +58,7 @@
       "metric": "Peak facility power (MW)",
       "ours": "0.75",
       "splitwise_strict": "0.67",
-      "tdp_baseline": "1.19"
+      "tdp_baseline": "2.06"
     },
     {
       "mean_baseline": "0.85",
