@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SRC="/Users/grantwilkins/powertrace-sim/results/training"
-DEST="/Users/grantwilkins/powertrace-sim/model/random_gru_classifier_weights"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SRC="$REPO_ROOT/results/training"
+DEST="$REPO_ROOT/model/random_gru_classifier_weights"
 MODE="${MODE:-copy}"  # set MODE=move to move instead of copy
 
 mkdir -p "$DEST"

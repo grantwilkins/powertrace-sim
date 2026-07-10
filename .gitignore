@@ -1,3 +1,5 @@
+.DS_Store
+*.py[cod]
 data/*
 data
 random_plots_training_data
@@ -8,3 +10,5 @@ figures/*
 eval_results
 eval_results/*
 AGENTS.md
+eenergy-paper/*
+eenergy-paper

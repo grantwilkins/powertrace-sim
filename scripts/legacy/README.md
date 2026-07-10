@@ -17,3 +17,6 @@ path.
 These scripts are kept as-is for reference and are not tested or maintained.
 Full provenance (original paths and history) is preserved in git history via
 `git log --follow`.
+
+`collect_random_weights.sh` resolves its input and output paths relative to the
+repository root, so it can be launched from any working directory.
