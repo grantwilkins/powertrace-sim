@@ -61,6 +61,7 @@ class TestLoadResultCSV:
                     "acf_r2_median": "0.8",
                     "nrmse_median": "0.3",
                     "delta_energy_pct_median": "5.0",
+                    "generation_mode": "iid",
                 }
             ]
         )
@@ -81,15 +82,50 @@ class TestLoadResultCSV:
         finally:
             os.unlink(path)
 
+    def test_missing_generation_mode_is_rejected(self):
+        path = self._make_temp_csv([{
+            "config_id": "llama-3-8b_H100_tp1",
+            "ks_stat_median": "0.5",
+            "acf_r2_median": "0.8",
+            "nrmse_median": "0.3",
+            "delta_energy_pct_median": "5.0",
+        }])
+        try:
+            with pytest.raises(ValueError, match="generation_mode"):
+                load_result_csv(path, generation_mode="iid")
+        finally:
+            os.unlink(path)
+
+    def test_recorded_generation_mode_cannot_be_overwritten(self):
+        """Claim: a CSV's recorded mode is conserved; an IID request cannot relabel AR1.
+
+        This catches both unconditional column assignment and validation after overwrite.
+        """
+        path = self._make_temp_csv(
+            [{
+                "config_id": "llama-3-8b_H100_tp1",
+                "ks_stat_median": "0.5",
+                "acf_r2_median": "0.8",
+                "nrmse_median": "0.3",
+                "delta_energy_pct_median": "5.0",
+                "generation_mode": "ar1",
+            }]
+        )
+        try:
+            with pytest.raises(ValueError, match="generation_mode"):
+                load_result_csv(path, generation_mode="iid")
+        finally:
+            os.unlink(path)
+
 
 class TestSelectionPolicy:
-    def test_dense_iid_and_moe_ar1_with_fallback(self):
+    def test_all_architectures_keep_iid_rows(self):
         iid_df = pd.DataFrame(
             {
                 "config_id": [
                     "llama-3-8b_H100_tp1",  # dense
-                    "gpt-oss-20b_H100_tp1",  # moe (fallback)
-                    "gpt-oss-20b_H100_tp2",  # moe (replaced)
+                    "gpt-oss-20b_H100_tp1",
+                    "gpt-oss-20b_H100_tp2",
                 ],
                 "ks_stat_median": [0.10, 0.20, 0.30],
                 "acf_r2_median": [0.90, 0.80, 0.70],
@@ -99,51 +135,26 @@ class TestSelectionPolicy:
             }
         )
 
-        ar1_df = pd.DataFrame(
-            {
-                "config_id": [
-                    "gpt-oss-20b_H100_tp2",  # should replace i.i.d.
-                    "llama-3-8b_H100_tp1",  # dense row should be ignored
-                ],
-                "ks_stat_median": [0.05, 0.99],
-                "acf_r2_median": [0.95, 0.01],
-                "nrmse_median": [0.15, 0.99],
-                "delta_energy_pct_median": [0.5, 99.0],
-                "generation_mode": ["ar1", "ar1"],
-            }
-        )
-
-        selected, fallback_moe = select_generation_rows(iid_df=iid_df, ar1_df=ar1_df)
+        selected = select_generation_rows(iid_df)
 
         assert len(selected) == 3
-        assert fallback_moe == ["gpt-oss-20b_H100_tp1"]
+        assert set(selected["source_mode"]) == {"iid"}
+        assert selected.loc[
+            selected["config_id"] == "gpt-oss-20b_H100_tp2", "ks_stat_median"
+        ].iloc[0] == pytest.approx(0.30)
 
-        dense_row = selected.loc[selected["config_id"] == "llama-3-8b_H100_tp1"].iloc[0]
-        assert dense_row["source_mode"] == "iid"
-        assert dense_row["ks_stat_median"] == pytest.approx(0.10)
-
-        replaced_row = selected.loc[
-            selected["config_id"] == "gpt-oss-20b_H100_tp2"
-        ].iloc[0]
-        assert replaced_row["source_mode"] == "ar1"
-        assert replaced_row["ks_stat_median"] == pytest.approx(0.05)
-        assert replaced_row["delta_energy_pct_median"] == pytest.approx(0.5)
-
-    def test_all_moe_fallback_when_ar1_missing(self):
-        iid_df = pd.DataFrame(
-            {
-                "config_id": ["gpt-oss-120b_H100_tp4"],
-                "ks_stat_median": [0.2],
-                "acf_r2_median": [0.8],
-                "nrmse_median": [0.3],
-                "delta_energy_pct_median": [1.5],
-                "generation_mode": ["iid"],
-            }
-        )
-        selected, fallback_moe = select_generation_rows(iid_df=iid_df, ar1_df=None)
-        assert len(selected) == 1
-        assert fallback_moe == ["gpt-oss-120b_H100_tp4"]
-        assert selected.iloc[0]["source_mode"] == "iid"
+    def test_iid_selection_rejects_non_iid_source_rows(self):
+        """Claim: IID-only selection must reject, not relabel, an AR1 source row."""
+        row = pd.DataFrame({
+            "config_id": ["llama-3-8b_H100_tp1"],
+            "ks_stat_median": [0.1],
+            "acf_r2_median": [0.9],
+            "nrmse_median": [0.1],
+            "delta_energy_pct_median": [1.0],
+            "generation_mode": ["ar1"],
+        })
+        with pytest.raises(ValueError, match="IID"):
+            select_generation_rows(row)
 
 
 class TestAggregation:
@@ -160,7 +171,7 @@ class TestAggregation:
                 "acf_r2_median": [0.9, 0.8, 0.7, 0.6],
                 "nrmse_median": [0.1, 0.2, 0.3, 0.4],
                 "delta_energy_pct_median": [1.0, 2.0, 3.0, 4.0],
-                "generation_mode": ["iid", "iid", "iid", "ar1"],
+                "generation_mode": ["iid", "iid", "iid", "iid"],
                 "model_family": [
                     "llama-3",
                     "llama-3",
@@ -171,7 +182,7 @@ class TestAggregation:
                 "hardware": ["H100", "A100", "H100", "H100"],
                 "tp": [1, 1, 1, 8],
                 "arch_type": ["dense", "dense", "moe", "moe"],
-                "source_mode": ["iid", "iid", "iid", "ar1"],
+                "source_mode": ["iid", "iid", "iid", "iid"],
             }
         )
 
@@ -182,9 +193,22 @@ class TestAggregation:
         moe = out.loc[out["arch_type"] == "moe"].iloc[0]
 
         assert dense["generation_mode"] == "iid"
-        assert moe["generation_mode"] == "ar1_with_iid_fallback"
+        assert moe["generation_mode"] == "iid"
         assert int(dense["n_configs"]) == 2
         assert int(moe["n_configs"]) == 2
+
+    def test_mixed_generation_modes_are_not_collapsed(self):
+        """Claim: aggregation cannot report one mode for a mixed-mode model group."""
+        rows = pd.DataFrame({
+            "config_id": ["llama-3-8b_H100_tp1", "llama-3-8b_A100_tp1"],
+            "ks_stat_median": [0.1, 0.2],
+            "acf_r2_median": [0.9, 0.8],
+            "nrmse_median": [0.1, 0.2],
+            "delta_energy_pct_median": [1.0, 2.0],
+            "generation_mode": ["iid", "ar1"],
+        })
+        with pytest.raises(ValueError, match="mixed generation modes"):
+            aggregate_by_model(rows)
 
 
 class TestParseAndAnnotateRows:

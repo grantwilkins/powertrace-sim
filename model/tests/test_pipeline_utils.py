@@ -1,7 +1,19 @@
+"""
+Claim:
+Pipeline artifact utilities resolve model/eval input contracts by config ID and can
+load repo-relative input paths even when the caller runs from another directory.
+
+Plausible wrong implementations:
+- Resolve default input paths relative only to the current working directory.
+- Keep using the removed model/config throughput database path.
+- Accept missing throughput rows or non-positive rates as valid capacity values.
+"""
+
 from pathlib import Path
 
 import pytest
 
+from model.utils.io import repo_relative_or_absolute, resolve_input_path
 from scripts.eval.pipeline_utils import (
     resolve_checkpoint_norm_gmm_paths,
     resolve_experimental_paths,
@@ -28,6 +40,42 @@ def test_resolve_experimental_paths_valid(tmp_path: Path):
     )
     assert dataset_path == str(dataset)
     assert split_path == str(split)
+
+
+def test_resolve_input_path_finds_repo_relative_file_from_other_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = Path(__file__).resolve().parents[2]
+    expected = repo / "model" / "throughput_database.json"
+    assert expected.exists()
+    shadow = tmp_path / "model" / "throughput_database.json"
+    shadow.parent.mkdir(parents=True)
+    shadow.write_text("{}")
+
+    monkeypatch.chdir(tmp_path)
+    resolved = resolve_input_path("model/throughput_database.json")
+
+    assert Path(resolved).resolve() == expected
+
+
+def test_repo_relative_or_absolute_formats_repo_paths():
+    repo = Path(__file__).resolve().parents[2]
+    path = repo / "model" / "throughput_database.json"
+
+    assert repo_relative_or_absolute(path) == "model/throughput_database.json"
+
+
+def test_model_and_eval_sources_do_not_use_removed_throughput_db_path():
+    repo = Path(__file__).resolve().parents[2]
+    offenders = []
+    for base in (repo / "model", repo / "scripts" / "eval"):
+        for path in base.rglob("*.py"):
+            if "tests" in path.parts:
+                continue
+            if "model/config/throughput_database.json" in path.read_text():
+                offenders.append(str(path.relative_to(repo)))
+
+    assert offenders == []
 
 
 def test_resolve_experimental_paths_missing_config_raises(tmp_path: Path):

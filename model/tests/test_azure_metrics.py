@@ -14,7 +14,15 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
 from model.utils.io import write_json as _write_json
-from azure_metrics import compute_azure_facility_metrics  # noqa: E402
+from azure_defaults import DEFAULT_TRACE_KINDS  # noqa: E402
+from azure_metrics import (  # noqa: E402
+    DIVERSITY_FACTOR_DEFINITION,
+    NON_CONSTANT_METHODS,
+    _compute_diversity_factor_it,
+    _normalize_trace_kinds,
+    compute_azure_facility_metrics,
+)
+from facility import FacilityLayout  # noqa: E402
 
 
 def _downsample_mean(arr: np.ndarray, factor: int) -> np.ndarray:
@@ -23,10 +31,9 @@ def _downsample_mean(arr: np.ndarray, factor: int) -> np.ndarray:
     return np.mean(x.reshape(-1, factor), axis=1)
 
 
-def _build_minimal_experimental_fixture(root: Path) -> dict:
-    cfg = "toy-70b_H100_tp4"
+def _build_minimal_experimental_fixture(root: Path, cfg: str = "toy-70b_H100_tp4") -> dict:
     dataset_path = (
-        root / "results" / "experimental_continuous_v1" / "datasets" / "toy_H100_tp4.npz"
+        root / "results" / "experimental_continuous_v1" / "datasets" / f"{cfg}.npz"
     )
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -42,7 +49,7 @@ def _build_minimal_experimental_fixture(root: Path) -> dict:
         power=np.asarray([power_train, power_test], dtype=object),
     )
 
-    split_path = root / "results" / "experimental_continuous_v1" / "splits" / "toy_H100_tp4.json"
+    split_path = root / "results" / "experimental_continuous_v1" / "splits" / f"{cfg}.json"
     _write_json(split_path, {"train_indices": [0], "val_indices": [], "test_indices": [1]})
 
     manifest_path = root / "results" / "experimental_continuous_v1" / "manifest.json"
@@ -88,6 +95,33 @@ def _write_method_aggregates(
     np.save(method_dir / "site_1s.npy", np.asarray(site_1s, dtype=np.float32))
     np.save(method_dir / "site_1min.npy", np.asarray(site_1min, dtype=np.float32))
     np.save(method_dir / "site_15min.npy", np.asarray(site_15min, dtype=np.float32))
+
+
+def test_diversity_factor_uses_sum_of_individual_peaks_over_coincident_peak() -> None:
+    """Claim: asynchronous 10 W and 20 W node peaks over a 20 W site peak give 1.5.
+
+    This catches the old inverse ratio and the max-node-times-count approximation.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        node_dir = Path(td)
+        np.save(node_dir / "node_0_0_0.npy", np.array([10.0, 0.0]))
+        np.save(node_dir / "node_0_0_1.npy", np.array([0.0, 20.0]))
+        got = _compute_diversity_factor_it(
+            node_trace_dir=str(node_dir),
+            site_it_250ms_w=np.array([10.0, 20.0]),
+            layout=FacilityLayout(rows=1, racks_per_row=1, nodes_per_rack=2),
+            non_gpu_overhead_w=0.0,
+        )
+    assert got == 1.5
+    assert DIVERSITY_FACTOR_DEFINITION == (
+        "sum_individual_node_it_peaks_over_coincident_site_it_peak"
+    )
+
+
+def test_physics_trace_is_supported_without_becoming_a_default() -> None:
+    assert _normalize_trace_kinds("physics") == ["physics"]
+    assert "physics" in NON_CONSTANT_METHODS
+    assert "physics" not in DEFAULT_TRACE_KINDS
 
 
 def test_metrics_outputs_include_splitwise() -> None:
@@ -180,3 +214,65 @@ def test_metrics_outputs_include_splitwise() -> None:
         assert len(site_rows) == 8
 
         assert set(summary["diversity_by_method"]) == {"ours", "splitwise_strict"}
+
+
+def test_tdp_baseline_resolves_tp8_from_config_id() -> None:
+    """Hand-worked TP8 nameplate: tp_gpus omitted must resolve 8 from the
+    config_id suffix, never a hard-coded 4 (the D10 bug).
+
+    Node IT nameplate = 8 * 700 W + 1000 W overhead = 6600 W.
+    Site nameplate    = 2 nodes * 6600 W * PUE 1.3   = 17160 W = 17.16 kW.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        fx = _build_minimal_experimental_fixture(root, cfg="toy-70b_H100_tp8")
+
+        aggregated_root = root / "results" / "azure_facility" / "aggregated"
+        node_traces_root = root / "results" / "azure_facility" / "node_traces"
+
+        pue = 1.3
+        overhead = 1000.0
+        t = 7200
+        idx = np.arange(t, dtype=np.float64)
+        node0 = 100.0 + 10.0 * np.sin(2.0 * np.pi * idx / 200.0)
+        node1 = 120.0 + 5.0 * np.cos(2.0 * np.pi * idx / 150.0)
+        method_node_dir = node_traces_root / "ours"
+        method_node_dir.mkdir(parents=True, exist_ok=True)
+        np.save(method_node_dir / "node_0_0_0.npy", np.asarray(node0, dtype=np.float32))
+        np.save(method_node_dir / "node_0_0_1.npy", np.asarray(node1, dtype=np.float32))
+        _write_method_aggregates(
+            method_dir=aggregated_root / "ours",
+            node0_gpu=node0,
+            node1_gpu=node1,
+            overhead=overhead,
+            pue=pue,
+        )
+
+        summary = compute_azure_facility_metrics(
+            aggregated_root=str(aggregated_root),
+            node_traces_root=str(node_traces_root),
+            experimental_manifest=str(fx["experimental_manifest"]),
+            metrics_csv=str(root / "metrics.csv"),
+            ldc_csv=str(root / "ldc.csv"),
+            site_traces_15min_csv=str(root / "site.csv"),
+            config_id=str(fx["config_id"]),
+            trace_kinds="ours,tdp_baseline,mean_baseline",
+            rows=1,
+            racks_per_row=1,
+            nodes_per_rack=2,
+            gpu_tdp_w=700.0,
+            non_gpu_overhead_w=overhead,
+            pue=pue,
+        )
+
+        assert summary["baselines"]["tp_gpus"] == 8
+        expected_site_tdp_w = 2.0 * (8.0 * 700.0 + 1000.0) * 1.3
+        assert np.isclose(float(summary["baselines"]["site_tdp_w"]), expected_site_tdp_w)
+        assert np.isclose(expected_site_tdp_w, 17160.0)
+
+        with open(root / "metrics.csv", "r", newline="") as f:
+            rows = list(csv.DictReader(f))
+        tdp_rows = [r for r in rows if r["trace_kind"] == "tdp_baseline"]
+        assert tdp_rows
+        for row in tdp_rows:
+            assert np.isclose(float(row["peak_kw"]), 17.16)

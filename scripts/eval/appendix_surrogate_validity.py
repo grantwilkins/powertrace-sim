@@ -35,6 +35,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from model.pipeline.request_builder import (
+    _build_requests_from_stage0_json as _build_requests_core,
+)
 from model.utils.io import ensure_dir, load_json, safe_slug, write_json
 from scripts.eval.pipeline_utils import _resolve_existing_path
 
@@ -281,35 +284,18 @@ def _build_requests_from_stage0_json(
     if not isinstance(ts_raw, list) or len(ts_raw) == 0:
         return [], "missing_recorded_request_timestamps"
 
-    n = int(min(len(input_lens_raw), len(output_lens_raw), len(ts_raw)))
-    if n <= 0:
+    if min(len(input_lens_raw), len(output_lens_raw), len(ts_raw)) <= 0:
         return [], "empty_request_arrays"
-
-    arrivals = np.asarray(ts_raw[:n], dtype=np.float64) - float(power_start_epoch_s)
-    if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt)
-        or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
-    ):
-        arrivals = arrivals - float(np.min(arrivals))
-
-    rows: List[Dict[str, float]] = []
-    for i in range(n):
-        arrival = _safe_float(arrivals[i])
-        nin = _safe_float(input_lens_raw[i])
-        nout = _safe_float(output_lens_raw[i])
-        if arrival is None or nin is None or nout is None:
-            continue
-        rows.append(
-            {
-                "arrival_time": float(arrival),
-                "input_tokens": float(max(0.0, nin)),
-                "output_tokens": float(max(0.0, nout)),
-            }
+    try:
+        rows = _build_requests_core(
+            request_json_path,
+            power_start_epoch_s=power_start_epoch_s,
+            trace_duration_s=trace_duration_s,
+            dt=dt,
+            require_recorded_timestamps=True,
         )
-
-    if len(rows) == 0:
+    except ValueError:
         return [], "no_valid_requests_after_filtering"
-
     rows.sort(key=lambda x: float(x["arrival_time"]))
     return rows, ""
 

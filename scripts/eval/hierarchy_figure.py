@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from model.classifiers import metrics as shared_metrics
 from model.utils.io import write_json
 
 PANEL_ORDER = ("server", "rack", "row", "site")
@@ -136,7 +137,7 @@ def _compute_level_metrics(arr_1s_w: np.ndarray) -> Dict[str, float]:
     if mean <= 0.0 or (not np.isfinite(mean)):
         raise ValueError(f"Mean power must be positive and finite, got {mean}")
     std = float(np.std(x, ddof=0))
-    cov = float(std / mean)
+    cov = shared_metrics.coefficient_of_variation(x)
     par_1s = float(np.max(x) / mean)
     x_15m = _downsample_mean(x, 900)
     mean_15m = float(np.mean(x_15m))

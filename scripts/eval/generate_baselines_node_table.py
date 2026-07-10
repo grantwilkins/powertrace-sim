@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from model.utils.config import is_moe_config
 from model.utils.io import write_json
 from scripts.eval.pipeline_utils import _fmt
 
@@ -66,21 +67,8 @@ def _parse_config_id(config_id: str) -> Optional[Dict[str, object]]:
     }
 
 
-def _is_moe_config(config_id: str) -> bool:
-    parsed = _parse_config_id(config_id)
-    if parsed is None:
-        return False
-    family = str(parsed["model_family"]).lower()
-    size_b = int(parsed["model_size_b"])
-    if "deepseek-r1-distill" in family:
-        return False
-    if "gpt-oss" in family and size_b >= 20:
-        return True
-    return False
-
-
 def _is_dense_config(config_id: str) -> bool:
-    return not _is_moe_config(config_id)
+    return not is_moe_config(config_id)
 
 
 def _is_representative_dense_config(config_id: str) -> bool:
@@ -178,7 +166,7 @@ def _select_configs(
     if arch == "dense":
         selected = [c for c in selected if _is_dense_config(c)]
     elif arch == "moe":
-        selected = [c for c in selected if _is_moe_config(c)]
+        selected = [c for c in selected if is_moe_config(c)]
 
     if len(selected) == 0:
         raise ValueError(f"No configs remain after arch_filter='{arch_filter}'")
@@ -412,7 +400,7 @@ def generate_baselines_node_table(
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
     throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "",
     num_seeds: int = 5,
     base_seed: int = 42,
     device: str = "auto",

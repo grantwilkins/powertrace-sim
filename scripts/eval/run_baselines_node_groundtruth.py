@@ -47,9 +47,7 @@ from scripts.eval.run_baselines_node import (
     _ensure_dir,
     _extract_norm_for_eval,
     _is_70b_tp4_config,
-    _is_moe_config,
     _load_model,
-    _load_or_estimate_ar1_params,
     _load_pair_manifest_map,
     _nanmedian,
     _resolve_checkpoint_norm_gmm_paths,
@@ -264,7 +262,7 @@ def run_baselines_node_groundtruth(
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
     throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "",
     config_id: str = "llama-3-70b_A100_tp4",
     target_rate: float = 4.0,
     test_trace_index: Optional[int] = None,
@@ -289,6 +287,7 @@ def run_baselines_node_groundtruth(
     out_csv: str = "results/eval_paper/baselines_node_groundtruth_metrics.csv",
     out_plot_pdf: str = "figures/baselines_node_groundtruth_trace.pdf",
 ) -> Dict[str, object]:
+    del ar1_params_dir  # accepted but ignored; AR(1) generation removed
     if not _is_70b_tp4_config(config_id):
         raise ValueError(
             f"config_id '{config_id}' must match *-70b_*_tp4 for this experiment."
@@ -381,7 +380,6 @@ def run_baselines_node_groundtruth(
 
     n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
     train_power_pool: List[np.ndarray] = []
-    train_power_traces_node: List[np.ndarray] = []
     for idx in train_indices:
         if idx < 0 or idx >= n_total:
             continue
@@ -389,7 +387,6 @@ def run_baselines_node_groundtruth(
         if p.size == 0:
             continue
         train_power_pool.append(p.astype(np.float64))
-        train_power_traces_node.append(p.astype(np.float64))
     if len(train_power_pool) == 0:
         raise ValueError("empty_training_pool")
     train_power_flat_node = np.concatenate(train_power_pool, axis=0).astype(np.float64)
@@ -472,15 +469,6 @@ def run_baselines_node_groundtruth(
             "splitwise_max_batch_tokens_seen": 0.0,
         }
     }
-    ar1_params = None
-    if _is_moe_config(config_id):
-        ar1_params = _load_or_estimate_ar1_params(
-            config_id=config_id,
-            gmm_params=gmm_cfg,
-            train_power_traces=train_power_traces_node,
-            ar1_params_dir=ar1_params_dir,
-        )
-
     gt_node = power[1:].astype(np.float64)
     requests = _build_requests_from_stage0_json(
         json_path,
@@ -514,7 +502,6 @@ def run_baselines_node_groundtruth(
         "std_scale": float(ours_std_scale),
         "logit_temperature": float(ours_logit_temperature),
         "clamp_range": (norm_cfg["power_min"], norm_cfg["power_max"]),
-        "ar1_params": ar1_params,
     }
 
     pred_by_method: Dict[str, np.ndarray] = {}
@@ -854,8 +841,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
-        help="Directory containing AR(1) params JSON files (used only for MoE configs).",
+        default="",
+        help="(ignored; AR(1) generation removed)",
     )
     parser.add_argument("--num-seeds", type=int, default=5)
     parser.add_argument("--base-seed", type=int, default=42)

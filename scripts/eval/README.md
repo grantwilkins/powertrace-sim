@@ -5,6 +5,25 @@ baselines, Azure facility processing, paper tables, and figures. The old
 `aggregation_variance.py` and `aggregation_resolution.py` references are no
 longer relevant because those scripts are not present.
 
+## Maintained vs Legacy Surface
+
+The maintained surface is the set of scripts documented below: node baselines,
+Azure processing, paper table/figure generation, and shared support modules.
+Older exploratory utilities (`operator_table.py`, `two_price_fit.py`,
+`ledger_fit_lomo.py`, `rps_power_sweep.py`, and `saturating_fit.py`) were cut
+from the e-Energy evaluation path and now live in
+[`scripts/legacy/`](../legacy/README.md).
+
+Main evaluation outputs use `generation_mode=iid`. Retrospective table/CDF
+tools can still read old AR(1) artifacts, but the maintained evaluation and
+inference paths do not fit or consume AR(1) state. Node baseline rows label
+constant baselines as `deterministic_constant` and Splitwise rows as
+`splitwise_style_lut`. Held-out GMM-BiGRU evaluation records
+`request_alignment_mode=none`; its oracle offset is diagnostic-only.
+Trace accounting fields distinguish `num_skipped_traces`,
+`num_failed_traces`, and the compatibility total
+`num_skipped_or_failed_traces`.
+
 ## Baseline Evaluation
 
 ### `run_baselines_node.py`
@@ -20,7 +39,7 @@ uv run -m scripts.eval.run_baselines_node \
 ```
 
 Key flags: `--run-manifest`, `--experimental-manifest`, `--throughput-db`,
-`--pair-manifest-csv`, `--ar1-params-dir`, `--out-csv`, `--config-ids`,
+`--pair-manifest-csv`, `--out-csv`, `--config-ids`,
 `--num-seeds`, `--base-seed`, `--device`, `--acf-max-lag`, `--decode-mode`,
 `--median-filter-window`, `--ours-std-scale`, `--ours-logit-temperature`,
 `--splitwise-perf-model-csv`, `--splitwise-source-model`,
@@ -105,6 +124,9 @@ uv run -m scripts.eval.split_azure_week_to_days \
   --output-dir data/azure_trace/days
 ```
 
+The emitted `day_manifest.csv` records `input_csv` and `day_csv` provenance
+alongside per-day row counts and timestamp coverage.
+
 ### `parse_azure_trace.py`
 
 Normalize a day CSV into request tuples plus metadata.
@@ -132,6 +154,7 @@ uv run -m scripts.eval.azure_to_node_streams \
 ### `azure_generate_traces.py`
 
 Generate per-node power traces for `ours` and `splitwise_strict`.
+The trace manifest includes one `generation_mode` per method/node row.
 
 ```bash
 uv run -m scripts.eval.azure_generate_traces \
@@ -211,8 +234,6 @@ uv run -m scripts.eval.generate_baselines_node_table \
 ```bash
 uv run -m scripts.eval.generate_trace_fidelity_table \
   --iid-dir results/continuous_v1_gmm_bigru/k10_f2/eval_metrics_fullheldout \
-  --ar1-dir results/continuous_v1_gmm_bigru/k10_f2_ar1/eval_metrics_fullheldout \
-  --ar1-thresh-dir results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/eval_metrics_fullheldout \
   --output figures/tables/trace_fidelity.tex \
   --format latex
 ```

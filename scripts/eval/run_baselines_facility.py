@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from model.classifiers import metrics as shared_metrics
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
@@ -43,11 +44,9 @@ from scripts.eval.pipeline_utils import (
     _load_pair_manifest_map,
     _resolve_existing_path,
     build_rollout_features_from_requests,
-    estimate_ar1_params,
     extract_norm_params,
     load_gmm_params_json_dict,
     load_gru_classifier,
-    predict_sorted_gmm_labels_from_params,
 )
 from scripts.eval.pipeline_utils import (
     resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
@@ -61,6 +60,9 @@ from scripts.eval.pipeline_utils import (
 from scripts.eval.run_baselines_node import _resolve_per_gpu_chip_tdp_w
 
 DEFAULT_METHODS = ("tdp", "mean", "splitwise_strict", "ours")
+DIVERSITY_FACTOR_DEFINITION = (
+    "sum_individual_node_it_peaks_over_coincident_site_it_peak"
+)
 STYLE = {
     "tdp": {"label": "TDP", "color": "#006CB8", "linestyle": "--", "linewidth": 3.0},
     "mean": {"label": "Mean", "color": "#620059", "linestyle": "--", "linewidth": 3.0},
@@ -73,27 +75,6 @@ STYLE = {
     "ours": {"label": "Ours", "color": "#006F54", "linestyle": "-", "linewidth": 2.8},
 }
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
-CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
-
-
-def _is_moe_config(config_id: str) -> bool:
-    """
-    Return True when config_id is treated as MoE in eval scripts.
-
-    Current policy:
-      - DeepSeek-R1-Distill is dense
-      - GPT-OSS 20B+ is MoE
-    """
-    match = CONFIG_MODEL_SIZE_RE.match(str(config_id).strip())
-    if match is None:
-        return False
-    model_family = str(match.group(1)).lower()
-    model_size = int(match.group(2))
-    if "deepseek-r1-distill" in model_family:
-        return False
-    if "gpt-oss" in model_family and model_size >= 20:
-        return True
-    return False
 
 
 def _write_csv(
@@ -126,50 +107,6 @@ _resolve_experimental_paths = _shared_resolve_experimental_paths
 
 
 _load_model = load_gru_classifier
-
-
-def _load_or_estimate_ar1_params(
-    *,
-    config_id: str,
-    gmm_params: Dict[str, object],
-    train_power_traces: Sequence[np.ndarray],
-    ar1_params_dir: str,
-) -> Dict[str, np.ndarray]:
-    ar1_path = Path(ar1_params_dir) / f"{config_id}_ar1_params.json"
-    k = int(gmm_params["k"])
-    if ar1_path.exists():
-        payload = load_json(str(ar1_path))
-        phi = np.asarray(payload.get("phi", []), dtype=np.float64).reshape(-1)
-        sigma_innov = np.asarray(
-            payload.get("sigma_innov", []), dtype=np.float64
-        ).reshape(-1)
-        sigma_marginal = np.asarray(
-            payload.get("sigma_marginal", []), dtype=np.float64
-        ).reshape(-1)
-        if phi.size == k and sigma_innov.size == k and sigma_marginal.size == k:
-            return {
-                "phi": phi,
-                "sigma_innov": sigma_innov,
-                "sigma_marginal": sigma_marginal,
-                "phi_threshold": float(payload.get("phi_threshold", 0.3)),
-            }
-
-    train_labels = [
-        predict_sorted_gmm_labels_from_params(trace, gmm_params).astype(np.int64)
-        for trace in train_power_traces
-    ]
-    phi, sigma_innov, sigma_marginal = estimate_ar1_params(
-        gmm_params=gmm_params,
-        training_power_traces=train_power_traces,
-        training_labels_traces=train_labels,
-        K=k,
-    )
-    return {
-        "phi": np.asarray(phi, dtype=np.float64).reshape(-1),
-        "sigma_innov": np.asarray(sigma_innov, dtype=np.float64).reshape(-1),
-        "sigma_marginal": np.asarray(sigma_marginal, dtype=np.float64).reshape(-1),
-        "phi_threshold": 0.3,
-    }
 
 
 def _parse_rate(value: object) -> float:
@@ -433,27 +370,6 @@ def _generate_inhomogeneous_poisson_requests(
     ]
 
 
-def _downsample_to_1s_mean(values: np.ndarray, dt: float) -> np.ndarray:
-    arr = np.asarray(values, dtype=np.float64).reshape(-1)
-    if arr.size == 0:
-        return np.zeros((0,), dtype=np.float64)
-    bins_per_sec = max(1, int(round(1.0 / float(dt))))
-    usable = (arr.size // bins_per_sec) * bins_per_sec
-    if usable <= 0:
-        return np.array([float(np.mean(arr))], dtype=np.float64)
-    trimmed = arr[:usable].reshape(-1, bins_per_sec)
-    return np.mean(trimmed, axis=1).astype(np.float64)
-
-
-def _value_at_exceedance(sorted_desc: np.ndarray, frac_exceeded: float) -> float:
-    arr = np.asarray(sorted_desc, dtype=np.float64).reshape(-1)
-    if arr.size == 0:
-        return float("nan")
-    idx = int(np.floor(float(frac_exceeded) * float(arr.size)))
-    idx = max(0, min(idx, arr.size - 1))
-    return float(arr[idx])
-
-
 def _compute_facility_metrics(
     *,
     facility_w: np.ndarray,
@@ -467,34 +383,26 @@ def _compute_facility_metrics(
     avg_kw = float(np.mean(facility_kw))
     par = float(peak_kw / avg_kw) if avg_kw > 0 else float("nan")
 
-    one_sec_kw = _downsample_to_1s_mean(facility_kw, dt=float(dt))
-    ramps = np.diff(one_sec_kw)
-    if ramps.size > 0:
-        ramp_p50 = float(np.percentile(ramps, 50))
-        ramp_p95_abs = float(np.percentile(np.abs(ramps), 95))
-        ramp_p99_abs = float(np.percentile(np.abs(ramps), 99))
-        ramp_max_up = float(np.max(ramps))
-        ramp_max_down = float(np.min(ramps))
-    else:
-        ramp_p50 = float("nan")
-        ramp_p95_abs = float("nan")
-        ramp_p99_abs = float("nan")
-        ramp_max_up = float("nan")
-        ramp_max_down = float("nan")
+    ramps = shared_metrics.ramp_stats(facility_kw, dt=float(dt), resolution_s=1.0)
+    ramp_p50 = ramps["ramp_p50"]
+    ramp_p95_abs = ramps["ramp_p95_abs"]
+    ramp_p99_abs = ramps["ramp_p99_abs"]
+    ramp_max_up = ramps["ramp_max_up"]
+    ramp_max_down = ramps["ramp_max_down"]
 
-    ldc_sorted_kw = np.sort(facility_kw)[::-1]
-    ldc_p99_kw = _value_at_exceedance(ldc_sorted_kw, 0.01)
-    ldc_p95_kw = _value_at_exceedance(ldc_sorted_kw, 0.05)
+    ldc_p99_kw = shared_metrics.load_duration_value(facility_kw, 0.01)
+    ldc_p95_kw = shared_metrics.load_duration_value(facility_kw, 0.05)
 
-    node_peaks_w = np.max(np.asarray(node_stack_w, dtype=np.float64), axis=1)
+    node_stack_w_arr = np.asarray(node_stack_w, dtype=np.float64)
+    node_peaks_w = np.max(node_stack_w_arr, axis=1)
     peak_single_node_w = (
         float(np.max(node_peaks_w)) if node_peaks_w.size > 0 else float("nan")
     )
-    peak_facility_w = float(np.max(facility_w_arr))
-    denom = float(n_nodes) * peak_single_node_w
+    coincident_site_it_peak_w = float(np.max(np.sum(node_stack_w_arr, axis=0)))
+    sum_individual_peaks_w = float(np.sum(node_peaks_w))
     diversity = (
-        float(peak_facility_w / denom)
-        if np.isfinite(denom) and denom > 0
+        float(sum_individual_peaks_w / coincident_site_it_peak_w)
+        if np.isfinite(coincident_site_it_peak_w) and coincident_site_it_peak_w > 0
         else float("nan")
     )
 
@@ -510,6 +418,7 @@ def _compute_facility_metrics(
         "ldc_p99_kw": ldc_p99_kw,
         "ldc_p95_kw": ldc_p95_kw,
         "diversity_factor": diversity,
+        "diversity_factor_definition": DIVERSITY_FACTOR_DEFINITION,
         "peak_single_node_kw": peak_single_node_w / 1000.0,
     }
 
@@ -620,7 +529,7 @@ def run_baselines_facility(
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
     throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "",
     out_csv: str = "results/eval_paper/baselines_facility_metrics.csv",
     traces_pdf: str = "figures/baselines_facility_traces.pdf",
     ldc_pdf: str = "figures/baselines_load_duration.pdf",
@@ -654,6 +563,7 @@ def run_baselines_facility(
     burst_background_sigma: float = 0.35,
     burst_node_scale_sigma: float = 0.2,
 ) -> Dict[str, object]:
+    del ar1_params_dir  # accepted but ignored; AR(1) generation removed
     if int(n_nodes) <= 0:
         raise ValueError("n_nodes must be >= 1")
     if float(duration_s) <= 0:
@@ -908,15 +818,6 @@ def run_baselines_facility(
             heldout_json_paths.append(json_path)
     input_pool, output_pool = _extract_token_pools(heldout_json_paths)
 
-    ar1_params = None
-    if _is_moe_config(config_id):
-        ar1_params = _load_or_estimate_ar1_params(
-            config_id=config_id,
-            gmm_params=gmm_cfg,
-            train_power_traces=train_power_traces,
-            ar1_params_dir=ar1_params_dir,
-        )
-
     t_horizon = int(np.floor(float(duration_s) / float(dt)))
     if t_horizon <= 0:
         raise ValueError("computed horizon is zero; increase duration_s or reduce dt")
@@ -1066,7 +967,6 @@ def run_baselines_facility(
                                 norm_cfg["power_min"],
                                 norm_cfg["power_max"],
                             ),
-                            "ar1_params": ar1_params,
                         },
                         model,
                         gmm_cfg,
@@ -1183,6 +1083,7 @@ def run_baselines_facility(
                     "ldc_p99_kw": float("nan"),
                     "ldc_p95_kw": float("nan"),
                     "diversity_factor": float("nan"),
+                    "diversity_factor_definition": DIVERSITY_FACTOR_DEFINITION,
                     "peak_single_node_kw": float("nan"),
                 }
             )
@@ -1338,6 +1239,7 @@ def run_baselines_facility(
         "ldc_p99_kw",
         "ldc_p95_kw",
         "diversity_factor",
+        "diversity_factor_definition",
         "peak_single_node_kw",
     ]
     _write_csv(out_csv, rows, fieldnames)
@@ -1390,8 +1292,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
-        help="Directory containing AR(1) params JSON files (used only for MoE configs).",
+        default="",
+        help="(ignored; AR(1) generation removed)",
     )
     parser.add_argument("--config-id", default="deepseek-r1-distill-70b_H100_tp4")
     parser.add_argument("--n-nodes", type=int, default=60)

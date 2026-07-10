@@ -54,8 +54,9 @@ from model.classifiers.trace_generation import (  # noqa: E402
     estimate_ar1_params,
     generate_gmm_bigru_trace_ar1_thresholded,
 )
-from model.classifiers.metrics import compute_power_metrics  # noqa: E402
+from model.classifiers.metrics import compute_power_metrics, ks_statistic  # noqa: E402
 from model.classifiers.model_loading import load_gru_classifier  # noqa: E402
+from model.pipeline.request_builder import _build_requests_from_stage0_json  # noqa: E402
 from model.utils.io import load_json, safe_slug, write_json  # noqa: E402
 from scripts.eval.azure_defaults import MODEL_NAME_MAP  # noqa: E402
 from scripts.eval.pipeline_utils import (  # noqa: E402
@@ -336,86 +337,6 @@ def _select_single_gpt_oss_120b_config_id(
     return fallback[0]
 
 
-def _synthesize_request_timestamps(
-    payload: Dict[str, object], n: int
-) -> Optional[List[float]]:
-    if n <= 0:
-        return []
-
-    duration = _finite_float(payload.get("duration"))
-    if duration is not None and duration > 0:
-        step = float(duration) / float(max(n, 1))
-        if step > 0:
-            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
-            return [float(x) for x in values]
-
-    request_rate = _finite_float(payload.get("request_rate"))
-    poisson_rate = _finite_float(payload.get("poisson_rate"))
-    rate = request_rate if request_rate is not None else poisson_rate
-    if rate is not None and rate > 0:
-        step = 1.0 / float(rate)
-        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
-        return [float(x) for x in values]
-    return None
-
-
-def _build_requests_from_stage0_json(
-    request_json_path: str,
-    *,
-    power_start_epoch_s: float,
-    trace_duration_s: float,
-    dt: float,
-) -> List[Dict[str, float]]:
-    payload = load_json(request_json_path)
-    required = ("input_lens", "output_lens")
-    missing = [k for k in required if not isinstance(payload.get(k), list)]
-    if missing:
-        raise ValueError(f"request json missing arrays: {missing}")
-
-    input_lens = payload["input_lens"]
-    output_lens = payload["output_lens"]
-    n_base = int(min(len(input_lens), len(output_lens)))
-    request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
-        n = int(min(n_base, len(request_timestamps_raw)))
-        request_timestamps = request_timestamps_raw[:n]
-    else:
-        n = int(n_base)
-        synth = _synthesize_request_timestamps(payload, n)
-        if synth is None:
-            raise ValueError("request json missing arrays: ['request_timestamps']")
-        request_timestamps = synth
-    if n <= 0:
-        raise ValueError("request arrays are empty after alignment")
-
-    arrivals = np.asarray(request_timestamps[:n], dtype=np.float64) - float(
-        power_start_epoch_s
-    )
-    if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt)
-        or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
-    ):
-        arrivals = arrivals - float(np.min(arrivals))
-
-    requests: List[Dict[str, float]] = []
-    for i in range(n):
-        a = float(arrivals[i])
-        nin = float(input_lens[i])
-        nout = float(output_lens[i])
-        if not (np.isfinite(a) and np.isfinite(nin) and np.isfinite(nout)):
-            continue
-        requests.append(
-            {
-                "arrival_time": float(a),
-                "input_tokens": float(max(0.0, nin)),
-                "output_tokens": float(max(0.0, nout)),
-            }
-        )
-    if len(requests) == 0:
-        raise ValueError("no valid requests after filtering")
-    return requests
-
-
 _extract_norm_for_eval = extract_norm_params
 
 
@@ -425,18 +346,6 @@ _resolve_experimental_paths = _shared_resolve_experimental_paths
 
 
 _load_model = load_gru_classifier
-
-
-def _ks_statistic(x: np.ndarray, y: np.ndarray) -> float:
-    xs = np.sort(np.asarray(x, dtype=np.float64).reshape(-1))
-    ys = np.sort(np.asarray(y, dtype=np.float64).reshape(-1))
-    if xs.size == 0 or ys.size == 0:
-        return float("nan")
-    values = np.concatenate([xs, ys])
-    values.sort()
-    cdf_x = np.searchsorted(xs, values, side="right") / float(xs.size)
-    cdf_y = np.searchsorted(ys, values, side="right") / float(ys.size)
-    return float(np.max(np.abs(cdf_x - cdf_y)))
 
 
 def _ecdf(values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -618,6 +527,7 @@ def _collect_config_cdf(
                 power_start_epoch_s=float(power_start_arr[trace_idx]),
                 trace_duration_s=float(power.size * dt),
                 dt=float(dt),
+                require_recorded_timestamps=False,
             )
             feat = build_rollout_features_from_requests(
                 requests=requests,
@@ -728,7 +638,7 @@ def _collect_config_cdf(
     metrics = compute_power_metrics(original_all, sampled_all, dt=dt, acf_max_lag=50)
     sorted_orig, cdf_orig = _ecdf(original_all)
     sorted_samp, cdf_samp = _ecdf(sampled_all)
-    ks_stat = _ks_statistic(original_all, sampled_all)
+    ks_stat = ks_statistic(original_all, sampled_all)
 
     return {
         "config_id": config_id,

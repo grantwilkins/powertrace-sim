@@ -2,12 +2,12 @@
 Aggregate node-level evaluation results for paper figures.
 
 Policy:
-    - Dense configs always come from i.i.d. results
-    - MoE configs prefer AR(1) results when available, else fall back to i.i.d.
+    - All configs (dense and MoE) come from i.i.d. results.
+      AR(1) generation was removed.
 """
 
 import os
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -53,13 +53,13 @@ def infer_arch_type(model_family: str, model_size: int) -> str:
     return "dense"
 
 
-def load_result_csv(csv_path: str, generation_mode: str) -> pd.DataFrame:
+def load_result_csv(csv_path: str, generation_mode: str = "iid") -> pd.DataFrame:
     """
     Load a single config_summary.csv and add generation_mode column.
 
     Args:
         csv_path: Path to config_summary.csv file
-        generation_mode: One of "iid", "ar1", "ar1_thresh"
+        generation_mode: Always "iid" (AR(1) generation was removed)
 
     Returns:
         DataFrame with all columns from CSV plus generation_mode
@@ -89,8 +89,21 @@ def load_result_csv(csv_path: str, generation_mode: str) -> pd.DataFrame:
             f"Found columns: {list(df.columns)}"
         )
 
-    # Track where each row came from.
-    df["generation_mode"] = generation_mode
+    requested_mode = str(generation_mode).strip().lower()
+    if "generation_mode" not in df.columns:
+        raise ValueError("CSV is missing required generation_mode provenance")
+    else:
+        recorded_modes = {
+            str(value).strip().lower()
+            for value in df["generation_mode"].dropna().tolist()
+            if str(value).strip()
+        }
+        if recorded_modes != {requested_mode}:
+            raise ValueError(
+                "CSV generation_mode does not match the requested source mode: "
+                f"recorded={sorted(recorded_modes)}, requested={requested_mode!r}"
+            )
+        df["generation_mode"] = df["generation_mode"].astype(str).str.strip().str.lower()
 
     return df
 
@@ -106,7 +119,6 @@ def _parse_and_annotate_rows(df: pd.DataFrame) -> pd.DataFrame:
         Parsed DataFrame with model_family, model_size, hardware, tp, arch_type columns.
     """
     parsed_rows: List[Dict[str, object]] = []
-    skipped_count = 0
 
     for _, row in df.iterrows():
         try:
@@ -123,77 +135,35 @@ def _parse_and_annotate_rows(df: pd.DataFrame) -> pd.DataFrame:
                     "arch_type": infer_arch_type(model_family, model_size),
                 }
             )
-        except ValueError as e:
-            print(f"Warning: Skipping config_id '{row['config_id']}': {e}")
-            skipped_count += 1
-
-    if skipped_count > 0:
-        print(f"Skipped {skipped_count} rows due to parsing errors")
+        except ValueError as exc:
+            raise ValueError(f"Invalid config_id {row['config_id']!r}") from exc
     if not parsed_rows:
         raise ValueError("No valid config_ids found in input data")
 
     return pd.DataFrame(parsed_rows)
 
 
-def select_generation_rows(
-    iid_df: pd.DataFrame, ar1_df: Optional[pd.DataFrame]
-) -> Tuple[pd.DataFrame, List[str]]:
+def select_generation_rows(iid_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Apply paper merge policy:
-      - dense: i.i.d.
-      - MoE: AR(1) when available, else i.i.d. fallback.
+    Prepare i.i.d. config rows for aggregation.
+
+    All configs (dense and MoE) use i.i.d. generation; AR(1) was removed.
 
     Args:
         iid_df: i.i.d. config_summary rows
-        ar1_df: AR(1) config_summary rows (can be None or empty)
 
     Returns:
-        (selected_rows, moe_fallback_config_ids)
+        Annotated rows with source_mode="iid"
     """
-    metric_cols: Sequence[str] = (
-        "ks_stat_median",
-        "acf_r2_median",
-        "nrmse_median",
-        "delta_energy_pct_median",
-    )
-
+    modes = {
+        str(value).strip().lower()
+        for value in iid_df["generation_mode"].dropna().tolist()
+    }
+    if modes != {"iid"}:
+        raise ValueError(f"IID selection requires only IID source rows; found {sorted(modes)}")
     selected = _parse_and_annotate_rows(iid_df.copy())
     selected["source_mode"] = "iid"
-
-    if ar1_df is None or len(ar1_df) == 0:
-        fallback_configs = sorted(
-            selected.loc[selected["arch_type"] == "moe", "config_id"].astype(str).tolist()
-        )
-        return selected, fallback_configs
-
-    ar1_parsed = _parse_and_annotate_rows(ar1_df.copy())
-    ar1_moe = ar1_parsed.loc[ar1_parsed["arch_type"] == "moe"].copy()
-
-    if ar1_moe.empty:
-        fallback_configs = sorted(
-            selected.loc[selected["arch_type"] == "moe", "config_id"].astype(str).tolist()
-        )
-        return selected, fallback_configs
-
-    # Keep one AR(1) row per config_id; prefer lowest KS if duplicates exist.
-    ar1_moe = ar1_moe.sort_values(by="ks_stat_median", ascending=True)
-    ar1_moe = ar1_moe.drop_duplicates(subset=["config_id"], keep="first")
-    ar1_by_config = ar1_moe.set_index("config_id")
-
-    moe_rows = selected["arch_type"] == "moe"
-    has_ar1 = selected["config_id"].isin(ar1_by_config.index)
-    replace_mask = moe_rows & has_ar1
-
-    for col in metric_cols:
-        selected.loc[replace_mask, col] = selected.loc[replace_mask, "config_id"].map(
-            ar1_by_config[col]
-        )
-    selected.loc[replace_mask, "source_mode"] = "ar1"
-
-    fallback_configs = sorted(
-        selected.loc[moe_rows & (~has_ar1), "config_id"].astype(str).tolist()
-    )
-    return selected, fallback_configs
+    return selected
 
 
 def aggregate_by_model(df: pd.DataFrame) -> pd.DataFrame:
@@ -251,10 +221,16 @@ def aggregate_by_model(df: pd.DataFrame) -> pd.DataFrame:
         energy_err_mean = group["delta_energy_pct_median"].mean()
         energy_err_std = group["delta_energy_pct_median"].std()
 
-        if arch_type == "dense":
-            generation_mode = "iid"
-        else:
-            generation_mode = "ar1_with_iid_fallback"
+        generation_modes = {
+            str(value).strip().lower()
+            for value in group["generation_mode"].dropna().tolist()
+        }
+        if len(generation_modes) != 1:
+            raise ValueError(
+                f"Cannot aggregate mixed generation modes for {model_family}-{model_size}: "
+                f"{sorted(generation_modes)}"
+            )
+        generation_mode = next(iter(generation_modes))
 
         aggregated.append(
             {
@@ -307,7 +283,7 @@ def save_summary(df: pd.DataFrame, output_path: str) -> None:
 
 def main():
     """
-    Main execution: load CSVs → select dense/iid + moe/ar1(fallback) → aggregate → save.
+    Main execution: load i.i.d. CSV → annotate → aggregate → save.
     """
     print("=" * 70)
     print("Collecting Evaluation Results for Paper Figures")
@@ -322,7 +298,6 @@ def main():
 
     input_files = {
         "iid": os.path.join(base_dir, "k10_f2", "eval_metrics", "config_summary.csv"),
-        "ar1": os.path.join(base_dir, "k10_f2_ar1", "eval_metrics", "config_summary.csv"),
     }
 
     output_path = os.path.join(
@@ -342,7 +317,6 @@ def main():
     print(f"\n{'=' * 70}")
     print("Loading results CSVs...")
     iid_path = input_files["iid"]
-    ar1_path = input_files["ar1"]
 
     if not os.path.exists(iid_path):
         raise FileNotFoundError(f"Required i.i.d. CSV not found: {iid_path}")
@@ -352,24 +326,8 @@ def main():
         f"  Loaded {len(iid_df)} configs from iid ({os.path.basename(os.path.dirname(iid_path))})"
     )
 
-    ar1_df: Optional[pd.DataFrame]
-    if os.path.exists(ar1_path):
-        ar1_df = load_result_csv(ar1_path, generation_mode="ar1")
-        print(
-            f"  Loaded {len(ar1_df)} configs from ar1 ({os.path.basename(os.path.dirname(ar1_path))})"
-        )
-    else:
-        print(f"Warning: AR(1) file not found; using i.i.d. fallback for all MoE: {ar1_path}")
-        ar1_df = None
-
-    # Apply merge policy before aggregation
-    df_selected, fallback_moe_configs = select_generation_rows(iid_df=iid_df, ar1_df=ar1_df)
+    df_selected = select_generation_rows(iid_df)
     print(f"\nSelected configs for aggregation: {len(df_selected)}")
-    if fallback_moe_configs:
-        print(
-            "MoE configs using i.i.d. fallback (missing AR(1)): "
-            + ", ".join(fallback_moe_configs)
-        )
 
     # Aggregate
     print(f"\n{'=' * 70}")

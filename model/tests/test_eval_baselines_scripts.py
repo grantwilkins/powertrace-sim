@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 from model.classifiers.gru import GRUClassifier
 from model.utils.config import is_moe_config
 from model.utils.io import write_json as _write_json
+from model.utils.provenance import file_identity
 from scripts.eval.baselines import (
     build_splitwise_style_lut_params,
     generate_marginal_gmm,
@@ -30,12 +31,29 @@ from scripts.eval.baselines import (
     generate_splitwise_style_lut_trace,
     generate_tdp,
 )
-from scripts.eval.run_baselines_facility import run_baselines_facility
+from scripts.eval.run_baselines_facility import (
+    DIVERSITY_FACTOR_DEFINITION,
+    _compute_facility_metrics,
+    run_baselines_facility,
+)
 from scripts.eval.run_baselines_node import (
     _aggregate_heldout_metrics_by_seed,
     run_baselines_node,
 )
 from scripts.eval.run_baselines_node_groundtruth import run_baselines_node_groundtruth
+
+
+def test_facility_diversity_uses_node_it_traces_only() -> None:
+    """Claim: diversity is sum(node peaks)/peak(sum nodes), independent of PUE."""
+    nodes = np.array([[10.0, 0.0], [0.0, 20.0]])
+    got = _compute_facility_metrics(
+        facility_w=1.3 * nodes.sum(axis=0),
+        node_stack_w=nodes,
+        dt=1.0,
+        n_nodes=2,
+    )
+    assert got["diversity_factor"] == 1.5
+    assert got["diversity_factor_definition"] == DIVERSITY_FACTOR_DEFINITION
 
 
 def _write_pair_manifest(path: Path, *, pair_key: str, json_path: str) -> None:
@@ -202,6 +220,10 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
                     "input_dim": 2,
                     "hidden_dim": 8,
                     "num_layers": 1,
+                    "throughput": {
+                        "lambda_prefill": 100.0,
+                        "lambda_decode": 50.0,
+                    },
                 }
             },
         },
@@ -233,6 +255,15 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
     _write_json(
         split_path, {"train_indices": [0], "val_indices": [], "test_indices": [1]}
     )
+    run_payload = json.loads(run_manifest_path.read_text())
+    run_payload["configs"][cfg]["artifact_identities"] = {
+        "checkpoint": file_identity(checkpoint_path),
+        "trained_norm": file_identity(norm_path),
+        "gmm": file_identity(gmm_path),
+        "dataset": file_identity(dataset_path),
+        "split": file_identity(split_path),
+    }
+    _write_json(run_manifest_path, run_payload)
 
     experimental_manifest_path = (
         root / "results" / "experimental_continuous_v1" / "manifest.json"
@@ -252,7 +283,7 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         },
     )
 
-    throughput_db_path = root / "model" / "config" / "throughput_database.json"
+    throughput_db_path = root / "model" / "throughput_database.json"
     _write_json(
         throughput_db_path,
         {
@@ -272,6 +303,8 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         {
             "input_lens": [32, 48, 16, 40],
             "output_lens": [20, 12, 10, 18],
+            "ttfts": [0.2, 0.3, 0.1, 0.25],
+            "itls": [[0.01] * 20, [0.01] * 12, [0.01] * 10, [0.01] * 18],
             "request_timestamps": [1000.0, 1000.5, 1001.0, 1001.5],
             "duration": 2.0,
             "request_rate": 2.0,
@@ -309,6 +342,7 @@ def _build_toy_fixture(root: Path, *, config_id: str = "toy-70b_H100_tp4") -> di
         "pair_manifest": pair_manifest_path,
         "perf_model_csv": perf_model_path,
         "ar1_params_dir": ar1_params_dir,
+        "split": split_path,
     }
 
 
@@ -600,6 +634,50 @@ class TestNodeBaselineSmoke(unittest.TestCase):
                     row["delta_energy_definition"],
                     "absolute_total_trace_energy_pct",
                 )
+                if row["method"] == "ours":
+                    self.assertEqual(row["generation_mode"], "iid")
+                elif row["method"] == "splitwise_strict":
+                    self.assertEqual(row["generation_mode"], "splitwise_style_lut")
+                else:
+                    self.assertEqual(row["generation_mode"], "deterministic_constant")
+                self.assertEqual(int(row["num_skipped_traces"]), 0)
+                self.assertEqual(int(row["num_failed_traces"]), 0)
+                self.assertEqual(int(row["num_skipped_or_failed_traces"]), 0)
+
+    def test_node_runner_counts_skipped_traces_separately(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fx = _build_toy_fixture(root)
+            _write_json(
+                fx["split"],
+                {"train_indices": [0], "val_indices": [], "test_indices": [1, 3]},
+            )
+            out_csv = root / "results" / "eval_paper" / "baselines_node_skip.csv"
+
+            run_baselines_node(
+                run_manifest=str(fx["run_manifest"]),
+                experimental_manifest=str(fx["experimental_manifest"]),
+                throughput_db=str(fx["throughput_db"]),
+                pair_manifest_csv=str(fx["pair_manifest"]),
+                ar1_params_dir=str(fx["ar1_params_dir"]),
+                out_csv=str(out_csv),
+                config_ids=[fx["config_id"]],
+                num_seeds=1,
+                base_seed=11,
+                device="cpu",
+                splitwise_perf_model_csv=str(fx["perf_model_csv"]),
+            )
+
+            with open(out_csv, "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 4)
+            for row in rows:
+                self.assertEqual(row["status"], "evaluated")
+                self.assertEqual(int(row["num_test_traces"]), 2)
+                self.assertEqual(int(row["num_eval_traces"]), 1)
+                self.assertEqual(int(row["num_skipped_traces"]), 1)
+                self.assertEqual(int(row["num_failed_traces"]), 0)
+                self.assertEqual(int(row["num_skipped_or_failed_traces"]), 1)
 
     def test_node_runner_smoke_tp8(self):
         with tempfile.TemporaryDirectory() as tmp:

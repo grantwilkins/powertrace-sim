@@ -1,15 +1,23 @@
 """
-Tests for scripts/eval/split_azure_week_to_days.py.
+Claim:
+The Azure week splitter uses repo-relative defaults and emits a day manifest
+that records the source week CSV and each generated day CSV.
+
+Plausible wrong implementations:
+- Default to a developer-specific absolute Downloads path.
+- Split rows correctly but omit provenance from day_manifest.csv.
+- Record day provenance at the wrong path or for the wrong UTC day.
 """
 
 import csv
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
-from split_azure_week_to_days import split_week_csv_to_days  # noqa: E402
+from split_azure_week_to_days import DEFAULT_INPUT_CSV, split_week_csv_to_days  # noqa: E402
 
 
 def _write_week_csv(path, rows):
@@ -17,6 +25,12 @@ def _write_week_csv(path, rows):
         writer = csv.DictWriter(f, fieldnames=["TIMESTAMP", "ContextTokens", "GeneratedTokens"])
         writer.writeheader()
         writer.writerows(rows)
+
+
+def test_default_input_csv_is_repo_relative():
+    assert DEFAULT_INPUT_CSV == "data/azure_trace/raw/AzureLLMInferenceTrace_code_1week.csv"
+    assert not os.path.isabs(DEFAULT_INPUT_CSV)
+    assert "/Users/" not in DEFAULT_INPUT_CSV
 
 
 def test_split_and_manifest():
@@ -68,6 +82,8 @@ def test_split_and_manifest():
             assert set(manifest.keys()) == {"2024-05-10", "2024-05-11"}
             assert int(manifest["2024-05-10"]["row_count"]) == 2
             assert int(manifest["2024-05-11"]["row_count"]) == 1
+            assert manifest["2024-05-10"]["input_csv"] == str(Path(week_csv).resolve())
+            assert manifest["2024-05-10"]["day_csv"] == str(Path(day1).resolve())
 
 
 def test_manifest_full_day_flag():

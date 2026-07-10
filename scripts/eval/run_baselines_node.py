@@ -23,20 +23,18 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from model.classifiers.metrics import compute_aggregate_power_metrics
+from model.pipeline.request_builder import _build_requests_from_stage0_json
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.pipeline_utils import (
     _finite_float,
     _is_70b_tp4_config,
-    _load_or_estimate_ar1_params,
     _load_pair_manifest_map,
     _parse_config_ids,
     _resolve_existing_path,
     build_rollout_features_from_requests,
-    estimate_ar1_params,
     extract_norm_params,
     load_gmm_params_json_dict,
     load_gru_classifier,
-    predict_sorted_gmm_labels_from_params,
     resolve_checkpoint_norm_gmm_paths as _shared_resolve_checkpoint_norm_gmm_paths,
     resolve_experimental_paths as _shared_resolve_experimental_paths,
     resolve_throughput as _shared_resolve_throughput,
@@ -133,31 +131,10 @@ def _resolve_per_gpu_chip_tdp_w(
     return resolved
 
 
-def _is_moe_config(config_id: str) -> bool:
-    """
-    Return True when config_id is treated as MoE in eval scripts.
-
-    Current policy:
-      - DeepSeek-R1-Distill is dense
-      - GPT-OSS 20B+ is MoE
-    """
-    match = CONFIG_MODEL_SIZE_RE.match(str(config_id).strip())
-    if match is None:
-        return False
-    model_family = str(match.group(1)).lower()
-    model_size = int(match.group(2))
-
-    if "deepseek-r1-distill" in model_family:
-        return False
-    if "gpt-oss" in model_family and model_size >= 20:
-        return True
-    return False
-
-
 def _generation_mode_for_method(method: str, config_id: str) -> str:
     method_name = str(method)
     if method_name == "ours":
-        return "ar1_thresholded" if _is_moe_config(config_id) else "iid"
+        return "iid"
     if method_name == "splitwise_strict":
         return "splitwise_style_lut"
     if method_name in CONSTANT_METHODS:
@@ -351,88 +328,6 @@ def _estimate_splitwise_phase_targets_from_indices(
     return out
 
 
-def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
-    if n <= 0:
-        return []
-
-    duration = _finite_float(payload.get("duration"))
-    if duration is not None and duration > 0:
-        step = float(duration) / float(max(n, 1))
-        if step > 0:
-            values = (np.arange(n, dtype=np.float64) + 0.5) * step + 1.0
-            return [float(x) for x in values]
-
-    request_rate = _finite_float(payload.get("request_rate"))
-    poisson_rate = _finite_float(payload.get("poisson_rate"))
-    rate = request_rate if request_rate is not None else poisson_rate
-    if rate is not None and rate > 0:
-        step = 1.0 / float(rate)
-        values = (np.arange(n, dtype=np.float64) + 1.0) * step + 1.0
-        return [float(x) for x in values]
-    return None
-
-
-def _build_requests_from_stage0_json(
-    request_json_path: str,
-    *,
-    power_start_epoch_s: float,
-    trace_duration_s: float,
-    dt: float,
-    require_recorded_timestamps: bool = True,
-) -> List[Dict[str, float]]:
-    payload = load_json(request_json_path)
-    required = ("input_lens", "output_lens")
-    missing = [k for k in required if not isinstance(payload.get(k), list)]
-    if missing:
-        raise ValueError(f"request json missing arrays: {missing}")
-
-    input_lens = payload["input_lens"]
-    output_lens = payload["output_lens"]
-    n_base = int(min(len(input_lens), len(output_lens)))
-
-    request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
-        n = int(min(n_base, len(request_timestamps_raw)))
-        request_timestamps = request_timestamps_raw[:n]
-    else:
-        if bool(require_recorded_timestamps):
-            raise ValueError(
-                "request json missing arrays: ['request_timestamps'] "
-                "(synthetic fallback disabled)"
-            )
-        n = int(n_base)
-        synth = _synthesize_request_timestamps(payload, n)
-        if synth is None:
-            raise ValueError("request json missing arrays: ['request_timestamps']")
-        request_timestamps = synth
-    if n <= 0:
-        raise ValueError("request arrays are empty after alignment")
-
-    arrivals = np.asarray(request_timestamps[:n], dtype=np.float64) - float(power_start_epoch_s)
-    if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt) or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
-    ):
-        arrivals = arrivals - float(np.min(arrivals))
-
-    out: List[Dict[str, float]] = []
-    for i in range(n):
-        a = float(arrivals[i])
-        nin = float(input_lens[i])
-        nout = float(output_lens[i])
-        if not (np.isfinite(a) and np.isfinite(nin) and np.isfinite(nout)):
-            continue
-        out.append(
-            {
-                "arrival_time": float(a),
-                "input_tokens": float(max(0.0, nin)),
-                "output_tokens": float(max(0.0, nout)),
-            }
-        )
-    if len(out) == 0:
-        raise ValueError("no valid requests after filtering")
-    return out
-
-
 _extract_norm_for_eval = extract_norm_params
 
 
@@ -527,7 +422,7 @@ def run_baselines_node(
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
     throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
-    ar1_params_dir: str = "results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
+    ar1_params_dir: str = "",
     out_csv: str = "results/eval_paper/baselines_node_level.csv",
     config_ids: Optional[Sequence[str]] = None,
     num_seeds: int = 5,
@@ -545,6 +440,7 @@ def run_baselines_node(
     splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
     allow_synthetic_request_timestamps: bool = False,
 ) -> Dict[str, object]:
+    del ar1_params_dir  # accepted but ignored; AR(1) generation removed
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
     if float(ours_std_scale) <= 0:
@@ -697,7 +593,6 @@ def run_baselines_node(
                 raise ValueError(f"invalid_dt:{dt}")
             n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
 
-            train_power_traces: List[np.ndarray] = []
             train_power_pool: List[np.ndarray] = []
             for idx in train_indices:
                 if idx < 0 or idx >= n_total:
@@ -705,14 +600,12 @@ def run_baselines_node(
                 p = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
                 if p.size == 0:
                     continue
-                train_power_traces.append(p.astype(np.float64))
                 train_power_pool.append(p.astype(np.float64))
             if len(train_power_pool) == 0:
                 for i in range(n_total):
                     p = np.asarray(power_arr[i], dtype=np.float64).reshape(-1)
                     if p.size == 0:
                         continue
-                    train_power_traces.append(p.astype(np.float64))
                     train_power_pool.append(p.astype(np.float64))
                     if len(train_power_pool) >= 3:
                         break
@@ -780,17 +673,6 @@ def run_baselines_node(
                 ),
             }
 
-            ar1_params = None
-            if _is_moe_config(config_id):
-                ar1_params = _load_or_estimate_ar1_params(
-                    config_id=config_id,
-                    gmm_params=gmm_cfg,
-                    train_power_traces=train_power_traces
-                    if len(train_power_traces) > 0
-                    else train_power_pool,
-                    ar1_params_dir=ar1_params_dir,
-                )
-
             for test_idx in test_indices:
                 if test_idx < 0 or test_idx >= n_total:
                     for method in METHODS:
@@ -856,7 +738,6 @@ def run_baselines_node(
                     "std_scale": float(ours_std_scale),
                     "logit_temperature": float(ours_logit_temperature),
                     "clamp_range": (norm_cfg["power_min"], norm_cfg["power_max"]),
-                    "ar1_params": ar1_params,
                 }
 
                 for method in METHODS:
@@ -1178,8 +1059,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     parser.add_argument(
         "--ar1-params-dir",
-        default="results/continuous_v1_gmm_bigru/k10_f2_ar1_thresh/ar1_params",
-        help="Directory containing AR(1) params JSON files (used only for MoE configs).",
+        default="",
+        help="(ignored; AR(1) generation removed)",
     )
     parser.add_argument("--out-csv", default="results/eval_paper/baselines_node_level.csv")
     parser.add_argument("--config-ids", nargs="*", default=None, help="Optional list or comma-separated list of config IDs")

@@ -19,7 +19,7 @@ from azure_defaults import (  # noqa: E402
     DEFAULT_SPLITWISE_SOURCE_MODEL,
     DEFAULT_SPLITWISE_SOURCE_TP,
 )
-from azure_generate_traces import generate_node_traces  # noqa: E402
+from azure_generate_traces import _normalize_methods, generate_node_traces  # noqa: E402
 
 from model.tests.test_eval_baselines_scripts import _build_toy_fixture  # noqa: E402
 
@@ -89,7 +89,11 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert summary["methods"] == ["ours", "splitwise_strict"]
         assert summary["counts"]["evaluated_by_method"]["ours"] == 2
         assert summary["counts"]["evaluated_by_method"]["splitwise_strict"] == 2
-        assert summary["generation"]["uses_ar1"] is False
+        assert summary["generation"]["timing_mode"] == "arrival_only"
+        assert summary["generation"]["generation_mode_by_method"] == {
+            "ours": "iid",
+            "splitwise_strict": "splitwise_style_lut",
+        }
         assert (
             summary["splitwise"]["splitwise_source_model"]
             == DEFAULT_SPLITWISE_SOURCE_MODEL
@@ -127,6 +131,9 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert len(rows) == 4
         assert {row["status"] for row in rows} == {"evaluated"}
         assert {row["method"] for row in rows} == {"ours", "splitwise_strict"}
+        modes = {row["method"]: row["generation_mode"] for row in rows}
+        assert modes["ours"] == "iid"
+        assert modes["splitwise_strict"] == "splitwise_style_lut"
 
 
 def test_splitwise_lut_is_rejected() -> None:
@@ -143,7 +150,7 @@ def test_splitwise_lut_is_rejected() -> None:
             generate_node_traces(
                 run_manifest=str(fx["run_manifest"]),
                 experimental_manifest=str(fx["experimental_manifest"]),
-                throughput_db=str(fx["throughput_db"]),
+                throughput_db=str(root / "missing-throughput.json"),
                 ar1_params_dir=str(fx["ar1_params_dir"]),
                 node_stream_dir=str(node_stream_dir),
                 out_root=str(root / "results" / "azure_facility" / "node_traces"),
@@ -158,3 +165,7 @@ def test_splitwise_lut_is_rejected() -> None:
                 base_seed=1,
                 device="cpu",
             )
+
+
+def test_physics_is_an_explicit_generation_method() -> None:
+    assert _normalize_methods(["physics"]) == ["physics"]

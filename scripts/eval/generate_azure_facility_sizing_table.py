@@ -232,7 +232,7 @@ def generate_azure_facility_sizing_table(
     rows: int = 10,
     racks_per_row: int = 6,
     nodes_per_rack: int = 4,
-    tp_gpus: int = 4,
+    tp_gpus: Optional[int] = None,
     gpu_tdp_w: float = 700.0,
     non_gpu_overhead_w: float = DEFAULT_NON_GPU_OVERHEAD_W,
     pue: float = DEFAULT_PUE,
@@ -252,7 +252,7 @@ def generate_azure_facility_sizing_table(
             rows=int(rows),
             racks_per_row=int(racks_per_row),
             nodes_per_rack=int(nodes_per_rack),
-            tp_gpus=int(tp_gpus),
+            tp_gpus=(int(tp_gpus) if tp_gpus is not None else None),
             gpu_tdp_w=float(gpu_tdp_w),
             non_gpu_overhead_w=float(non_gpu_overhead_w),
             pue=float(pue),
@@ -359,7 +359,12 @@ def main() -> None:
     parser.add_argument("--rows", type=int, default=10)
     parser.add_argument("--racks-per-row", type=int, default=6)
     parser.add_argument("--nodes-per-rack", type=int, default=4)
-    parser.add_argument("--tp-gpus", type=int, default=4)
+    parser.add_argument(
+        "--tp-gpus",
+        type=int,
+        default=None,
+        help="GPUs per node for TDP baselines; resolved from --config-id's _tp<N> suffix when omitted.",
+    )
     parser.add_argument("--gpu-tdp-w", type=float, default=700.0)
     parser.add_argument("--non-gpu-overhead-w", type=float, default=DEFAULT_NON_GPU_OVERHEAD_W)
     parser.add_argument("--pue", type=float, default=DEFAULT_PUE)
@@ -389,7 +394,7 @@ def main() -> None:
         rows=int(args.rows),
         racks_per_row=int(args.racks_per_row),
         nodes_per_rack=int(args.nodes_per_rack),
-        tp_gpus=int(args.tp_gpus),
+        tp_gpus=(int(args.tp_gpus) if args.tp_gpus is not None else None),
         gpu_tdp_w=float(args.gpu_tdp_w),
         non_gpu_overhead_w=float(args.non_gpu_overhead_w),
         pue=float(args.pue),

@@ -15,8 +15,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, IO, List, Set, Tuple
 
+from model.utils.io import repo_relative_or_absolute, repo_root
 
-DEFAULT_INPUT_CSV = "/Users/grantwilkins/Downloads/AzureLLMInferenceTrace_code_1week.csv"
+
+DEFAULT_INPUT_CSV = "data/azure_trace/raw/AzureLLMInferenceTrace_code_1week.csv"
+DEFAULT_OUTPUT_DIR = "data/azure_trace/days"
 
 
 def parse_timestamp_utc(timestamp_raw: str) -> datetime:
@@ -42,8 +45,14 @@ def parse_timestamp_utc(timestamp_raw: str) -> datetime:
 
 
 def _default_output_dir() -> str:
-    repo_root = Path(__file__).resolve().parents[2]
-    return str(repo_root / "data" / "azure_trace" / "days")
+    return DEFAULT_OUTPUT_DIR
+
+
+def _repo_path(path: str) -> str:
+    raw = Path(path)
+    if raw.is_absolute():
+        return str(raw)
+    return str(repo_root() / raw)
 
 
 def split_week_csv_to_days(input_csv: str, output_dir: str) -> List[Dict[str, object]]:
@@ -51,7 +60,7 @@ def split_week_csv_to_days(input_csv: str, output_dir: str) -> List[Dict[str, ob
     Stream the week CSV and split rows into one output CSV per UTC day.
 
     Manifest columns:
-      day_utc,row_count,min_timestamp,max_timestamp,span_seconds,is_full_day,hours_present
+      day_utc,input_csv,day_csv,row_count,min_timestamp,max_timestamp,span_seconds,is_full_day,hours_present
     """
     if not os.path.exists(input_csv):
         raise FileNotFoundError(f"Week CSV not found: {input_csv}")
@@ -75,6 +84,7 @@ def split_week_csv_to_days(input_csv: str, output_dir: str) -> List[Dict[str, ob
             "min_dt": None,
             "max_dt": None,
             "hours": set(),
+            "day_csv": day_path,
         }
         return writer
 
@@ -141,6 +151,8 @@ def split_week_csv_to_days(input_csv: str, output_dir: str) -> List[Dict[str, ob
         manifest_rows.append(
             {
                 "day_utc": day_key,
+                "input_csv": repo_relative_or_absolute(input_csv),
+                "day_csv": repo_relative_or_absolute(str(stats["day_csv"])),
                 "row_count": int(stats["row_count"]),
                 "min_timestamp": min_ts,
                 "max_timestamp": max_ts,
@@ -156,6 +168,8 @@ def split_week_csv_to_days(input_csv: str, output_dir: str) -> List[Dict[str, ob
             f_manifest,
             fieldnames=[
                 "day_utc",
+                "input_csv",
+                "day_csv",
                 "row_count",
                 "min_timestamp",
                 "max_timestamp",
@@ -195,7 +209,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    split_week_csv_to_days(input_csv=args.input_csv, output_dir=args.output_dir)
+    split_week_csv_to_days(
+        input_csv=_repo_path(args.input_csv),
+        output_dir=_repo_path(args.output_dir),
+    )
 
 
 if __name__ == "__main__":

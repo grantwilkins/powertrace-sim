@@ -28,6 +28,8 @@ from scripts.eval.azure_defaults import (
     load_json,
     parse_csv_list,
 )
+from model.classifiers import metrics as shared_metrics
+from model.utils.config import tp_gpus_from_config_id
 from scripts.eval.facility import FacilityLayout
 from scripts.eval.pipeline_utils import resolve_experimental_paths
 
@@ -43,7 +45,10 @@ RESOLUTION_FILE_MAP_IT = {
     60.0: "site_it_1min.npy",
     900.0: "site_it_15min.npy",
 }
-NON_CONSTANT_METHODS = {"ours", "splitwise_strict"}
+NON_CONSTANT_METHODS = {"ours", "splitwise_strict", "physics"}
+DIVERSITY_FACTOR_DEFINITION = (
+    "sum_individual_node_it_peaks_over_coincident_site_it_peak"
+)
 
 
 def _load_array(path: str) -> np.ndarray:
@@ -77,15 +82,10 @@ def _load_train_mean_gpu_power_w(
     traces: List[np.ndarray] = []
     for idx in train_indices:
         if idx < 0 or idx >= n_total:
-            continue
+            raise ValueError(f"Training trace index out of bounds: {idx}")
         power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
         if power.size > 0:
             traces.append(power.astype(np.float64))
-    if len(traces) == 0:
-        for idx in range(n_total):
-            power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
-            if power.size > 0:
-                traces.append(power.astype(np.float64))
     if len(traces) == 0:
         raise ValueError(f"No training traces available for {config_id}")
 
@@ -103,42 +103,29 @@ def _compute_metrics(arr_kw: np.ndarray, resolution_s: float) -> Dict[str, float
     peak = float(np.max(x))
     avg = float(np.mean(x))
     par = float(peak / avg) if avg > 0 else float("nan")
-    load_factor = float(avg / peak) if peak > 0 else float("nan")
 
-    ramps = np.diff(x)
-    if ramps.size > 0:
-        ramp_p50 = float(np.percentile(ramps, 50))
-        ramp_p95_abs = float(np.percentile(np.abs(ramps), 95))
-        ramp_p99_abs = float(np.percentile(np.abs(ramps), 99))
-        ramp_max_up = float(np.max(ramps))
-        ramp_max_down = float(np.min(ramps))
-    else:
-        ramp_p50 = float("nan")
-        ramp_p95_abs = float("nan")
-        ramp_p99_abs = float("nan")
-        ramp_max_up = float("nan")
-        ramp_max_down = float("nan")
-
+    # The input series is already stored at resolution_s, so dt == resolution_s
+    # and the shared ramp function diffs it as-is with the resolution recorded.
+    ramps = shared_metrics.ramp_stats(x, dt=resolution_s, resolution_s=resolution_s)
+    ramp_p95_abs = ramps["ramp_p95_abs"]
     ramp_p95_abs_per_s = (
         float(ramp_p95_abs / float(resolution_s))
         if np.isfinite(ramp_p95_abs) and float(resolution_s) > 0.0
         else float("nan")
     )
-    ldc_p95 = float(np.percentile(x, 95))
-    ldc_p99 = float(np.percentile(x, 99))
     return {
         "peak_kw": peak,
         "avg_kw": avg,
         "par": par,
-        "load_factor": load_factor,
-        "ramp_p50_kw_per_step": ramp_p50,
+        "load_factor": shared_metrics.load_factor(x),
+        "ramp_p50_kw_per_step": ramps["ramp_p50"],
         "ramp_p95_abs_kw_per_step": ramp_p95_abs,
-        "ramp_p99_abs_kw_per_step": ramp_p99_abs,
-        "ramp_max_up_kw_per_step": ramp_max_up,
-        "ramp_max_down_kw_per_step": ramp_max_down,
+        "ramp_p99_abs_kw_per_step": ramps["ramp_p99_abs"],
+        "ramp_max_up_kw_per_step": ramps["ramp_max_up"],
+        "ramp_max_down_kw_per_step": ramps["ramp_max_down"],
         "ramp_p95_abs_kw_per_s": ramp_p95_abs_per_s,
-        "ldc_p95_kw": ldc_p95,
-        "ldc_p99_kw": ldc_p99,
+        "ldc_p95_kw": shared_metrics.load_duration_value(x, 0.05),
+        "ldc_p99_kw": shared_metrics.load_duration_value(x, 0.01),
     }
 
 
@@ -156,11 +143,10 @@ def _compute_diversity_factor_it(
         node_gpu = _load_array(path)
         node_it = node_gpu + float(non_gpu_overhead_w)
         node_peaks.append(float(np.max(node_it)))
-    single_node_peak = float(np.max(np.asarray(node_peaks, dtype=np.float64)))
-    denom = float(layout.n_nodes) * float(single_node_peak)
-    if denom <= 0.0 or (not np.isfinite(denom)):
+    numerator = float(np.sum(np.asarray(node_peaks, dtype=np.float64)))
+    if site_peak <= 0.0 or (not np.isfinite(site_peak)):
         return float("nan")
-    return float(site_peak / denom)
+    return float(numerator / site_peak)
 
 
 def _load_method_site_arrays(aggregated_root: str, method: str) -> Dict[float, np.ndarray]:
@@ -179,7 +165,7 @@ def _load_method_site_it_arrays(aggregated_root: str, method: str) -> Dict[float
 def _normalize_trace_kinds(trace_kinds: Sequence[str] | str) -> List[str]:
     kinds = parse_csv_list(trace_kinds) if isinstance(trace_kinds, str) else [str(x).strip() for x in trace_kinds]
     out: List[str] = []
-    allowed = set(DEFAULT_TRACE_KINDS)
+    allowed = set(DEFAULT_TRACE_KINDS) | NON_CONSTANT_METHODS
     for kind in kinds:
         if not kind:
             continue
@@ -205,11 +191,12 @@ def compute_azure_facility_metrics(
     rows: int = 10,
     racks_per_row: int = 6,
     nodes_per_rack: int = 4,
-    tp_gpus: int = 4,
+    tp_gpus: Optional[int] = None,
     gpu_tdp_w: float = 700.0,
     non_gpu_overhead_w: float = DEFAULT_NON_GPU_OVERHEAD_W,
     pue: float = DEFAULT_PUE,
 ) -> Dict[str, object]:
+    tp_gpus = int(tp_gpus) if tp_gpus is not None else tp_gpus_from_config_id(config_id)
     if int(tp_gpus) <= 0:
         raise ValueError("tp_gpus must be >= 1")
     if float(gpu_tdp_w) <= 0.0:
@@ -303,6 +290,7 @@ def compute_azure_facility_metrics(
                     "ldc_p95_kw": float(metrics["ldc_p95_kw"]),
                     "ldc_p99_kw": float(metrics["ldc_p99_kw"]),
                     "diversity_factor_it": float(diversity),
+                    "diversity_factor_definition": DIVERSITY_FACTOR_DEFINITION,
                     "status": "evaluated",
                     "notes": str(notes),
                 }
@@ -355,6 +343,7 @@ def compute_azure_facility_metrics(
                 "ldc_p95_kw",
                 "ldc_p99_kw",
                 "diversity_factor_it",
+                "diversity_factor_definition",
                 "status",
                 "notes",
             ],
@@ -399,11 +388,13 @@ def compute_azure_facility_metrics(
             "n_nodes": int(layout.n_nodes),
         },
         "baselines": {
+            "tp_gpus": int(tp_gpus),
             "site_tdp_w": float(site_tdp_w),
             "site_mean_w": float(site_mean_w),
             "train_mean_gpu_w": float(train_mean_gpu_w),
         },
         "diversity_by_method": {key: float(value) for key, value in diversity_by_method.items()},
+        "diversity_factor_definition": DIVERSITY_FACTOR_DEFINITION,
         "reference_method": str(reference_method),
     }
 
@@ -422,7 +413,12 @@ def main() -> None:
     parser.add_argument("--rows", type=int, default=10)
     parser.add_argument("--racks-per-row", type=int, default=6)
     parser.add_argument("--nodes-per-rack", type=int, default=4)
-    parser.add_argument("--tp-gpus", type=int, default=4)
+    parser.add_argument(
+        "--tp-gpus",
+        type=int,
+        default=None,
+        help="GPUs per node for TDP baselines; resolved from --config-id's _tp<N> suffix when omitted.",
+    )
     parser.add_argument("--gpu-tdp-w", type=float, default=700.0)
     parser.add_argument("--non-gpu-overhead-w", type=float, default=DEFAULT_NON_GPU_OVERHEAD_W)
     parser.add_argument("--pue", type=float, default=DEFAULT_PUE)
@@ -440,7 +436,7 @@ def main() -> None:
         rows=int(args.rows),
         racks_per_row=int(args.racks_per_row),
         nodes_per_rack=int(args.nodes_per_rack),
-        tp_gpus=int(args.tp_gpus),
+        tp_gpus=(int(args.tp_gpus) if args.tp_gpus is not None else None),
         gpu_tdp_w=float(args.gpu_tdp_w),
         non_gpu_overhead_w=float(args.non_gpu_overhead_w),
         pue=float(args.pue),

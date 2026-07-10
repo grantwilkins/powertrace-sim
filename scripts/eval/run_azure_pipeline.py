@@ -68,7 +68,7 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
         run_manifest=kwargs["run_manifest"],
         experimental_manifest=kwargs["experimental_manifest"],
         throughput_db=kwargs["throughput_db"],
-        ar1_params_dir=kwargs["ar1_params_dir"],
+        physics_artifact=kwargs["physics_artifact"],
         node_stream_dir=kwargs["node_stream_dir"],
         out_root=kwargs["node_traces_root"],
         config_id=kwargs["config_id"],
@@ -121,7 +121,7 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
         rows=kwargs["rows"],
         racks_per_row=kwargs["racks_per_row"],
         nodes_per_rack=kwargs["nodes_per_rack"],
-        tp_gpus=kwargs["tp_gpus"] if kwargs["tp_gpus"] is not None else 4,
+        tp_gpus=kwargs["tp_gpus"],
         gpu_tdp_w=kwargs["gpu_tdp_w"],
         non_gpu_overhead_w=kwargs["non_gpu_overhead_w"],
         pue=kwargs["pue"],
@@ -194,9 +194,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-manifest", default=defaults["run_manifest"])
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
+    parser.add_argument("--physics-artifact", default=defaults["physics_artifact"])
     parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
-    parser.add_argument("--ar1-params-dir", default=defaults["ar1_params_dir"])
+    parser.add_argument(
+        "--ar1-params-dir",
+        default="",
+        help="(ignored; AR(1) generation removed)",
+    )
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
     parser.add_argument("--node-traces-root", default=defaults["node_traces_root"])
     parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
@@ -274,9 +279,9 @@ def main() -> None:
         run_manifest=str(args.run_manifest),
         experimental_manifest=str(args.experimental_manifest),
         throughput_db=str(args.throughput_db),
+        physics_artifact=str(args.physics_artifact),
         pair_manifest_csv=str(args.pair_manifest_csv),
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
-        ar1_params_dir=str(args.ar1_params_dir),
         node_stream_dir=str(args.node_stream_dir),
         node_traces_root=str(args.node_traces_root),
         aggregated_root=str(args.aggregated_root),

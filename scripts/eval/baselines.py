@@ -34,13 +34,10 @@ CONFIG_HW_RE = re.compile(r"^.+_(A100|H100)_tp\d+$")
 CONFIG_HW_TP_RE = re.compile(r"^.+_(A100|H100)_tp(\d+)$")
 
 
-def _load_pipeline_generators() -> Tuple[object, object]:
-    from scripts.eval.pipeline_utils import (
-        generate_gmm_bigru_trace,
-        generate_gmm_bigru_trace_ar1_thresholded,
-    )
+def _load_pipeline_generator() -> object:
+    from scripts.eval.pipeline_utils import generate_gmm_bigru_trace
 
-    return generate_gmm_bigru_trace, generate_gmm_bigru_trace_ar1_thresholded
+    return generate_gmm_bigru_trace
 
 
 def _extract_seed(config: Mapping[str, object], rng: Optional[np.random.Generator]) -> Optional[int]:
@@ -1281,7 +1278,7 @@ def generate_ours(
     gmm_params: Mapping[str, object],
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
-    """Full pipeline: BiGRU logits + GMM/AR1 sampling."""
+    """Full pipeline: BiGRU logits + IID GMM sampling."""
     features = np.asarray(feature_sequence, dtype=np.float32)
     if features.ndim != 2:
         raise ValueError(f"feature_sequence must have shape (T,D); got {features.shape}")
@@ -1321,42 +1318,15 @@ def generate_ours(
     p0 = float(config.get("p0", np.asarray(gmm_params["means"], dtype=np.float64).reshape(-1)[0]))
     seed = _extract_seed(config, rng)
 
-    ar1_params = config.get("ar1_params")
-    if isinstance(ar1_params, Mapping):
-        phi = np.asarray(ar1_params["phi"], dtype=np.float64).reshape(-1)
-        sigma_innov = np.asarray(ar1_params["sigma_innov"], dtype=np.float64).reshape(-1) * float(std_scale)
-        sigma_marginal_payload = ar1_params.get("sigma_marginal")
-        if sigma_marginal_payload is None:
-            sigma_marginal = np.sqrt(
-                np.clip(np.asarray(gmm_sampling["variances"], dtype=np.float64).reshape(-1), a_min=1e-12, a_max=None)
-            )
-        else:
-            sigma_marginal = np.asarray(sigma_marginal_payload, dtype=np.float64).reshape(-1) * float(std_scale)
-        phi_threshold = float(ar1_params.get("phi_threshold", config.get("phi_threshold", 0.3)))
-        _, generate_gmm_bigru_trace_ar1_thresholded = _load_pipeline_generators()
-        generated = generate_gmm_bigru_trace_ar1_thresholded(
-            logits=logits,
-            gmm_params=gmm_sampling,
-            phi=phi,
-            sigma_innov=sigma_innov,
-            sigma_marginal=sigma_marginal,
-            p0=p0,
-            seed=seed,
-            decode_mode=decode_mode,
-            median_filter_window=median_filter_window,
-            phi_threshold=phi_threshold,
-            clamp_range=clamp_range,
-        )
-    else:
-        generate_gmm_bigru_trace, _ = _load_pipeline_generators()
-        generated = generate_gmm_bigru_trace(
-            logits=logits,
-            gmm_params=gmm_sampling,
-            seed=seed,
-            decode_mode=decode_mode,
-            median_filter_window=median_filter_window,
-            clamp_range=clamp_range,
-        )
+    generate_gmm_bigru_trace = _load_pipeline_generator()
+    generated = generate_gmm_bigru_trace(
+        logits=logits,
+        gmm_params=gmm_sampling,
+        seed=seed,
+        decode_mode=decode_mode,
+        median_filter_window=median_filter_window,
+        clamp_range=clamp_range,
+    )
 
     power = np.asarray(generated["power_w"], dtype=np.float64).reshape(-1)
     if power.size == t_horizon:
