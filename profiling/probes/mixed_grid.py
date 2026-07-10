@@ -8,10 +8,15 @@ def main():
     p = base_parser(__doc__)
     p.add_argument("--n-points", type=int, default=16)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--prefill-min", type=int, default=256)
+    p.add_argument("--prefill-max", type=int, default=16384)
+    p.add_argument("--output-len", type=int, default=512)
     args = p.parse_args()
     schedule = build_mixed_grid(
         n_points=args.n_points, seed=args.seed, hold_s=args.hold_s,
         decode_range=(1, args.max_num_seqs),
+        prefill_range=(args.prefill_min, args.prefill_max),
+        output_len=args.output_len,
     )
     print(execute(schedule, args))
 

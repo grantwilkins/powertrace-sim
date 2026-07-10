@@ -31,18 +31,20 @@ states. This campaign replaces it.
 Second principle: **measure engine state, don't reconstruct it.** Today we infer
 batch size / phase from client-side `ttft`+`itl`. vLLM already exposes the true
 state at `/metrics` (`num_requests_running`, `gpu_cache_usage_perc`, token
-counters). Scraping it turns every bin into a *labeled* `(state → power)` sample
-and removes the most error-prone step in the pipeline.
+counters). Scraping it is already part of the bundle contract, but current
+roofline/agentic analyses remain reconstruction-based until `engine.csv` parsing
+is implemented and validated.
 
 ---
 
 ## 2. The data contract (what every run emits)
 
-One self-describing bundle per run: `data/runs/<run_id>/`
+One self-describing bundle per campaign run:
+`data/runs/<campaign_id>/<run_id>/`
 
 | file | source | contents (per row unless noted) |
 |---|---|---|
-| `power.csv` | `nvidia-smi` @ 4 Hz | timestamp, **per-GPU**: `power.draw`, `clocks.sm`, `clocks.mem`, `utilization.gpu`, `utilization.memory`, `memory.used`, `temperature.gpu` |
+| `power.csv` | `nvidia-smi` @ 4 Hz | timestamp, **per-GPU**: `index`, `uuid`, `power.draw`, `clocks.sm`, `clocks.mem`, `utilization.gpu`, `utilization.memory`, `memory.used`, `temperature.gpu` |
 | `engine.csv` | vLLM `/metrics` @ 4 Hz | timestamp, `num_requests_running`, `num_requests_waiting`, `gpu_cache_usage_perc`, `prompt_tokens_total`, `generation_tokens_total`, `iteration_tokens_total_{sum,count}`, `request_{prefill,decode}_time_seconds_sum` |
 | `requests.json` | `benchmark_serving.py` | `input_lens`, `output_lens`, `ttfts`, `itls`, `request_timestamps` + aggregates (unchanged) |
 | `manifest.json` | new emitter | everything below |
@@ -62,8 +64,9 @@ One self-describing bundle per run: `data/runs/<run_id>/`
              "enable_chunked_prefill": true, "enable_prefix_caching": false,
              "kv_cache_dtype": "auto", "max_model_len": 131072},
   "versions": {"vllm": "0.x.y", "git_sha": "…", "gpu_driver": "…"},
-  "clock": {"power_epoch_offset_s": 0.0, "engine_epoch_offset_s": 0.0,
-            "monotonic_start": 12345.6}
+  "clock": {"local_utc_offset_s": -25200.0,
+            "power_timestamp_basis": "local_wall_time",
+            "engine_timestamp_basis": "unix_epoch", "monotonic_start": 12345.6}
 }
 ```
 
@@ -199,17 +202,18 @@ already exists in the current job scripts.
 
 ## 6. Output → training handoff
 
-The ledger builder in `feature-test/build_ledger_cache.py` is updated to read the
-§2 bundle directly:
-- **state** comes from `engine.csv` (measured) instead of being reconstructed from
-  `ttft`/`itl` — `requests.json` becomes validation/cross-check, not the source.
-- **work rates** are computed from measured state + `manifest.arch`.
-- **power** is aligned via `manifest.clock` offsets (no timestamp folding).
+Current bundle consumers use the reconstruction path: `requests.json` supplies
+`ttft`/`itl`/lengths/timestamps, power is converted to epoch with the recorded
+local UTC offset, and
+`engine.csv` is retained as measured evidence for the next parser. Output remains
+the same `(power, work_rates, run_id, arch)` per-bin table the current model trains
+on, so existing fitting code can run unchanged.
 
-Output: the same `(power, work_rates, run_id, arch)` per-bin table the current
-model trains on — so `fit_map_priors.py` / `peak_and_holdout.py` run unchanged. The
-probe `type` and `level` ride along in the manifest for slicing (e.g. fit the
-power cap only on saturation probes, `e_kv` only on context holds).
+Measured-state handoff is the next step: `engine.csv` becomes the state source,
+work rates are computed from measured state + `manifest.arch`, and power is aligned
+through `manifest.clock` without timestamp folding. Until that parser is
+implemented and validated against reconstruction, roofline and agentic claims from
+these bundles are reconstruction-based.
 
 ---
 

@@ -1,0 +1,53 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "roofline",
+  "container": "vllm-openai-gemma4.sandbox",
+  "_note": "Occupancy roofline campaign for Gemma-4-26B-A4B on A100 TP2. Cache-off only: controlled probes fill the power-vs-ell curve, context holds cover long-context decode, and one synthetic long-agentic workload overlays growing-session traffic.",
+  "n_active_override": 4.0e9,
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 66560
+  },
+  "probes": [
+    "idle_hold",
+    "prefill_staircase",
+    "decode_staircase",
+    "context_holds",
+    "mixed_grid"
+  ],
+  "roofline": {
+    "window_s": 5.0,
+    "contexts": [2048, 8192, 32768, 65536],
+    "context_holds": {
+      "batch": 8,
+      "output_len": 256
+    },
+    "mixed_grid": {
+      "n_points": 24,
+      "seed": 0,
+      "prefill_min": 512,
+      "prefill_max": 65536,
+      "output_len": 512,
+      "hold_s": 45.0
+    },
+    "sessions": {
+      "n_sessions": 16,
+      "concurrency": "auto",
+      "seed": 0,
+      "min_turns": 8,
+      "max_turns": 16,
+      "prefix_tokens": 4096,
+      "user_tokens_mean": 1024,
+      "assistant_tokens_mean": 512,
+      "gap_mean_s": 3.0,
+      "gap_sigma": 0.8
+    }
+  }
+}

@@ -21,6 +21,19 @@ def test_load_valid(path):
     assert c["hardware"] in ("A100", "H100")
     assert c["model"]
     assert "tp" in c["server"]
+    assert c["gpus_per_node"] == max(cc.tp_degrees(c))
+
+
+def test_visible_gpu_count_is_derived_from_largest_tp(tmp_path):
+    campaign = tmp_path / "tp4.json"
+    campaign.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "tier1",
+        "server": {"tp": 4}, "tp_pair": [4, 2],
+        "probes": ["decode_staircase"],
+    }))
+    c = cc.load_campaign(campaign)
+    assert c["gpus_per_node"] == 4
+    assert "--gpus-per-node 4" in cc.probe_commands(c, 4)[0]
 
 
 def test_known_probes_match_schedule_builders():

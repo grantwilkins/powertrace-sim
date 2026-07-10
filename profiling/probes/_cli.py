@@ -15,7 +15,10 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--hardware", required=True, choices=["A100", "H100"])
     p.add_argument("--tp", type=int, required=True)
     p.add_argument("--gpus-per-node", type=int, default=8)
-    p.add_argument("--out-root", default="data/runs")
+    # Live bundles are 2-level (data/runs/<campaign_id>/<run_id>/); the campaign
+    # orchestrator passes --out-root $RUNS/<campaign_id>. Direct invocations land
+    # under an "adhoc" campaign so the layout contract holds for every bundle.
+    p.add_argument("--out-root", default="data/runs/adhoc")
     p.add_argument("--base-url", default="http://localhost:8000/v1")
     p.add_argument("--hold-s", type=float, default=45.0)
     p.add_argument("--dtype-hint", default=None)

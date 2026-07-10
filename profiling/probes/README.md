@@ -14,7 +14,8 @@ are left untouched and remain the known-good path.
 Instead of measuring *workloads*, probes pin the engine at chosen state-space
 points (idle → bandwidth-saturation → compute-saturation → power-cap) and log the
 true engine state from vLLM `/metrics` alongside extended `nvidia-smi` power. Each
-run emits one self-describing **bundle** `data/runs/<run_id>/`:
+campaign run emits one self-describing **bundle**
+`data/runs/<campaign_id>/<run_id>/`:
 
 | file | source |
 |---|---|
@@ -40,6 +41,19 @@ that consumer produced biased data (token-rate undercount + clock misalignment +
 zeroed KV columns), so it's a documented `NotImplementedError` stub
 (`bins_from_engine_csv`) to be implemented against real bundles and validated
 against reconstruction before it's trusted.
+
+Bundle ledger construction requires both an explicit prefill throughput and its
+provenance; there is no 5000 tok/s fallback:
+
+```bash
+uv run python feature-test/build_ledger_bundle.py \
+  --runs-glob 'data/runs/*/*' \
+  --lambda-prefill 7421.0 \
+  --lambda-prefill-source 'prefill staircase run h100_prefill_tp4_...'
+```
+
+The output has a `.manifest.json` sidecar mapping every numeric run index to its
+bundle run ID, source path, raw-file hashes, and throughput calibration.
 
 ## Layout
 
@@ -87,7 +101,7 @@ TP policy: lowest TP that fits (small models at TP8 are idle-dominated). See
 
 ```bash
 # Dry run (default): print the full server+probe plan, write a sample bundle,
-# launch nothing.
+# under data/dry-runs/<campaign_id>/, launch nothing.
 bash profiling/jobs/run_campaign.sh profiling/campaigns/h100_tier1_llama70b.json
 
 # Execute on GPUs (one server per probe, since probes need different launch flags)
@@ -98,13 +112,15 @@ uv run python -m profiling.probes.agentic_run --model Qwen/Qwen3-8B --hardware H
     --n-sessions 8 --gap-mean-s 3.0 --prefix-cache --enable-prefix-caching
 
 # Build the training ledger from collected bundles
-uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*'
+uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*/*'
 ```
 
 > **Live-execution wiring:** `run_campaign.sh --execute` drives *probe*, *validate*,
 > and *agentic* campaigns. For validate/agentic it launches one server per TP then
 > the matching entrypoint (`validate_run` / `agentic_run`) via `campaign_config
-> --emit run-cmd`, which forwards the campaign's `server.max_model_len`.
+> --emit run-cmd`, which forwards the campaign's `server.max_model_len`. Live
+> bundles always use `data/runs/<campaign_id>/<run_id>/`; checkpoint markers
+> validate the exact run directory printed by the completed entrypoint.
 >
 > **Length budget (model + GPU aware):** the real-dataset (`validate`) path passes
 > `--max-model-len` to the vendored `benchmark_serving.py`, so its dataset length
@@ -130,4 +146,5 @@ uv run -m pytest -x profiling feature-test
   loggers/manifest tests.
 
 Phase-2 (implement + validate the measured `engine.csv` state consumer against
-reconstruction) runs post-launch once real bundles exist.
+reconstruction) runs post-launch once real bundles exist. Until then, roofline and
+agentic claims from these bundles are reconstruction-based.

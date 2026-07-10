@@ -2,6 +2,18 @@
 
 These scripts launch a vLLM server, run a benchmark client, and record `nvidia-smi` power/utilization logs for profiling runs.
 
+## Campaign Runner Bundle Roots
+
+`run_campaign.sh --execute` writes live bundles under
+`data/runs/<campaign_id>/<run_id>/` by default, or under
+`$RUNS/<campaign_id>/<run_id>/` when `RUNS` is set. Dry runs write sample bundles
+under `data/dry-runs/<campaign_id>/<run_id>/`, or `$DRY_RUNS/<campaign_id>/<run_id>/`
+when `DRY_RUNS` is set, so review artifacts do not pollute live roots.
+
+The campaign loader derives `gpus_per_node` from the largest TP degree, matching
+the GPU count requested by `submit_campaign.sh`. Installed-but-unallocated GPUs
+are never advertised in bundle manifests.
+
 ## Current GPT-OSS ShareGPT Runs
 
 ### Required environment variables

@@ -69,6 +69,9 @@ def logging_session(run_dir, base_url):
         engine_t.join(timeout=10)
         power_proc.terminate()
         pf.close()
+        run_manifest.record_first_samples(
+            clock, run_dir / "power.csv", run_dir / "engine.csv"
+        )
 
 
 def build_level_window(level, t_start_epoch, t_end_epoch, command, summary) -> dict:

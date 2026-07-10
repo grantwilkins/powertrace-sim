@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -19,7 +20,7 @@ KNOWN_PROBES = {
     "idle_hold", "decode_staircase", "prefill_staircase",
     "context_holds", "transients", "mixed_grid",
 }
-CAMPAIGN_TYPES = {"tier1", "tier1_partial", "tier2", "validate", "agentic"}
+CAMPAIGN_TYPES = {"tier1", "tier1_partial", "tier2", "validate", "agentic", "roofline"}
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The tp_pair second leg only repeats decode+prefill (CAMPAIGN.md §3): those two
@@ -41,6 +42,7 @@ class CampaignError(ValueError):
 def load_campaign(path) -> dict:
     """Load and validate a campaign JSON file."""
     c = json.loads(Path(path).read_text())
+    c["_campaign_id"] = Path(path).stem
     _validate(c, path)
     return _with_defaults(c)
 
@@ -74,6 +76,21 @@ def _validate(c: dict, path) -> None:
             raise CampaignError(
                 f"{where}agentic prefix-caching is derived per regime; drop "
                 f"server.enable_prefix_caching and sessions.prefix_cache")
+    elif c["campaign_type"] == "roofline":
+        probes = c.get("probes", [])
+        if not probes:
+            raise CampaignError(f"{where}roofline campaigns need a 'probes' list")
+        unknown = set(probes) - KNOWN_PROBES
+        if unknown:
+            raise CampaignError(f"{where}unknown probe(s): {sorted(unknown)}")
+        rf = c.get("roofline")
+        if not isinstance(rf, dict):
+            raise CampaignError(f"{where}roofline campaigns need a 'roofline' block")
+        ss = rf.get("sessions")
+        if not isinstance(ss, dict):
+            raise CampaignError(f"{where}roofline.sessions is required")
+        if c["server"].get("enable_prefix_caching") or ss.get("prefix_cache"):
+            raise CampaignError(f"{where}first roofline campaign is cache-off only")
     else:
         probes = c.get("probes", [])
         if not probes:
@@ -96,21 +113,45 @@ def _validate(c: dict, path) -> None:
             raise CampaignError(f"{where}unknown tp_pair_probes: {sorted(unknown)}")
 
 
+def _defaults(d: dict, values: dict) -> None:
+    for key, value in values.items():
+        d.setdefault(key, value)
+
+
 def _with_defaults(c: dict) -> dict:
-    s = c["server"]
-    s.setdefault("max_num_seqs", 256)
-    s.setdefault("max_num_batched_tokens", 8192)
-    s.setdefault("enable_chunked_prefill", True)
-    s.setdefault("enable_prefix_caching", False)
-    s.setdefault("kv_cache_dtype", "auto")
-    s.setdefault("max_model_len", 131072)
-    s.setdefault("dtype_hint", None)
-    s.setdefault("extra_args", [])
-    s.setdefault("extra_env", {})
-    c.setdefault("gpus_per_node", 8)
+    _defaults(c["server"], {
+        "max_num_seqs": 256, "max_num_batched_tokens": 8192,
+        "enable_chunked_prefill": True, "enable_prefix_caching": False,
+        "kv_cache_dtype": "auto", "max_model_len": 131072,
+        "dtype_hint": None, "extra_args": [], "extra_env": {},
+    })
+    # submit_campaign.sh allocates exactly the largest TP degree.  The logger
+    # must describe that visible set, not the physical node's installed GPUs.
+    c["gpus_per_node"] = max(tp_degrees(c))
     c.setdefault("probes", [])
     c.setdefault("tp_pair_probes", list(DEFAULT_TP_PAIR_PROBES))
+    if c["campaign_type"] == "roofline":
+        r = c.setdefault("roofline", {})
+        _defaults(r, {"window_s": 5.0, "contexts": [2048, 8192, 32768, 65536]})
+        _defaults(r.setdefault("context_holds", {}), {"batch": 8, "output_len": 256})
+        _defaults(r.setdefault("mixed_grid", {}), {
+            "n_points": 24, "seed": 0, "prefill_min": 512,
+            "prefill_max": 65536, "output_len": 512, "hold_s": 45.0,
+        })
+        _defaults(r.setdefault("sessions", {}), {
+            "n_sessions": 16, "seed": 0, "concurrency": "auto",
+            "min_turns": 8, "max_turns": 16, "prefix_tokens": 4096,
+            "user_tokens_mean": 1024, "assistant_tokens_mean": 512,
+            "gap_mean_s": 3.0, "gap_sigma": 0.8,
+        })
     return c
+
+
+def _env_prefix(env: dict) -> str:
+    if not env:
+        return ""
+    parts = [f"{k}={shlex.quote(str(v))}" for k, v in sorted(env.items())]
+    return "env " + " ".join(parts) + " "
 
 
 def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
@@ -136,7 +177,7 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
     if pc:
         parts.append("--enable-prefix-caching")
     parts.extend(s["extra_args"])
-    return " ".join(parts)
+    return _env_prefix(s.get("extra_env", {})) + " ".join(parts)
 
 
 def regimes(c: dict) -> list[dict]:
@@ -172,23 +213,46 @@ def tp_degrees(c: dict) -> list[int]:
     return tps
 
 
+def _build_probe_schedule(probe: str, c: dict):
+    """Build the canonical schedule for a probe, including campaign knobs."""
+    sys.path.insert(0, str(REPO_ROOT / "profiling" / "probes"))
+    import schedule  # noqa: E402
+
+    mns = int(c["server"]["max_num_seqs"])
+    if c["campaign_type"] == "roofline":
+        r = c["roofline"]
+        if probe == "context_holds":
+            ch = r["context_holds"]
+            return schedule.build_context_holds(
+                contexts=tuple(int(x) for x in r["contexts"]),
+                batch=int(ch["batch"]),
+                output_len=int(ch["output_len"]),
+            )
+        if probe == "mixed_grid":
+            mg = r["mixed_grid"]
+            return schedule.build_mixed_grid(
+                n_points=int(mg["n_points"]),
+                seed=int(mg["seed"]),
+                decode_range=(1, mns),
+                prefill_range=(int(mg["prefill_min"]), int(mg["prefill_max"])),
+                hold_s=float(mg["hold_s"]),
+                output_len=int(mg["output_len"]),
+            )
+
+    if probe == "decode_staircase":
+        return schedule.build_decode_staircase(mns)
+    if probe == "mixed_grid":
+        return schedule.build_mixed_grid(decode_range=(1, mns))
+    return schedule.BUILDERS[probe]()
+
+
 def _schedule_overrides(probe: str, c: dict) -> dict:
     """Server overrides a probe requires (chunked-prefill OFF, long max_model_len).
 
     Built from the canonical ``schedule`` builders so the orchestrator launches a
     server matching each probe's needs, not a single shared server.
     """
-    sys.path.insert(0, str(REPO_ROOT / "profiling" / "probes"))
-    import schedule  # noqa: E402
-
-    mns = int(c["server"]["max_num_seqs"])
-    if probe == "decode_staircase":
-        s = schedule.build_decode_staircase(mns)
-    elif probe == "mixed_grid":
-        s = schedule.build_mixed_grid(decode_range=(1, mns))
-    else:
-        s = schedule.BUILDERS[probe]()
-    return s.server_overrides
+    return _build_probe_schedule(probe, c).server_overrides
 
 
 def probe_serve_command(c: dict, probe: str, tp: int) -> str:
@@ -199,7 +263,36 @@ def probe_serve_command(c: dict, probe: str, tp: int) -> str:
         s["enable_chunked_prefill"] = ov["enable_chunked_prefill"]
     if "max_model_len" in ov:
         s["max_model_len"] = max(int(s["max_model_len"]), int(ov["max_model_len"]))
+    if "env" in ov:
+        env = dict(s.get("extra_env", {}))
+        env.update(ov["env"])
+        s["extra_env"] = env
     return serve_command(dict(c, server=s), tp)
+
+
+def _probe_extra_args(c: dict, probe: str) -> str:
+    if c["campaign_type"] != "roofline":
+        return ""
+    r = c["roofline"]
+    if probe == "context_holds":
+        ch = r["context_holds"]
+        contexts = " ".join(str(int(x)) for x in r["contexts"])
+        return (
+            f" --contexts {contexts}"
+            f" --batch {int(ch['batch'])}"
+            f" --output-len {int(ch['output_len'])}"
+        )
+    if probe == "mixed_grid":
+        mg = r["mixed_grid"]
+        return (
+            f" --n-points {int(mg['n_points'])}"
+            f" --seed {int(mg['seed'])}"
+            f" --prefill-min {int(mg['prefill_min'])}"
+            f" --prefill-max {int(mg['prefill_max'])}"
+            f" --output-len {int(mg['output_len'])}"
+            f" --hold-s {float(mg['hold_s'])}"
+        )
+    return ""
 
 
 def probe_commands(c: dict, tp: int) -> list[str]:
@@ -226,7 +319,7 @@ def probe_commands(c: dict, tp: int) -> list[str]:
     # analytic estimate (good only to ~10-30%); n_active scales the FLOPs work rate.
     if c.get("n_active_override"):
         common += f" --n-active-override {c['n_active_override']}"
-    return [f"python3 profiling/probes/{probe}.py {common}"
+    return [f"python3 profiling/probes/{probe}.py {common}{_probe_extra_args(c, probe)}"
             for probe in probes_for_tp(c, tp)]
 
 
@@ -285,6 +378,42 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
     return " ".join(parts)
 
 
+def roofline_agentic_command(c: dict, tp: int) -> str:
+    """Synthetic long-session workload for the cache-off roofline campaign."""
+    s, ss = c["server"], c["roofline"]["sessions"]
+    parts = [
+        "python3 profiling/probes/agentic_run.py",
+        f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--gpus-per-node {c['gpus_per_node']}",
+        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
+        f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",
+    ]
+    for flag, key in (
+        ("n-sessions", "n_sessions"), ("seed", "seed"), ("concurrency", "concurrency"),
+        ("min-turns", "min_turns"), ("max-turns", "max_turns"),
+        ("prefix-tokens", "prefix_tokens"), ("user-tokens-mean", "user_tokens_mean"),
+        ("assistant-tokens-mean", "assistant_tokens_mean"),
+        ("gap-mean-s", "gap_mean_s"), ("gap-sigma", "gap_sigma"),
+    ):
+        parts.append(f"--{flag} {ss[key]}")
+    if c.get("n_active_override"):
+        parts.append(f"--n-active-override {c['n_active_override']}")
+    return " ".join(parts)
+
+
+def roofline_analyze_command(c: dict, tp: int) -> str:
+    """Analyze the bundles written under the roofline run root."""
+    return (
+        "python3 -m scripts.eval.occupancy_roofline "
+        f"--run-root {out_root()} "
+        f"--label {c['_campaign_id']} "
+        f"--model {c['model']} "
+        f"--hardware {c['hardware']} "
+        f"--tp {tp} "
+        f"--window-s {float(c['roofline']['window_s'])}"
+    )
+
+
 def run_command(c: dict, tp: int, regime=None) -> str:
     """The non-probe entrypoint command for validate / agentic campaigns."""
     t = c["campaign_type"]
@@ -317,6 +446,14 @@ def render_plan(c: dict) -> str:
                 lines.append(f"SERVE[prefix_cache={pc}]: {serve_command(c, tp, pc)}")
                 lines.append(
                     f"AGENTIC[prefix_cache={pc}]: {run_command(c, tp, r)}")
+        elif c["campaign_type"] == "roofline":
+            lines.append(f"# output root: {out_root()}")
+            for probe, cmd in zip(probes_for_tp(c, tp), probe_commands(c, tp)):
+                lines.append(f"SERVE[{probe}]: {probe_serve_command(c, probe, tp)}")
+                lines.append(f"PROBE: {cmd}")
+            lines.append(f"SERVE[long_agentic]: {serve_command(c, tp, False)}")
+            lines.append(f"AGENTIC[long_cache_off]: {roofline_agentic_command(c, tp)}")
+            lines.append(f"ANALYZE: {roofline_analyze_command(c, tp)}")
         else:
             # one server per probe (probes need different launch flags)
             for probe, cmd in zip(probes_for_tp(c, tp), probe_commands(c, tp)):
@@ -330,7 +467,8 @@ def main():
     ap.add_argument("campaign")
     ap.add_argument("--emit", default="plan",
                     choices=["plan", "json", "tps", "type", "serve", "probes",
-                             "probe-names", "probe-serves", "run-cmd", "regimes"])
+                             "probe-names", "probe-serves", "run-cmd", "regimes",
+                             "roofline-agentic", "analyze-cmd"])
     ap.add_argument("--tp", type=int, default=None)
     ap.add_argument("--regime-idx", type=int, default=0,
                     help="prefix-cache regime index (agentic; see --emit regimes)")
@@ -348,6 +486,14 @@ def main():
         if args.tp is None:
             raise CampaignError("--emit run-cmd requires --tp")
         print(run_command(c, args.tp, regimes(c)[args.regime_idx]))
+    elif args.emit == "roofline-agentic":
+        if args.tp is None:
+            raise CampaignError("--emit roofline-agentic requires --tp")
+        print(roofline_agentic_command(c, args.tp))
+    elif args.emit == "analyze-cmd":
+        if args.tp is None:
+            raise CampaignError("--emit analyze-cmd requires --tp")
+        print(roofline_analyze_command(c, args.tp))
     elif args.emit == "serve":
         if args.tp is None:
             raise CampaignError("--emit serve requires --tp")

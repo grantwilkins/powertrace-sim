@@ -1,13 +1,14 @@
 # Bundle schema — the alignment contract
 
-Every run emits one bundle `data/runs/<run_id>/` with four files. The design goal
-of this doc: make explicit that we capture **all** the fields needed to align
-per-request latencies ↔ engine state ↔ power, since without a common time base the
-data is unusable. **All three time series are in absolute epoch seconds**, which is
-what makes alignment possible.
+Every campaign live run emits one bundle `data/runs/<campaign_id>/<run_id>/` with
+four files. The design goal of this doc: make explicit that we capture **all** the
+fields needed to align per-request latencies ↔ engine state ↔ power, since without
+a common time base the data is unusable. Requests and engine samples are Unix
+epoch; raw power uses local wall time plus the manifest's measured UTC offset.
+Bundle ingestion converts power to Unix epoch before any model view is built.
 
 ```
-data/runs/<run_id>/
+data/runs/<campaign_id>/<run_id>/
 ├── power.csv        nvidia-smi @ 4 Hz   (epoch wall time)
 ├── engine.csv       vLLM /metrics @ 4 Hz (epoch, time.time())
 ├── requests.json    per-request latencies + epoch arrival times
@@ -21,7 +22,8 @@ Per-GPU rows, 4 Hz. Header (units stripped from values):
 
 | column | role |
 |---|---|
-| `timestamp` | **epoch wall time** (nvidia-smi local time → UTC via `power_timestamp_to_epoch`) — the alignment key |
+| `timestamp` | nvidia-smi local wall time; converted using `manifest.clock.local_utc_offset_s` |
+| `index`, `uuid` | stable device identity; required on every bundle row |
 | `power.draw` | per-GPU watts — the regression target (summed across the TP group) |
 | `clocks.sm`, `clocks.mem` | DVFS state (largest previously-unmodeled term) |
 | `utilization.gpu`, `utilization.memory` | occupancy cross-checks |
@@ -46,6 +48,11 @@ Per-GPU rows, 4 Hz. Header (units stripped from values):
 
 Counters are cumulative → difference across bin **edges** (never `last−first` within a
 bin). Gauges → bin-mean.
+
+Current roofline and agentic analysis consumes the bundle through the
+reconstruction path (`requests.json` + power) and treats `engine.csv` as collected
+evidence for a future measured-state parser. Do not label those claims as
+measured-engine-state results until that parser exists and is validated.
 
 ## 3. `requests.json` — per-request latencies + epoch timestamps
 
@@ -74,8 +81,11 @@ concatenated). This is the reconstruction-ledger contract (`parse_request_json`)
               "enable_prefix_caching": false, "kv_cache_dtype": "auto",
               "max_model_len": 131072 },
   "versions": { "vllm": "...", "git_sha": "...", "gpu_driver": "..." },
-  "clock": { "power_epoch_offset_s": 0.0, "engine_epoch_offset_s": 0.0,
-             "monotonic_start": 12345.6 },
+  "clock": { "local_utc_offset_s": -25200.0,
+             "power_timestamp_basis": "local_wall_time",
+             "engine_timestamp_basis": "unix_epoch",
+             "request_timestamp_basis": "unix_epoch",
+             "reference_epoch_s": 1781..., "monotonic_start": 12345.6 },
   "probe": {
     "type": "decode_staircase",
     "window": { "start_epoch": 1781..., "end_epoch": 1781... },   // whole run
@@ -94,16 +104,21 @@ concatenated). This is the reconstruction-ledger contract (`parse_request_json`)
 
 ## Alignment recipe (how the three streams are joined)
 
-1. All timestamps are **epoch seconds**. Bin power & engine on a common 1 s grid.
-2. `power.csv` is nvidia-smi local time coerced to UTC, so it can be skewed from
-   `time.time()` by a whole/half hour; the reconstruction builder cancels this with
-   the `%1800` fold (`build_run_bins`). New whole-pipeline runs stay aligned because
-   `requests.json` timestamps and `engine.csv` both use `time.time()`.
+1. Convert each raw power timestamp to Unix epoch by subtracting
+   `clock.local_utc_offset_s`; requests and engine timestamps are already epoch.
+2. Require both `index` and `uuid`, validate their stable one-to-one mapping, and
+   group one 4 Hz sample across at most 50 ms of per-GPU capture skew. Every sample
+   must contain the same UUID set with size exactly `gpus_per_node`; a mismatch
+   aborts ingestion and rows are never combined into fixed-size anonymous blocks.
 3. **Per-level windows** (`t_start_epoch`/`t_end_epoch`) let any consumer slice the
    power/engine series by probe level — e.g. fit the power cap only on the saturation
    level, or `e_kv` only on `context_holds` levels — without re-deriving boundaries.
 4. `requests.json` provides the per-request work (ttft/itl/lens) at each request's
    epoch arrival, which `build_ledger_bundle` turns into per-bin work rates.
+
+The normalized `RunRecord` retains every power column, every list-valued request
+column (including agentic extensions), every engine column, and source hashes.
+GRU and physics views intentionally project only the fields they consume.
 
 ## Multi-turn / agentic extension (planned)
 
