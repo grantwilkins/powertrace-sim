@@ -39,7 +39,11 @@ def test_manifest_schema():
         assert k in m["server"]
     for k in ("vllm", "git_sha", "gpu_driver"):
         assert k in m["versions"]
-    for k in ("power_epoch_offset_s", "engine_epoch_offset_s", "monotonic_start"):
+    for k in (
+        "power_epoch_offset_s", "engine_epoch_offset_s", "monotonic_start",
+        "reference_epoch_s", "reference_local_iso8601", "local_utc_offset_s",
+        "power_timestamp_basis", "engine_timestamp_basis", "request_timestamp_basis",
+    ):
         assert k in m["clock"]
 
 

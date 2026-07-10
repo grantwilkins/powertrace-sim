@@ -1,10 +1,14 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import stats
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 power_trace = pd.read_csv(
-    "/Users/grantwilkins/powertrace-sim/profiling/client/llama-3-8b/llama-3-8b_tp1_p0.5_d2025-03-13-18-28-09.csv",
+    REPO_ROOT / "profiling/client/llama-3-8b/llama-3-8b_tp1_p0.5_d2025-03-13-18-28-09.csv",
     skipinitialspace=True,
 )
 power_trace["memory.used [MiB]"] = (

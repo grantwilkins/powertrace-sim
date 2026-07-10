@@ -173,7 +173,7 @@ class TestStage0InventoryAndThroughput(unittest.TestCase):
 
             out_inventory = str(Path(tmp) / "results" / "stage0" / "data_inventory.json")
             out_manifest = str(Path(tmp) / "results" / "stage0" / "pair_manifest.csv")
-            out_db = str(Path(tmp) / "model" / "config" / "throughput_database.json")
+            out_db = str(Path(tmp) / "model" / "throughput_database.json")
 
             run_stage0_inventory_and_throughput(
                 data_root_dir=str(data_root),

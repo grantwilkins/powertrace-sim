@@ -9,6 +9,7 @@ from model.utils.config import (
     parse_csv_list,
     resolve_device,
     safe_float,
+    tp_gpus_from_config_id,
 )
 
 
@@ -47,6 +48,23 @@ class TestConfigUtils(unittest.TestCase):
 
     def test_is_moe_config_llama(self):
         self.assertFalse(is_moe_config("llama-3-8b_A100_tp1"))
+
+    def test_tp_gpus_from_config_id_parse_table(self):
+        cases = {
+            "llama-3-70b_A100_tp8": 8,
+            "llama-3-70b_A100_tp4": 4,
+            "gpt-oss-120b_H100_tp8": 8,
+            "deepseek-r1-distill-llama-70b_H100_tp2": 2,
+            "llama-3-8b_A100_tp1": 1,
+            "  llama-3-70b_A100_tp8  ": 8,
+        }
+        for config_id, expected in cases.items():
+            self.assertEqual(tp_gpus_from_config_id(config_id), expected)
+
+    def test_tp_gpus_from_config_id_rejects_missing_or_invalid_suffix(self):
+        for bad in ["llama-3-70b_A100", "llama-3-70b_A100_tp", "llama-3-70b_A100_tp0", ""]:
+            with self.assertRaises(ValueError):
+                tp_gpus_from_config_id(bad)
 
     def test_safe_float_valid(self):
         self.assertAlmostEqual(safe_float("3.14", "value"), 3.14, places=9)

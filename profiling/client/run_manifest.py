@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import json
 import time
+import csv
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 
 
 def capture_clock(
@@ -27,6 +30,8 @@ def capture_clock(
     """
     ref = time.time()
     mono = time.perf_counter()
+    local_now = datetime.now().astimezone()
+    local_utc_offset_s = float(local_now.utcoffset().total_seconds())
     return {
         "power_epoch_offset_s": (
             float(power_clock_epoch - ref) if power_clock_epoch is not None else 0.0
@@ -35,7 +40,28 @@ def capture_clock(
             float(engine_clock_epoch - ref) if engine_clock_epoch is not None else 0.0
         ),
         "monotonic_start": float(mono),
+        "reference_epoch_s": float(ref),
+        "reference_local_iso8601": local_now.isoformat(),
+        "local_utc_offset_s": local_utc_offset_s,
+        "power_timestamp_basis": "local_wall_time",
+        "engine_timestamp_basis": "unix_epoch",
+        "request_timestamp_basis": "unix_epoch",
     }
+
+
+def record_first_samples(clock: dict, power_csv, engine_csv) -> None:
+    """Attach observed first timestamps after both logger streams are closed."""
+    with Path(power_csv).open(newline="") as f:
+        row = next(csv.DictReader(f), None)
+    if row:
+        key = next((k for k in row if "time" in k.lower()), None)
+        if key:
+            raw = row[key].strip()
+            clock["power_first_timestamp"] = raw
+    with Path(engine_csv).open(newline="") as f:
+        row = next(csv.DictReader(f), None)
+    if row and row.get("timestamp"):
+        clock["engine_first_epoch_s"] = float(row["timestamp"])
 
 
 def build_manifest(
@@ -55,7 +81,7 @@ def build_manifest(
     return {
         "manifest_version": MANIFEST_VERSION,
         "run_id": run_id,
-        "probe": probe,            # {"type": ..., "level": ..., "params": {...}}
+        "probe": probe,            # {"type": ..., "window": {...}, "levels": [...]}
         "model": model,
         "arch": arch,              # from arch_extract.extract_arch
         "hardware": hardware,

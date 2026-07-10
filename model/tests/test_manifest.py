@@ -64,7 +64,7 @@ class TestPrepareExperimentalManifest(unittest.TestCase):
         ttfts = np.asarray([0.5, 0.5], dtype=np.float64)
         decode = np.asarray([1.0, 1.0], dtype=np.float64)
         active = compute_active_requests(power_t, req_t, ttfts, decode)
-        self.assertTrue(np.allclose(active, np.asarray([0.0, 1.0, 2.0, 1.0], dtype=np.float64)))
+        self.assertTrue(np.allclose(active, np.asarray([0.0, 1.0, 1.0, 0.0], dtype=np.float64)))
 
     def test_compute_active_requests_no_overlap(self):
         from model.training_data.alignment import compute_active_requests

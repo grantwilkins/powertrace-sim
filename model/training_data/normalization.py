@@ -41,27 +41,17 @@ def create_train_val_test_split(
     seed: int = 42,
 ) -> Dict[str, List[int]]:
     """Create train/val/test split indices."""
+    if n_traces < 3:
+        raise ValueError("At least three traces are required for disjoint train/val/test splits")
     rng = np.random.default_rng(seed)
     indices = rng.permutation(n_traces).tolist()
 
-    n_train = max(1, int(n_traces * train_ratio))
-    n_val = max(1, int(n_traces * val_ratio))
-
-    if n_traces <= 2:
-        return {
-            "train_indices": [0] if n_traces >= 1 else [],
-            "val_indices": [min(1, n_traces - 1)] if n_traces >= 1 else [],
-            "test_indices": [min(1, n_traces - 1)] if n_traces >= 1 else [],
-        }
+    n_train = min(max(1, int(n_traces * train_ratio)), n_traces - 2)
+    n_val = min(max(1, int(n_traces * val_ratio)), n_traces - n_train - 1)
 
     train_indices = indices[:n_train]
     val_indices = indices[n_train : n_train + n_val]
     test_indices = indices[n_train + n_val :]
-
-    if len(val_indices) == 0:
-        val_indices = [train_indices[-1]] if train_indices else []
-    if len(test_indices) == 0:
-        test_indices = val_indices.copy()
 
     return {
         "train_indices": train_indices,

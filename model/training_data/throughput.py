@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from model.utils.decode_time import derive_decode_time
+from model.training_data.power_parsing import extract_request_rows
 from model.utils.io import power_timestamp_to_epoch as _power_timestamp_to_epoch
 
 BASE_REQUEST_FIELDS = ("input_lens", "output_lens", "ttfts", "itls")
@@ -145,13 +145,8 @@ def _finite_number(x: object) -> bool:
 def extract_request_metrics(payload: Dict[str, object]) -> Dict[str, object]:
     schema = inspect_json_schema(payload)
 
-    input_lens = payload.get("input_lens")
-    output_lens = payload.get("output_lens")
-    ttfts = payload.get("ttfts")
-    itls = payload.get("itls")
-    request_ts = payload.get(REQUEST_TIMESTAMP_FIELD)
-
-    if not all(isinstance(x, list) for x in (input_lens, output_lens, ttfts, itls)):
+    rows = extract_request_rows(payload)
+    if rows is None:
         return {
             "prefill_rates": [],
             "decode_rates": [],
@@ -170,8 +165,13 @@ def extract_request_metrics(payload: Dict[str, object]) -> Dict[str, object]:
             "schema": schema,
         }
 
-    base_min = int(min(len(input_lens), len(output_lens), len(ttfts), len(itls)))
-    has_request_ts_array = isinstance(request_ts, list)
+    input_lens = rows["input_lens"]
+    output_lens = rows["output_lens"]
+    ttfts = rows["ttfts"]
+    request_ts = rows["request_timestamps"]
+
+    base_min = rows["n_base"]
+    has_request_ts_array = rows["has_timestamps_array"]
     aligned = base_min if not has_request_ts_array else int(min(base_min, len(request_ts)))
 
     prefill_rates: List[float] = []
@@ -186,7 +186,7 @@ def extract_request_metrics(payload: Dict[str, object]) -> Dict[str, object]:
         in_tok = input_lens[i]
         out_tok = output_lens[i]
         ttft = ttfts[i]
-        decode_time, _ = derive_decode_time(itls[i], out_tok)
+        decode_time = rows["decode_times"][i]
         if decode_time is None or (not np.isfinite(decode_time)) or decode_time <= 0:
             dropped_decode += 1
             continue

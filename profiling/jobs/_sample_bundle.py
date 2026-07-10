@@ -7,6 +7,7 @@ reviewer can see exactly what each run will produce before launch.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,6 +21,11 @@ import power_logger  # noqa: E402
 import run_manifest  # noqa: E402
 
 
+def dry_run_out_root(campaign_id: str) -> Path:
+    base = Path(os.environ.get("DRY_RUNS") or REPO_ROOT / "data" / "dry-runs")
+    return base / campaign_id
+
+
 def _stub_arch(model: str) -> dict:
     # offline placeholder so dry-run needs no network/model download
     return {
@@ -31,12 +37,11 @@ def _stub_arch(model: str) -> dict:
     }
 
 
-def main():
-    campaign_path = sys.argv[1]
+def write_sample_bundle(campaign_path) -> Path:
     c = campaign_config.load_campaign(campaign_path)
     tp = int(c["server"]["tp"])
     run_id = f"{c['hardware'].lower()}_{c['campaign_type']}_tp{tp}_SAMPLE"
-    run_dir = REPO_ROOT / "data" / "runs" / run_id
+    run_dir = dry_run_out_root(c["_campaign_id"]) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # empty logger CSVs with the real headers
@@ -55,6 +60,11 @@ def main():
         clock=run_manifest.capture_clock(),
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
+    return run_dir
+
+
+def main():
+    run_dir = write_sample_bundle(sys.argv[1])
     print(f"wrote sample bundle -> {run_dir}")
 
 

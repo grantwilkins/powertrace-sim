@@ -69,6 +69,10 @@ def safe_slug(text: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "-", text)
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def _ensure_dir(path: str | Path) -> None:
     ensure_dir(path)
 
@@ -86,8 +90,8 @@ def resolve_existing_path(path_str: str, base_dir: str | Path) -> Optional[str]:
     if path_text == "":
         return None
 
-    repo_root = Path(__file__).resolve().parents[2]
-    repo_name = repo_root.name
+    repo = repo_root()
+    repo_name = repo.name
     raw = Path(path_text)
 
     if raw.is_absolute():
@@ -99,7 +103,7 @@ def resolve_existing_path(path_str: str, base_dir: str | Path) -> Optional[str]:
         if repo_name in parts:
             i = parts.index(repo_name)
             suffix = Path(*parts[i + 1 :]) if (i + 1) < len(parts) else Path()
-            remapped = repo_root / suffix
+            remapped = repo / suffix
             if remapped.exists():
                 return str(remapped)
         return None
@@ -113,11 +117,32 @@ def resolve_existing_path(path_str: str, base_dir: str | Path) -> Optional[str]:
         return str(from_base)
 
     # Pair manifests often store paths relative to repo root (e.g. "data/...").
-    from_repo_root = repo_root / raw
+    from_repo_root = repo / raw
     if from_repo_root.exists():
         return str(from_repo_root)
 
     return None
+
+
+def resolve_input_path(path: str | Path, base_dir: str | Path = ".") -> str:
+    raw = Path(str(path).strip())
+    if not raw.is_absolute() and str(base_dir) == ".":
+        from_repo_root = repo_root() / raw
+        if from_repo_root.exists():
+            return str(from_repo_root)
+    resolved = resolve_existing_path(str(path), base_dir)
+    if resolved is None:
+        raise FileNotFoundError(f"Input path not found: {path}")
+    return resolved
+
+
+def repo_relative_or_absolute(path: str | Path) -> str:
+    resolved = Path(path).resolve()
+    repo = repo_root()
+    try:
+        return str(resolved.relative_to(repo))
+    except ValueError:
+        return str(resolved)
 
 
 def power_timestamp_to_epoch(ts_text: str) -> Optional[float]:

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
+CONFIG_TP_SUFFIX_RE = re.compile(r"_tp(\d+)$")
 
 
 def resolve_device(device: Optional[torch.device | str]) -> torch.device:
@@ -53,6 +54,25 @@ def parse_config_id(config_id: str) -> Dict[str, str]:
         "hardware": hardware,
         "tp": tp,
     }
+
+
+def tp_gpus_from_config_id(config_id: str) -> int:
+    """Resolve the tensor-parallel GPU count from a config_id's `_tp<N>` suffix.
+
+    Raises ValueError instead of defaulting: a silently assumed GPU count
+    corrupts nameplate/TDP accounting downstream.
+    """
+    match = CONFIG_TP_SUFFIX_RE.search(str(config_id).strip())
+    if match is None:
+        raise ValueError(
+            f"Cannot resolve tp_gpus from config_id '{config_id}': "
+            "expected suffix '_tp<digits>'. Pass tp_gpus explicitly if the "
+            "config_id does not encode it."
+        )
+    tp = int(match.group(1))
+    if tp < 1:
+        raise ValueError(f"Invalid tp_gpus {tp} in config_id '{config_id}'")
+    return tp
 
 
 def is_moe_config(config_id: str) -> bool:

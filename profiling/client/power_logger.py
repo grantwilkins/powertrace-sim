@@ -1,14 +1,12 @@
 """Extended ``nvidia-smi`` power logger (Tier-0 instrumentation, CAMPAIGN.md §5-A).
 
-The current pipeline logs only ``timestamp,power.draw,utilization.gpu,memory.used``.
-This adds ``clocks.sm`` (DVFS is the largest unmodeled term and is a free field),
+Each row includes stable ``index`` and ``uuid`` identity plus ``clocks.sm``
+(DVFS is the largest unmodeled term and is a free field),
 ``clocks.mem``, ``utilization.memory`` and ``temperature.gpu``, per GPU at 4 Hz.
 
-Compatibility constraint: the emitted CSV header must keep a ``timestamp`` column
-and a ``power.draw [W]`` column so the existing
-``model/training_data/power_parsing.parse_power_csv`` header sniff
-(``"time" in h`` and ``"power" in h and "draw" in h``) and its per-GPU grouping
-continue to work unchanged. The query string below preserves that ordering.
+The bundle parser groups rows by a bounded capture window and UUID, validates a
+stable UUID-to-index mapping, and rejects topology drift; it never infers samples
+from anonymous row blocks.
 
 Only the command/argv construction lives here (pure, unit-testable). The actual
 process is spawned by ``probe_runner`` / the bash logger, redirecting stdout to
@@ -17,9 +15,11 @@ process is spawned by ``probe_runner`` / the bash logger, redirecting stdout to
 
 from __future__ import annotations
 
-# Order matters: timestamp first, power.draw second (parse_power_csv compat).
+# Stable identity is part of every row; ingestion groups bounded capture windows.
 EXTENDED_FIELDS = (
     "timestamp",
+    "index",
+    "uuid",
     "power.draw",
     "clocks.sm",
     "clocks.mem",

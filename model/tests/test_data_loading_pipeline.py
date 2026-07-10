@@ -9,6 +9,9 @@ from model.utils.io import write_json as _write_json
 
 
 class TestPipelineDataLoading(unittest.TestCase):
+    def _write_lineage(self, path: Path) -> None:
+        _write_json(path, {"schema_version": "gru-dataset-lineage-v1", "traces": []})
+
     def _write_dataset(self, path: Path) -> None:
         power = np.asarray(
             [
@@ -39,6 +42,37 @@ class TestPipelineDataLoading(unittest.TestCase):
             dataset = root / "dataset.npz"
             split = root / "split.json"
             norm = root / "norm.json"
+            lineage = root / "dataset.lineage.json"
+            self._write_dataset(dataset)
+            _write_json(split, {"train_indices": [0], "val_indices": [1], "test_indices": [2]})
+            _write_json(norm, {"active_mean": 0.0, "active_std": 1.0})
+            self._write_lineage(lineage)
+
+            payload, err = load_config_data(
+                "toy_H100_tp1",
+                {
+                    "dataset_npz": str(dataset),
+                    "split_json": str(split),
+                    "norm_params_json": str(norm),
+                    "lineage_json": str(lineage),
+                },
+                manifest_dir=str(root),
+                feature_set="f2",
+            )
+
+            self.assertIsNone(err)
+            self.assertIsNotNone(payload)
+            assert payload is not None
+            self.assertEqual(len(payload["raw"]["train"]), 1)
+            self.assertEqual(len(payload["raw"]["val"]), 1)
+            self.assertEqual(len(payload["raw"]["test"]), 1)
+
+    def test_load_config_data_requires_lineage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dataset = root / "dataset.npz"
+            split = root / "split.json"
+            norm = root / "norm.json"
             self._write_dataset(dataset)
             _write_json(split, {"train_indices": [0], "val_indices": [1], "test_indices": [2]})
             _write_json(norm, {"active_mean": 0.0, "active_std": 1.0})
@@ -54,12 +88,8 @@ class TestPipelineDataLoading(unittest.TestCase):
                 feature_set="f2",
             )
 
-            self.assertIsNone(err)
-            self.assertIsNotNone(payload)
-            assert payload is not None
-            self.assertEqual(len(payload["raw"]["train"]), 1)
-            self.assertEqual(len(payload["raw"]["val"]), 1)
-            self.assertEqual(len(payload["raw"]["test"]), 1)
+            self.assertIsNone(payload)
+            self.assertEqual(err, "missing_lineage_json")
 
     def test_load_config_data_missing_dataset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,9 +119,11 @@ class TestPipelineDataLoading(unittest.TestCase):
             dataset = root / "dataset.npz"
             split = root / "split.json"
             norm = root / "norm.json"
+            lineage = root / "dataset.lineage.json"
             self._write_dataset(dataset)
             split.write_text("{ not valid json")
             _write_json(norm, {"active_mean": 0.0, "active_std": 1.0})
+            self._write_lineage(lineage)
 
             payload, err = load_config_data(
                 "toy_H100_tp1",
@@ -99,6 +131,7 @@ class TestPipelineDataLoading(unittest.TestCase):
                     "dataset_npz": str(dataset),
                     "split_json": str(split),
                     "norm_params_json": str(norm),
+                    "lineage_json": str(lineage),
                 },
                 manifest_dir=str(root),
                 feature_set="f2",
@@ -115,9 +148,11 @@ class TestPipelineDataLoading(unittest.TestCase):
             dataset = root / "dataset.npz"
             split = root / "split.json"
             norm = root / "norm.json"
+            lineage = root / "dataset.lineage.json"
             self._write_dataset(dataset)
             _write_json(split, {"train_indices": [], "val_indices": [1], "test_indices": [2]})
             _write_json(norm, {"active_mean": 0.0, "active_std": 1.0})
+            self._write_lineage(lineage)
 
             payload, err = load_config_data(
                 "toy_H100_tp1",
@@ -125,6 +160,7 @@ class TestPipelineDataLoading(unittest.TestCase):
                     "dataset_npz": str(dataset),
                     "split_json": str(split),
                     "norm_params_json": str(norm),
+                    "lineage_json": str(lineage),
                 },
                 manifest_dir=str(root),
                 feature_set="f2",

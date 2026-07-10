@@ -370,7 +370,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--out_throughput_db",
-        default="model/config/throughput_database.json",
+        default="model/throughput_database.json",
         help="Output throughput database JSON path.",
     )
     parser.add_argument(
