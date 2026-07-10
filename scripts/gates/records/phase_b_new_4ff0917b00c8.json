@@ -1,0 +1,139 @@
+{
+  "gate": "phase_b_equivalence",
+  "mode": "new",
+  "git_sha": "4ff0917b00c80577a8a6bcc736e8a21ab3806577",
+  "scratch_dir": "/var/folders/3j/5n1r8yyx2d58jn87prrxs_lm0000gn/T/phase_b_new_cjz46vxd",
+  "n_files": 76,
+  "n_equal": 51,
+  "expected_baseline_diff_files": [
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp1.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp2.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp1.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp2.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/gpt-oss-20b_A100_tp1.json",
+    "results/experimental_continuous_v1/norm_params/gpt-oss-20b_A100_tp2.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-405b_H100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp8.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp1.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp2.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp4.json",
+    "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp8.json"
+  ],
+  "unexpected_diff_files": [],
+  "diffs": [
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_A100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-70b_H100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp1.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp2.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_A100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp1.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp2.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/deepseek-r1-distill-8b_H100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/gpt-oss-120b_A100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/gpt-oss-20b_A100_tp1.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/gpt-oss-20b_A100_tp2.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-405b_H100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-70b_A100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-70b_H100_tp8.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp1.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp2.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp4.json",
+      "equal": false
+    },
+    {
+      "file": "results/experimental_continuous_v1/norm_params/llama-3-8b_H100_tp8.json",
+      "equal": false
+    }
+  ],
+  "pass": true
+}

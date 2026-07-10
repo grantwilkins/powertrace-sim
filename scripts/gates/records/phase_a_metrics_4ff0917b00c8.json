@@ -1,0 +1,57 @@
+{
+  "gate": "phase_a_metrics",
+  "git_sha": "4ff0917b00c80577a8a6bcc736e8a21ab3806577",
+  "scratch_dir": "/var/folders/3j/5n1r8yyx2d58jn87prrxs_lm0000gn/T/phase_a_gate_p0kmt40q",
+  "intentional_changes": {
+    "azure_facility_metrics.csv": [
+      "ldc_p95_kw",
+      "ldc_p99_kw"
+    ],
+    "azure_facility_ldc_15min.csv": [],
+    "azure_facility_site_traces_15min.csv": []
+  },
+  "reports": [
+    {
+      "file": "azure_facility_metrics.csv",
+      "n_rows_ref": 16,
+      "n_rows_new": 16,
+      "changed_columns": {
+        "ldc_p95_kw": {
+          "n_rows_changed": 8,
+          "example": {
+            "row": 2,
+            "before": "668.679421875",
+            "after": "668.679375"
+          }
+        },
+        "ldc_p99_kw": {
+          "n_rows_changed": 8,
+          "example": {
+            "row": 2,
+            "before": "689.981125625",
+            "after": "689.981125"
+          }
+        }
+      },
+      "unexpected_changes": [],
+      "status": "ok"
+    },
+    {
+      "file": "azure_facility_ldc_15min.csv",
+      "n_rows_ref": 384,
+      "n_rows_new": 384,
+      "changed_columns": {},
+      "unexpected_changes": [],
+      "status": "ok"
+    },
+    {
+      "file": "azure_facility_site_traces_15min.csv",
+      "n_rows_ref": 384,
+      "n_rows_new": 384,
+      "changed_columns": {},
+      "unexpected_changes": [],
+      "status": "ok"
+    }
+  ],
+  "pass": true
+}

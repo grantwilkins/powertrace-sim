@@ -12,6 +12,7 @@ Run from repo root:
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -172,9 +173,18 @@ def run_mean_errors(X, y, train_mask, test_mask, run_ids):
     return np.asarray(errs)
 
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    d = load_cache()
+def build_arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ledger-cache", default="feature-test/ledger_cache.npz")
+    parser.add_argument("--out-dir", default=str(OUT_DIR))
+    return parser
+
+
+def main(argv=None):
+    args = build_arg_parser().parse_args(argv)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    d = load_cache(args.ledger_cache)
     run_ids = d["run_id"]
     hw_names = [str(x) for x in d["hw_names"]]
     fam_names = [str(x) for x in d["family_names"]]
@@ -242,8 +252,8 @@ def main():
                 rows.append(dict(hardware=hw, model=mname, eval="coef", held="",
                                  metric=FEATURES[f][0], value=float(c)))
 
-    pd.DataFrame(rows).to_csv(OUT_DIR / "model_ladder_metrics.csv", index=False)
-    print(f"\nWrote {OUT_DIR}/model_ladder_metrics.csv")
+    pd.DataFrame(rows).to_csv(out_dir / "model_ladder_metrics.csv", index=False)
+    print(f"\nWrote {out_dir}/model_ladder_metrics.csv")
 
 
 if __name__ == "__main__":

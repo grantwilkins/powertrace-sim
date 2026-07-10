@@ -17,6 +17,7 @@ Run: uv run python feature-test/fit_map_priors.py
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -134,6 +135,16 @@ def fit_two_stage(X, y, fams_local, idle_cols, theta0=None):
     return th, mult, sigma
 
 
+def fit_fold(X, y, fams, train_mask, test_mask, idle_cols):
+    """Fit from the training partition only and predict the held-out partition."""
+    theta, multipliers, _ = fit_two_stage(
+        X[train_mask], y[train_mask], fams[train_mask], idle_cols
+    )
+    return y[test_mask], predict_map(
+        X[test_mask], theta, multipliers, fams[test_mask], idle_cols
+    )
+
+
 def laplace_sd(X, y, theta, mult, fams_local, idle_cols, sigma):
     """Posterior sd of theta via Gauss-Newton Laplace approximation."""
     c = np.exp(theta)
@@ -148,9 +159,18 @@ def laplace_sd(X, y, theta, mult, fams_local, idle_cols, sigma):
     return np.sqrt(np.clip(np.diag(cov), 0, None))
 
 
-def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    d = load_cache()
+def build_arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ledger-cache", default="feature-test/ledger_cache.npz")
+    parser.add_argument("--out-dir", default=str(OUT))
+    return parser
+
+
+def main(argv=None):
+    args = build_arg_parser().parse_args(argv)
+    out = Path(args.out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    d = load_cache(args.ledger_cache)
     y = d["power"].astype(np.float64)
     run_ids = d["run_id"]
     fams = d["family_idx"]
@@ -201,9 +221,9 @@ def main():
         for f in range(5):
             tr = hw_mask & (fold_arr != f)
             te = hw_mask & (fold_arr == f)
-            tht, mt, _ = fit_two_stage(X[tr], y[tr], fams[tr], idle_cols, theta0=th)
-            ys.append(y[te])
-            ps.append(predict_map(X[te], tht, mt, fams[te], idle_cols))
+            yte, predte = fit_fold(X, y, fams, tr, te, idle_cols)
+            ys.append(yte)
+            ps.append(predte)
         cv = metrics(np.concatenate(ys), np.concatenate(ps))
         print(f"  CV(5-fold by run): R2={cv['r2']:.4f} RMSE={cv['rmse']:.1f}W MAPE={cv['mape']:.1f}%")
 
@@ -214,7 +234,7 @@ def main():
             tr = hw_mask & (fams != fi)
             if len(np.unique(fams[tr])) < 2:
                 continue
-            tht, mt, _ = fit_two_stage(X[tr], y[tr], fams[tr], idle_cols, theta0=th)
+            tht, mt, _ = fit_two_stage(X[tr], y[tr], fams[tr], idle_cols)
             mt.pop(int(fi), None)
             predt = predict_map(X[te], tht, mt, fams[te], idle_cols)
             errs = [abs(np.mean(predt[run_ids[te] == r]) - np.mean(y[te][run_ids[te] == r]))
@@ -236,7 +256,7 @@ def main():
             print(f"  example run plateau: meas {y[mm][busy].mean():.0f}W pred {pr[busy].mean():.0f}W"
                   f" | gaps: meas {y[mm][gap].mean():.0f}W pred {pr[gap].mean():.0f}W")
 
-        pd.DataFrame(id_rows).to_csv(OUT / f"map_identifiability_{hw}.csv", index=False)
+        pd.DataFrame(id_rows).to_csv(out / f"map_identifiability_{hw}.csv", index=False)
         out_json[hw] = dict(
             coefficients={f: float(np.exp(th[j])) for j, f in enumerate(FEATS)},
             posterior_sd_log={f: float(post_sd[j]) for j, f in enumerate(FEATS)},
@@ -244,9 +264,9 @@ def main():
             metrics=dict(cv=cv, in_sample=ins, lomo=lomo),
         )
 
-    with open(OUT / "map_coefficients.json", "w") as f:
+    with open(out / "map_coefficients.json", "w") as f:
         json.dump(out_json, f, indent=2)
-    print(f"\nWrote {OUT}/map_coefficients.json and map_identifiability_*.csv")
+    print(f"\nWrote {out}/map_coefficients.json and map_identifiability_*.csv")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,21 @@ All work rates are **computed, not learned**, from per-request timing
 (arrival, TTFT, decode time) + architecture descriptors (params, dtype,
 layers, KV geometry, MoE experts/top-k). ~10 fitted constants per hardware.
 
+Canonical bundles are converted to a ledger only with an explicit calibrated
+prefill rate and source:
+
+```bash
+uv run python feature-test/build_ledger_bundle.py \
+  --lambda-prefill 7421.0 \
+  --lambda-prefill-source 'prefill staircase run h100_prefill_tp4_...'
+```
+
+This emits `ledger_cache_bundle.npz` plus a source sidecar mapping each ledger run
+index to the bundle ID, path, hashes, and throughput calibration.
+Its default `data/runs/*/*` scan skips campaign support directories without a
+`manifest.json`; an explicit `--runs-glob` remains fail-fast for every selected
+directory.
+
 ## Results (450 runs, 273k one-second bins, 7 models, TP 1–8)
 
 | metric | A100 | H100 |
@@ -131,6 +146,37 @@ Final zero-shot on never-seen 405B-FP8: median 9.6%, worst 12.9%, bin R²
 raw data itself was audited clean: 0 corrupted CSV blocks, balanced per-GPU
 power, idle floor ~1.1 kW matching every other H100 config.
 
+The script now exports `results/physics_artifact_v1.json`, the only deployment
+artifact for this path. It contains the 11 feature equations, coefficients and
+priors/posteriors, family policy, architecture schema, 1 s timestep, lag, cap
+and provenance, generic ledger/run-index hashes, stable legacy-pair or bundle
+source IDs and hashes, fit
+revision and dirty status, and validation recomputed from the exported
+coefficients. The
+maintained prediction implementation is `model.classifiers.physics`; the
+exploratory fit modules are not imported by inference. Stochastic residuals are
+disabled in the artifact until a training-only residual fit is validated.
+
+Rebuild and fit with explicit sources:
+
+```bash
+uv run python feature-test/build_ledger_cache.py \
+  --throughput-db model/throughput_database.json \
+  --out feature-test/ledger_cache.npz
+uv run python feature-test/fit_models.py --ledger-cache feature-test/ledger_cache.npz
+uv run python feature-test/fit_map_priors.py --ledger-cache feature-test/ledger_cache.npz
+uv run python feature-test/peak_and_holdout.py \
+  --ledger-cache feature-test/ledger_cache.npz \
+  --run-index feature-test/ledger_cache.runs.json
+```
+
+The cache builder rejects missing throughput calibration rather than inventing
+a rate. Cross-validation and leave-one-family-out fits start from priors using
+training partitions only; no full-data warm start enters held-out fits.
+Both ledger formats store `dt_s` and model architecture descriptors. The
+deployment artifact carries them forward, and inference converts meter lag by
+elapsed time rather than assuming that one artifact bin equals one output bin.
+
 ## MoE scalability: fit 20B, predict 120B (`scalability_moe.py`)
 
 Hardest within-family test: fit on **gpt-oss-20B only** (TP1/TP2, A100), cold
@@ -165,8 +211,10 @@ carried by the architecture arithmetic, not memorized per model.
 
 ## Files
 
-- `build_ledger_cache.py` — parse runs → per-second work ledger (`ledger_cache.npz`)
+- `build_ledger_cache.py` — parse runs → per-second work ledger plus
+  `run_id`-to-source/hash index (`ledger_cache.npz`, `ledger_cache.runs.json`)
 - `fit_models.py` — model ladder M0–M8 + lag variants, CV/LOMO/LOTO harness
 - `diagnose_residuals.py` — residual breakdown + noise-floor estimate
 - `final_model.py` — final fit, metrics, attribution, coefficient export
-- `results/` — metrics CSVs, `final_coefficients.json`, attribution tables, figures
+- `results/physics_artifact_v1.json` — versioned deployable 11-term artifact
+- `results/` — research metrics, legacy coefficient JSONs, tables, and figures
