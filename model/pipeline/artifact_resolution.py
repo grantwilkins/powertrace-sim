@@ -62,8 +62,31 @@ def resolve_throughput(
     return {"lambda_prefill": prefill, "lambda_decode": decode}
 
 
+def resolve_bound_throughput(
+    config_entry: Mapping[str, object],
+    config_id: str,
+) -> Dict[str, float]:
+    """Read the calibration bound into a trained artifact.
+
+    Runtime rollout must not fall back to the mutable Stage0 throughput database:
+    doing so makes an existing model's inputs depend on data that was not used to
+    train it.
+    """
+    bound = config_entry.get("throughput")
+    if not isinstance(bound, Mapping):
+        raise ValueError(
+            f"Run manifest for '{config_id}' is missing bound train throughput"
+        )
+    prefill = finite_float(bound.get("lambda_prefill"))
+    decode = finite_float(bound.get("lambda_decode"))
+    if prefill is None or prefill <= 0.0 or decode is None or decode <= 0.0:
+        raise ValueError(f"Invalid bound throughput for '{config_id}'")
+    return {"lambda_prefill": prefill, "lambda_decode": decode}
+
+
 __all__ = [
     "resolve_checkpoint_norm_gmm_paths",
+    "resolve_bound_throughput",
     "resolve_experimental_paths",
     "resolve_throughput",
 ]

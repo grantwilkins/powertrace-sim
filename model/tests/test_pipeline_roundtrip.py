@@ -8,6 +8,7 @@ import numpy as np
 from model.pipeline.evaluation import evaluate_from_artifacts
 from model.pipeline.training import run_training_from_manifest
 from model.utils.io import write_json as _write_json
+from model.utils.provenance import sha256_file
 
 
 class TestPipelineRoundTrip(unittest.TestCase):
@@ -79,6 +80,32 @@ class TestPipelineRoundTrip(unittest.TestCase):
                     "power_max": 130.0,
                 },
             )
+            request_json = root / "data" / "requests_p2.json"
+            _write_json(
+                request_json,
+                {
+                    "input_lens": [24, 36],
+                    "output_lens": [10, 8],
+                    "ttfts": [0.1, 0.1],
+                    "itls": [[0.01] * 10, [0.01] * 8],
+                    "request_timestamps": [1010.0, 1010.5],
+                },
+            )
+            lineage_path = datasets_dir / "toy-roundtrip_H100_tp1.lineage.json"
+            _write_json(
+                lineage_path,
+                {
+                    "schema_version": "gru-dataset-lineage-v1",
+                    "traces": [
+                        {
+                            "trace_index": index,
+                            "source_paths": {"requests_json": str(request_json)},
+                            "source_sha256": {"requests_json": sha256_file(request_json)},
+                        }
+                        for index in range(3)
+                    ],
+                },
+            )
             experimental_manifest_path = exp_root / "manifest.json"
             _write_json(
                 experimental_manifest_path,
@@ -90,6 +117,12 @@ class TestPipelineRoundTrip(unittest.TestCase):
                             "dataset_npz": str(dataset_path),
                             "split_json": str(split_path),
                             "norm_params_json": str(norm_path),
+                            "lineage_json": str(lineage_path),
+                            "throughput": {
+                                "lambda_prefill": 100.0,
+                                "lambda_decode": 50.0,
+                            },
+                            "throughput_fit_split": "train",
                         }
                     },
                 },
@@ -115,7 +148,7 @@ class TestPipelineRoundTrip(unittest.TestCase):
             self.assertEqual(int(train_run["summary"]["num_trained"]), 1)
 
             run_manifest_path = Path(train_run["defaults"]["out_dir"]) / "run_manifest.json"
-            throughput_path = root / "model" / "config" / "throughput_database.json"
+            throughput_path = root / "model" / "throughput_database.json"
             _write_json(
                 throughput_path,
                 {
@@ -129,15 +162,6 @@ class TestPipelineRoundTrip(unittest.TestCase):
                 },
             )
 
-            request_json = root / "data" / "requests_p2.json"
-            _write_json(
-                request_json,
-                {
-                    "input_lens": [24, 36],
-                    "output_lens": [10, 8],
-                    "request_timestamps": [1010.0, 1010.5],
-                },
-            )
             pair_manifest = root / "results" / "stage0" / "pair_manifest.csv"
             pair_manifest.parent.mkdir(parents=True, exist_ok=True)
             with open(pair_manifest, "w", newline="") as f:

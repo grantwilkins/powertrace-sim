@@ -101,12 +101,17 @@ def load_config_data(
     norm_path = _resolve_existing_path(
         str(config_manifest_entry.get("norm_params_json", "")), manifest_dir
     )
+    lineage_path = _resolve_existing_path(
+        str(config_manifest_entry.get("lineage_json", "")), manifest_dir
+    )
     if dataset_path is None:
         return None, "missing_dataset_npz"
     if split_path is None:
         return None, "missing_split_json"
     if norm_path is None:
         return None, "missing_norm_params_json"
+    if lineage_path is None:
+        return None, "missing_lineage_json"
 
     try:
         with open(split_path, "r") as f:
@@ -171,6 +176,7 @@ def load_config_data(
         "dataset_path": dataset_path,
         "split_path": split_path,
         "norm_path": norm_path,
+        "lineage_path": lineage_path,
         "split_payload": split_payload,
         "norm_payload": norm_payload,
         "raw": {

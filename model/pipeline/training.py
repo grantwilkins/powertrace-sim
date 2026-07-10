@@ -33,6 +33,7 @@ from model.utils.io import (
     write_csv as _write_csv,
     write_json as _write_json,
 )
+from model.utils.provenance import file_identity, git_state
 
 
 def train_one_config(
@@ -324,6 +325,9 @@ def run_training_from_manifest(
             continue
 
         try:
+            throughput = entry.get("throughput")
+            if not isinstance(throughput, dict) or entry.get("throughput_fit_split") != "train":
+                raise ValueError("experimental config requires train-only throughput calibration")
             delta_stats, d_err = _compute_delta_stats(
                 payload["raw"]["train"],
                 source_norm=payload["norm_payload"],
@@ -513,9 +517,20 @@ def run_training_from_manifest(
             summary_rows.append(row)
             config_results[cid] = {
                 **row,
+                "throughput": dict(throughput),
+                "throughput_fit_split": str(entry["throughput_fit_split"]),
                 "hidden_dim": int(hidden_dim),
                 "num_layers": int(max(1, num_layers)),
                 "bic_candidates": bic_scan,
+                "artifact_identities": {
+                    "dataset": file_identity(payload["dataset_path"]),
+                    "split": file_identity(payload["split_path"]),
+                    "lineage": file_identity(payload["lineage_path"]),
+                    "source_norm": file_identity(payload["norm_path"]),
+                    "checkpoint": file_identity(checkpoint_path),
+                    "trained_norm": file_identity(norm_out_path),
+                    "gmm": file_identity(gmm_out_path),
+                },
             }
         except Exception as exc:
             row = {
@@ -567,7 +582,9 @@ def run_training_from_manifest(
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inputs": {
             "manifest_path": manifest_path,
+            "manifest_identity": file_identity(manifest_path),
         },
+        "source_revision": git_state(),
         "defaults": {
             "out_root": out_root,
             "out_dir": out_dir,

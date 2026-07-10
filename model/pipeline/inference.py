@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -10,44 +9,29 @@ import numpy as np
 import torch
 
 from model.classifiers.gmm_bigru import load_gmm_params_json_dict
-from model.classifiers.features import build_rollout_features_from_requests
+from model.classifiers.features import build_next_step_features_from_requests
 from model.classifiers.trace_generation import generate_gmm_bigru_trace
 from model.classifiers.gru import GRUClassifier
-from model.pipeline.artifact_resolution import resolve_throughput
+from model.pipeline.artifact_resolution import resolve_bound_throughput
 from model.pipeline.manifest_validation import validate_manifest
+from model.pipeline.request_builder import load_request_schedule
 from model.utils.config import resolve_device as _resolve_device
 from model.utils.io import (
     ensure_dir as _ensure_dir,
     load_json as _load_json,
+    resolve_input_path as _resolve_input_path,
     resolve_existing_path as _resolve_existing_path,
+    write_json as _write_json,
 )
+from model.utils.provenance import assert_file_identity, file_identity, git_state
 
-
-def _load_requests_json(path: str) -> List[Dict[str, object]]:
-    with open(path, "r") as f:
-        payload = json.load(f)
-    if isinstance(payload, list):
-        reqs = payload
-    elif isinstance(payload, dict):
-        reqs = payload.get("requests")
-    else:
-        reqs = None
-    if not isinstance(reqs, list):
-        raise ValueError("requests JSON must be a list or object with key 'requests'.")
-
-    out: List[Dict[str, object]] = []
-    for i, req in enumerate(reqs):
-        if not isinstance(req, dict):
-            raise ValueError(f"request[{i}] must be an object")
-        for key in ("arrival_time", "input_tokens", "output_tokens"):
-            if key not in req:
-                raise ValueError(f"request[{i}] missing '{key}'")
-        out.append(req)
-    return out
+GENERATION_MODE = "iid"
+GENERATION_MODE_LABEL = "iid"
 
 
 def _resolve_config_entry(run_manifest_path: str, config_id: str) -> Tuple[Dict[str, object], str]:
-    payload = _load_json(run_manifest_path)
+    resolved_path = _resolve_input_path(run_manifest_path)
+    payload = _load_json(resolved_path)
     validate_manifest(payload, "run_manifest")
     cfgs = payload.get("configs", {})
     if config_id not in cfgs:
@@ -55,7 +39,7 @@ def _resolve_config_entry(run_manifest_path: str, config_id: str) -> Tuple[Dict[
     row = cfgs[config_id]
     if not isinstance(row, dict):
         raise ValueError(f"Invalid config entry for '{config_id}'")
-    return row, str(Path(run_manifest_path).resolve().parent)
+    return row, str(Path(resolved_path).resolve().parent)
 
 
 def _resolve_paths(
@@ -114,13 +98,37 @@ def _extract_norm_for_inference(norm_payload: Dict[str, object]) -> Dict[str, fl
     return out
 
 
-def _write_trace_csv(path: str, power: np.ndarray, dt: float) -> None:
+def _write_trace_csv(
+    path: str,
+    power: np.ndarray,
+    dt: float,
+    *,
+    generation_mode: str,
+    generation_mode_label: str,
+) -> None:
     _ensure_dir(os.path.dirname(path) or ".")
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["t_bin", "time_s", "power_w"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "t_bin",
+                "time_s",
+                "power_w",
+                "generation_mode",
+                "generation_mode_label",
+            ],
+        )
         writer.writeheader()
         for i, p in enumerate(np.asarray(power, dtype=np.float64).reshape(-1)):
-            writer.writerow({"t_bin": int(i), "time_s": float(i * dt), "power_w": float(p)})
+            writer.writerow(
+                {
+                    "t_bin": int(i),
+                    "time_s": float((i + 1) * dt),
+                    "power_w": float(p),
+                    "generation_mode": str(generation_mode),
+                    "generation_mode_label": str(generation_mode_label),
+                }
+            )
 
 
 def run_inference_from_artifacts(
@@ -129,12 +137,11 @@ def run_inference_from_artifacts(
     requests_json: str,
     out_csv: str,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     device: str = "auto",
-    seed: Optional[int] = None,
+    seed: Optional[int] = 42,
     dt: Optional[float] = None,
     T: Optional[int] = None,
-    p0: Optional[float] = None,
     decode_mode: str = "stochastic",
     median_filter_window: int = 1,
     checkpoint: Optional[str] = None,
@@ -145,6 +152,8 @@ def run_inference_from_artifacts(
     hidden_dim: Optional[int] = None,
     num_layers: Optional[int] = None,
 ) -> Dict[str, object]:
+    if str(decode_mode).strip().lower() == "stochastic" and seed is None:
+        raise ValueError("stochastic inference requires an explicit seed")
     config_entry, manifest_base = _resolve_config_entry(run_manifest, config_id)
     if (
         (checkpoint is None or gmm_params is None or norm_params is None)
@@ -162,14 +171,22 @@ def run_inference_from_artifacts(
         gmm_params=gmm_params,
         norm_params=norm_params,
     )
+    overrides = [checkpoint is not None, gmm_params is not None, norm_params is not None]
+    if any(overrides) and not all(overrides):
+        raise ValueError("checkpoint, gmm_params, and norm_params overrides must be supplied together")
+    if not all(overrides):
+        identities = config_entry.get("artifact_identities")
+        if not isinstance(identities, dict):
+            raise ValueError("Run manifest config is missing artifact identities")
+        assert_file_identity(checkpoint_path, identities.get("checkpoint"), label="checkpoint")
+        assert_file_identity(gmm_path, identities.get("gmm"), label="GMM")
+        assert_file_identity(norm_path, identities.get("trained_norm"), label="normalization")
     norm_payload = _load_json(norm_path)
     gmm_payload = _load_json(gmm_path)
     norm_cfg = _extract_norm_for_inference(norm_payload)
     gmm_cfg = load_gmm_params_json_dict(gmm_payload)
-    throughput_payload = _load_json(throughput_db)
-    validate_manifest(throughput_payload, "throughput_db")
-    throughput = resolve_throughput(throughput_payload, config_id)
-    requests = _load_requests_json(requests_json)
+    throughput = resolve_bound_throughput(config_entry, config_id)
+    requests = load_request_schedule(requests_json)
 
     resolved_feature_set = str(
         feature_set
@@ -185,11 +202,11 @@ def run_inference_from_artifacts(
     if (not np.isfinite(resolved_dt)) or resolved_dt <= 0.0:
         raise ValueError(f"dt must be positive; got {resolved_dt}")
 
-    feat = build_rollout_features_from_requests(
+    feat = build_next_step_features_from_requests(
         requests=requests,
         throughput=throughput,
         norm=norm_cfg,
-        T=T,
+        num_points=T,
         dt=resolved_dt,
         feature_set=resolved_feature_set,
     )
@@ -204,8 +221,6 @@ def run_inference_from_artifacts(
     resolved_input_dim = int(features_norm.shape[1])
     resolved_hidden_dim = int(hidden_dim if hidden_dim is not None else config_entry.get("hidden_dim", 64))
     resolved_num_layers = int(num_layers if num_layers is not None else config_entry.get("num_layers", 1))
-    resolved_p0 = float(norm_cfg["power_min"] if p0 is None else p0)
-
     resolved_device = _resolve_device(device)
     model = GRUClassifier(
         Dx=resolved_input_dim,
@@ -246,19 +261,53 @@ def run_inference_from_artifacts(
         clamp_range=(norm_cfg["power_min"], norm_cfg["power_max"]),
     )
     power_w = np.asarray(generated["power_w"], dtype=np.float64).reshape(-1)
-    _write_trace_csv(out_csv, power_w, dt=resolved_dt)
+    _write_trace_csv(
+        out_csv,
+        power_w,
+        dt=resolved_dt,
+        generation_mode=GENERATION_MODE,
+        generation_mode_label=GENERATION_MODE_LABEL,
+    )
+    manifest_path = f"{out_csv}.manifest.json"
+    manifest = {
+        "schema_version": "powertrace-gru-inference-v1",
+        "source_revision": git_state(),
+        "config_id": config_id,
+        "generation_mode": GENERATION_MODE,
+        "seed": None if seed is None else int(seed),
+        "inputs": {
+            "checkpoint": file_identity(checkpoint_path),
+            "gmm": file_identity(gmm_path),
+            "norm": file_identity(norm_path),
+            "throughput": {
+                "source": "run_manifest_bound",
+                "lambda_prefill": throughput["lambda_prefill"],
+                "lambda_decode": throughput["lambda_decode"],
+            },
+            "requests": file_identity(_resolve_input_path(requests_json)),
+            "run_manifest": file_identity(_resolve_input_path(run_manifest)),
+        },
+        "output": file_identity(out_csv),
+        "dt": float(resolved_dt),
+        "first_prediction_time_s": float(resolved_dt),
+        "T": int(resolved_T),
+        "decode_mode": str(decode_mode),
+        "median_filter_window": int(median_filter_window),
+    }
+    _write_json(manifest_path, manifest)
 
     return {
         "config_id": config_id,
+        "generation_mode": GENERATION_MODE,
+        "generation_mode_label": GENERATION_MODE_LABEL,
         "checkpoint_path": checkpoint_path,
         "gmm_params_path": gmm_path,
         "norm_params_path": norm_path,
-        "throughput_db": throughput_db,
+        "throughput_source": "run_manifest_bound",
         "requests_json": requests_json,
         "out_csv": out_csv,
         "dt": float(resolved_dt),
         "T": int(resolved_T),
-        "p0": float(resolved_p0),
         "k": int(resolved_k),
         "feature_set": resolved_feature_set,
         "input_dim": int(resolved_input_dim),
@@ -268,4 +317,5 @@ def run_inference_from_artifacts(
         "median_filter_window": int(median_filter_window),
         "device": str(resolved_device),
         "num_requests": int(len(requests)),
+        "inference_manifest": manifest_path,
     }

@@ -13,35 +13,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from model.classifiers.gmm_bigru import (
-    load_gmm_params_json_dict,
-    predict_sorted_gmm_labels_from_params,
-)
+from model.classifiers.gmm_bigru import load_gmm_params_json_dict
 from model.classifiers.features import (
-    build_rollout_features_from_requests,
+    build_next_step_features_from_requests,
     extract_norm_params,
 )
-from model.classifiers.trace_generation import (
-    AR1_MIN_RUN_LENGTH,
-    AR1_PHI_THRESHOLD,
-    estimate_ar1_params,
-    generate_gmm_bigru_trace,
-    generate_gmm_bigru_trace_ar1_thresholded,
-)
+from model.classifiers.trace_generation import generate_gmm_bigru_trace
 from model.classifiers.model_loading import load_gru_classifier
 from model.classifiers.metrics import (
     compute_aggregate_power_metrics,
     compute_power_metrics,
 )
-from model.pipeline.request_builder import (
-    _build_requests_from_stage0_json,
-    _load_pair_manifest_map,
-    _synthesize_request_timestamps,
-)
+from model.pipeline.request_builder import _build_requests_from_stage0_json
 from model.pipeline.artifact_resolution import (
     resolve_checkpoint_norm_gmm_paths,
+    resolve_bound_throughput,
     resolve_experimental_paths,
-    resolve_throughput,
 )
 from model.pipeline.manifest_validation import validate_manifest
 from model.utils.config import (
@@ -51,10 +38,14 @@ from model.utils.config import (
 from model.utils.io import (
     ensure_dir as _ensure_dir,
     load_json as _load_json,
+    repo_relative_or_absolute as _repo_relative_or_absolute,
+    resolve_input_path as _resolve_input_path,
+    resolve_existing_path as _resolve_existing_path,
     safe_slug as _safe_slug,
     write_csv as _write_csv,
     write_json as _write_json,
 )
+from model.utils.provenance import assert_file_identity, file_identity, git_state, sha256_file
 
 def _nanmedian(values: Iterable[float]) -> float:
     arr = np.asarray(list(values), dtype=np.float64)
@@ -67,6 +58,93 @@ def _nanmedian(values: Iterable[float]) -> float:
 def _total_energy_from_trace(power_w: np.ndarray, *, dt: float) -> float:
     arr = np.asarray(power_w, dtype=np.float64).reshape(-1)
     return float(np.sum(arr) * float(dt))
+
+
+# Requests are placed at their recorded arrival times; the oracle alignment
+# offset is computed as a diagnostic only and never applied to the schedule.
+TIMING_MODE = "arrival_only"
+REQUEST_ALIGNMENT_MODE = "none"
+REQUEST_ALIGNMENT_SIGNAL = "measured_power_first_sustained_activation"
+FALLBACK_STATUS = "none"
+
+
+def _request_timestamp_source(request_json_path: str) -> str:
+    payload = _load_json(request_json_path)
+    if isinstance(payload.get("request_timestamps"), list) and payload["request_timestamps"]:
+        return "recorded"
+    return "missing"
+
+
+def _request_json_from_lineage(
+    lineage: Dict[str, object], *, experimental_base: str
+) -> str:
+    paths = lineage.get("source_paths")
+    hashes = lineage.get("source_sha256")
+    if not isinstance(paths, dict) or not isinstance(hashes, dict):
+        raise ValueError("trace lineage is missing source paths or hashes")
+    key = "requests_json" if "requests_json" in paths else "requests.json"
+    raw_path = str(paths.get(key, ""))
+    resolved = _resolve_existing_path(raw_path, experimental_base)
+    if resolved is None:
+        raise ValueError(f"lineage request source not found: {raw_path}")
+    expected_hash = str(hashes.get(key, ""))
+    if not expected_hash or sha256_file(resolved) != expected_hash:
+        raise ValueError(f"lineage request source hash mismatch: {resolved}")
+    return resolved
+
+
+def _build_eval_command(
+    *,
+    run_manifest: str,
+    experimental_manifest: str,
+    throughput_db: str,
+    pair_manifest_csv: str,
+    out_dir: str,
+    config_ids: Optional[Sequence[str]],
+    num_seeds: int,
+    base_seed: int,
+    acf_max_lag: int,
+    generation_mode: str,
+    decode_mode: str,
+    median_filter_window: int,
+    device: str,
+    plots: bool,
+) -> List[str]:
+    command = [
+        "uv",
+        "run",
+        "-m",
+        "model.scripts.eval_gmm_bigru",
+        "--run-manifest",
+        run_manifest,
+        "--experimental-manifest",
+        experimental_manifest,
+        "--throughput-db",
+        throughput_db,
+        "--pair-manifest-csv",
+        pair_manifest_csv,
+        "--out-dir",
+        out_dir,
+        "--num-seeds",
+        str(int(num_seeds)),
+        "--base-seed",
+        str(int(base_seed)),
+        "--acf-max-lag",
+        str(int(acf_max_lag)),
+        "--generation-mode",
+        generation_mode,
+        "--decode-mode",
+        decode_mode,
+        "--median-filter-window",
+        str(int(median_filter_window)),
+        "--device",
+        device,
+    ]
+    for config_id in config_ids or []:
+        command.extend(["--config-id", str(config_id)])
+    if not plots:
+        command.append("--no-plots")
+    return command
 
 
 def _detect_first_power_spike(
@@ -128,56 +206,6 @@ def _plot_overlay(path: str, *, dt: float, gt: np.ndarray, pred: np.ndarray, tit
         plt.close(fig)
 
 
-def _plot_ar1_params(
-    path: str,
-    *,
-    gmm_means: np.ndarray,
-    phi: np.ndarray,
-    sigma_marginal: np.ndarray,
-    sigma_innov: np.ndarray,
-    title: str,
-    phi_threshold: float = AR1_PHI_THRESHOLD,
-) -> None:
-    means = np.asarray(gmm_means, dtype=np.float64).reshape(-1)
-    phi_arr = np.asarray(phi, dtype=np.float64).reshape(-1)
-    sigma_m = np.asarray(sigma_marginal, dtype=np.float64).reshape(-1)
-    sigma_i = np.asarray(sigma_innov, dtype=np.float64).reshape(-1)
-    K = int(means.size)
-    if phi_arr.size != K or sigma_m.size != K or sigma_i.size != K:
-        raise ValueError("AR(1) plot parameter size mismatch")
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-    try:
-        x = np.arange(K, dtype=np.int64)
-
-        threshold = float(phi_threshold)
-        colors = ["#d62728" if p >= threshold else "#2ca02c" for p in phi_arr]
-        ax1.bar(x, phi_arr, color=colors, alpha=0.8)
-        ax1.set_xlabel("GMM State (sorted by mean power)")
-        ax1.set_ylabel("phi (AR(1) persistence)")
-        ax1.set_title("Within-state persistence")
-        ax1.set_xticks(x)
-        ax1.set_xticklabels([f"{int(m)}W" for m in means], rotation=45, fontsize=8)
-        ax1.axhline(y=threshold, color="gray", linestyle="--", alpha=0.5, label=f"phi={threshold:.1f} threshold")
-        ax1.legend(fontsize=8)
-        ax1.set_ylim(0.0, 1.0)
-
-        ax2.bar(x - 0.15, sigma_m, width=0.3, label="sigma_marginal", alpha=0.8)
-        ax2.bar(x + 0.15, sigma_i, width=0.3, label="sigma_innovation", alpha=0.8)
-        ax2.set_xlabel("GMM State")
-        ax2.set_ylabel("Std Dev (W)")
-        ax2.set_title("Marginal vs Innovation Noise")
-        ax2.set_xticks(x)
-        ax2.set_xticklabels([f"{int(m)}W" for m in means], rotation=45, fontsize=8)
-        ax2.legend(fontsize=8)
-
-        fig.suptitle(title, fontsize=11)
-        fig.tight_layout()
-        fig.savefig(path)
-    finally:
-        plt.close(fig)
-
-
 def _build_trace_record(
     *,
     trace_idx: int,
@@ -206,11 +234,31 @@ def _build_trace_record(
     }
 
 
+def _build_evaluation_rollout_features(
+    *,
+    requests: Sequence[Dict[str, object]],
+    throughput: Dict[str, float],
+    norm: Dict[str, float],
+    num_points: int,
+    dt: float,
+    feature_set: str,
+) -> Dict[str, np.ndarray]:
+    """Build features at t=dt..N*dt, matching training targets power[1:]."""
+    return build_next_step_features_from_requests(
+        requests=requests,
+        throughput=throughput,
+        norm=norm,
+        num_points=int(num_points),
+        dt=float(dt),
+        feature_set=feature_set,
+    )
+
+
 def evaluate_from_artifacts(
     *,
     run_manifest: str = "results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json",
     experimental_manifest: str = "results/experimental_continuous_v1/manifest.json",
-    throughput_db: str = "model/config/throughput_database.json",
+    throughput_db: str = "model/throughput_database.json",
     pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     out_dir: str = "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics",
     config_ids: Optional[Sequence[str]] = None,
@@ -218,7 +266,7 @@ def evaluate_from_artifacts(
     base_seed: int = 42,
     device: str = "auto",
     acf_max_lag: int = 50,
-    generation_mode: str = "ar1_thresholded",
+    generation_mode: str = "iid",
     decode_mode: str = "stochastic",
     median_filter_window: int = 1,
     plots: bool = True,
@@ -226,25 +274,25 @@ def evaluate_from_artifacts(
     if int(num_seeds) <= 0:
         raise ValueError("num_seeds must be >= 1")
     generation_mode_resolved = str(generation_mode).strip().lower()
-    if generation_mode_resolved not in {"iid", "ar1", "ar1_thresholded"}:
+    if generation_mode_resolved != "iid":
         raise ValueError(
-            "generation_mode must be one of {'iid', 'ar1', 'ar1_thresholded'}"
+            "generation_mode must be 'iid'; AR(1) generation modes "
+            f"('ar1', 'ar1_thresholded') were removed. Got: {generation_mode!r}"
         )
+    generation_mode_label = generation_mode_resolved
     if decode_mode not in {"stochastic", "argmax"}:
         raise ValueError(f"decode_mode must be one of {{'stochastic','argmax'}}; got {decode_mode}")
 
-    run_manifest_payload = _load_json(run_manifest)
+    run_manifest_path = _resolve_input_path(run_manifest)
+    experimental_manifest_path = _resolve_input_path(experimental_manifest)
+    run_manifest_payload = _load_json(run_manifest_path)
     validate_manifest(run_manifest_payload, "run_manifest")
     run_cfgs = run_manifest_payload.get("configs", {})
-    run_manifest_base = str(Path(run_manifest).resolve().parent)
+    run_manifest_base = str(Path(run_manifest_path).resolve().parent)
 
-    experimental_payload = _load_json(experimental_manifest)
+    experimental_payload = _load_json(experimental_manifest_path)
     validate_manifest(experimental_payload, "experimental_manifest")
-    experimental_base = str(Path(experimental_manifest).resolve().parent)
-
-    throughput_payload = _load_json(throughput_db)
-    validate_manifest(throughput_payload, "throughput_db")
-    pair_map = _load_pair_manifest_map(pair_manifest_csv)
+    experimental_base = str(Path(experimental_manifest_path).resolve().parent)
 
     requested = _parse_config_ids(config_ids)
     if requested:
@@ -256,20 +304,46 @@ def evaluate_from_artifacts(
     _ensure_dir(out_dir)
     plots_dir = os.path.join(out_dir, "plots")
     _ensure_dir(plots_dir)
-    ar1_params_dir = os.path.join(str(Path(out_dir).parent), "ar1_params")
-    _ensure_dir(ar1_params_dir)
 
     per_seed_rows: List[Dict[str, object]] = []
     per_trace_rows: List[Dict[str, object]] = []
     per_config_seed_rows: List[Dict[str, object]] = []
     config_rows: List[Dict[str, object]] = []
     config_results: Dict[str, Dict[str, object]] = {}
+    resolved_artifacts: Dict[str, Dict[str, object]] = {}
     seeds = [int(base_seed) + i for i in range(int(num_seeds))]
+    command = _build_eval_command(
+        run_manifest=run_manifest,
+        experimental_manifest=experimental_manifest,
+        throughput_db=throughput_db,
+        pair_manifest_csv=pair_manifest_csv,
+        out_dir=out_dir,
+        config_ids=config_ids,
+        num_seeds=int(num_seeds),
+        base_seed=int(base_seed),
+        acf_max_lag=int(acf_max_lag),
+        generation_mode=generation_mode_resolved,
+        decode_mode=str(decode_mode),
+        median_filter_window=int(median_filter_window),
+        device=str(device),
+        plots=bool(plots),
+    )
 
     for config_id in targets:
         row = run_cfgs.get(config_id)
         if not isinstance(row, dict):
-            cfg_row = {"config_id": config_id, "status": "skipped", "reason": "config_not_in_run_manifest"}
+            cfg_row = {
+                "config_id": config_id,
+                "status": "skipped",
+                "reason": "config_not_in_run_manifest",
+                "generation_mode": generation_mode_resolved,
+                "generation_mode_label": generation_mode_label,
+                "timing_mode": TIMING_MODE,
+                "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "timestamp_source": "",
+                "fallback_status": FALLBACK_STATUS,
+            }
             config_rows.append(cfg_row)
             config_results[config_id] = dict(cfg_row)
             continue
@@ -278,6 +352,13 @@ def evaluate_from_artifacts(
                 "config_id": config_id,
                 "status": "skipped",
                 "reason": f"config_status_{row.get('status', 'unknown')}",
+                "generation_mode": generation_mode_resolved,
+                "generation_mode_label": generation_mode_label,
+                "timing_mode": TIMING_MODE,
+                "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "timestamp_source": "",
+                "fallback_status": FALLBACK_STATUS,
             }
             config_rows.append(cfg_row)
             config_results[config_id] = dict(cfg_row)
@@ -285,6 +366,12 @@ def evaluate_from_artifacts(
 
         try:
             checkpoint_path, norm_path, gmm_path = resolve_checkpoint_norm_gmm_paths(row, run_manifest_base)
+            identities = row.get("artifact_identities")
+            if not isinstance(identities, dict):
+                raise ValueError("trained config is missing artifact identities")
+            assert_file_identity(checkpoint_path, identities.get("checkpoint"), label="checkpoint")
+            assert_file_identity(norm_path, identities.get("trained_norm"), label="normalization")
+            assert_file_identity(gmm_path, identities.get("gmm"), label="GMM")
             norm_payload = _load_json(norm_path)
             norm_cfg = extract_norm_params(norm_payload)
             gmm_payload = _load_json(gmm_path)
@@ -310,16 +397,46 @@ def evaluate_from_artifacts(
                 num_layers=num_layers,
                 device=resolved_device,
             )
-            throughput = resolve_throughput(throughput_payload, config_id)
+            throughput = resolve_bound_throughput(row, config_id)
             dataset_path, split_path = resolve_experimental_paths(
                 experimental_payload,
                 config_id=config_id,
                 experimental_base=experimental_base,
             )
+            experimental_cfg = experimental_payload["configs"][config_id]
+            lineage_path = _resolve_existing_path(
+                str(experimental_cfg.get("lineage_json", "")), experimental_base
+            )
+            if lineage_path is None:
+                raise ValueError("experimental config is missing lineage_json")
+            assert_file_identity(dataset_path, identities.get("dataset"), label="dataset")
+            assert_file_identity(split_path, identities.get("split"), label="split")
+            assert_file_identity(lineage_path, identities.get("lineage"), label="lineage")
+            lineage_by_trace: Dict[int, Dict[str, object]] = {}
+            lineage_payload = _load_json(lineage_path)
+            if lineage_payload.get("schema_version") != "gru-dataset-lineage-v1":
+                raise ValueError("unsupported GRU dataset lineage schema")
+            lineage_rows = lineage_payload.get("traces")
+            if not isinstance(lineage_rows, list):
+                raise ValueError("GRU dataset lineage traces must be a list")
+            lineage_by_trace = {
+                int(entry["trace_index"]): entry
+                for entry in lineage_rows
+                if isinstance(entry, dict)
+            }
+            if len(lineage_by_trace) != len(lineage_rows):
+                raise ValueError("GRU dataset lineage has duplicate or invalid trace rows")
+            resolved_artifacts[config_id] = {
+                "checkpoint": file_identity(checkpoint_path),
+                "norm": file_identity(norm_path),
+                "gmm": file_identity(gmm_path),
+                "dataset": file_identity(dataset_path),
+                "split": file_identity(split_path),
+                "lineage": file_identity(lineage_path),
+            }
             split_payload = _load_json(split_path)
             validate_manifest(split_payload, "split_manifest")
             test_indices = [int(x) for x in split_payload.get("test_indices", [])]
-            train_indices = [int(x) for x in split_payload.get("train_indices", [])]
             if len(test_indices) == 0:
                 raise ValueError("empty test split")
 
@@ -335,45 +452,10 @@ def evaluate_from_artifacts(
             if (not np.isfinite(dt)) or dt <= 0.0:
                 raise ValueError(f"invalid dt in dataset: {dt}")
             n_total = int(min(len(pair_key_arr), len(power_arr), len(power_start_arr)))
+            if set(lineage_by_trace) != set(range(n_total)):
+                raise ValueError("GRU dataset lineage must bind every trace exactly once")
 
-            training_power_traces: List[np.ndarray] = []
-            training_labels_traces: List[np.ndarray] = []
-            for idx in train_indices:
-                if idx < 0 or idx >= n_total:
-                    continue
-                p_train = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
-                if p_train.size == 0:
-                    continue
-                labels_train = predict_sorted_gmm_labels_from_params(p_train, gmm_cfg)
-                training_power_traces.append(p_train.astype(np.float64))
-                training_labels_traces.append(labels_train.astype(np.int64))
-
-            phi, sigma_innov, sigma_marginal = estimate_ar1_params(
-                gmm_params=gmm_cfg,
-                training_power_traces=training_power_traces,
-                training_labels_traces=training_labels_traces,
-                K=int(k),
-                min_run_length=AR1_MIN_RUN_LENGTH,
-            )
-            phi_above_threshold = phi >= float(AR1_PHI_THRESHOLD)
             slug = _safe_slug(config_id)
-            ar1_params_path = os.path.join(ar1_params_dir, f"{slug}_ar1_params.json")
-            _write_json(
-                ar1_params_path,
-                {
-                    "config_id": config_id,
-                    "phi": phi.tolist(),
-                    "phi_threshold": float(AR1_PHI_THRESHOLD),
-                    "phi_above_threshold": [bool(v) for v in phi_above_threshold.tolist()],
-                    "num_ar1_states": int(np.sum(phi_above_threshold)),
-                    "num_iid_states": int(np.sum(~phi_above_threshold)),
-                    "sigma_innov": sigma_innov.tolist(),
-                    "sigma_marginal": sigma_marginal.tolist(),
-                    "gmm_means": np.asarray(gmm_cfg["means"], dtype=np.float64).reshape(-1).tolist(),
-                    "min_run_length": int(AR1_MIN_RUN_LENGTH),
-                },
-            )
-
             trace_records: List[Dict[str, Any]] = []
             for idx in test_indices:
                 if idx < 0 or idx >= n_total:
@@ -382,6 +464,8 @@ def evaluate_from_artifacts(
                             "config_id": config_id,
                             "trace_idx": int(idx),
                             "pair_key": "",
+                            "generation_mode": generation_mode_resolved,
+                            "generation_mode_label": generation_mode_label,
                             "status": "skipped",
                             "reason": "test_index_out_of_bounds",
                         }
@@ -396,6 +480,7 @@ def evaluate_from_artifacts(
                         power=np.asarray(power_arr[idx], dtype=np.float64),
                         dt=dt,
                     )
+                    tr["lineage"] = lineage_by_trace.get(int(idx))
                     trace_records.append(tr)
                 except Exception as exc:
                     per_trace_rows.append(
@@ -403,6 +488,8 @@ def evaluate_from_artifacts(
                             "config_id": config_id,
                             "trace_idx": int(idx),
                             "pair_key": str(pair_key_arr[idx]) if idx < len(pair_key_arr) else "",
+                            "generation_mode": generation_mode_resolved,
+                            "generation_mode_label": generation_mode_label,
                             "status": "skipped",
                             "reason": f"trace_load_error:{type(exc).__name__}:{exc}",
                         }
@@ -422,24 +509,21 @@ def evaluate_from_artifacts(
             pred_traces_by_seed: Dict[int, List[np.ndarray]] = {
                 int(seed): [] for seed in seeds
             }
+            config_timestamp_sources: set[str] = set()
 
             for tr in trace_records:
                 trace_idx = int(tr["trace_idx"])
                 pair_key = str(tr["pair_key"])
-                json_path = pair_map.get(pair_key)
-                if json_path is None:
-                    per_trace_rows.append(
-                        {
-                            "config_id": config_id,
-                            "trace_idx": trace_idx,
-                            "pair_key": pair_key,
-                            "status": "skipped",
-                            "reason": "pair_key_not_found_in_pair_manifest",
-                        }
-                    )
-                    continue
+                lineage = tr.get("lineage")
+                if not isinstance(lineage, dict):
+                    raise ValueError(f"trace {trace_idx} is missing hash-bound lineage")
+                json_path = _request_json_from_lineage(
+                    lineage, experimental_base=experimental_base
+                )
 
                 try:
+                    timestamp_source = _request_timestamp_source(json_path)
+                    config_timestamp_sources.add(timestamp_source)
                     gt = np.asarray(tr["ground_truth"], dtype=np.float64).reshape(-1)
                     if gt.size == 0:
                         raise ValueError("empty ground truth trace")
@@ -450,41 +534,27 @@ def evaluate_from_artifacts(
                         trace_duration_s=float((int(tr["num_points"]) + 1) * dt),
                         dt=dt,
                     )
-                    feat = build_rollout_features_from_requests(
+                    feat = _build_evaluation_rollout_features(
                         requests=requests,
                         throughput=throughput,
                         norm=norm_cfg,
-                        T=int(tr["num_points"]),
+                        num_points=int(tr["num_points"]),
                         dt=dt,
                         feature_set=feature_set,
                     )
 
-                    # Align request schedule to measured power by matching
+                    # Diagnostic only: estimate the oracle alignment offset between
                     # first sustained power activation and first A_t activation.
+                    # It is recorded but NOT applied; requests stay at their
+                    # recorded arrival times (timing_mode="arrival_only").
                     a_raw_initial = np.asarray(feat.get("A_raw", []), dtype=np.float64).reshape(-1)
-                    offset_seconds = _estimate_request_alignment_offset_seconds(
+                    oracle_offset_seconds = _estimate_request_alignment_offset_seconds(
                         power_trace=gt,
                         a_t=a_raw_initial,
                         dt=float(dt),
                         active_threshold=250.0,
                         window_bins=3,
                     )
-                    if abs(float(offset_seconds)) >= (0.5 * float(dt)):
-                        requests = _build_requests_from_stage0_json(
-                            json_path,
-                            power_start_epoch_s=float(tr["power_start_epoch_s"]),
-                            trace_duration_s=float((int(tr["num_points"]) + 1) * dt),
-                            dt=dt,
-                            alignment_offset_s=float(offset_seconds),
-                        )
-                        feat = build_rollout_features_from_requests(
-                            requests=requests,
-                            throughput=throughput,
-                            norm=norm_cfg,
-                            T=int(tr["num_points"]),
-                            dt=dt,
-                            feature_set=feature_set,
-                        )
 
                     features_norm = np.asarray(feat["features_norm"], dtype=np.float32)
                     if features_norm.ndim != 2 or features_norm.shape[1] != input_dim:
@@ -505,52 +575,17 @@ def evaluate_from_artifacts(
                     seed_rows: List[Dict[str, object]] = []
                     pred_by_seed: Dict[int, np.ndarray] = {}
                     for seed_value in seeds:
-                        if generation_mode_resolved == "iid":
-                            gen = generate_gmm_bigru_trace(
-                                logits=logits,
-                                gmm_params=gmm_cfg,
-                                seed=int(seed_value),
-                                decode_mode=decode_mode,
-                                median_filter_window=int(median_filter_window),
-                                clamp_range=(
-                                    norm_cfg["power_min"],
-                                    norm_cfg["power_max"],
-                                ),
-                            )
-                        elif generation_mode_resolved == "ar1":
-                            gen = generate_gmm_bigru_trace_ar1_thresholded(
-                                logits=logits,
-                                gmm_params=gmm_cfg,
-                                phi=phi,
-                                sigma_innov=sigma_innov,
-                                sigma_marginal=sigma_marginal,
-                                p0=float(tr["p0"]),
-                                seed=int(seed_value),
-                                decode_mode=decode_mode,
-                                median_filter_window=int(median_filter_window),
-                                phi_threshold=0.0,
-                                clamp_range=(
-                                    norm_cfg["power_min"],
-                                    norm_cfg["power_max"],
-                                ),
-                            )
-                        else:
-                            gen = generate_gmm_bigru_trace_ar1_thresholded(
-                                logits=logits,
-                                gmm_params=gmm_cfg,
-                                phi=phi,
-                                sigma_innov=sigma_innov,
-                                sigma_marginal=sigma_marginal,
-                                p0=float(tr["p0"]),
-                                seed=int(seed_value),
-                                decode_mode=decode_mode,
-                                median_filter_window=int(median_filter_window),
-                                phi_threshold=float(AR1_PHI_THRESHOLD),
-                                clamp_range=(
-                                    norm_cfg["power_min"],
-                                    norm_cfg["power_max"],
-                                ),
-                            )
+                        gen = generate_gmm_bigru_trace(
+                            logits=logits,
+                            gmm_params=gmm_cfg,
+                            seed=int(seed_value),
+                            decode_mode=decode_mode,
+                            median_filter_window=int(median_filter_window),
+                            clamp_range=(
+                                norm_cfg["power_min"],
+                                norm_cfg["power_max"],
+                            ),
+                        )
                         pred = np.asarray(gen["power_w"], dtype=np.float64).reshape(-1)
                         n = int(min(len(gt), len(pred)))
                         if n <= 0:
@@ -570,6 +605,13 @@ def evaluate_from_artifacts(
                             "trace_idx": trace_idx,
                             "pair_key": pair_key,
                             "seed": int(seed_value),
+                            "generation_mode": generation_mode_resolved,
+                            "generation_mode_label": generation_mode_label,
+                            "timing_mode": TIMING_MODE,
+                            "timestamp_source": timestamp_source,
+                            "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                            "fallback_status": FALLBACK_STATUS,
+                            "oracle_alignment_offset_s": float(oracle_offset_seconds),
                             "num_points": int(n),
                             "status": "ok",
                             "reason": "",
@@ -588,8 +630,17 @@ def evaluate_from_artifacts(
                         "trace_idx": trace_idx,
                         "pair_key": pair_key,
                         "rate": str(tr["rate"]),
+                        "generation_mode": generation_mode_resolved,
+                        "generation_mode_label": generation_mode_label,
+                        "timing_mode": TIMING_MODE,
                         "status": "evaluated",
                         "reason": "",
+                        "timestamp_source": timestamp_source,
+                        "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                        "fallback_status": FALLBACK_STATUS,
+                        "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+                        "request_alignment_signal": REQUEST_ALIGNMENT_SIGNAL,
+                        "oracle_alignment_offset_s": float(oracle_offset_seconds),
                         "num_requests": int(len(requests)),
                         "num_points": int(seed_rows[0]["num_points"]) if seed_rows else int(tr["num_points"]),
                         "dt": float(dt),
@@ -618,6 +669,8 @@ def evaluate_from_artifacts(
                             "config_id": config_id,
                             "trace_idx": trace_idx,
                             "pair_key": pair_key,
+                            "generation_mode": generation_mode_resolved,
+                            "generation_mode_label": generation_mode_label,
                             "status": "failed",
                             "reason": f"{type(exc).__name__}:{exc}",
                         }
@@ -645,6 +698,11 @@ def evaluate_from_artifacts(
                 config_seed_row = {
                     "config_id": config_id,
                     "seed": seed_int,
+                    "generation_mode": generation_mode_resolved,
+                    "generation_mode_label": generation_mode_label,
+                    "timing_mode": TIMING_MODE,
+                    "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                    "fallback_status": FALLBACK_STATUS,
                     "status": "evaluated",
                     "reason": "",
                     "num_eval_traces": int(len(gt_traces)),
@@ -658,7 +716,6 @@ def evaluate_from_artifacts(
                 raise ValueError("no config-seed aggregate metrics were computed")
 
             plot_paths: Dict[str, str] = {}
-            ar1_params_plot_path = ""
             if plots and representative_gt is not None and representative_pred is not None:
                 stem = f"{slug}_trace{representative_trace_idx}"
                 overlay_path = os.path.join(plots_dir, f"{stem}_overlay.png")
@@ -672,31 +729,45 @@ def evaluate_from_artifacts(
                 plot_paths = {
                     "overlay_plot": overlay_path,
                 }
-            if plots:
-                ar1_params_plot_path = os.path.join(plots_dir, f"{slug}_ar1_params.png")
-                _plot_ar1_params(
-                    ar1_params_plot_path,
-                    gmm_means=np.asarray(gmm_cfg["means"], dtype=np.float64).reshape(-1),
-                    phi=phi,
-                    sigma_marginal=sigma_marginal,
-                    sigma_innov=sigma_innov,
-                    title=f"{config_id} AR(1) parameter diagnostics",
-                    phi_threshold=float(AR1_PHI_THRESHOLD),
-                )
+
+            trace_rows_for_config = [
+                r for r in per_trace_rows if str(r.get("config_id", "")) == config_id
+            ]
+            num_skipped_traces = int(
+                sum(1 for r in trace_rows_for_config if r.get("status") == "skipped")
+            )
+            num_failed_traces = int(
+                sum(1 for r in trace_rows_for_config if r.get("status") == "failed")
+            )
 
             cfg_row = {
                 "config_id": config_id,
                 "status": "evaluated",
                 "reason": "",
                 "generation_mode": generation_mode_resolved,
+                "generation_mode_label": generation_mode_label,
+                "timing_mode": TIMING_MODE,
+                "timestamp_source": (
+                    ";".join(sorted(config_timestamp_sources))
+                    if config_timestamp_sources
+                    else ""
+                ),
+                "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "fallback_status": FALLBACK_STATUS,
                 "k": int(k),
                 "feature_set": feature_set,
                 "decode_mode": decode_mode,
                 "median_filter_window": int(median_filter_window),
+                "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "request_alignment_signal": REQUEST_ALIGNMENT_SIGNAL,
                 "gmm_covariance_type": str(gmm_cfg.get("covariance_type", "full")),
                 "num_test_traces": int(len(test_indices)),
                 "num_eval_traces": int(len(eval_trace_rows)),
-                "num_skipped_or_failed_traces": int(len(test_indices) - len(eval_trace_rows)),
+                "num_skipped_traces": int(num_skipped_traces),
+                "num_failed_traces": int(num_failed_traces),
+                "num_skipped_or_failed_traces": int(
+                    num_skipped_traces + num_failed_traces
+                ),
                 "num_seeds": int(num_seeds),
                 "ks_stat_median": _nanmedian(r["ks_stat_median"] for r in eval_trace_rows),
                 "acf_r2_median": _nanmedian(r["acf_r2_median"] for r in eval_trace_rows),
@@ -716,11 +787,8 @@ def evaluate_from_artifacts(
                 "delta_energy_pct_all_heldout": _nanmedian(
                     r["delta_energy_pct"] for r in config_seed_rows
                 ),
-                "phi_median": _nanmedian(phi),
                 "representative_trace_idx": int(representative_trace_idx),
                 "representative_seed": int(representative_seed),
-                "ar1_params_json": ar1_params_path,
-                "ar1_params_plot": ar1_params_plot_path,
                 **plot_paths,
             }
             config_rows.append(cfg_row)
@@ -730,6 +798,18 @@ def evaluate_from_artifacts(
                 "config_id": config_id,
                 "status": "failed",
                 "reason": f"{type(exc).__name__}:{exc}",
+                "generation_mode": generation_mode_resolved,
+                "generation_mode_label": generation_mode_label,
+                "timing_mode": TIMING_MODE,
+                "alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+                "timestamp_source": "",
+                "fallback_status": FALLBACK_STATUS,
+                "num_test_traces": 0,
+                "num_eval_traces": 0,
+                "num_skipped_traces": 0,
+                "num_failed_traces": 0,
+                "num_skipped_or_failed_traces": 0,
             }
             config_rows.append(cfg_row)
             config_results[config_id] = dict(cfg_row)
@@ -739,6 +819,13 @@ def evaluate_from_artifacts(
         "trace_idx",
         "pair_key",
         "seed",
+        "generation_mode",
+        "generation_mode_label",
+        "timing_mode",
+        "timestamp_source",
+        "alignment_mode",
+        "fallback_status",
+        "oracle_alignment_offset_s",
         "status",
         "reason",
         "num_points",
@@ -752,6 +839,7 @@ def evaluate_from_artifacts(
         "delta_energy_pct",
     ]
     for r in per_seed_rows:
+        r["timing_mode"] = TIMING_MODE
         for f in per_seed_fields:
             r.setdefault(f, "")
     per_seed_csv = os.path.join(out_dir, "per_seed_metrics.csv")
@@ -762,8 +850,17 @@ def evaluate_from_artifacts(
         "trace_idx",
         "pair_key",
         "rate",
+        "generation_mode",
+        "generation_mode_label",
+        "timing_mode",
         "status",
         "reason",
+        "timestamp_source",
+        "alignment_mode",
+        "fallback_status",
+        "request_alignment_mode",
+        "request_alignment_signal",
+        "oracle_alignment_offset_s",
         "num_requests",
         "num_points",
         "dt",
@@ -777,6 +874,7 @@ def evaluate_from_artifacts(
         "delta_energy_pct_median",
     ]
     for r in per_trace_rows:
+        r["timing_mode"] = TIMING_MODE
         for f in per_trace_fields:
             r.setdefault(f, "")
     per_trace_csv = os.path.join(out_dir, "per_trace_metrics.csv")
@@ -785,6 +883,11 @@ def evaluate_from_artifacts(
     per_config_seed_fields = [
         "config_id",
         "seed",
+        "generation_mode",
+        "generation_mode_label",
+        "timing_mode",
+        "alignment_mode",
+        "fallback_status",
         "status",
         "reason",
         "num_eval_traces",
@@ -797,6 +900,7 @@ def evaluate_from_artifacts(
         "delta_energy_pct",
     ]
     for r in per_config_seed_rows:
+        r["timing_mode"] = TIMING_MODE
         for f in per_config_seed_fields:
             r.setdefault(f, "")
     per_config_seed_csv = os.path.join(out_dir, "per_config_seed_metrics.csv")
@@ -807,13 +911,22 @@ def evaluate_from_artifacts(
         "status",
         "reason",
         "generation_mode",
+        "generation_mode_label",
+        "timing_mode",
+        "timestamp_source",
+        "alignment_mode",
+        "fallback_status",
         "k",
         "feature_set",
         "decode_mode",
         "median_filter_window",
+        "request_alignment_mode",
+        "request_alignment_signal",
         "gmm_covariance_type",
         "num_test_traces",
         "num_eval_traces",
+        "num_skipped_traces",
+        "num_failed_traces",
         "num_skipped_or_failed_traces",
         "num_seeds",
         "ks_stat_median",
@@ -828,27 +941,63 @@ def evaluate_from_artifacts(
         "p95_error_pct_all_heldout",
         "p99_error_pct_all_heldout",
         "delta_energy_pct_all_heldout",
-        "phi_median",
         "representative_trace_idx",
         "representative_seed",
-        "ar1_params_json",
-        "ar1_params_plot",
         "overlay_plot",
     ]
     for r in config_rows:
+        r["timing_mode"] = TIMING_MODE
         for f in config_fields:
             r.setdefault(f, "")
     config_csv = os.path.join(out_dir, "config_summary.csv")
     _write_csv(config_csv, config_rows, config_fields)
 
+    revision = git_state()
+    input_identities = {
+        "run_manifest": file_identity(run_manifest_path),
+        "experimental_manifest": file_identity(experimental_manifest_path),
+    }
     run_manifest_payload = {
         "schema_version": "continuous-v1-gmm-bigru-eval-run-v2",
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "command": command,
+        **revision,
+        "config_ids": list(targets),
+        "seed": int(base_seed),
+        "seeds": list(seeds),
+        "generation_mode": generation_mode_resolved,
+        "timing_mode": TIMING_MODE,
+        "alignment_mode": REQUEST_ALIGNMENT_MODE,
+        "timestamp_source": "recorded",
+        "fallback_status": FALLBACK_STATUS,
         "inputs": {
             "run_manifest": run_manifest,
             "experimental_manifest": experimental_manifest,
-            "throughput_db": throughput_db,
-            "pair_manifest_csv": pair_manifest_csv,
+        },
+        "input_paths": {
+            "run_manifest": _repo_relative_or_absolute(run_manifest_path),
+            "experimental_manifest": _repo_relative_or_absolute(experimental_manifest_path),
+        },
+        "provenance": {
+            "command": command,
+            "source_revision": revision,
+            "config_ids": list(targets),
+            "seed": int(base_seed),
+            "seeds": list(seeds),
+            "generation_mode": generation_mode_resolved,
+            "timing_mode": TIMING_MODE,
+            "alignment_mode": REQUEST_ALIGNMENT_MODE,
+            "timestamp_source": "recorded",
+            "fallback_status": FALLBACK_STATUS,
+            "inputs": input_identities,
+            "model_artifacts": resolved_artifacts,
+            "artifacts": {
+                "per_seed_metrics_csv": _repo_relative_or_absolute(per_seed_csv),
+                "per_trace_metrics_csv": _repo_relative_or_absolute(per_trace_csv),
+                "per_config_seed_metrics_csv": _repo_relative_or_absolute(per_config_seed_csv),
+                "config_summary_csv": _repo_relative_or_absolute(config_csv),
+                "plots_dir": _repo_relative_or_absolute(plots_dir),
+            },
         },
         "defaults": {
             "out_dir": out_dir,
@@ -860,18 +1009,34 @@ def evaluate_from_artifacts(
             "device": str(resolved_device),
             "plots": bool(plots),
             "generation_mode": generation_mode_resolved,
-            "phi_threshold": (
-                float(AR1_PHI_THRESHOLD)
-                if generation_mode_resolved == "ar1_thresholded"
-                else (0.0 if generation_mode_resolved == "ar1" else None)
-            ),
-            "min_run_length": int(AR1_MIN_RUN_LENGTH),
+            "generation_mode_label": generation_mode_label,
+            "timing_mode": TIMING_MODE,
+            "request_alignment_mode": REQUEST_ALIGNMENT_MODE,
+            "request_alignment_signal": REQUEST_ALIGNMENT_SIGNAL,
         },
         "summary": {
             "num_target_configs": int(len(targets)),
             "num_evaluated_configs": int(sum(1 for r in config_rows if r.get("status") == "evaluated")),
             "num_failed_configs": int(sum(1 for r in config_rows if r.get("status") == "failed")),
             "num_skipped_configs": int(sum(1 for r in config_rows if r.get("status") == "skipped")),
+            "num_test_traces": int(
+                sum(int(r.get("num_test_traces") or 0) for r in config_rows)
+            ),
+            "num_eval_traces": int(
+                sum(int(r.get("num_eval_traces") or 0) for r in config_rows)
+            ),
+            "num_skipped_traces": int(
+                sum(int(r.get("num_skipped_traces") or 0) for r in config_rows)
+            ),
+            "num_failed_traces": int(
+                sum(int(r.get("num_failed_traces") or 0) for r in config_rows)
+            ),
+            "num_skipped_or_failed_traces": int(
+                sum(
+                    int(r.get("num_skipped_or_failed_traces") or 0)
+                    for r in config_rows
+                )
+            ),
         },
         "artifacts": {
             "per_seed_metrics_csv": per_seed_csv,
@@ -879,7 +1044,6 @@ def evaluate_from_artifacts(
             "per_config_seed_metrics_csv": per_config_seed_csv,
             "config_summary_csv": config_csv,
             "plots_dir": plots_dir,
-            "ar1_params_dir": ar1_params_dir,
         },
         "configs": config_results,
     }

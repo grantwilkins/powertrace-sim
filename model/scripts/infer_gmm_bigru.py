@@ -9,15 +9,18 @@ from model.utils.runtime import configure_threading_env
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate traces from continuous v1 GMM+BiGRU artifacts.")
     parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
-    parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
+    parser.add_argument(
+        "--throughput-db",
+        default="model/throughput_database.json",
+        help="Retained for CLI compatibility; trained GMM artifacts use bound throughput.",
+    )
     parser.add_argument("--config-id", required=True)
     parser.add_argument("--requests-json", required=True)
     parser.add_argument("--out-csv", required=True)
     parser.add_argument("--device", default="auto")
-    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--dt", type=float, default=None)
     parser.add_argument("--T", type=int, default=None)
-    parser.add_argument("--p0", type=float, default=None)
     parser.add_argument("--decode-mode", choices=["stochastic", "argmax"], default="stochastic")
     parser.add_argument("--median-filter-window", type=int, default=1)
     parser.add_argument("--checkpoint", default=None)
@@ -45,7 +48,6 @@ def main() -> None:
         seed=args.seed,
         dt=args.dt,
         T=args.T,
-        p0=args.p0,
         decode_mode=args.decode_mode,
         median_filter_window=args.median_filter_window,
         checkpoint=args.checkpoint,
@@ -61,6 +63,7 @@ def main() -> None:
     print(f"  config_id: {result['config_id']}")
     print(f"  dt: {result['dt']}")
     print(f"  T: {result['T']}")
+    print(f"  generation_mode: {result['generation_mode']}")
     print(f"  decode_mode: {result['decode_mode']}")
     print(f"  out_csv: {result['out_csv']}")
 

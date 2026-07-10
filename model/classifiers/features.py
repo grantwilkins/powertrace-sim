@@ -69,8 +69,8 @@ def compute_inference_features(
         if not (np.isfinite(arrival_time) and np.isfinite(input_tokens) and np.isfinite(output_tokens)):
             raise ValueError(f"request[{i}] contains non-finite values")
 
-        input_tokens = max(0.0, input_tokens)
-        output_tokens = max(0.0, output_tokens)
+        if arrival_time < 0.0 or input_tokens < 0.0 or output_tokens < 0.0:
+            raise ValueError(f"request[{i}] fields must be non-negative")
         prefill_time = input_tokens / lambda_prefill
         decode_time = output_tokens / lambda_decode
         est_completion = arrival_time + prefill_time + decode_time
@@ -300,3 +300,24 @@ def build_rollout_features_from_requests(
         "delta_A_norm": delta_norm.astype(np.float32),
         "t_arrive_norm": t_arrive_norm.astype(np.float32),
     }
+
+
+def build_next_step_features_from_requests(
+    requests: Sequence[Dict[str, object]],
+    throughput: Mapping[str, float],
+    norm: Mapping[str, float],
+    num_points: Optional[int] = None,
+    dt: float = 0.25,
+    feature_set: str = "f2",
+) -> Dict[str, np.ndarray]:
+    """Build features at t=dt onward, matching training targets power[1:]."""
+    horizon = None if num_points is None else int(num_points) + 1
+    full = build_rollout_features_from_requests(
+        requests=requests,
+        throughput=throughput,
+        norm=norm,
+        T=horizon,
+        dt=dt,
+        feature_set=feature_set,
+    )
+    return {key: np.asarray(values)[1:] for key, values in full.items()}

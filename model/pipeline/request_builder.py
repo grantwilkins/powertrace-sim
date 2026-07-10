@@ -1,16 +1,72 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
 
+from model.training_data.alignment import align_arrivals
+from model.training_data.power_parsing import parse_request_json
 from model.utils.io import (
     finite_float,
     load_json as _load_json,
+    resolve_input_path as _resolve_input_path,
     resolve_existing_path as _resolve_existing_path,
 )
+
+
+def _validated_schedule_rows(rows: object) -> List[Dict[str, float]]:
+    if not isinstance(rows, list):
+        raise ValueError("requests JSON must be a list or object with key 'requests'.")
+    out: List[Dict[str, float]] = []
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"request[{i}] must be an object")
+        missing = [
+            key
+            for key in ("arrival_time", "input_tokens", "output_tokens")
+            if key not in row
+        ]
+        if missing:
+            raise ValueError(f"request[{i}] missing fields: {missing}")
+        values = []
+        for key in ("arrival_time", "input_tokens", "output_tokens"):
+            value = row[key]
+            if isinstance(value, bool):
+                raise ValueError(f"request[{i}].{key} must be numeric")
+            try:
+                values.append(float(value))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"request[{i}].{key} must be numeric") from exc
+        if not np.all(np.isfinite(values)):
+            raise ValueError(f"request[{i}] contains non-finite values")
+        if any(value < 0.0 for value in values):
+            raise ValueError(f"request[{i}] fields must be non-negative")
+        out.append(
+            {
+                "arrival_time": values[0],
+                "input_tokens": values[1],
+                "output_tokens": values[2],
+            }
+        )
+    if not out:
+        raise ValueError("request schedule is empty")
+    return out
+
+
+def load_request_schedule(path: str) -> List[Dict[str, float]]:
+    """Load the strict standalone inference request contract."""
+    resolved = _resolve_input_path(path)
+    with open(resolved, "r") as f:
+        payload = json.load(f)
+    rows = (
+        payload
+        if isinstance(payload, list)
+        else payload.get("requests") if isinstance(payload, dict) else None
+    )
+    return _validated_schedule_rows(rows)
 
 
 def _synthesize_request_timestamps(payload: Dict[str, object], n: int) -> Optional[List[float]]:
@@ -59,50 +115,47 @@ def _build_requests_from_stage0_json(
     trace_duration_s: float,
     dt: float,
     alignment_offset_s: float = 0.0,
+    require_recorded_timestamps: bool = True,
 ) -> List[Dict[str, float]]:
     payload = _load_json(request_json_path)
-    required = ("input_lens", "output_lens")
-    missing = [k for k in required if not isinstance(payload.get(k), list)]
-    if missing:
-        raise ValueError(f"request json missing arrays: {missing}")
-
-    input_lens = payload["input_lens"]
-    output_lens = payload["output_lens"]
-    n_base = int(min(len(input_lens), len(output_lens)))
-    request_timestamps_raw = payload.get("request_timestamps")
-    if isinstance(request_timestamps_raw, list):
-        n = int(min(n_base, len(request_timestamps_raw)))
-        request_timestamps = request_timestamps_raw[:n]
-    else:
-        n = int(n_base)
-        synth = _synthesize_request_timestamps(payload, n)
-        if synth is None:
-            raise ValueError("request json missing arrays: ['request_timestamps']")
-        request_timestamps = synth
-    if n <= 0:
-        raise ValueError("request arrays are empty after alignment")
-
-    arrivals = np.asarray(request_timestamps[:n], dtype=np.float64) - float(power_start_epoch_s)
-    if arrivals.size > 0 and (
-        float(np.min(arrivals)) < -float(dt) or float(np.max(arrivals)) > float(trace_duration_s) + float(dt)
+    recorded = payload.get("request_timestamps")
+    if require_recorded_timestamps and (
+        not isinstance(recorded, list) or len(recorded) == 0
     ):
-        arrivals = arrivals - float(np.min(arrivals))
-    arrivals = arrivals + float(alignment_offset_s)
+        raise ValueError("request json missing arrays: ['request_timestamps']")
+    parsed = parse_request_json(
+        request_json_path,
+        require_request_timestamps=bool(require_recorded_timestamps),
+    )
+    if parsed is None:
+        raise ValueError("request json does not satisfy the validated training row policy")
+    input_lens = parsed["input_lens"]
+    output_lens = parsed["output_lens"]
+    n = int(len(input_lens))
+    if parsed["has_timestamps"]:
+        request_timestamps = parsed["request_timestamps"]
+    else:
+        request_timestamps = _synthesize_request_timestamps(payload, n)
+        if request_timestamps is None:
+            raise ValueError("request json missing arrays: ['request_timestamps']")
 
-    requests: List[Dict[str, float]] = []
-    for i in range(n):
-        a = float(arrivals[i])
-        nin = float(input_lens[i])
-        nout = float(output_lens[i])
-        if not (np.isfinite(a) and np.isfinite(nin) and np.isfinite(nout)):
-            continue
-        requests.append(
+    arrivals, ok, _ = align_arrivals(
+        np.asarray(request_timestamps, dtype=np.float64),
+        float(power_start_epoch_s),
+        policy="rebase_into_window",
+        dt=float(dt),
+        trace_duration_s=float(trace_duration_s),
+    )
+    if not ok:
+        raise ValueError("request arrivals do not satisfy alignment policy")
+    arrivals = arrivals + float(alignment_offset_s)
+    return _validated_schedule_rows(
+        [
             {
-                "arrival_time": float(a),
-                "input_tokens": float(max(0.0, nin)),
-                "output_tokens": float(max(0.0, nout)),
+                "arrival_time": float(arrivals[i]),
+                "input_tokens": float(input_lens[i]),
+                "output_tokens": float(output_lens[i]),
             }
-        )
-    if len(requests) == 0:
-        raise ValueError("no valid requests after filtering")
-    return requests
+            for i in range(n)
+        ]
+    )

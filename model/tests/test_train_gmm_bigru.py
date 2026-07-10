@@ -328,6 +328,11 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
                     "power_max": 130.0,
                 },
             )
+            lineage_path = datasets_dir / f"{slug_good}.lineage.json"
+            _write_json(
+                lineage_path,
+                {"schema_version": "gru-dataset-lineage-v1", "traces": []},
+            )
 
             config_missing = "toy-missing_H100_tp1"
             manifest_path = exp_root / "manifest.json"
@@ -341,6 +346,12 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
                             "dataset_npz": str(dataset_path),
                             "split_json": str(split_path),
                             "norm_params_json": str(norm_path),
+                            "lineage_json": str(lineage_path),
+                            "throughput": {
+                                "lambda_prefill": 100.0,
+                                "lambda_decode": 50.0,
+                            },
+                            "throughput_fit_split": "train",
                         },
                         config_missing: {
                             "written": True,
@@ -390,6 +401,10 @@ class TestContinuousV1GMMBiGRUTrain(unittest.TestCase):
             self.assertTrue(curve.exists())
             self.assertTrue(norm_copy.exists())
             self.assertTrue(gmm_json.exists())
+            self.assertIn(
+                "lineage",
+                run_manifest["configs"][config_good]["artifact_identities"],
+            )
 
             with open(norm_copy, "r") as f:
                 norm_payload = json.load(f)

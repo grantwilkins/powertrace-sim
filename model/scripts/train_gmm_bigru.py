@@ -82,6 +82,11 @@ def main() -> None:
     print(
         f"  run_summary : {os.path.join(run_manifest['defaults']['out_dir'], 'run_summary.csv')}"
     )
+    summary = run_manifest.get("summary", {})
+    if int(summary.get("num_trained", 0)) == 0 or int(summary.get("num_failed", 0)) > 0:
+        raise SystemExit(1)
+    if args.config_id and int(summary.get("num_trained", 0)) != len(args.config_id):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

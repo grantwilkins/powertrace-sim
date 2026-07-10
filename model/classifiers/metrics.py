@@ -35,6 +35,100 @@ def ks_statistic(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.max(np.abs(cdf_x - cdf_y)))
 
 
+def downsample_mean(values: np.ndarray, *, dt: float, resolution_s: float) -> np.ndarray:
+    """
+    Mean-downsample a series sampled at ``dt`` seconds onto a ``resolution_s`` grid.
+
+    A trailing partial window is dropped. When the series is shorter than one
+    window, the single overall mean is returned. ``resolution_s == dt`` is a
+    no-op (identical values back).
+    """
+    dt = float(dt)
+    resolution_s = float(resolution_s)
+    if dt <= 0.0 or resolution_s < dt:
+        raise ValueError("Require 0 < dt <= resolution_s")
+    ratio = resolution_s / dt
+    factor = int(round(ratio))
+    if not np.isclose(ratio, factor, rtol=0.0, atol=1e-9):
+        raise ValueError("resolution_s must be an integer multiple of dt")
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    if arr.size == 0:
+        return np.zeros((0,), dtype=np.float64)
+    usable = (arr.size // factor) * factor
+    if usable <= 0:
+        return np.array([float(np.mean(arr))], dtype=np.float64)
+    return np.mean(arr[:usable].reshape(-1, factor), axis=1).astype(np.float64)
+
+
+def ramp_stats(values: np.ndarray, *, dt: float, resolution_s: float) -> Dict[str, float]:
+    """
+    Ramp distribution at an explicit reporting resolution.
+
+    The series is mean-downsampled from ``dt`` to ``resolution_s`` before
+    differencing, so a ramp is always the change between consecutive
+    ``resolution_s`` means — never an implicit native-resolution diff. The
+    resolution is echoed back so every consumer can record it next to the
+    numbers. Ramp units are input units per ``resolution_s`` step.
+    """
+    x = downsample_mean(values, dt=dt, resolution_s=resolution_s)
+    ramps = np.diff(x)
+    if ramps.size > 0:
+        return {
+            "resolution_s": float(resolution_s),
+            "ramp_p50": float(np.percentile(ramps, 50)),
+            "ramp_p95_abs": float(np.percentile(np.abs(ramps), 95)),
+            "ramp_p99_abs": float(np.percentile(np.abs(ramps), 99)),
+            "ramp_max_up": float(np.max(ramps)),
+            "ramp_max_down": float(np.min(ramps)),
+        }
+    return {
+        "resolution_s": float(resolution_s),
+        "ramp_p50": float("nan"),
+        "ramp_p95_abs": float("nan"),
+        "ramp_p99_abs": float("nan"),
+        "ramp_max_up": float("nan"),
+        "ramp_max_down": float("nan"),
+    }
+
+
+def load_duration_value(values: np.ndarray, frac_exceeded: float) -> float:
+    """
+    Exceedance-rank load-duration-curve estimator.
+
+    Returns the load exceeded ``frac_exceeded`` of the time: sort descending
+    and take the value at rank ``floor(frac_exceeded * N)``. This is the
+    canonical LDC estimator; do not substitute ``np.percentile``.
+    """
+    frac_exceeded = float(frac_exceeded)
+    if not 0.0 <= frac_exceeded < 1.0:
+        raise ValueError("frac_exceeded must satisfy 0 <= value < 1")
+    arr = np.sort(np.asarray(values, dtype=np.float64).reshape(-1))[::-1]
+    if arr.size == 0:
+        return float("nan")
+    idx = int(np.floor(float(frac_exceeded) * float(arr.size)))
+    return float(arr[max(0, min(idx, arr.size - 1))])
+
+
+def load_factor(values: np.ndarray) -> float:
+    """Average-to-peak ratio; NaN when the peak is not positive."""
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    if arr.size == 0:
+        return float("nan")
+    peak = float(np.max(arr))
+    return float(np.mean(arr) / peak) if peak > 0 else float("nan")
+
+
+def coefficient_of_variation(values: np.ndarray) -> float:
+    """Population std over mean; NaN when the mean is not positive and finite."""
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    if arr.size == 0:
+        return float("nan")
+    mean = float(np.mean(arr))
+    if mean <= 0.0 or not np.isfinite(mean):
+        return float("nan")
+    return float(np.std(arr, ddof=0) / mean)
+
+
 def _acf(values: np.ndarray, max_lag: int) -> np.ndarray:
     """
     Compute autocorrelation function up to max_lag.

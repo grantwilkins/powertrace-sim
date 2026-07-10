@@ -1,3 +1,15 @@
+"""
+Claim:
+GMM-BiGRU evaluation resolves artifact inputs independent of the caller's
+current working directory and records minimal resolved-path provenance in the
+result manifest.
+
+Plausible wrong implementations:
+- Resolve repo-relative run inputs against the process working directory only.
+- Depend on the mutable throughput database or legacy pair manifest.
+- Emit metrics but omit the input/artifact paths needed to reproduce the run.
+"""
+
 import csv
 import json
 import os
@@ -19,15 +31,15 @@ from model.classifiers.trace_generation import (
     generate_gmm_bigru_trace_ar1_thresholded,
 )
 from model.utils.io import write_json as _write_json
+from model.utils.provenance import file_identity, sha256_file
 from model.pipeline.evaluation import (
     _build_requests_from_stage0_json,
     _build_trace_record,
     _detect_first_power_spike,
-    _load_pair_manifest_map,
     _estimate_request_alignment_offset_seconds,
-    _synthesize_request_timestamps,
     evaluate_from_artifacts,
 )
+from model.pipeline.request_builder import _load_pair_manifest_map, _synthesize_request_timestamps
 
 
 def _write_pair_manifest(path: Path, *, pair_key: str, json_path: str) -> None:
@@ -88,6 +100,8 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
                 {
                     "input_lens": [16, 32],
                     "output_lens": [8, 12],
+                    "ttfts": [0.1, 0.1],
+                    "itls": [[0.01] * 8, [0.01] * 12],
                     "request_timestamps": [1000.25, 1000.75],
                 },
             )
@@ -114,6 +128,8 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
                 {
                     "input_lens": [10, 20],
                     "output_lens": [5, 10],
+                    "ttfts": [0.1, 0.1],
+                    "itls": [[0.01] * 5, [0.01] * 10],
                     "request_timestamps": [1000.25, 1000.75],
                 },
             )
@@ -126,6 +142,27 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             )
             arrivals = [float(r["arrival_time"]) for r in requests]
             self.assertEqual(arrivals, [0.75, 1.25])
+
+    def test_request_builder_requires_recorded_timestamps_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_path = Path(tmp) / "requests.json"
+            _write_json(
+                request_path,
+                {
+                    "input_lens": [10],
+                    "output_lens": [5],
+                    "ttfts": [0.1],
+                    "itls": [[0.01] * 5],
+                    "duration": 2.0,
+                },
+            )
+            with self.assertRaisesRegex(ValueError, "request_timestamps"):
+                _build_requests_from_stage0_json(
+                    str(request_path),
+                    power_start_epoch_s=1000.0,
+                    trace_duration_s=2.0,
+                    dt=0.25,
+                )
 
     def test_detect_first_power_spike_basic(self):
         power = np.asarray([100.0, 120.0, 260.0, 270.0, 265.0], dtype=np.float64)
@@ -298,6 +335,20 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
 
         split_path = root / "results" / "experimental_continuous_v1" / "splits" / "toy_H100_tp1.json"
         _write_json(split_path, {"train_indices": [], "val_indices": [], "test_indices": [0]})
+        run_payload = json.loads(run_manifest_path.read_text())
+        run_payload["configs"][cfg]["artifact_identities"] = {
+            "checkpoint": file_identity(checkpoint_path),
+            "trained_norm": file_identity(norm_path),
+            "gmm": file_identity(gmm_path),
+            "dataset": file_identity(dataset_path),
+            "split": file_identity(split_path),
+        }
+        if include_throughput:
+            run_payload["configs"][cfg]["throughput"] = {
+                "lambda_prefill": 100.0,
+                "lambda_decode": 50.0,
+            }
+        _write_json(run_manifest_path, run_payload)
 
         experimental_manifest_path = root / "results" / "experimental_continuous_v1" / "manifest.json"
         _write_json(
@@ -315,7 +366,7 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             },
         )
 
-        throughput_db_path = root / "model" / "config" / "throughput_database.json"
+        throughput_db_path = root / "model" / "throughput_database.json"
         throughput_cfg = (
             {
                 cfg: {
@@ -340,9 +391,34 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             {
                 "input_lens": [32, 48],
                 "output_lens": [20, 12],
+                "ttfts": [0.1, 0.1],
+                "itls": [[0.01] * 20, [0.01] * 12],
                 "request_timestamps": [1000.0, 1000.5],
             },
         )
+
+        lineage_path = dataset_path.with_suffix(".lineage.json")
+        _write_json(
+            lineage_path,
+            {
+                "schema_version": "gru-dataset-lineage-v1",
+                "traces": [
+                    {
+                        "trace_index": 0,
+                        "source_paths": {"requests_json": str(requests_path)},
+                        "source_sha256": {"requests_json": sha256_file(requests_path)},
+                    }
+                ],
+            },
+        )
+        experimental_payload = json.loads(experimental_manifest_path.read_text())
+        experimental_payload["configs"][cfg]["lineage_json"] = str(lineage_path)
+        _write_json(experimental_manifest_path, experimental_payload)
+        run_payload = json.loads(run_manifest_path.read_text())
+        run_payload["configs"][cfg]["artifact_identities"]["lineage"] = file_identity(
+            lineage_path
+        )
+        _write_json(run_manifest_path, run_payload)
 
         pair_manifest_path = root / "results" / "stage0" / "pair_manifest.csv"
         _write_pair_manifest(
@@ -357,6 +433,7 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             "experimental_manifest": experimental_manifest_path,
             "throughput_db": throughput_db_path,
             "pair_manifest": pair_manifest_path,
+            "split": split_path,
         }
 
     def test_evaluate_from_artifacts_smoke(self):
@@ -368,8 +445,8 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
             run = evaluate_from_artifacts(
                 run_manifest=str(fx["run_manifest"]),
                 experimental_manifest=str(fx["experimental_manifest"]),
-                throughput_db=str(fx["throughput_db"]),
-                pair_manifest_csv=str(fx["pair_manifest"]),
+                throughput_db=str(root / "missing-throughput.json"),
+                pair_manifest_csv=str(root / "missing-pairs.csv"),
                 out_dir=str(out_dir),
                 config_ids=[fx["config_id"]],
                 num_seeds=2,
@@ -390,23 +467,170 @@ class TestContinuousV1GMMBiGRUEval(unittest.TestCase):
                 rows = list(csv.DictReader(f))
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["status"], "evaluated")
-            self.assertEqual(rows[0]["generation_mode"], "ar1_thresholded")
+            self.assertEqual(rows[0]["generation_mode"], "iid")
+            self.assertEqual(rows[0]["generation_mode_label"], "iid")
+            self.assertEqual(rows[0]["timestamp_source"], "recorded")
+            self.assertEqual(rows[0]["alignment_mode"], "none")
+            self.assertEqual(rows[0]["fallback_status"], "none")
             self.assertEqual(rows[0]["feature_set"], "f2")
             self.assertEqual(rows[0]["decode_mode"], "stochastic")
+            self.assertEqual(rows[0]["request_alignment_mode"], "none")
+            self.assertEqual(
+                rows[0]["request_alignment_signal"],
+                "measured_power_first_sustained_activation",
+            )
+            self.assertEqual(int(rows[0]["num_skipped_traces"]), 0)
+            self.assertEqual(int(rows[0]["num_failed_traces"]), 0)
+            self.assertEqual(int(rows[0]["num_skipped_or_failed_traces"]), 0)
             self.assertTrue(np.isfinite(float(rows[0]["nrmse_median"])))
-            self.assertTrue(np.isfinite(float(rows[0]["phi_median"])))
-            self.assertTrue(Path(rows[0]["ar1_params_json"]).exists())
-            with open(rows[0]["ar1_params_json"], "r") as f:
-                ar1_payload = json.load(f)
-            self.assertEqual(int(ar1_payload["min_run_length"]), 5)
-            self.assertAlmostEqual(float(ar1_payload["phi_threshold"]), 0.3, places=8)
-            self.assertIn("phi_above_threshold", ar1_payload)
-
-            ar1_dir = Path(run["artifacts"]["ar1_params_dir"])
-            self.assertTrue(ar1_dir.exists())
-            self.assertTrue(any(ar1_dir.glob("*_ar1_params.json")))
-
             self.assertEqual(str(run["schema_version"]), "continuous-v1-gmm-bigru-eval-run-v2")
+            self.assertEqual(run["defaults"]["generation_mode_label"], "iid")
+            self.assertEqual(run["defaults"]["request_alignment_mode"], "none")
+            self.assertEqual(run["alignment_mode"], "none")
+            self.assertEqual(run["timestamp_source"], "recorded")
+            self.assertEqual(run["fallback_status"], "none")
+            self.assertEqual(run["seed"], 11)
+            self.assertIn("git_commit", run)
+            self.assertEqual(
+                run["command"][:4],
+                ["uv", "run", "-m", "model.scripts.eval_gmm_bigru"],
+            )
+
+            with open(out_dir / "per_seed_metrics.csv", "r", newline="") as f:
+                per_seed_rows = list(csv.DictReader(f))
+            self.assertGreater(len(per_seed_rows), 0)
+            self.assertEqual(per_seed_rows[0]["generation_mode"], "iid")
+            self.assertEqual(per_seed_rows[0]["generation_mode_label"], "iid")
+            self.assertEqual(per_seed_rows[0]["alignment_mode"], "none")
+            self.assertEqual(per_seed_rows[0]["fallback_status"], "none")
+
+            with open(out_dir / "per_trace_metrics.csv", "r", newline="") as f:
+                per_trace_rows = list(csv.DictReader(f))
+            self.assertEqual(per_trace_rows[0]["timestamp_source"], "recorded")
+            self.assertEqual(per_trace_rows[0]["alignment_mode"], "none")
+            self.assertEqual(per_trace_rows[0]["fallback_status"], "none")
+            self.assertEqual(per_trace_rows[0]["request_alignment_mode"], "none")
+            self.assertTrue(
+                np.isfinite(float(per_trace_rows[0]["oracle_alignment_offset_s"]))
+            )
+
+    def test_evaluate_from_artifacts_repo_relative_inputs_and_provenance(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as tmp:
+            with tempfile.TemporaryDirectory() as cwd:
+                root = Path(tmp)
+                fx = self._build_fixture(root, include_throughput=True)
+                out_dir = (
+                    root
+                    / "results"
+                    / "continuous_v1_gmm_bigru"
+                    / "k3_f2"
+                    / "eval_metrics"
+                )
+                input_keys = ("run_manifest", "experimental_manifest")
+                rel_inputs = {
+                    key: str(Path(fx[key]).resolve().relative_to(repo_root))
+                    for key in input_keys
+                }
+
+                old_cwd = os.getcwd()
+                try:
+                    os.chdir(cwd)
+                    run = evaluate_from_artifacts(
+                        run_manifest=rel_inputs["run_manifest"],
+                        experimental_manifest=rel_inputs["experimental_manifest"],
+                        throughput_db="missing-throughput.json",
+                        pair_manifest_csv="missing-pairs.csv",
+                        out_dir=str(out_dir),
+                        config_ids=[fx["config_id"]],
+                        num_seeds=1,
+                        base_seed=11,
+                        device="cpu",
+                        decode_mode="stochastic",
+                        median_filter_window=1,
+                        plots=False,
+                    )
+                finally:
+                    os.chdir(old_cwd)
+
+                self.assertEqual(int(run["summary"]["num_evaluated_configs"]), 1)
+                provenance = run["provenance"]
+                self.assertNotIn("throughput_db", provenance["inputs"])
+                self.assertNotIn("pair_manifest_csv", provenance["inputs"])
+                self.assertEqual(
+                    provenance["inputs"]["run_manifest"]["path"],
+                    str(Path(fx["run_manifest"]).resolve()),
+                )
+                self.assertEqual(len(provenance["inputs"]["run_manifest"]["sha256"]), 64)
+                self.assertIn("git_dirty", provenance["source_revision"])
+                self.assertIn(fx["config_id"], provenance["model_artifacts"])
+                self.assertEqual(
+                    len(
+                        provenance["model_artifacts"][fx["config_id"]]["checkpoint"][
+                            "sha256"
+                        ]
+                    ),
+                    64,
+                )
+                self.assertEqual(provenance["fallback_status"], "none")
+                self.assertEqual(provenance["alignment_mode"], "none")
+                self.assertEqual(provenance["seed"], 11)
+                self.assertEqual(
+                    provenance["command"][:4],
+                    ["uv", "run", "-m", "model.scripts.eval_gmm_bigru"],
+                )
+                self.assertEqual(
+                    provenance["artifacts"]["config_summary_csv"],
+                    str((out_dir / "config_summary.csv").resolve().relative_to(repo_root)),
+                )
+
+                with open(out_dir / "run_manifest.json", "r") as f:
+                    persisted = json.load(f)
+                self.assertEqual(persisted["provenance"], provenance)
+
+    def test_evaluate_from_artifacts_counts_skipped_traces_separately(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fx = self._build_fixture(root, include_throughput=True)
+            _write_json(
+                fx["split"],
+                {"train_indices": [], "val_indices": [], "test_indices": [0, 3]},
+            )
+            run_payload = json.loads(Path(fx["run_manifest"]).read_text())
+            run_payload["configs"][fx["config_id"]]["artifact_identities"]["split"] = file_identity(fx["split"])
+            _write_json(fx["run_manifest"], run_payload)
+            out_dir = root / "results" / "continuous_v1_gmm_bigru" / "k3_f2" / "eval_metrics"
+
+            run = evaluate_from_artifacts(
+                run_manifest=str(fx["run_manifest"]),
+                experimental_manifest=str(fx["experimental_manifest"]),
+                throughput_db=str(fx["throughput_db"]),
+                pair_manifest_csv=str(fx["pair_manifest"]),
+                out_dir=str(out_dir),
+                config_ids=[fx["config_id"]],
+                num_seeds=1,
+                base_seed=11,
+                device="cpu",
+                plots=False,
+            )
+
+            self.assertEqual(int(run["summary"]["num_test_traces"]), 2)
+            self.assertEqual(int(run["summary"]["num_eval_traces"]), 1)
+            self.assertEqual(int(run["summary"]["num_skipped_traces"]), 1)
+            self.assertEqual(int(run["summary"]["num_failed_traces"]), 0)
+            self.assertEqual(int(run["summary"]["num_skipped_or_failed_traces"]), 1)
+
+            with open(out_dir / "config_summary.csv", "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(int(rows[0]["num_test_traces"]), 2)
+            self.assertEqual(int(rows[0]["num_eval_traces"]), 1)
+            self.assertEqual(int(rows[0]["num_skipped_traces"]), 1)
+            self.assertEqual(int(rows[0]["num_failed_traces"]), 0)
+            self.assertEqual(int(rows[0]["num_skipped_or_failed_traces"]), 1)
+
+            with open(out_dir / "per_trace_metrics.csv", "r", newline="") as f:
+                trace_rows = list(csv.DictReader(f))
+            self.assertEqual({row["status"] for row in trace_rows}, {"evaluated", "skipped"})
 
     def test_evaluate_from_artifacts_missing_throughput_fails_config(self):
         with tempfile.TemporaryDirectory() as tmp:

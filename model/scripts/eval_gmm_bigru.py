@@ -7,12 +7,30 @@ import os
 from model.utils.runtime import configure_threading_env
 
 
+def _generation_mode(value: str) -> str:
+    mode = str(value).strip().lower()
+    if mode != "iid":
+        raise argparse.ArgumentTypeError(
+            f"--generation-mode must be 'iid'; AR(1) generation modes "
+            f"('ar1', 'ar1_thresholded') were removed. Got: {value!r}"
+        )
+    return mode
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate continuous v1 GMM+BiGRU models on test traces.")
     parser.add_argument("--run-manifest", default="results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json")
     parser.add_argument("--experimental-manifest", default="results/experimental_continuous_v1/manifest.json")
-    parser.add_argument("--throughput-db", default="model/config/throughput_database.json")
-    parser.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
+    parser.add_argument(
+        "--throughput-db",
+        default="model/throughput_database.json",
+        help="Retained for CLI compatibility; trained GMM artifacts use bound throughput.",
+    )
+    parser.add_argument(
+        "--pair-manifest-csv",
+        default="results/stage0/pair_manifest.csv",
+        help="Retained for CLI compatibility; evaluation resolves request sources via lineage.",
+    )
     parser.add_argument("--out-dir", default="results/continuous_v1_gmm_bigru/k10_f2/eval_metrics")
     parser.add_argument("--config-id", action="append", default=[])
     parser.add_argument("--num-seeds", type=int, default=5)
@@ -20,8 +38,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--acf-max-lag", type=int, default=50)
     parser.add_argument(
         "--generation-mode",
-        choices=["iid", "ar1", "ar1_thresholded"],
-        default="ar1_thresholded",
+        type=_generation_mode,
+        default="iid",
+        help="Trace generation mode; only 'iid' is supported (AR(1) generation removed).",
     )
     parser.add_argument("--decode-mode", choices=["stochastic", "argmax"], default="stochastic")
     parser.add_argument("--median-filter-window", type=int, default=1)
@@ -60,6 +79,13 @@ def main() -> None:
     print(f"  per_trace_metrics: {artifacts.get('per_trace_metrics_csv', '')}")
     print(f"  config_summary   : {artifacts.get('config_summary_csv', '')}")
     print(f"  run_manifest     : {os.path.join(args.out_dir, 'run_manifest.json')}")
+    summary = run.get("summary", {})
+    if int(summary.get("num_evaluated_configs", 0)) == 0 or int(
+        summary.get("num_failed_configs", 0)
+    ) > 0:
+        raise SystemExit(1)
+    if args.config_id and int(summary.get("num_evaluated_configs", 0)) != len(args.config_id):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
