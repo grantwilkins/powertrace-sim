@@ -56,6 +56,7 @@ def build_validate_command(model, base_url, tp, workload, dataset_path,
         "--dataset-name", str(workload["dataset"]),
         "--dataset-path", str(dataset_path),
         "--request-rate", str(workload["request_rate"]),
+        "--seed", str(int(workload.get("seed", 0))),
         "--num-prompts", str(workload["num_prompts"]),
         "--tensor-parallel-size", str(tp),
         "--save-result", "--save-detailed",
@@ -78,7 +79,9 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
         "t_end_epoch": float(t_end_epoch),
         "params": {"dataset": workload["dataset"],
                    "request_rate": workload["request_rate"],
-                   "num_prompts": int(workload["num_prompts"])},
+                   "num_prompts": int(workload["num_prompts"]),
+                   "seed": int(workload.get("seed", 0)),
+                   "validation_role": workload.get("validation_role", "development")},
         "command": command,
         "summary": summary,
     }
@@ -87,12 +90,16 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
 def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         dataset_path, base_url="http://localhost:8000/v1",
         weight_footprint_bytes=None, dtype_hint=None, n_active_override=None,
-        run_id=None):
+        run_id=None, evidence_profile="core"):
     """Drive ``benchmark_serving`` over a real dataset; write the §2 bundle."""
     run_manifest = probe_runner._client_mod("run_manifest")
     arch_extract = probe_runner._client_mod("arch_extract")
 
-    run_id = run_id or f"{hardware.lower()}_validate_tp{tp}_{int(time.time())}"
+    rate = str(workload["request_rate"]).replace(".", "p")
+    seed = int(workload.get("seed", 0))
+    run_id = run_id or (
+        f"{hardware.lower()}_validate_tp{tp}_r{rate}_s{seed}_{int(time.time())}"
+    )
     run_dir = Path(out_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "levels").mkdir(exist_ok=True)
@@ -107,7 +114,10 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     command = build_validate_command(model, base_url, tp, workload, dataset_path,
                                      result_path, max_model_len=server_cfg.get("max_model_len"))
     window_start = time.time()
-    with probe_runner.logging_session(run_dir, base_url) as clock:
+    with probe_runner.logging_session(
+        run_dir, base_url, evidence_profile=evidence_profile,
+        gpus_per_node=gpus_per_node,
+    ) as capture:
         t0 = time.time()
         subprocess.run(command, check=True)
         t1 = time.time()
@@ -120,12 +130,14 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     manifest = run_manifest.build_manifest(
         run_id=run_id,
         probe={"type": "validate",
+               "validation_role": workload.get("validation_role", "development"),
                "window": {"start_epoch": window_start, "end_epoch": window_end},
                "levels": [build_validate_window(
                    workload, t0, t1, command, level["summary"])]},
         model=model, arch=arch, hardware=hardware, tp=tp,
         gpus_per_node=gpus_per_node, server=dict(server_cfg),
-        versions=run_manifest.collect_versions(), clock=clock,
+        versions=run_manifest.collect_versions(), clock=capture["clock"],
+        instrumentation=capture["instrumentation"],
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

@@ -1,0 +1,3 @@
+scope,status,reason
+ledger,unsupported_by_evidence,arrival-only scheduler not validated
+ledger,unsupported_by_evidence,PP/EP/DP/CP not validated

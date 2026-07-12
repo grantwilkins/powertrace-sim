@@ -76,9 +76,10 @@ def build_manifest(
     server: dict,
     versions: dict,
     clock: dict,
+    instrumentation: Optional[dict] = None,
 ) -> dict:
     """Assemble the §2 manifest dict. Pure: all inputs are passed in."""
-    return {
+    manifest = {
         "manifest_version": MANIFEST_VERSION,
         "run_id": run_id,
         "probe": probe,            # {"type": ..., "window": {...}, "levels": [...]}
@@ -91,6 +92,9 @@ def build_manifest(
         "versions": versions,      # {"vllm": ..., "git_sha": ..., "gpu_driver": ...}
         "clock": clock,            # from capture_clock
     }
+    if instrumentation is not None:
+        manifest["instrumentation"] = instrumentation
+    return manifest
 
 
 def write_manifest(path: str, manifest: dict) -> None:

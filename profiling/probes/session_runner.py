@@ -71,7 +71,8 @@ def build_session_window(session, t_start_epoch, t_end_epoch, n_records) -> dict
 
 def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
-        dtype_hint=None, n_active_override=None, run_id=None, max_concurrency=None):
+        dtype_hint=None, n_active_override=None, run_id=None, max_concurrency=None,
+        evidence_profile="core"):
     """Execute an AgenticPlan and write the bundle. Returns the run directory.
 
     Sessions run concurrently — turns *within* a session stay ordered because its
@@ -123,7 +124,10 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         async with aiohttp.ClientSession() as http:
             return await asyncio.gather(*(_one(http, s) for s in plan.sessions))
 
-    with probe_runner.logging_session(run_dir, base_url) as clock:
+    with probe_runner.logging_session(
+        run_dir, base_url, evidence_profile=evidence_profile,
+        gpus_per_node=gpus_per_node,
+    ) as capture:
         results = asyncio.run(_drive())
     window_end = time.time()
 
@@ -143,6 +147,7 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
                "sessions": session_windows},
         model=model, arch=arch, hardware=hardware, tp=tp,
         gpus_per_node=gpus_per_node, server=server,
-        versions=run_manifest.collect_versions(), clock=clock)
+        versions=run_manifest.collect_versions(), clock=capture["clock"],
+        instrumentation=capture["instrumentation"])
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

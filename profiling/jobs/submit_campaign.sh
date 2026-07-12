@@ -14,11 +14,12 @@ CAMPAIGN="${1:?usage: submit_campaign.sh <campaign.json> [--time HH:MM:SS] [-p P
 shift || true
 TIME=""
 PART="ramr"
+PART_EXPLICIT=false
 CONS=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --time) TIME="$2"; shift 2;;
-        -p|--partition) PART="$2"; shift 2;;
+        -p|--partition) PART="$2"; PART_EXPLICIT=true; shift 2;;
         -C|--constraint) CONS="$2"; shift 2;;
         *) echo "unknown arg: $1" >&2; exit 1;;
     esac
@@ -46,6 +47,15 @@ ml devel python/3.12.1 2>/dev/null || true
 N="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
         "$CAMPAIGN_ABS" --emit tps | sort -n | tail -1)"
 [ -n "$N" ] || { echo "could not determine TP for $CAMPAIGN" >&2; exit 1; }
+HARDWARE="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
+        "$CAMPAIGN_ABS" --emit json | python3 -c 'import json,sys; print(json.load(sys.stdin)["hardware"])')"
+if [ "$HARDWARE" = "H100" ]; then
+    [ "$PART_EXPLICIT" = true ] || {
+        echo "H100 campaign requires an explicit -p <H100_PARTITION>" >&2; exit 1; }
+    case ",$PART," in
+        *,ramr,*) echo "H100 campaign cannot use the A100 ramr partition" >&2; exit 1;;
+    esac
+fi
 
 echo "Submitting $(basename "$CAMPAIGN_ABS") on -p $PART --gres=gpu:$N${CONS:+ -C $CONS}${REQUEUE:+ --requeue}${TIME:+ --time $TIME}"
 set -x

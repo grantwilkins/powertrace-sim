@@ -2,6 +2,7 @@
 
 from schedule import (
     build_context_holds,
+    build_decode_context_grid,
     build_decode_staircase,
     build_idle_hold,
     build_mixed_grid,
@@ -42,6 +43,19 @@ def test_context_holds():
     assert all(l.concurrency == 8 for l in s.levels)
     assert s.server_overrides["max_model_len"] >= max(contexts)
     assert s.server_overrides["env"]["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] == "1"
+
+
+def test_decode_context_grid_orthogonally_excites_batch_and_context():
+    schedule = build_decode_context_grid(
+        batches=(1, 4), contexts=(2048, 8192), hold_s=30.0, output_len=512
+    )
+    points = [
+        (level.concurrency, level.request.input_len + level.request.prefix_len)
+        for level in schedule.levels
+    ]
+    assert points == [(1, 2048), (1, 8192), (4, 2048), (4, 8192)]
+    assert all(level.request.output_len == 512 for level in schedule.levels)
+    assert schedule.server_overrides["max_model_len"] > 8192
 
 
 def test_transients_alternate_idle_and_load():

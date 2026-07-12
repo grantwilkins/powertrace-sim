@@ -7,6 +7,7 @@ Plausible wrong implementations:
 - Treat campaign support directories as malformed bundles during default scans.
 - Filter explicitly requested malformed directories before ingestion can fail.
 - Change a conservation equation while keeping output arrays well formed.
+- Drop legacy fit columns when adding inspectable request-state columns.
 """
 
 import json
@@ -56,7 +57,7 @@ def _write_old_format_bundle(tmp_path, *, n_req=40, gpus=8, tp=8, watts=300.0,
         input_lens.append(n_in)
         output_lens.append(n_out)
         ttfts.append(ttft)
-        itls.append([itl] * n_out)          # decode_time = sum(itls)
+        itls.append([itl] * (n_out - 1))
         req_ts.append(EPOCH + float(a))
     data = dict(
         input_lens=input_lens, output_lens=output_lens, ttfts=ttfts,
@@ -84,13 +85,31 @@ def test_bin_work_rates_satisfy_hand_worked_physics():
     np.testing.assert_array_equal(out["comm"], [128.0])
 
 
+def test_moe_weight_traffic_uses_expected_unique_experts():
+    """Two draws from four experts touch 4*(1-(3/4)^2)=1.75 in expectation."""
+    arch = dict(ARCH["gpt-oss-20b"], w_bytes=100.0, moe_frac=1.0,
+                n_experts=4, top_k=1, n_layers=1, n_kv=1, head_dim=1,
+                d_model=1)
+    out = bin_work_rates(
+        pre_tok=np.array([0.0]), dec_tok=np.array([2.0]),
+        batch=np.array([2.0]), pre_active=np.array([0.0]),
+        pre_iter=np.array([0.0]), kv_read=np.array([0.0]),
+        arch=arch, tp=1, nb=1,
+    )
+    np.testing.assert_allclose(out["w_read_dec"], [43.75])
+
+
 def test_output_schema_identical(tmp_path):
-    """The one shared reconstruction implementation emits the declared schema."""
+    """New request state extends rather than replaces the legacy fit schema."""
     jp, cp = _write_old_format_bundle(tmp_path)
     new = blb.state_from_requests(jp, cp, ARCH["llama-3-70b"], 8, LAMBDA_PREFILL, dt=DT)
     new_keys = {k for k in new if k not in ("n", "arch")}
-    assert new_keys == set(blb.BIN_KEYS)
-    assert all(new[key].shape == (new["n"],) for key in blb.BIN_KEYS)
+    state_keys = {
+        "arrivals", "input_tokens_arriving", "output_tokens_requested",
+        "A_t", "delta_A_t", "running_requests", "waiting_requests",
+    }
+    assert set(blb.BIN_KEYS) | state_keys == new_keys
+    assert all(new[key].shape == (new["n"],) for key in new_keys)
     assert np.all(np.isfinite(new["power"]))
     assert np.all(new["power"] >= 0.0)
 
@@ -116,8 +135,8 @@ def test_linear_attention_reduces_kv_read(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# build_bundle goes through the proven reconstruction path; the measured
-# (engine.csv) consumer is deferred to Phase-2.
+# build_bundle defaults to the proven reconstruction path. The measured engine
+# projection has a separate explicit contract and equivalence gate.
 # --------------------------------------------------------------------------- #
 
 def test_build_bundle_uses_reconstruction(tmp_path):
@@ -151,15 +170,135 @@ def test_build_bundle_uses_reconstruction(tmp_path):
     }
 
 
+def test_bundle_measured_engine_state_reaches_maintained_ledger(tmp_path):
+    import csv
+    import sys
+    from pathlib import Path
+
+    _write_old_format_bundle(tmp_path)
+    client = Path(__file__).resolve().parents[2] / "profiling" / "client"
+    sys.path.insert(0, str(client))
+    from metrics_logger import ENGINE_HEADER
+
+    with (tmp_path / "engine.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=ENGINE_HEADER)
+        writer.writeheader()
+        for sample in range(321):
+            elapsed = sample * 0.25
+            row = {name: 0.0 for name in ENGINE_HEADER}
+            row.update({
+                "timestamp": EPOCH + elapsed,
+                "num_requests_running": 3.0,
+                "gpu_cache_usage_perc": 0.25,
+                "prompt_tokens_total": 4.0 * elapsed,
+                "generation_tokens_total": 8.0 * elapsed,
+                "iteration_tokens_total_sum": 12.0 * elapsed,
+                "iteration_tokens_total_count": elapsed,
+            })
+            writer.writerow(row)
+
+    arch = dict(ARCH["llama-3-70b"], family="dense-70b")
+    manifest = {
+        "manifest_version": 3,
+        "run_id": "measured-synthetic",
+        "model": "meta-llama/Llama-3.1-70B-Instruct",
+        "hardware": "H100", "tp": 8, "gpus_per_node": 8,
+        "arch": arch, "probe": {"type": "decode_staircase", "levels": []},
+        "server": {}, "versions": {}, "clock": {"local_utc_offset_s": 0.0},
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+
+    bins, emitted = blb.build_bundle(
+        tmp_path, lambda_prefill=LAMBDA_PREFILL,
+        lambda_prefill_source="unit measured prefill probe", dt=1.0,
+        state_source="measured_engine",
+    )
+
+    np.testing.assert_allclose(bins["pre_tok"], 4.0)
+    np.testing.assert_allclose(bins["dec_tok"], 8.0)
+    np.testing.assert_allclose(bins["A_t"], 3.0)
+    np.testing.assert_allclose(bins["engine_tokens_per_iteration"], 12.0)
+    np.testing.assert_allclose(bins["engine_gpu_cache_usage"], 0.25)
+    assert np.all(np.isfinite(bins["batch"]))
+    assert bins["field_sources"]["batch"].startswith("requests.itls")
+    assert emitted["_ledger_source"]["state_source"] == "measured_engine"
+
+
 def test_build_bundle_requires_prefill_rate_provenance(tmp_path):
     with pytest.raises(TypeError):
         blb.build_bundle(tmp_path, lambda_prefill=LAMBDA_PREFILL)
 
 
-def test_engine_path_deferred_to_phase2():
-    """The measured-state consumer is intentionally not implemented yet."""
-    with pytest.raises(NotImplementedError):
-        blb.bins_from_engine_csv()
+def test_engine_counter_rates_use_bin_edges_and_conserve_work():
+    table = {
+        "timestamp": np.asarray([0.0, 0.5, 1.0, 1.5, 2.0]),
+        "tokens": np.asarray([0.0, 1.0, 2.0, 4.0, 6.0]),
+    }
+    rates = blb._counter_rate(table, "tokens", np.asarray([0.0, 1.0, 2.0]))
+    np.testing.assert_array_equal(rates, [2.0, 4.0])
+    assert rates.sum() == 6.0
+
+
+def test_engine_gauge_is_time_averaged_not_sample_count_averaged():
+    table = {
+        "timestamp": np.asarray([0.0, 0.25, 1.0]),
+        "running": np.asarray([0.0, 2.0, 2.0]),
+    }
+    value = blb._gauge_mean(table, "running", np.asarray([0.0, 1.0]))
+    # Linear 0->2 over 0.25 s contributes 0.25 request-seconds, then 2 for
+    # 0.75 s contributes 1.5: exact one-second mean = 1.75.
+    np.testing.assert_allclose(value, [1.75])
+
+
+def test_measured_cache_persists_only_available_stock_diagnostics():
+    measured = set(blb.ledger_bin_keys("measured_engine"))
+    assert set(blb.MEASURED_LEDGER_KEYS) <= measured
+    assert not {"collective_time", "nvlink_bytes", "expert_touches"} & measured
+    assert blb.ledger_bin_keys("reconstruction") == blb.BIN_KEYS
+
+
+def test_measured_engine_projection_populates_maintained_ledger(monkeypatch):
+    from types import SimpleNamespace
+
+    table = {
+        "timestamp": np.asarray([0.0, 1.0, 2.0]),
+        "num_requests_waiting": np.zeros(3),
+        "num_requests_running": np.asarray([1.0, 1.0, 2.0]),
+        "gpu_cache_usage_perc": np.asarray([0.0, 0.5, 1.0]),
+        "prompt_tokens_total": np.asarray([0.0, 2.0, 2.0]),
+        "generation_tokens_total": np.asarray([0.0, 0.0, 2.0]),
+        "iteration_tokens_total_sum": np.asarray([0.0, 2.0, 4.0]),
+        "iteration_tokens_total_count": np.asarray([0.0, 1.0, 2.0]),
+    }
+    record = SimpleNamespace(
+        engine_table=table,
+        arch={"n_layers": 1, "n_kv": 1, "head_dim": 1, "w_bytes": 100.0,
+              "d_model": 1, "moe_frac": 0.0},
+        tp=1,
+    )
+    base = {
+        "time_epoch_s": np.asarray([1.0, 2.0]),
+        "power": np.asarray([100.0, 200.0]),
+        "arrivals": np.asarray([1.0, 0.0]),
+        "input_tokens_arriving": np.asarray([2.0, 0.0]),
+        "output_tokens_requested": np.asarray([0.0, 2.0]),
+        "batch": np.asarray([0.0, 1.0]),
+        "pre_active": np.asarray([1.0, 0.0]),
+        "w_read_pre": np.asarray([100.0, 0.0]),
+        "kv_read": np.asarray([0.0, 40.0]),
+        "arch": {key: float(value) for key, value in record.arch.items()},
+    }
+    monkeypatch.setattr(blb, "reconstruct_bins_from_record", lambda *_a, **_k: base)
+
+    measured = blb.bins_from_engine_csv(record, lambda_prefill=1.0, dt=1.0, trim_s=0.0)
+
+    np.testing.assert_array_equal(measured["pre_tok"], [2.0, 0.0])
+    np.testing.assert_array_equal(measured["dec_tok"], [0.0, 2.0])
+    np.testing.assert_array_equal(measured["kv_read"], [0.0, 40.0])
+    np.testing.assert_allclose(measured["running_requests"], [1.0, 1.5])
+    np.testing.assert_allclose(measured["A_t"], [1.0, 1.5])
+    np.testing.assert_allclose(measured["engine_tokens_per_iteration"], [2.0, 2.0])
+    np.testing.assert_allclose(measured["engine_gpu_cache_usage"], [0.25, 0.75])
 
 
 # --------------------------------------------------------------------------- #

@@ -3,6 +3,7 @@
   "gpus_per_node": 8,
   "model": "meta-llama/Llama-3.1-70B-Instruct",
   "campaign_type": "tier1",
+  "evidence_profile": "measured_ledger",
   "_note": "Anchored at tp=4 on the reserved 4x A100-80GB ramr node (70B bf16 ~140GB fits with ~37GB/GPU KV room). Single-TP: no tp_pair because 70B at tp=2 is KV-starved on 80GB (init failure) and tp=8 needs the contended owners pool. The e_comm/NVLink term is deferred to a later owners 8-GPU run (tp=8 vs tp=4).",
   "server": {
     "tp": 4,
@@ -14,5 +15,5 @@
     "max_model_len": 131072,
     "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
   },
-  "probes": ["idle_hold", "decode_staircase", "prefill_staircase", "context_holds", "transients", "mixed_grid"]
+  "probes": ["idle_hold", "decode_staircase", "decode_context_grid", "prefill_staircase", "context_holds", "transients", "mixed_grid"]
 }

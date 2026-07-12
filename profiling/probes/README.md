@@ -1,5 +1,9 @@
 # Profiling probes & campaign runner (Tier 0 + Tier 1)
 
+For the current model-readiness run, use
+`profiling/MODEL_READINESS_RUNBOOK.md`. The model lineup and examples below
+describe general probe capabilities, not the approved launch set.
+
 State-space profiling for the first-principles power model, implementing
 `profiling/CAMPAIGN.md` §5-A/B/E/F. This is **additive**: the existing
 `profiling/jobs/*.sh` rate×TP pipeline and `feature-test/build_ledger_cache.py`
@@ -13,7 +17,7 @@ are left untouched and remain the known-good path.
 
 Instead of measuring *workloads*, probes pin the engine at chosen state-space
 points (idle → bandwidth-saturation → compute-saturation → power-cap) and log the
-true engine state from vLLM `/metrics` alongside extended `nvidia-smi` power. Each
+stock vLLM scheduler/token evidence alongside extended `nvidia-smi` power. Each
 campaign run emits one self-describing **bundle**
 `data/runs/<campaign_id>/<run_id>/`:
 
@@ -31,16 +35,12 @@ bespoke client — it already emits per-request epoch `request_timestamps`
 nvidia-smi power log. See **`profiling/BUNDLE_SCHEMA.md`** for the full alignment
 contract (every field, in every file, and how the three time series join).
 
-`feature-test/build_ledger_bundle.py` turns a bundle into the **same**
-`ledger_cache.npz` schema the model already trains on, so `fit_map_priors.py` /
-`peak_and_holdout.py` run unchanged. It uses the **reconstruction path**
-(ttft/itl → state), which is proven bit-for-bit equivalent to the known-good
-`build_ledger_cache.build_run_bins`. `engine.csv` is collected by the scraper but
-**consuming it as the state source is deferred to Phase-2** — a first draft of
-that consumer produced biased data (token-rate undercount + clock misalignment +
-zeroed KV columns), so it's a documented `NotImplementedError` stub
-(`bins_from_engine_csv`) to be implemented against real bundles and validated
-against reconstruction before it's trusted.
+`feature-test/build_ledger_bundle.py` supports the proven reconstruction path and
+the `--state-source measured_engine` hybrid path. The latter uses stock vLLM
+counters for executed prompt/decode rates and total running/waiting state, keeps
+request TTFT/ITL reconstruction for phase batch and KV geometry, and persists
+iteration/cache diagnostics for the next candidate. It does not claim stock vLLM
+exposes collectives, expert touches, or phase-specific batch.
 
 Bundle ledger construction requires both an explicit prefill throughput and its
 provenance; there is no 5000 tok/s fallback:
@@ -48,6 +48,7 @@ provenance; there is no 5000 tok/s fallback:
 ```bash
 uv run python feature-test/build_ledger_bundle.py \
   --runs-glob 'data/runs/*/*' \
+  --state-source measured_engine \
   --lambda-prefill 7421.0 \
   --lambda-prefill-source 'prefill staircase run h100_prefill_tp4_...'
 ```
@@ -74,8 +75,8 @@ is fully unit-tested offline; the live layer only executes a schedule.
 
 `idle_hold` · `decode_staircase` (saturation, `e_w_decode`, power cap) ·
 `prefill_staircase` (`e_f_prefill`, attention-L²; chunked-prefill **OFF**) ·
-`context_holds` (`e_kv`) · `transients` (lag-filter α) · `mixed_grid`
-(prefill×decode interaction).
+`context_holds` (`e_kv`) · `decode_context_grid` (orthogonal batch × context) ·
+`transients` (lag-filter α) · `mixed_grid` (prefill×decode interaction).
 
 ## Model lineup & effort
 
@@ -112,7 +113,9 @@ uv run python -m profiling.probes.agentic_run --model Qwen/Qwen3-8B --hardware H
     --n-sessions 8 --gap-mean-s 3.0 --prefix-cache --enable-prefix-caching
 
 # Build the training ledger from collected bundles
-uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*/*'
+uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*/*' \
+    --state-source measured_engine --lambda-prefill 7421 \
+    --lambda-prefill-source 'prefill staircase bundle ID'
 ```
 
 > **Live-execution wiring:** `run_campaign.sh --execute` drives *probe*, *validate*,
@@ -145,6 +148,7 @@ uv run -m pytest -x profiling feature-test
 - `profiling/probes/tests/test_schedule.py`, `profiling/jobs/tests/test_campaign_config.py`,
   loggers/manifest tests.
 
-Phase-2 (implement + validate the measured `engine.csv` state consumer against
-reconstruction) runs post-launch once real bundles exist. Until then, roofline and
-agentic claims from these bundles are reconstruction-based.
+The measured projection is unit-tested on synthetic canonical bundles. A first
+live GPU bundle is still required to validate stock metric names and numerical
+agreement in the deployed vLLM version; the preflight fails before traffic if a
+required column is absent.

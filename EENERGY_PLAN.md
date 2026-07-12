@@ -1,485 +1,500 @@
-# EENERGY_PLAN: audited path to an e-Energy paper
+# EENERGY_PLAN: execution specification
 
-Written 2026-07-09 and audited against the repository on 2026-07-09. This is
-the execution plan; `THEMES.md` remains the framing document. Repository status
-in this file describes the working tree inspected on that date, not a clean
-release commit.
+Audited against the repository on 2026-07-10, after the common data-path
+repair. This document is the source of truth for the paper execution order.
+`THEMES.md` remains framing only, and its checked-in result list is stale until
+the artifacts are regenerated.
 
-## Executive decision
+## 1. Paper outcome
 
-The paper direction is worth pursuing, but the previous version of this plan
-was not execution-ready. It assumed traffic behavior that the code does not
-have, treated several research scripts as one deployable first-principles
-model, mixed reconstruction with end-to-end prediction, and called a small set
-of scenario simulations "bounds."
+The paper answers three separate questions.
 
-Do not start the large Monte Carlo grid until the workload, timing, model, and
-statistical contracts below pass their gates.
+1. **Mean-power transfer.** How accurately does a first-order physics kernel
+   predict node power across model, hardware, and tensor-parallel settings?
+2. **Volatile trace fidelity.** Which generator should be used when 1 s IT-load
+   swings, ramps, and temporal structure matter?
+3. **Facility uncertainty.** How much do traffic synchronization, observed day,
+   and facility size change load-duration curves (LDCs), peaks, and ramps?
 
-The defensible core claim is:
+The intended claims are deliberately narrower than the motivating language.
 
-> Given a documented offered-load scenario, topology, hardware/model
-> configuration, and generator version, PowerTrace-Sim estimates the
-> scenario-conditioned distribution of facility power and ramps at 1 s, 1 min,
-> and 15 min resolution.
+| Claim | Main evidence | Wording allowed after its gate |
+|---|---|---|
+| A | First-order kernel, held-out measured timing, sealed transfer targets | The kernel transfers mean node power across the declared holdout axes when request execution timing is known. |
+| B | Paired 1 s held-out comparison on the same requests and metrics | The learned generator preserves the declared in-domain power, energy, ramp, and temporal statistics within its validated support. |
+| C | Seven Azure days, explicit traffic assumptions, nested Monte Carlo | Monte Carlo propagation exposes scenario-conditioned LDC, peak, and ramp ranges hidden by a single replay. |
 
-These outputs are simulated scenario envelopes. They are not confidence bounds
-for all data centers, and the Azure trace does not identify cross-server
-correlation because it contains aggregate requests rather than server IDs.
+Do not claim universal bounds, calibrated facility prediction intervals, broad
+zero-shot transfer, or one globally best generator. The public Azure trace has
+timestamps and token counts but no server identity, placement, scheduler state,
+or power. It cannot identify cross-server traffic correlation.
 
-## Evidence labels
+## 2. Evidence and language contract
 
-Every result and artifact must use one of these labels.
+Every artifact and paper row uses one label.
 
 | Label | Meaning |
 |---|---|
-| measured | Directly derived from recorded requests, timing, or GPU power |
-| reconstructed | Internal work/state inferred from measured request timing |
-| simulated | Produced from arrivals and a fitted timing/power model |
-| scaled | Extrapolated to a different fleet size or configuration |
+| measured | Direct request, timing, engine, or power observation |
+| reconstructed | Work or state inferred from measured request timing |
+| simulated | Output from a traffic, timing, or power model |
+| scaled | Extrapolation to another fleet size or topology |
 
-"Zero-shot" is reserved for a target whose power, timing, throughput, cap,
-noise, and validation data were not used for fitting or model selection.
+`zero-shot` is allowed only when no target power, execution timing, throughput,
+cap, residual, or validation data influenced fitting or model selection.
+Otherwise use `conditional-timing transfer`, `workload holdout`, or the exact
+holdout axis.
 
-## Verified repository state
+An LDC envelope is the across-realization distribution of a scenario's sorted
+power trace. It is a **predictive scenario envelope**, not a confidence band for
+all data centers. Pointwise P05/P50/P95 curves are not simultaneous bands.
 
-| Area | What is true now | Consequence |
-|---|---|---|
-| Azure node streams | `split_azure_requests_to_nodes` assigns each request to exactly one random node. It uses no offsets or duplication and conserves request and token totals. | Preserve this as `partitioned_replay`; do not describe it as decorrelation by offset. |
-| Azure driver | `run_azure_pipeline.py` starts from prebuilt node streams; it does not parse a day or construct streams. | Monte Carlo orchestration must own parse -> traffic -> power -> aggregation in run-isolated paths. |
-| Azure days | Seven raw day rows are listed, but only one parsed day is present in the inspected tree. | Parse and validate all eligible days before promising a seven-day grid. |
-| Facility scaling | Repartitioning one fixed day over more nodes lowers per-node load. It does not create a comparable larger facility workload. | Define the offered-load scaling invariant before comparing facility sizes. |
-| Facility power | The default config is TP8, but the current pipeline can pass TP4 to sizing metrics when `--tp-gpus` is omitted. | Fix and test config -> GPU count -> node/site nameplate accounting before using existing facility numbers. |
-| GRU path | Train/eval/infer code and tests exist. Evaluation supports IID/AR modes and oracle first-activation alignment; standalone inference is IID. | Main comparisons need common, non-oracle generation and initialization semantics. |
-| Timing surrogate | The rollout builder uses independent constant prefill/decode rates and omits queueing, batching, preemption, and saturation feedback. The checked appendix explicitly omits queue analysis. | It is not yet a validated state engine for the first-principles ledger. |
-| First-principles path | `final_model.py` exports an older NNLS feature set and lag. The cap, saturating-bandwidth basis, changed priors, and FP8 transform used in holdout scripts are not exported as one model. | Create one canonical implementation and versioned artifact before simulator integration. |
-| First-principles holdouts | Existing 405B and gpt-oss results reconstruct work from target-run TTFT/decode timing. Both also informed model development. | Treat them as retrospective conditional-timing case studies, not sealed end-to-end zero-shot tests. |
-| Bundle ledger | Request-timing reconstruction exists. `bins_from_engine_csv` is intentionally unimplemented. | Cache-on/agentic state and phase attribution remain reconstruction-based until engine parsing is validated. |
-| Profiling | Tier-1 and validation configs are schema-tested, not universally live-tested. A100 Llama-70B explicitly defers its second-TP communication probe. | Track readiness per campaign; do not call the full matrix ready to run. |
-| Agent gaps | `gap_params.json` contains literature priors with zero fitted samples, not an OpenHands fit. | Fit and version the artifact or report a prior sensitivity study. |
-| Test discovery | `uv run -m pytest -x` is constrained by `pyproject.toml` to `model/tests`. Profiling and `feature-test` tests require explicit paths. | Code touching those areas must run both the repository command and the explicit research/profiling suites. |
-| PyPSA | PyPSA is not a project dependency and no grid case, solver, or procurement objective is specified. | Cut the PyPSA figure from the active plan. |
+## 3. Audited repository status
 
-## Non-negotiable contracts
+### Ready foundations
 
-1. Preserve current public commands and the fixed-seed `partitioned_replay`
-   output until an explicit retirement decision. New semantics use a new module
-   or an opt-in mode with manifests.
-2. Version every stochastic layer separately: traffic, request marks, power
-   noise, and model sampling each get a recorded seed.
-3. Keep power-kernel validation separate from end-to-end simulation. Measured
-   TTFT/decode timing may validate the power law, but may not enter an
-   arrival-only claim.
-4. Fit coefficients, lag, caps, normalization, throughput/timing parameters,
-   and noise on training data only. Freeze development and sealed test roles
-   before collecting confirmatory campaigns.
-5. Compare generators at a common 1 s resolution unless the first-principles
-   dynamics are refit at 250 ms. The existing 250 ms GRU fidelity table remains
-   a separate result. State ACF horizons in seconds.
-6. Report failed, skipped, clipped, capped, overloaded, and out-of-support
-   cases. Do not silently clip features to training support.
-7. A paper artifact is reproducible only when its command, inputs, hashes,
-   seeds, code revision, model artifact version, topology, power domain, and
-   expected runtime are recorded.
+- One `RunRecord` gives legacy and bundle data shared ingestion, identity,
+  alignment, and failure semantics; GRU preparation adds disjoint splits,
+  train-only calibration, lineage, and hash-bound artifacts.
+- Main GRU evaluation/inference is IID and non-oracle. The deployable 11-term
+  deterministic physics kernel, arrival-only CLI, and Azure adapter exist.
+- TP/nameplate accounting, explicit-resolution ramps, exceedance-rank LDCs, all
+  seven raw Azure days, and the profiling/probe/replay bundle path are tested.
 
-## W0 - Freeze provenance and correct the current reference
+### Stale or incomplete evidence
 
-This is the first implementation stage.
+- Checked GRU data lack current lineage/bound identities; the ledger run index is
+  absent; and the checked physics artifact predates the strict builder.
+- Every checked paper output is marked stale. Seven days are split but only
+  2024-05-16 is parsed, and the day manifest predates current provenance fields.
+- `data/runs/` has no live canonical bundles. Campaign JSONs are schema-valid,
+  not live-ready evidence.
 
-1. Record the current one-day, 240-node `partitioned_replay` command and its
-   stream/trace manifests before changing traffic code.
-2. Parse all seven Azure days into run-isolated paths and record source file
-   hash, row count, UTC span, token totals, and rejection counts.
-3. Establish one explicit reference mapping from the aggregate Azure trace to
-   `N_ref` servers. Use `N_ref=240` only as a documented scenario assumption,
-   not as Azure metadata.
-4. Fix the TP8/TP4 facility sizing mismatch. Derive nameplate from the resolved
-   config, GPUs per server, per-GPU limit, non-GPU overhead, and PUE. Never
-   hard-code 0.75/7.5/75 MW labels from one generated trace.
-5. Create a campaign-role registry with `fit`, `calibration`, `development`,
-   `workload_holdout`, and `sealed_external_validation`. Existing 405B and
-   gpt-oss holdouts are development evidence. Gemma validation campaigns that
-   have matching tier-2 data are not architecture holdouts.
-6. Add a campaign-readiness matrix: schema-valid, container built, weights
-   staged, hardware feasible, dry-run passed, live smoke-tested, complete.
+### Scientific and correctness blockers
 
-Acceptance:
+1. Arrival-only timing is queue-free constant throughput, without capacity,
+   waiting, batching, backlog, completion, or SLO behavior.
+2. The learned F2 path uses only active requests and change in active requests;
+   it discards arrival-token, prefill-token, and decode-token channels.
+3. Training uses measured completion timing while rollout assumes queue-free
+   serial work. This mismatch grows under overload.
+4. Measured `engine.csv` ingestion is unimplemented; cache-on/agentic attribution
+   remains blocked. Physics residuals are also disabled.
+5. New-model inference needs a hash-bound architecture descriptor resolver.
+6. Physics labels `[0,dt)` at `0`; GRU output begins at `dt`. Freeze end-of-bin
+   labels and lag initialization before comparison.
+7. The checked physics artifact was fit at 1 s; it cannot establish 250 ms
+   dynamics by running the same coefficients four times faster.
+8. GRU sampling uses `node_seed + 23` but records `node_seed`; fix provenance.
+9. Azure metrics can skip bad methods, assume fixed filenames/resolutions, and
+   require GRU data for physics-only runs.
+10. A current 240-node/two-method run uses about 687 MB. Streaming is required.
 
-- Fixed-seed legacy streams match the recorded golden hashes and conservation
-  totals.
-- Facility nameplate has a hand-worked TP8 test.
-- All seven day manifests are command-complete and repo-relative.
-- Sealed campaign IDs are committed before their power data are inspected.
+The repaired **code path** is the foundation. The old generated **artifacts**
+are not evidence for the repaired path.
 
-## W1 - Define traffic and facility semantics
+## 4. Decisions frozen for the first implementation
 
-Keep two distinct traffic modes.
+These values prevent each workstream from inventing its own experiment.
 
-### `partitioned_replay`
+| Decision | Specification |
+|---|---|
+| Native work/power grid | 250 ms half-open bins `[t,t+dt)`, labeled at the bin end; no rounded joins |
+| Paper comparison grid | Aggregate native outputs to 1 s; keep 250 ms ramps as a separate fidelity result |
+| Build order | Shared work/timing contract -> deterministic physics mean -> learned fidelity/residual -> Monte Carlo |
+| Learned feature candidate | arrivals, change in arrivals, executed prefill tokens/s, executed decode tokens/s; add queue/context only by ablation |
+| Reference fleet | `N_ref = 240` as a paper scenario assumption, not Azure metadata |
+| Reference topology | 10 rows x 6 racks/row x 4 servers/rack |
+| Reference configuration | `llama-3-70b_A100_tp8` for the compatibility pilot, subject to the regenerated artifact gate |
+| Power domains | Preserve node GPU power, node IT power, and facility power as separate fields |
+| Reference overhead | 1,000 W non-GPU IT power/server and PUE 1.3; both are scenario inputs, not measurements |
+| Main traffic modes | Existing `partitioned_replay` and one new `correlated_intensity` model |
+| Correlation sweep | `rho in {0.0, 0.5, 0.9}`; `rho` is latent log-intensity correlation |
+| Facility sizes | 240 main; 2,400 only after the streaming/equivalence gate; 24,000 is cut |
+| Observed scenarios | Seven Azure days, reported separately and equally weighted in week summaries |
+| Main uncertainty output | Pointwise P05/P50/P95 LDC envelopes plus distributions of daily peak and ramp statistics |
+| Tail limit | No conditional P99 outcome until the stopping rule supports it; P50/P95 are primary |
+| Agentic scope | Cache-off appendix or secondary result; cache-on waits for engine-state and cache modeling |
+| Fleet scope | Homogeneous fleet in the main paper; heterogeneous routing and mixtures are cut |
+| Grid scope | PyPSA and grid optimization remain cut |
 
-This is today's behavior: each observed request is assigned once to a node.
-It preserves the observed aggregate day exactly and provides one reference
-replay, but it cannot vary site-wide demand synchronization independently.
+Changes require a decision record with the old/new value, reason, affected
+artifacts, and required reruns.
 
-### `correlated_intensity`
-
-This is a synthetic sensitivity experiment, not a reconstruction of Azure
-server behavior. The preferred starting model is a positive latent intensity:
+## 5. Organization, blocking joins, and critical path
 
 ```text
-log lambda[i,b] = log mu[day,b]
-                + sigma * (sqrt(rho) * z_site[b]
-                         + sqrt(1-rho) * z_node[i,b])
-                - normalization
+Paper lead / claim registry
+|
++-- F0 foundation: provenance, roles, regenerated artifacts ----------+
++-- Traffic: golden replay -> rho model -------------------------------+
++-- Shared 250 ms work contract --------------------------------------+-- G0
++-- Physics: probes -> deterministic mean -----------------------------+-- G1
++-- Learned: token features -> ablations -> volatile residual --------+-- G2
++-- MC infra: schema -> adapters -> streaming -> LDC ------------------+-- G3
++-- Statistics/paper: estimands -> stopping rule -> methods -----------+
+                                                                         |
+G1 + G2 + G3 -> timing/overload gate -> 240-node pilot -> optional 2,400|
+        -> final grid -> sealed review -> figures/tables/manuscript ----+
 ```
 
-`mu` is the documented day envelope. `z_site` and `z_node` are block-bootstrap
-residual series whose temporal ACF is preserved. Conditional counts are drawn
-from a stated point process, and `(n_in, n_out)` marks are sampled jointly from
-the day. The aggregate-only Azure trace can guide the envelope and residual
-shape, but cannot identify `rho` or decompose site and node variation.
+The join before the final grid requires all of the following:
 
-`rho` is latent log-intensity correlation. At `rho=1`, node intensities share
-the same burst signal; independent count noise still means arrivals are not
-identical. If exact common events are studied, implement and name a separate
-common-shock model.
+- traffic conservation and achieved-correlation tests pass;
+- the selected power method is frozen for the use case;
+- arrival-only timing passes its operating envelope, or the experiment is
+  restricted to the passing load regimes;
+- explicit and streaming facility summaries match;
+- all stochastic seeds and input identities reproduce the run;
+- runtime, RAM, disk, and Monte Carlo convergence meet the pilot budget.
 
-Facility-size contract:
+### Work that can start in parallel now
 
-- At size `N`, scale expected total offered requests and joint token volume by
-  `N/N_ref` so per-server offered load is comparable.
-- Keep topology explicit: servers per rack, racks per physical row, row power
-  limit, and whether each value is IT or facility power.
-- The existing six-rack `FacilityLayout` row is not the old oversubscription
-  figure's virtual 23-rack capacity group.
-- For agent sessions, all turns remain on one assigned server unless migration
-  is an explicit scenario.
+| Lane | Can do now | Must not wait for |
+|---|---|---|
+| Data/traffic | Parse six remaining days; provenance; golden replay; traffic model and tests | Model retraining or live GPUs |
+| Work contract | Build one native 250 ms demand/execution ledger and exact alignment tests | Final physics coefficients |
+| Artifact rebuild | Rebuild physics first; learned feature plumbing then proceeds in parallel | Monte Carlo code |
+| Learned fidelity | Canonical token features, direct/hybrid ablations, split and leakage tests | Final live campaign |
+| MC infrastructure | Run schema, method adapter, streaming accumulator, hand-worked LDC summaries | Final generator choice; use a fake kernel |
+| Profiling operations | Role/readiness registry, dry runs, container/weight staging | MC infrastructure |
+| Statistics/paper | Estimand sheet, claims matrix, methods skeleton, convergence renderer | Numerical result prose |
+| Agentic appendix | Pin SWE-smith/tokenizer revisions and fit or sensitivity-test gap priors | Main paper critical path |
 
-Acceptance:
+## 6. Work packages and gates
 
-- `partitioned_replay` remains golden-output equivalent for fixed inputs/seeds.
-- Ensemble mean request and token rates match the size-scaled targets; do not
-  require every random node to be within 1%.
-- Detrended 1 s and 1 min achieved rate correlations increase with `rho`, with
-  uncertainty over sampled node pairs and seeds.
-- Marginal rate variance, residual ACF, and joint token-mark distributions are
-  reported at every `rho`; the correlation sweep must not silently change them.
-- Separate traffic, mark, and power seeds reproduce byte-identical manifests.
-- A builder -> parser -> stream integration test covers both raw Azure columns
-  and normalized `arrival_time,n_in,n_out` columns.
+### F0 - Freeze provenance and regenerate the repaired path
 
-## W2 - Build a deployable first-principles path
+Deliverables:
 
-### W2a - Complete and validate measurements
+1. Record the current fixed-seed 240-node `partitioned_replay` hashes and request/
+   token conservation totals before traffic changes.
+2. Parse seven days to isolated paths with source hash, UTC span, request/token
+   totals, rejected rows, and command.
+3. Register campaign roles (`fit`, `calibration`, `development`,
+   `workload_holdout`, `sealed_external_validation`) and readiness (schema,
+   container, weights, hardware, dry run, live smoke, complete).
+4. Freeze the native 250 ms bin, end-of-bin timestamp, warm-up, meter-lag, and
+   seed contracts before rebuilding any model.
+5. Rebuild in order:
 
-Run tier-1 probes only after the readiness matrix passes. H100 already declares
-a TP pair. A100 communication identification needs a separately scheduled
-owners-partition TP run; the current A100 config says it is deferred.
+   ```text
+   Stage0/bundles -> shared demand/execution ledger -> physics fit
+   -> learned feature ablations -> model selection -> evaluation
+   ```
 
-Merge old and new bundles through one deterministic command. Bundle discovery
-must handle `data/runs/<campaign>/<run>/`, use per-run throughput, preserve
-bundle roles, and record exactly which bundles entered each fit.
+6. Record byte identities; do not overwrite stale evidence without a new version.
 
-Identifiability requires more than posterior contraction. Require cold-start
-fits, synthetic parameter recovery, design condition/posterior correlations,
-plausible prior drift, cross-probe prediction, and held-out probe levels.
+Exit gate:
 
-### W2b - Consolidate the power model
+- golden replay matches exactly;
+- all seven parsed manifests are repo-relative and hash-complete;
+- current consumers accept the rebuilt GRU and physics artifacts;
+- a clean rerun reproduces deterministic artifacts or documents the allowed
+  floating-point tolerance;
+- sealed IDs are committed before their power is inspected.
 
-Extract pure, tested functions for:
+### F1 - Traffic model
 
-1. request timing -> per-bin work ledger;
-2. ledger + architecture -> mean node power;
-3. physical cap and meter lag at a stated `dt`;
-4. optional stochastic residual generation.
+Keep the existing replay unchanged and add only one synthetic sensitivity model.
 
-Export one versioned deployment artifact containing feature equations,
-coefficients and priors, family-multiplier policy, architecture schema, `dt`,
-lag, cap and its provenance, training bundle IDs, fit revision, and validation
-summary. Do not deploy `feature-test/results/final_coefficients.json` as-is.
+#### `partitioned_replay`
 
-Before transfer claims, audit and test prefill attention work, SWA/hybrid layer
-ratios, MoE expert touches, KV accounting, node-total TP communication, unused
-GPU power, and FP8 scaling. Use dimensional and hand-worked tests for each.
+Each observed request is assigned exactly once, uniformly, to a node. It
+preserves the aggregate day and joint token marks exactly. It says nothing about
+the original Azure placement.
 
-### W2c - Separate timing modes
+#### `correlated_intensity`
 
-- `measured_timing`: uses recorded TTFT/decode timing to validate the power
-  kernel. Label outputs reconstructed.
-- `arrival_only`: consumes only arrivals, token counts, configuration, and
-  source-approved artifacts. This is the end-to-end simulator path.
+Use 1 s count bins. For each day:
 
-The current constant-throughput rollout is only a candidate. Validate TTFT,
-decode duration, active count, prefill/decode work, backlog, and completion rate
-by load regime. Add scheduler/queue behavior or restrict the operating envelope
-if saturation fails.
+1. Compute a 300 s centered request-rate envelope `mu[d,t]` with edge-aware
+   windows. Let `sigma[d]` be the standard deviation of
+   `log(count+0.5)-log(mu+0.5)` and standardize those residuals.
+2. Draw independent 300 s circular block-bootstrap residual series `z_site` and
+   `z_node[i]`.
+3. Set `lambda[i,t] = mu[d,t]/N_ref * exp(sigma[d] * (sqrt(rho)*z_site[t] +
+   sqrt(1-rho)*z_node[i,t]) - c)`, where `c` makes the empirical mean multiplier
+   one. Thus `rho` changes synchronization without changing expected volume.
+4. Draw conditional counts from a Poisson distribution.
+5. Sample `(n_in, n_out)` jointly, with replacement, from the same day's hour-of-
+   day stratum. Never sample input and output lengths independently.
+6. Place arrivals uniformly inside each 1 s bin.
 
-### W2d - Add stochastic residuals last
+At fleet size `N`, expected requests and both token totals scale by `N/N_ref`,
+so expected per-server offered work is constant. The aggregate trace does not
+identify the node residual law; reusing the aggregate residual shape is a stated
+synthetic assumption. `rho` is verified by achieved detrended count correlation,
+not by its input value alone.
 
-Freeze the deterministic model first. Fit mean-zero residual innovations on
-training runs only, after deciding whether residuals live before or after the
-meter lag. Validate conditional mean/variance, ACF, energy neutrality, cap
-interaction, and seed reproducibility. Start with the smallest supported model;
-utilization-decile AR parameters are not a requirement.
+Record separate seeds for residual blocks/counts, marks, placement, model
+sampling, and optional power residuals. A seed tuple names one replicate.
 
-Acceptance:
+Traffic gate:
 
-- Legacy ledger parity tests pass where equations are intentionally unchanged.
-- Synthetic work ledgers conserve tokens and recover hand-worked dense, MoE,
-  TP, long-context, and hybrid-attention values.
-- Engine-derived and reconstructed work agree within predeclared tolerances on
-  real bundles before cache-on/agentic phase attribution is used.
-- Kernel and end-to-end metrics are reported separately on held-out runs.
-- One inference manifest fully identifies the deployed physics artifact and
-  timing mode.
+- exact replay conservation and golden equivalence;
+- ensemble mean request and token rates within 1% of the target;
+- achieved pairwise correlation rises monotonically with `rho`, with intervals
+  over sampled node pairs and seeds;
+- per-node marginal variance and residual ACF remain stable across `rho` within
+  predeclared development tolerances;
+- joint token-mark distributions and out-of-support fractions are reported;
+- raw Azure and normalized request-column integration tests pass.
 
-## W3 - Run a fair generator comparison
+The 300 s envelope/block choice gets one appendix sensitivity at 60 s and 900 s.
+Do not add Hawkes processes, Gaussian processes, or a common-shock model unless
+this minimal model fails its diagnostics.
 
-Create one immutable train/development/test manifest shared by both paths.
-Refit all learned preprocessing and stochastic parameters on training data.
-The main comparison must not use measured-power alignment or measured initial
-power for one model only.
+### F2 - Shared work contract, first-order model, and profiling
 
-Report three questions separately:
+#### F2a - One native work contract
 
-1. In-configuration trace fidelity on held-out runs.
-2. Power-kernel fidelity conditional on measured timing.
-3. End-to-end transfer with target timing/power artifacts excluded.
+Use 250 ms half-open bins `[t,t+dt)` and label each value at `t+dt`. Preserve raw
+units and normalize from training runs only. Store:
 
-Aggregate at 1 s and report KS, ACF R2 at a fixed time horizon, NRMSE, energy
-error, P95/P99 error, cap rate, support violations, and failures. Use paired
-seeds and confidence intervals clustered by trace/configuration, not bins.
-Predeclare practical non-inferiority margins after development runs and before
-opening the sealed test set.
+- **offered demand:** arrivals, input tokens arriving, requested output tokens
+  arriving, and backlog;
+- **executed work:** prefill tokens/s, decode tokens/s, running/waiting requests,
+  context-weighted decode tokens (or KV bytes), KV occupancy, and reused prefix
+  tokens when caching is on.
 
-The decision is per use case, not one global winner. The GRU may remain the
-in-domain generator while the first-principles model supports only validated
-fleet transfer. Existing 405B and gpt-oss results may appear as retrospective
-case studies, not confirmatory rows.
+The first-principles equation consumes executed work, not arrival change. Rates
+must conserve source tokens. Deltas reset at run boundaries. Tests cover off-grid
+requests, simultaneous prefill/decode, queue delay, dense/MoE/SWA/hybrid/FP8
+work, TP communication, unused GPUs, long-context KV, cap, lag, and equality of
+training and rollout state for the same synthetic schedule.
 
-Acceptance:
+#### F2b - Profiling preflight
 
-- Same requests, horizon, resolution, initialization, and metric code for both
-  end-to-end paths.
-- Train/development/test bundle IDs and every fitted artifact are auditable.
-- The model-selection rule, margins, seeds, and failure handling are frozen
-  before sealed evaluation.
+The new campaign code has produced no live canonical bundle. Before GPU use:
 
-## W4 - Pilot before Monte Carlo
+1. Record and exclude a 60 s post-health warm-up.
+2. Exclude the first/last 2 s of every level and require 30 usable seconds.
+3. Require 4 Hz power/engine cadence (median within 5%, no gap over 1 s), >=99%
+   finite required engine fields, stable GPU index/UUID, <=50 ms GPU capture
+   skew, no counter reset, exact fixed lengths, and no request failure.
+4. Add cache query/hit and preemption counters before cache-on campaigns.
+5. Run and ingest a short A100 Llama-70B TP4 smoke bundle; stop on any failure.
 
-### W4a - Scale pilot
+#### F2c - Exact anchor schedule
 
-Start with one day, 240 servers, three seeds, and three `rho` values. Then test
-2,400 servers. Profile wall time, peak RAM, requests processed, and output size.
-Do not enable 24,000 servers until a compressed/cohort method is numerically
-equivalent to explicit simulation at smaller sizes and has a stated resource
-budget.
+| Probe | Levels | Request shape | Dwell |
+|---|---|---|---|
+| Idle | one | no traffic | 60 s |
+| Decode | concurrency 1,2,4,8,16,32,64,128,256 | input 8, output 2048 | 45 s/level |
+| Prefill | input 256,1k,4k,16k,65k | concurrency 1, output 1, chunking off | 45 s/level |
+| Context decode | prefix 2k,8k,32k,131k | batch 8, new input 8, output 256 | 45 s/level |
+| Transient | four idle/load pairs | 20 s idle + 20 s at concurrency 64 | 160 s |
+| Mixed | 16 fixed seed-0 points | concurrency 1..256, input 256..16k, output 512 | 45 s/point |
 
-The current full-day per-node feature stack and one-file-per-node aggregation
-do not make the old 2,100-run grid credible. Use chunked accumulation. Retain a
-1 s site trace for every accepted run, representative row/rack traces, and
-daily summaries; full node traces are debug artifacts for small runs only.
+Primary-TP dwell is 29.2 minutes; second-TP decode+prefill is 10.5 minutes.
+Record wall time and allocated GPU-hours separately. Run once, then repeat only
+levels that fail usable-dwell or pilot-noise gates.
 
-### W4b - Statistical design
+#### F2d - Campaign roles and order
 
-Treat the seven Azure days as seven observed scenarios. Twenty seeds nested
-inside each day do not create 140 independent days. Keep per-day results and
-use day-clustered intervals. Select replicate counts using a predeclared Monte
-Carlo standard-error or interval-width target.
+| Order | Role | Campaign |
+|---|---|---|
+| 1 | FIT | A100 Llama-70B TP4 full; add deferred TP8 decode+prefill when available |
+| 2 | FIT | H100 Llama-70B TP8 full + TP4 decode+prefill |
+| 3 | DEVELOPMENT | A100 Gemma-4-31B dense TP2 and Gemma-4-26B-A4B MoE TP2 condensed |
+| 4 | WORKLOAD HOLDOUT | chat, long-context, agentic cache-off on development models; cache-on diagnostic |
+| 5 | SEALED | A100 Qwen3-8B TP1 dense and H100 Qwen3-30B-A3B TP2 MoE |
 
-Do not report a conditional P99 from 20 seeds. Use P50/P95 and maxima until the
-replicate count supports a stable P99, and label any quantile as conditional on
-the observed days and selected `rho`.
+Freeze sealed IDs before power inspection. Legacy GPT-OSS runs are development
+only: they lack canonical manifests/engine logs, and one 120B duplicate stopped
+at 32/75 requests.
 
-For each run define:
+Physics acceptance requires deterministic refit, physical signs, synthetic
+recovery, held-out levels, cross-probe prediction, reported cap/support failures,
+and one artifact with equations, architecture, 250 ms lag, fit IDs/hashes,
+revision, and validation. Validate measured `engine.csv` bins against reconstructed
+bins from the smoke bundle before using them.
 
-- peak at 1 s and maximum rolling 1 min/15 min mean;
-- signed maximum up/down and P95 absolute ramp for 1 s/1 min/15 min;
-- energy, mean, load factor, backlog/completion/SLO, cap rate, and support rate;
-- rack/row headroom only for a declared physical topology and power domain.
+### F3 - Learned token features, timing, and fair comparison
 
-### W4c - Baselines and ablations
+Token-aware fidelity is required. Input/output lengths describe offered work;
+power needs executed work placed by the same scheduler at training and rollout.
+Measured TTFT/decode work is allowed only in a labeled retrospective test.
 
-- Nameplate and constant training mean are sizing references, not stochastic
-  traces.
-- `partitioned_replay` is the current single facility replay.
-- Independent circular/block shifts preserve each node's temporal structure
-  while removing alignment.
-- IID time shuffle destroys temporal and cross-node structure; label it an
-  IID-marginal ablation.
-- Noise-off isolates the deterministic power model.
-- Keep a normal-sum calculation only for pointwise power quantiles. Mean and
-  variance alone cannot produce daily maxima or ramp distributions.
-- Keep LUT results only where support/fallback status is reported; do not imply
-  a full LUT Monte Carlo grid unless it is actually run.
+Use the same architecture, splits, seeds, and 250 ms targets for this ablation:
 
-Acceptance:
+| Step | Features |
+|---|---|
+| A | current active requests + change in active requests |
+| B | arrivals + change in arrivals + input/output tokens arriving |
+| C | arrivals + change in arrivals + executed prefill/decode tokens/s |
+| D | C + running and waiting requests |
+| E | D + context-weighted decode/KV work; add reused tokens for cache-on |
 
-- Streaming and explicit small-fleet aggregation agree numerically for peaks,
-  ramps, energy, and hierarchy totals.
-- The run schema records day, `N`, topology, `rho` semantics, all seeds, model,
-  timing mode, power domain, and every summary metric.
-- Runtime and interval convergence justify the final grid; otherwise reduce
-  sizes, `rho` points, or replicates transparently.
+Compare the current direct learned model with a learned residual around the
+physics mean. Choose the smallest combination whose gain holds for every key
+regime and seed, not only the pooled average. Report 250 ms peak/ramp error,
+1/5/30 s energy, NRMSE, ACF, power-state and LDC-tail error, plus failures. Keep
+all turns of a session in one split.
 
-Candidate Result 1 artifacts after the gate:
+The BiGRU sees future bins, and final output length is known only because the
+offline scenario samples it. Call this offline trace generation. Add a one-way
+GRU comparison before any online or causal claim.
+
+#### Timing and overload contract
+
+Keep `measured_timing` for retrospective kernel validation and `arrival_only`
+for simulation. Validate below-knee, near-knee, and overload load. Report TTFT,
+decode duration, running/waiting, offered/completed work, backlog, SLO, and
+support. Arrivals remain open-loop: overload never slows the source. Do not drop,
+clip, or force-finish work; unfinished work stays in backlog at the horizon.
+
+Compare learned and physics paths on the same requests, native bins, end labels,
+horizon, warm-up, initialization, and metric code. No measured-power alignment
+or measured initial power is allowed in the main comparison. Report separately:
+in-config fidelity, measured-timing kernel fidelity, and arrival-only transfer.
+
+Freeze margins after development. Use the learned path for in-domain Monte Carlo
+only if it passes dynamics, energy, support, and failure gates. Use physics for
+transfer only where timing and kernel gates pass. Add a stochastic residual only
+after training-only mean-zero, variance, ACF, energy, cap-order, and seed tests.
+
+### F4 - Monte Carlo implementation and statistics
+
+Build four small boundaries, not a general simulation framework. Preferred
+homes are `model/pipeline/traffic.py`, adapters beside existing inference code,
+the accumulator in `scripts/eval/facility.py`, and thin
+`scripts/eval/monte_carlo_facility.py` plus a separate renderer.
+
+1. `traffic`: normalized day + scenario + traffic/mark seeds -> node request
+   schedules and diagnostics.
+2. `power method`: requests + config + horizon + model seed -> node power and
+   support/failure diagnostics. Adapters wrap existing GRU and physics code.
+3. `facility accumulator`: consume one node trace at a time; retain site trace,
+   selected rack/row traces, node-peak sum, and counters. Full node traces are a
+   debug option only.
+4. `Monte Carlo orchestrator`: read one scenario manifest and own parse ->
+   traffic -> power -> accumulation -> summaries in an isolated run directory.
+   A separate renderer reads artifacts and never reruns simulation.
+
+For each accepted replicate and power resolution `r in {1 s, 1 min, 15 min}`:
+
+- compute the descending LDC on a fixed 1,001-point exceedance grid;
+- compute peak, mean, energy, load factor, maximum rolling 1/15-minute mean;
+- compute signed maximum up/down and P95 absolute ramps;
+- record cap, support, overload, backlog, completion, SLO, failures, runtime,
+  peak RAM, and disk bytes.
+
+Never concatenate bins across replicates before sorting. First compute one LDC
+per replicate, then summarize each exceedance rank across replicates.
+
+#### Replication and uncertainty rule
+
+- Pilot: 3 independent seed tuples per day/condition.
+- Final sampling: batches of 10, minimum 30, maximum 200 per day/condition.
+- P95 is not reported before 100 accepted replicates for that condition.
+- After each batch, bootstrap accepted seed tuples within each day. Stop only
+  when, for three consecutive batches, the 95% Monte Carlo interval half-width
+  is at most 1% of the estimate for the P50 daily peak and at most 2% for the P95
+  daily peak and LDC values at exceedance fractions 0.01, 0.05, and 0.50.
+- If the maximum is reached, report the unresolved Monte Carlo error and reduce
+  claims; do not pool days or loosen the rule after seeing results.
+
+Days are the outer scenario unit; seeds are nested within day. Week summaries
+weight the seven days equally and use a hierarchical bootstrap that resamples
+days, then seeds within days. Day-specific rows remain primary. These intervals
+describe this observed week plus the declared simulation, not a population of
+future Azure days.
+
+### F5 - Scale pilot and final grid
+
+Small integration gate:
+
+1. fake deterministic power method, one hour, small hand-worked fleet;
+2. explicit files versus streaming accumulator, exact metric equivalence;
+3. real selected method, one hour, then 24 hours at 240 nodes;
+4. one Azure day x 240 nodes x 3 seed tuples x `rho={0,0.5,0.9}`;
+5. record throughput, wall time, RAM, disk, failures, and interval movement.
+
+Only then run the seven-day 240-node grid. Run 2,400 nodes only if streaming or
+a cohort method matches explicit simulation at smaller sizes for LDC, peak,
+ramps, energy, hierarchy totals, and failure counters. There is no 24,000-node
+grid in this paper.
+
+Primary traffic/facility matrix:
+
+| Axis | Main values |
+|---|---|
+| Day | 2024-05-10 through 2024-05-16 |
+| Fleet size | 240; 2,400 only after scale gate |
+| Traffic | `partitioned_replay`; `correlated_intensity` with rho 0.0/0.5/0.9 |
+| Configuration | regenerated `llama-3-70b_A100_tp8` pilot; one frozen passing method |
+| Power resolution | 1 s primary; 1 min and 15 min reductions |
+| Repeats | adaptive rule above |
+
+Baselines and ablations:
+
+- nameplate and constant training mean are sizing references, not stochastic
+  traces;
+- fixed-seed `partitioned_replay` is the single-replay reference;
+- independent circular/block shifts remove cross-node alignment while preserving
+  node temporal shape;
+- IID time shuffle is an explicitly destructive marginal ablation;
+- noise-off isolates a validated stochastic power residual;
+- Splitwise stays appendix-only with its support/clamp rates;
+- normal-sum checks are pointwise only and never stand in for daily maxima or
+  ramp distributions.
+
+### F6 - Generalization and sealed validation
+
+Use a holdout taxonomy, not one `generalization` column.
+
+| Question | Development evidence | Confirmatory target |
+|---|---|---|
+| In-config fidelity | Representative dense/MoE, small/large, A100/H100 configs | Held-out runs from the same config |
+| Conditional-timing transfer | Historical 405B and gpt-oss cases | Sealed A100 dense and H100 MoE targets |
+| Arrival-only transfer | Passing timing development configs | Same sealed targets with target timing/throughput/power excluded |
+| Workload transfer | Chat development runs | Low/near-knee/overload chat; long-context; cache-off agentic |
+
+Seal A100 Qwen3-8B dense TP1 and H100 Qwen3-30B-A3B MoE TP2 before power
+inspection. Smoke-test each cell, then run three repeats only for passing cells;
+15-minute claims require 45 post-warm-up minutes. Historical 405B/gpt-oss are
+appendix development cases. Cache-on and broad sweeps cannot delay the core.
+
+### F7 - Paper and artifact production
 
 | Item | Content |
 |---|---|
-| Fig P1 | Conditional site peak/rolling-peak distribution versus `N` and `rho` |
-| Fig P2 | Conditional 1 s/1 min/15 min ramp summaries with baseline ablations |
-| Table P3 | P50/P95 peak, ramp, energy, load factor, SLO/backlog, cap/support rates |
-| Appendix | Row headroom sensitivity, pointwise normal-sum check, scale convergence |
+| Fig 1 | Measured/reconstructed/simulated data flow and two generator roles |
+| Fig 2 | Node fidelity plus conditional-timing transfer |
+| Table 1 | Use-case validation and support/failure limits |
+| Fig 3 | Pointwise LDC P05/P50/P95 versus rho and fleet size |
+| Fig 4 | Peak and 1 s/1 min/15 min ramp sensitivity |
+| Appendix | Full holdout matrix, retrospective transfer, convergence, traffic diagnostics, block-length sensitivity, scale equivalence, workload details |
 
-## W5 - Workload scenarios
+Write methods now and numerical claims after gates. Every value maps to a
+producer, exact command, immutable input manifest,
+hashes, seeds, code revision, model artifact, topology, timing mode, power domain,
+failure counts, and expected runtime in `results/eval_paper/README.md`.
 
-Agentic traffic cannot be reduced to the three-column Azure schema without
-losing session affinity and cache semantics. Use an extended request schema
-with `session_id`, `turn_index`, accumulated context, new input tokens, output
-tokens, tool class, gap source, and cache regime. The generic parser may project
-this to three columns only for cache-off tests that do not claim session state.
+## 7. YAGNI and cut order
 
-Prerequisites:
+Build only two traffic modes, one schema/orchestrator/accumulator/renderer, and
+adapters for the two existing power paths. Extract a core only when shared.
 
-1. Pin SWE-smith dataset and tokenizer revisions and cache hashes.
-2. Either fit OpenHands gaps and record per-class sample counts/fit revision, or
-   retain literature priors and run an explicit prior sensitivity analysis.
-3. Create and version the reasoning-length source artifact; it does not exist as
-   a documented distribution today.
-4. Live-smoke-test one agent replay and validate context-window truncation.
+Cut in order: grid optimization; mixed fleets; cache-on main results; 2,400
+servers (24,000 is already cut); stochastic transfer bands; extra rho/baselines;
+then P99. Never pool dependent seeds, weaken sealed tests, or hide failures.
 
-Primary workload comparison: reuse the same external arrival envelope and
-equal request/turn count, then report total input tokens, output tokens, and
-offered work so the extra work is visible. Add an equal-output-token sensitivity
-instead of implying the scenarios provide identical service.
+The minimum viable paper is: regenerated node evidence, one defensible
+conditional-timing transfer result, one validated in-domain volatile generator,
+the corrected 240-node replay, and one synthetic synchronization sensitivity
+with scenario-conditioned LDC/peak/ramp envelopes.
 
-Keep session turns on one server. Study cache off first. Cache-on results and
-prefill/decode attribution require validated engine-state parsing and measured
-cache behavior. Agent traffic changes arrival gaps, token lengths, context,
-placement, and potentially cache work; do not say it changes only arrivals.
+## 8. Required test gates
 
-Acceptance:
-
-- Deterministic builder -> parser -> placement tests cover 24-hour span, session
-  order/affinity, token totals, context limits, and source provenance.
-- Workload tables report demand normalization and offered/served work.
-- Out-of-support prompt/context fractions are reported, never silently clipped.
-
-## W6 - Fleet and transfer scenarios
-
-The current facility driver applies one config to every node. Add heterogeneous
-node manifests, routing, capacity/backlog accounting, and unused-GPU/extra-
-replica power before fleet mixtures.
-
-Every sweep must state its invariant:
-
-- A100 -> H100: fixed offered requests, plus a separate equal-served-work or
-  equal-SLO provisioning comparison.
-- 70B/405B mix: fixed routing policy and demand split, with model-specific
-  capacity and support checks.
-- Tensor parallelism: state whether server count, total GPU count, replicas, or
-  SLO is held fixed and account for unused GPUs.
-- External validation: distinguish workload, architecture, hardware, and TP
-  holdouts. A campaign used to tune the model is no longer sealed validation.
-
-Architecture-only transfer is not established if target throughput or measured
-execution timing is required. Label those results conditional-timing transfer.
-Run a true zero-shot row only after W2's source-only timing path passes.
-
-Acceptance:
-
-- Routing/request conservation, placement, capacity, overload, and power
-  accounting have hand-worked heterogeneous-fleet tests.
-- Each validation row names all target artifacts that were excluded from fit
-  and model selection.
-
-## W7 - Grid example
-
-Cut PyPSA from the active plan. Reconsider only if a grid collaborator defines
-a specific network, assets, costs, solver, objective, comparison, and analytic
-sanity case. Do not add a dependency to produce a tautological max-load sizing
-figure.
-
-## W8 - Paper and artifact update
-
-Paper edits happen after result gates, not in parallel with unstable semantics.
-
-1. Replace existing offset/shared-intensity prose with the implemented traffic
-   contract and mark `rho` as a synthetic sensitivity parameter.
-2. Separate measured timing reconstruction from arrival-only simulation.
-3. Replace "bounds" and broad zero-shot language with the evidence labels in
-   this plan.
-4. State resolution, power domain, demand normalization, topology, failure
-   counts, support limits, and uncertainty unit next to each result.
-5. Verify regulatory and queue claims against primary, jurisdiction-specific
-   sources. Do not use "regulators now require" without a precise citation.
-6. Add exact commands and upstream manifests to `results/eval_paper/README.md`.
-7. Compile the manuscript with no undefined references/citations and regenerate
-   every referenced number.
-
-## Figure-to-command policy
-
-Do not publish speculative flags as commands. A row becomes `ready` only after
-the CLI exists, its integration test passes, and the artifact map contains the
-full invocation.
-
-| Paper item | Producer | Status |
-|---|---|---|
-| Existing server fidelity figure | `uv run -m scripts.eval.run_baselines_node_groundtruth` | Existing; preserve |
-| Existing trace fidelity table | `uv run -m scripts.eval.generate_trace_fidelity_table ...` | Existing; preserve |
-| Model comparison | `model.scripts.compare_generators` | Proposed; blocked on W2/W3 |
-| Fig P1/P2 and Table P3 | one new Monte Carlo orchestrator plus renderer | Proposed; blocked on W1-W4 pilot |
-| Existing hierarchy figure | `uv run -m scripts.eval.hierarchy_figure` | Existing; preserve |
-| Workload comparison | one workload orchestrator plus renderer | Proposed; blocked on W5 |
-| Fleet comparison | one fleet orchestrator plus renderer | Proposed; blocked on W6 |
-
-## Schedule and cut order
-
-The official e-Energy 2027 CFP was not available in the official site search on
-2026-07-09. September 2026 and January 2027 are planning assumptions based on
-the 2026 fall/winter cadence, not confirmed deadlines. Verify the 2027 CFP and
-resubmission policy before choosing a cycle:
-<https://energy.acm.org/conferences/eenergy/2026/pages/cfp.php>.
-
-Sequence by evidence gate, not optimistic calendar overlap:
-
-| Phase | Work | Exit condition |
-|---|---|---|
-| 0 | W0 provenance/correctness + W1 design | Reference replay frozen; scaling/correlation contract approved |
-| 1 | W2 measurements, ledger audit, canonical artifact | Kernel and timing gates pass on held-out development data |
-| 2 | W3 fair comparison | Model role frozen before sealed evaluation |
-| 3 | W4 scale pilot, then justified final grid | Runtime and Monte Carlo convergence recorded |
-| 4 | W5 workload scenarios; W6 only if transfer gate passes | Scenario claims stay inside validated support |
-| 5 | W8 paper/artifact regeneration and internal review | Every claim maps to a command and manifest |
-
-Cut in this order when time is constrained:
-
-1. PyPSA remains cut.
-2. Cut broad external-model transfer before weakening sealed validation.
-3. Cut cache-on phase attribution if engine-state parsing is not validated.
-4. Cut 24,000 servers before using an unvalidated compressed simulator.
-5. Reduce `rho` points and tail quantiles before pooling dependent seeds.
-
-The minimum viable paper is the existing server-fidelity evidence, a corrected
-and reproducible 240-node replay, one clearly synthetic traffic-correlation
-sensitivity at validated scale, and an honest limitations section.
-
-## Cleanup relationship
-
-Cleanup is governed by `cleaning-plan.md`; it is not a scientific workstream.
-Source-control noise may be removed in separate commits, but do not archive an
-active producer before its replacement lands.
-
-In particular, `occupancy_roofline.py` is called by the current roofline
-campaign and documented in `README.md`; moving it to an attic would break an
-active workflow. Before untracking large Azure artifacts, retain compact source
-and stream/trace manifests, exact commands, checksums, topology/seeds, and prove
-regeneration from a fresh checkout. There is no
-`results/azure_facility/manifest.json` to retain as previously claimed.
-
-Required test gates for code changes in these areas:
+For every code phase:
 
 ```bash
 uv run -m pytest -x
 uv run -m pytest -x model/tests profiling feature-test
 ```
+
+Also run the primary producer or smallest integration case affected by the
+change. A task is not complete when only unit tests pass.

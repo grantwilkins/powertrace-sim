@@ -1,0 +1,20 @@
+{
+  "hardware": "A100",
+  "model": "openai/gpt-oss-20b",
+  "campaign_type": "tier1_partial",
+  "evidence_profile": "measured_ledger",
+  "_note": "TP2 and TP4 legs separate TP effects within 20B; the TP4 leg then matches 120B TP4 so model scale is not confounded with TP.",
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072,
+    "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
+  },
+  "probes": ["decode_staircase", "decode_context_grid"],
+  "tp_pair": [2, 4],
+  "tp_pair_probes": ["decode_staircase", "decode_context_grid"]
+}

@@ -38,10 +38,19 @@ ARCH = {
         n_layers=80, n_kv=8, head_dim=128, moe_frac=0.0, n_experts=1, top_k=1,
         swa_window=0, fp8=0,
     ),
+    # Served checkpoint is meta-llama/Llama-3.1-405B-Instruct-FP8
+    # (profiling/server/serve-llama-3-405b.sh). Its FP8 recipe quantizes FFN
+    # matmuls only — not attention, not the first/last layers, not
+    # embeddings/lm_head (arXiv:2407.21783 section 6.2) — so the resident
+    # weight bytes are the checkpoint total 487,229,436,720 B (sum of the
+    # 109 safetensors shards from the HF tree API; architecture-derived
+    # estimate reconciles to 177 KB). fp8_flop_frac is the FP8 parameter
+    # share 324.538e9 / 405.853e9: FLOPs per token are proportional to
+    # params touched, so this is also the FP8 FLOP fraction.
     "llama-3-405b": dict(
-        family="dense-405b", n_active=405.85e9, w_bytes=1 * 405.85e9, d_model=16384,
+        family="dense-405b", n_active=405.85e9, w_bytes=487.23e9, d_model=16384,
         n_layers=126, n_kv=8, head_dim=128, moe_frac=0.0, n_experts=1, top_k=1,
-        swa_window=0, fp8=1,
+        swa_window=0, fp8=1, fp8_flop_frac=0.7996,
     ),
     "gpt-oss-120b": dict(
         family="moe-120b", n_active=5.1e9, w_bytes=60.8 * GIB, d_model=2880,

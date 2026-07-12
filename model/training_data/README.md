@@ -46,8 +46,9 @@ per-config median timestep: raw trace cadences must agree within 1%, then every
 trace is projected to the exact median grid. Individual power-log gaps of at
 most four cadence intervals are linearly interpolated; longer gaps fail.
 Preparation binds throughput calibrated only on training
-request timing. Token counts, TTFT, and decode duration remain in the dataset
-so that calibration is reproducible.
+request timing. Token counts, TTFT, raw ITL sequences, and decode duration
+remain in `RunRecord`; the exact ledger uses cumulative ITLs for post-first
+decode completion times and records any chunk/token-count exclusions.
 Trained GMM evaluation and inference then use the bound throughput and
 hash-checked lineage; they do not read the mutable Stage0 throughput database
 or pair manifest.

@@ -4,7 +4,19 @@ PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU
 
 ## Planning Docs
 
-- `EENERGY_PLAN.md`: audited, stage-gated execution plan for the e-Energy paper.
+- `FEATURE_TEST_PLAN.md`: exact baseline, feature-ablation, transfer-split,
+  metric, and pass/fail specification for selecting the smallest
+  architecture-aware node-power model.
+- `FEATURE_TEST_LEARNINGS.md`: failure analysis, identifiability geometry,
+  rejected model classes, and the minimum measurement needed to continue.
+- `profiling/MODEL_READINESS_RUNBOOK.md`: authoritative, unconfounded campaign
+  order, launch prerequisites, acceptance criteria, and explicit post-collection
+  blockers before model fitting or sealed scoring.
+- `EENERGY_PLAN.md`: post-data-repair paper specification with claims, Monte
+  Carlo/LDC semantics, token-aware model features, the exact profiling campaign,
+  critical path, and parallel work lanes.
+- `EENERGY_PLAN.html`: plain-language browser view of the paper plan with a
+  review checklist and profiling schedule. Open it directly in any browser.
 - `THEMES.md`: e-Energy paper framing, current conference themes, and result priorities.
 - `cleaning-plan.md`: staged cleanup plan for trimming the repo around grid-facing evaluations.
 - `data-path.md`: audited common ingestion, feature, metric, and identity contract.
@@ -92,6 +104,31 @@ Other available entry points:
 - `uv run -m model.scripts.compare_gmm_bigru`
 - `uv run -m model.scripts.generate_methods_figures`
 
+Run the frozen 250 ms conditional-timing feature ladder and transfer matrix with:
+
+```bash
+uv run python feature-test/evaluate_candidates.py \
+  --ledger-cache feature-test/ledger_cache_250ms.npz \
+  --run-index feature-test/ledger_cache_250ms.runs.json \
+  --out-dir results/feature_test_v1
+```
+
+The evaluator emits per-run and aggregate energy, 60-second ACF, and NRMSE
+metrics plus split, complexity, support, gate, and selected-model manifests.
+Candidate and hyperparameter selection uses source development runs only;
+target results only grade the already-frozen choice.
+The rebuilt ledger contains exact offered request marks, `A_t`, and
+running/waiting state. Transfer results retain the `conditional-timing
+transfer` label because request execution timing is measured; the separate
+arrival-only scheduler gate has not passed.
+
+After reconstructing post-first decode completions from measured per-request
+ITLs, source-only selection chooses the two-timescale active-request response
+(`M4A`) on both A100 and H100. The selected scorecard does not pass: failures
+remain in H100 S0, A100 gpt-oss scale transfer, H100 405B transfer, A100 TP2/4,
+and H100 TP8. Exact metrics are in `feature-test/README.md`; the scorecard is
+retrospective development evidence, not sealed validation.
+
 ## Common Data and Physics Path
 
 Legacy ShareGPT pairs and canonical `data/runs/<campaign_id>/<run_id>/` bundles
@@ -119,6 +156,27 @@ timestamp folding is used for bundles.
 The default bundle-ledger scan (`data/runs/*/*`) ignores support directories that
 lack `manifest.json` (such as campaign `logs/`); an explicitly supplied glob is
 fail-fast for every directory it selects.
+
+New profiling bundles can use the measured hybrid ledger explicitly:
+
+```bash
+uv run python feature-test/build_ledger_bundle.py \
+  --runs-glob 'data/runs/<campaign>/*' \
+  --state-source measured_engine \
+  --lambda-prefill 7421 \
+  --lambda-prefill-source '<prefill staircase bundle ID>'
+```
+
+This path uses stock vLLM counters for executed prompt/decode tokens and total
+running/waiting requests, while request TTFT/ITL remains the source of
+phase-specific batch and KV geometry. Iteration-rate, tokens-per-iteration, and
+GPU-cache-usage diagnostics are persisted in the cache. Stock vLLM does not
+provide collective duration, NVLink traffic, router choices, or expert touches;
+the campaign identifies those effects only through matched TP/model probes.
+Every live run preflights and validates the required metrics, cadence, topology,
+counter monotonicity, and cross-stream epoch alignment. Smaller TP-pair legs are
+pinned to explicit GPU UUIDs; ingestion checks those UUIDs against the exact
+per-GPU columns summed into the TP-group power target.
 
 GRU preparation accepts canonical bundles only through repeatable explicit
 `--bundle-dir` arguments; it does not auto-discover runs. Each projected dataset
@@ -156,6 +214,20 @@ synthetic rate fallback. The run index and artifact record source pair IDs,
 source hashes, the selected ledger hash, Git revision, and Git dirty status.
 Ledger artifacts also record their timestep and per-model architecture
 descriptors, allowing full Hugging Face IDs and time-based lag conversion.
+Retrospective reconstruction and arrivals-only physics inference share the same
+half-open-bin schedule arithmetic. Retrospective decode completions use the
+recorded ITL sequence: the first output is produced at TTFT, and each later
+completion is placed at the cumulative ITL time. Rows whose stream-chunk count
+does not equal `output_tokens - 1` are excluded from this exact projection and
+counted in run-index provenance rather than interpolated. The ledger exposes offered arrivals and
+token marks, end-of-bin `A_t`, `delta_A_t`, and running/waiting request counts;
+standalone inference rejects horizons that would truncate request work and
+labels each `[t, t+dt)` prediction at `t+dt`.
+Selected deployment artifacts use the strict
+`powertrace-selected-physics-v1` schema: one hardware and one mode per file,
+no family/model/TP routing, at most 80 declared learned scalars, and an explicit
+conditional-timing or arrival-only validation contract. The legacy physics-v1
+reader remains available for existing artifacts.
 
 ## Occupancy Roofline Profiling
 
@@ -177,8 +249,9 @@ default. The analyzer writes CSVs to `results/occupancy_roofline/` and figures
 to `figures/occupancy_roofline/`. The occupancy coordinate is `ell = f / F + g / G`,
 where `F` and `G` are p99.5 sustained 5-second rates reconstructed from the
 dedicated prefill and decode probes. Treat roofline and agentic claims as
-reconstruction-based until an `engine.csv` state parser is implemented and
-validated. It uses the manifest's `clock.local_utc_offset_s` to compare power,
+reconstruction-based unless they are rebuilt explicitly with
+`--state-source measured_engine`; that path is hybrid rather than phase-complete.
+It uses the manifest's `clock.local_utc_offset_s` to compare power,
 requests, and probe windows on exact UTC epochs; bundle analysis never applies
 the legacy 30-minute timestamp fold.
 
@@ -217,6 +290,20 @@ separates `num_skipped_traces`, `num_failed_traces`, and the compatibility total
 `num_skipped_or_failed_traces`.
 
 ## Testing
+
+The frozen architecture-transfer feature test is run with:
+
+```bash
+uv run python feature-test/evaluate_candidates.py
+```
+
+It emits the source-only selection, per-run/stratified/bootstrap metrics,
+transfer gates, data-efficiency check, and hardware-local deployment artifacts
+under `results/feature_test_v1/`. The current honest result selects M4A for both
+A100 and H100, but six selected cells fail. Measured ITLs remove the earlier
+within-request uniform-timing approximation; the remaining temporal failures
+still lack observed engine batch/clock state. See `feature-test/README.md` for
+the exact scores and evidence boundary.
 
 ```bash
 uv run -m pytest -x

@@ -7,6 +7,7 @@ runner. Heavy imports stay inside ``execute`` so the wrappers import cleanly.
 from __future__ import annotations
 
 import argparse
+import os
 
 
 def base_parser(description: str) -> argparse.ArgumentParser:
@@ -32,11 +33,19 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--enable-prefix-caching", action="store_true", default=False)
     p.add_argument("--kv-cache-dtype", default="auto")
     p.add_argument("--max-model-len", type=int, default=131072)
+    p.add_argument(
+        "--active-gpu-uuids",
+        default=os.environ.get("POWERTRACE_ACTIVE_GPU_UUIDS", ""),
+    )
+    p.add_argument(
+        "--evidence-profile", default="core",
+        choices=("core", "measured_ledger"),
+    )
     return p
 
 
 def server_cfg(args) -> dict:
-    return {
+    config = {
         "max_num_seqs": args.max_num_seqs,
         "max_num_batched_tokens": args.max_num_batched_tokens,
         "enable_chunked_prefill": args.enable_chunked_prefill,
@@ -44,6 +53,10 @@ def server_cfg(args) -> dict:
         "kv_cache_dtype": args.kv_cache_dtype,
         "max_model_len": args.max_model_len,
     }
+    active = args.active_gpu_uuids.strip()
+    if active:
+        config["active_gpu_uuids"] = active.split(",")
+    return config
 
 
 def execute(schedule, args):
@@ -62,4 +75,5 @@ def execute(schedule, args):
         weight_footprint_bytes=args.weight_footprint_bytes,
         dtype_hint=args.dtype_hint,
         n_active_override=args.n_active_override,
+        evidence_profile=args.evidence_profile,
     )

@@ -20,7 +20,10 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from model.pipeline.artifact_resolution import resolve_throughput  # noqa: E402
 from model.training_data.arch import ARCH  # noqa: E402
-from model.training_data.ledger_view import reconstruct_bins_from_record  # noqa: E402
+from model.training_data.ledger_view import (  # noqa: E402
+    exact_itl_mask,
+    reconstruct_bins_from_record,
+)
 from model.training_data.run_record import load_legacy_run  # noqa: E402
 from model.utils.io import (  # noqa: E402
     load_json,
@@ -45,6 +48,8 @@ def resolve_prefill_rate(throughput_db, config_id):
 def run_source_entry(run_id, record):
     provenance = record.provenance
     pair_key = str(provenance["pair_key"])
+    exact_requests = int(exact_itl_mask(record.output_lens, record.itls).sum())
+    source_requests = int(record.output_lens.size)
     return {
         "run_id": int(run_id),
         "source_id": f"{record.config_id}|{pair_key}",
@@ -56,6 +61,11 @@ def run_source_entry(run_id, record):
             "requests_json": str(provenance["json_path"]),
         },
         "sha256": dict(provenance["sha256"]),
+        "timing_projection": {
+            "source_requests": source_requests,
+            "retained_exact_itl_requests": exact_requests,
+            "excluded_chunk_token_mismatch": source_requests - exact_requests,
+        },
     }
 
 
@@ -153,12 +163,16 @@ def main():
         for key in (
             "power", "pre_tok", "dec_tok", "batch", "pre_active", "iters",
             "w_read", "w_read_pre", "w_read_dec", "kv_read", "kv_write", "comm",
+            "arrivals", "input_tokens_arriving", "output_tokens_requested",
+            "A_t", "delta_A_t", "running_requests", "waiting_requests",
         ):
             cols[key].append(bins[key])
         arch = bins["arch"]
         cols["n_active"].append(np.full(n, arch["n_active"]))
         cols["w_bytes"].append(np.full(n, arch["w_bytes"]))
         cols["fp8"].append(np.full(n, arch["fp8"]))
+        cols["fp8_flop_frac"].append(np.full(n, float(arch.get(
+            "fp8_flop_frac", 1.0 if arch["fp8"] else 0.0))))
         cols["tp"].append(np.full(n, float(run["tp"])))
         cols["rate"].append(np.full(n, run["rate"]))
         cols["run_id"].append(np.full(n, run_id, dtype=np.int32))

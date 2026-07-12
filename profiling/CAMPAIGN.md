@@ -1,5 +1,9 @@
 # PowerTrace Profiling Campaign
 
+> Execution lives in `profiling/MODEL_READINESS_RUNBOOK.md`. This document is
+> background and design rationale; do not use its generic tiers or historical
+> extension list as a launch checklist.
+
 How to gather the cleanest data for the first-principles power model in
 `feature-test/`, in the format that makes training trivial.
 
@@ -28,12 +32,15 @@ one short calibration). The current grid (every model × every TP × 6 rates × 
 repeats ≈ 8–10 GPU-h/config) spends almost its entire budget re-measuring known
 states. This campaign replaces it.
 
-Second principle: **measure engine state, don't reconstruct it.** Today we infer
-batch size / phase from client-side `ttft`+`itl`. vLLM already exposes the true
-state at `/metrics` (`num_requests_running`, `gpu_cache_usage_perc`, token
-counters). Scraping it is already part of the bundle contract, but current
-roofline/agentic analyses remain reconstruction-based until `engine.csv` parsing
-is implemented and validated.
+Second principle: **claim only what the maintained data path measures.** Stock
+vLLM exposes total running/waiting requests, KV-cache occupancy, executed
+prompt/generation token counters, and the iteration-token histogram. It does not
+expose phase-specific batch, collective duration, NVLink traffic, router choices,
+or expert touches. The measured ledger is therefore intentionally hybrid:
+stock counters replace exactly measured token and total-active fields; request
+TTFT/ITL reconstruction remains the source for phase batch and KV geometry.
+TP synchronization and MoE effects are identified by matched probes, not by
+invented runtime columns.
 
 ---
 
@@ -45,7 +52,7 @@ One self-describing bundle per campaign run:
 | file | source | contents (per row unless noted) |
 |---|---|---|
 | `power.csv` | `nvidia-smi` @ 4 Hz | timestamp, **per-GPU**: `index`, `uuid`, `power.draw`, `clocks.sm`, `clocks.mem`, `utilization.gpu`, `utilization.memory`, `memory.used`, `temperature.gpu` |
-| `engine.csv` | vLLM `/metrics` @ 4 Hz | timestamp, `num_requests_running`, `num_requests_waiting`, `gpu_cache_usage_perc`, `prompt_tokens_total`, `generation_tokens_total`, `iteration_tokens_total_{sum,count}`, `request_{prefill,decode}_time_seconds_sum` |
+| `engine.csv` | stock vLLM `/metrics` @ 4 Hz | required: timestamp, `num_requests_running`, `num_requests_waiting`, `gpu_cache_usage_perc`, `prompt_tokens_total`, `generation_tokens_total`, `iteration_tokens_total_{sum,count}`; optional version-dependent counters are retained but not assumed |
 | `requests.json` | `benchmark_serving.py` | `input_lens`, `output_lens`, `ttfts`, `itls`, `request_timestamps` + aggregates (unchanged) |
 | `manifest.json` | new emitter | everything below |
 
@@ -62,7 +69,8 @@ One self-describing bundle per campaign run:
   "hardware": "H100", "tp": 8, "gpus_per_node": 8,
   "server": {"max_num_seqs": 256, "max_num_batched_tokens": 8192,
              "enable_chunked_prefill": true, "enable_prefix_caching": false,
-             "kv_cache_dtype": "auto", "max_model_len": 131072},
+             "kv_cache_dtype": "auto", "max_model_len": 131072,
+             "active_gpu_uuids": ["GPU-...", "GPU-..."]},
   "versions": {"vllm": "0.x.y", "git_sha": "…", "gpu_driver": "…"},
   "clock": {"local_utc_offset_s": -25200.0,
             "power_timestamp_basis": "local_wall_time",
@@ -202,18 +210,24 @@ already exists in the current job scripts.
 
 ## 6. Output → training handoff
 
-Current bundle consumers use the reconstruction path: `requests.json` supplies
-`ttft`/`itl`/lengths/timestamps, power is converted to epoch with the recorded
-local UTC offset, and
-`engine.csv` is retained as measured evidence for the next parser. Output remains
-the same `(power, work_rates, run_id, arch)` per-bin table the current model trains
-on, so existing fitting code can run unchanged.
+`feature-test/build_ledger_bundle.py --state-source measured_engine` is the
+maintained handoff. It passes each bundle through `RunRecord`, reconstructs the
+uniform power grid once, then maps fields as follows:
 
-Measured-state handoff is the next step: `engine.csv` becomes the state source,
-work rates are computed from measured state + `manifest.arch`, and power is aligned
-through `manifest.clock` without timestamp folding. Until that parser is
-implemented and validated against reconstruction, roofline and agentic claims from
-these bundles are reconstruction-based.
+| ledger field | source | consumed by selected physics path? |
+|---|---|---|
+| `power` | topology-validated `power.csv` | target |
+| `pre_tok`, `dec_tok` | edge differences of stock vLLM token counters | yes |
+| `A_t`, running, waiting | time means of stock vLLM total-request gauges | yes |
+| `batch`, `pre_active`, prefill iterations, `kv_read` | request TTFT/ITL + architecture reconstruction | yes |
+| iteration rate, tokens/iteration, GPU-cache usage | stock vLLM diagnostics persisted in the measured cache | available for the next candidate; not silently consumed by the frozen artifact |
+| collective duration, NVLink bytes, expert touches | unavailable in stock vLLM | no; infer axes only from matched probe differences |
+
+Every live run preflights `/metrics`, requires complete finite coverage of every
+required column, validates counter monotonicity,
+cadence, GPU identity/topology, and power/engine epoch alignment, and records the
+observed evidence contract in `manifest.instrumentation`. Missing required stock
+fields fail the run rather than falling back to reconstruction.
 
 ---
 
@@ -235,7 +249,7 @@ as ~30-min validation passes plus the one-time §5-C/§5-D builds.
 
 1. **A + E** (metrics scraper + manifest) — retrofit onto the *existing* job
    scripts immediately; every future run is then richer and self-describing.
-2. **B** (probe drivers) + ledger-builder update (§6) — unlocks Tier 1; re-derive
+2. **B** (probe drivers) + measured-ledger path (§6) — unlocks Tier 1; re-derive
    the hardware constants from clean probes and compare to the current
    `feature-test/` fit.
 3. **C** (long-context) — closes the `e_kv` / attention-L² identifiability gap.
@@ -246,70 +260,33 @@ as ~30-min validation passes plus the one-time §5-C/§5-D builds.
 
 ---
 
-## 9. Agentic readiness plan
+## 9. Model-readiness campaign generated from the v2 failures
 
-The model is validated on a single A100 setup via the normal (probe + `validate`)
-path. Agentic Tier-3 (§3, §5-D) is the next workload class. The session generator,
-live sender, bundle emitter, and campaign wiring already exist and are unit-tested;
-GPU cost is small (A100 is characterized — this is Tier-3 validation, ~30 min/run).
-The remaining work is **almost entirely software**: making the data admissible, the
-ledger honest, and the grading loop closed. Five gaps, in priority order.
+The executable configs deliberately cover only cells that resolve a named
+ambiguity in `FEATURE_TEST_LEARNINGS.md`:
 
-### What's built vs. what's missing
-
-Built: `agentic.py` (synthetic + `from_transcript` plans), `session_driver.py`
-(live multi-turn sender — context grows by appending real replies, lognormal
-tool-gap idle, rich `requests.json` superset), `session_runner.py` + `agentic_run.py`
-(emit the §2 bundle, record the `prefix_cache` regime), `jobs/campaign_config.py`
-`agentic` type + `run_campaign.sh`, `campaigns/agentic_qwen3-8b.json`.
-
-Missing: real content, measured-state consumption, both cache regimes on the target
-hardware, prefix-cache modeling in the twin, and an agentic grade step.
-
-### Twin verification (done — informs Gaps 2 & 4)
-
-The twin's request path (`model/pipeline/request_builder.py` → `inference.py`)
-consumes **only** `input_lens`, `output_lens`, `request_timestamps`; it ignores the
-agentic extensions (`session_ids`, `turn_idx`, `post_gap_s`, `prefix_cache`).
-Consequence:
-
-- **Idle tool-gaps** — handled implicitly: a gap is just an interval with no new
-  arrival, so idle falls out for free. Low risk.
-- **Growing context** — handled: each turn's `input_len` carries the full grown
-  prompt, so per-turn KV/prefill scale is captured. Low risk.
-- **Prefix-cache hits** — **not modeled**: the twin sees the full `input_len` and
-  simulates full prefill on every turn even when the engine skipped it. So
-  **prefix-cache-*on* agentic runs are systematically over-predicted on prefill
-  power.** Same root cause as Gap 2 (a cache hit means prefill work didn't happen,
-  but `input_lens` still says it did). Prefix-caching is the *single* unmodeled
-  dynamic, on both the ledger (training) and inference (grading) sides.
-
-### The gaps
-
-| # | item | effort | blocking? |
+| order | configs | comparison | question answered |
 |---|---|---|---|
-| 1 | **Real agent-trace loader** (SWE-agent / tool-use trajectories) → ordered turns with **real message strings** + observed `post_gap_s`; thread real text through `session_driver.send_session` (replace `_filler` on the replay path); extend `from_transcript` to carry text, not just `(in_tok, out_tok, gap)`. | M | Yes — satisfies the real-data constraint |
-| 2 | **`bins_from_engine_csv`** (currently `NotImplementedError` in `feature-test/build_ledger_bundle.py`) so the ledger uses *measured* state from `engine.csv` (already collected) instead of reconstructing it; route agentic bundles through it so cache-skipped prefill is not fabricated. | M | Yes — for cache-on data |
-| 3 | **A100 agentic configs**, paired `prefix_cache` true/false; confirm `run_campaign.sh` relaunches the server with matching `--enable-prefix-caching` per regime. (Existing `agentic_qwen3-8b.json` is H100, cache-on only.) | S | Yes |
-| 4 | **Twin prefix-cache modeling** — *deferred.* Verified needed for cache-*on* grading (see above). Until built, grade **cache-off only** and treat cache-on as a known over-prediction. | (verified, deferred) | — |
-| 5 | **Agentic grade harness** — agentic bundle → twin → predicted-vs-measured power, sliced by regime, against the ~6 % held-out bar (cf. `validate_runner` for ShareGPT). | S | No |
+| 1 | `a100_tier1_llama70b.json` | controlled operating-point sweep | establishes the A100 hardware response |
+| 2 | `a100_iteration_gpt-oss-20b.json` | 20B TP2↔TP4 at identical batch × context points | isolates TP on one model |
+| 3 | `a100_iteration_gpt-oss-{20b,120b}.json` TP4 legs | 20B↔120B at identical TP, batch, and context | isolates model scale without changing TP |
+| 4 | `h100_tier1_llama70b.json` | dense TP4↔TP8 decode, prefill, and context grid | establishes the H100 response surface and TP contrast on the same model |
+| 5 | `h100_hardcells_llama{70b,405b}.json` | matched ShareGPT marks/rates, fixed seed | localizes the 405B TP8 bias using the exact stock evidence available in serving |
+| 6 | `a100_hardcells_gpt-oss-{20b,120b}.json` | matched TP4 ShareGPT marks/rates, fixed seed | checks model scale under realistic scheduling without a TP confound |
+| 7 | `h100_sealed_llama405b.json`, `a100_sealed_gpt-oss-120b.json` | fresh rates and seeds on restricted storage | final score only after equations and artifacts freeze |
 
-### Decisions taken
+`decode_context_grid` is a Cartesian grid over batch `{1,4,16}` and context
+`{2k,8k,32k}`. The orthogonality is load-bearing: it separates iteration
+granularity from context/KV traffic instead of replacing one confound with
+another. Validation campaigns support multiple declared rates and explicit
+seeds. Sealed execution requires `SEALED_RUNS`; development output cannot
+accidentally land in the sealed location.
 
-- **Data source: real agent traces (SWE-agent / tool-use).** Synthetic `_filler`
-  remains only as a smoke-test. The replay path must send real text, not
-  token-count-matched filler. **Open input:** which corpus and whether it carries
-  real inter-turn gap timestamps (no agent-transcript dataset is staged in-repo
-  today — only the WildChat+OpenCodeInstruct mix from `mix_dataset.py`, used by
-  `validate`). The choice sets the parser shape and whether `post_gap_s` is observed
-  or must be synthesized.
-- **Twin (Gap 4): verify-only for now.** Verification is done (above); modeling is a
-  flagged follow-up, not part of this pass.
+Do not add custom collective/router counters to this campaign unless a concrete
+vLLM patch is implemented, versioned, tested, and its column is traced through
+`RunRecord` and the ledger cache first. Until then, TP and MoE labels describe
+experimental contrasts, never directly observed per-iteration mechanisms.
 
-### Recommended order
-
-1. **Gaps 1 + 3** — real-trace data flowing on already-characterized A100, both
-   prefix-cache regimes (~30 min/run × 2).
-2. **Gap 2** — measured-state ledger, so cache-on runs are honest.
-3. **Gap 5** — close the grading loop (cache-off is fully gradable without Gap 4).
-4. **Gap 4** — twin prefix-cache modeling unblocks cache-*on* grading; deferred.
+Agentic remains a later Tier-3 workload. Prefix-cache-on grading is not ready:
+the arrival-only twin still treats the full prompt as executed prefill. This does
+not block the model-readiness campaign above, which is cache-off throughout.

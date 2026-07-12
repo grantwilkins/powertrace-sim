@@ -106,9 +106,31 @@ def test_agentic_requires_regimes(tmp_path):
         cc.load_campaign(bad)
 
 
-def test_non_agentic_has_single_empty_regime():
+def test_validate_single_rate_becomes_one_explicit_regime():
     c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
-    assert cc.regimes(c) == [{}]
+    assert cc.regimes(c) == [{"request_rate": 4.0}]
+
+
+def test_validate_multi_rate_regimes_preserve_one_seed(tmp_path):
+    path = tmp_path / "rates.json"
+    path.write_text(json.dumps({
+        "hardware": "H100", "model": "x", "campaign_type": "validate",
+        "server": {"tp": 8}, "evidence_profile": "measured_ledger",
+        "workload": {
+            "dataset": "sharegpt", "num_prompts": 20,
+            "request_rates": [1.0, 2.0], "seed": 17,
+        },
+    }))
+    campaign = cc.load_campaign(path)
+    assert cc.regimes(campaign) == [
+        {"request_rate": 1.0}, {"request_rate": 2.0}
+    ]
+    commands = [
+        cc.run_command(campaign, 8, regime) for regime in cc.regimes(campaign)
+    ]
+    assert "--request-rate 1.0 --seed 17" in commands[0]
+    assert "--request-rate 2.0 --seed 17" in commands[1]
+    assert all("--evidence-profile measured_ledger" in command for command in commands)
 
 
 def test_validate_requires_workload(tmp_path):
@@ -193,21 +215,68 @@ def test_probe_commands_carry_out_root(monkeypatch):
     assert "--out-root data/runs" in cc.probe_commands(c, 8)[0]
 
 
-def test_tp_pair_second_leg_runs_only_decode_prefill():
-    """CAMPAIGN.md §3: the tp_pair second leg repeats decode+prefill only (e_comm),
-    while the primary TP runs the full probe set."""
+def test_tp_pair_second_leg_runs_declared_sync_subset():
+    """The Llama TP pair repeats only probes that identify TP synchronization."""
     c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
     primary, second = cc.tp_degrees(c)  # [8, 4]
     assert cc.probes_for_tp(c, primary) == c["probes"]
-    assert cc.probes_for_tp(c, second) == ["decode_staircase", "prefill_staircase"]
+    assert cc.probes_for_tp(c, second) == [
+        "decode_staircase", "decode_context_grid", "prefill_staircase"
+    ]
     # probe_commands honours the per-leg selection
-    assert len(cc.probe_commands(c, second)) == 2
+    assert len(cc.probe_commands(c, second)) == 3
 
 
 def test_tp_pair_probes_default_when_absent():
     """Configs without an explicit tp_pair_probes get the decode+prefill default."""
-    c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    c = cc.load_campaign(CAMPAIGNS_DIR / "a100_tier1_llama70b.json")
     assert c["tp_pair_probes"] == ["decode_staircase", "prefill_staircase"]
+
+
+def test_transfer_campaign_profiles_map_to_their_ledger_axes():
+    dense = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
+    moe = cc.load_campaign(CAMPAIGNS_DIR / "a100_iteration_gpt-oss-120b.json")
+    assert dense["evidence_profile"] == "measured_ledger"
+    assert moe["evidence_profile"] == "measured_ledger"
+    assert "decode_context_grid" in dense["probes"]
+    assert "decode_context_grid" in moe["probes"]
+
+
+def test_gpt_oss_matrix_separates_tp_from_model_scale():
+    small = cc.load_campaign(CAMPAIGNS_DIR / "a100_iteration_gpt-oss-20b.json")
+    large = cc.load_campaign(CAMPAIGNS_DIR / "a100_iteration_gpt-oss-120b.json")
+    assert cc.tp_degrees(small) == [2, 4]
+    assert cc.probes_for_tp(small, 4) == [
+        "decode_staircase", "decode_context_grid",
+    ]
+    assert large["server"]["tp"] == 4
+
+    small_real = cc.load_campaign(CAMPAIGNS_DIR / "a100_hardcells_gpt-oss-20b.json")
+    large_real = cc.load_campaign(CAMPAIGNS_DIR / "a100_hardcells_gpt-oss-120b.json")
+    for campaign in (small_real, large_real):
+        assert campaign["server"]["tp"] == 4
+        assert campaign["workload"]["request_rates"] == [1.0, 2.0]
+        assert campaign["workload"]["seed"] == 20260712
+
+
+def test_llama_matrix_has_matched_scale_rates_and_within_model_tp_rates():
+    small = cc.load_campaign(CAMPAIGNS_DIR / "h100_hardcells_llama70b.json")
+    large = cc.load_campaign(CAMPAIGNS_DIR / "h100_hardcells_llama405b.json")
+    assert small["workload"]["request_rates"] == [1.0, 2.0, 4.0]
+    assert large["workload"]["request_rates"] == [1.0, 2.0]
+    assert set(large["workload"]["request_rates"]) <= set(
+        small["workload"]["request_rates"]
+    )
+    assert small["workload"]["seed"] == large["workload"]["seed"]
+    assert cc.tp_degrees(small) == [8, 4]
+
+
+def test_sealed_campaign_role_is_emitted_and_commands_keep_fresh_seed():
+    campaign = cc.load_campaign(CAMPAIGNS_DIR / "h100_sealed_llama405b.json")
+    assert campaign["validation_role"] == "sealed"
+    command = cc.run_command(campaign, 8, cc.regimes(campaign)[0])
+    assert "--validation-role sealed" in command
+    assert "--seed 2026071201" in command
 
 
 def test_tp_pair_probes_rejects_unknown(tmp_path):

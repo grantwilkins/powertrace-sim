@@ -446,6 +446,7 @@ def parse_request_json(
 
     columns = {"input_lens": [], "output_lens": [], "ttfts": [],
                "decode_times": [], "request_timestamps": []}
+    projected_itls = []
     keep = []
     stats = {
         "num_requests_raw": int(max(
@@ -496,6 +497,7 @@ def parse_request_json(
         columns["ttfts"].append(ttft)
         columns["decode_times"].append(float(decode))
         columns["request_timestamps"].append(ts)
+        projected_itls.append(rows["itls"][i])
 
     if not keep:
         return None
@@ -507,8 +509,15 @@ def parse_request_json(
     }
     return {
         **{key: np.asarray(value, dtype=np.float64) for key, value in columns.items()},
+        "itls": _object_vector(projected_itls),
         "has_timestamps": has_timestamps,
         "request_table": request_table,
         "projection_indices": np.asarray(keep, dtype=np.int64),
         "stats": stats,
     }
+
+
+def _object_vector(values: list[object]) -> np.ndarray:
+    out = np.empty(len(values), dtype=object)
+    out[:] = values
+    return out

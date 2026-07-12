@@ -222,7 +222,7 @@ class TestLoadBundleRun(unittest.TestCase):
                 hardware="H100",
                 tp=4,
                 gpus_per_node=8,
-                server={},
+                server={"active_gpu_uuids": [f"GPU-{gpu}" for gpu in range(4)]},
                 versions={"git_sha": "unit"},
                 clock={"local_utc_offset_s": 0.0},
             )
@@ -314,6 +314,11 @@ class TestLoadBundleRun(unittest.TestCase):
                 record.provenance["request_rows"]["request_column_lengths"]["session_ids"],
                 1,
             )
+            manifest = json.loads((root / "manifest.json").read_text())
+            manifest["server"] = {"active_gpu_uuids": ["GPU-wrong"]}
+            (root / "manifest.json").write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, "do not match the TP-group"):
+                load_bundle_run(root)
 
     def test_record_rejects_nonmonotonic_power_and_ragged_engine_table(self):
         """Time order and engine row identity are boundary invariants."""

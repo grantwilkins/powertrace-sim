@@ -11,6 +11,7 @@ from metrics_logger import (  # noqa: E402
     metrics_row,
     metrics_url,
     parse_prometheus_metrics,
+    available_columns,
 )
 
 SAMPLE_METRICS = """\
@@ -64,3 +65,22 @@ def test_header_starts_with_timestamp():
 def test_metrics_url_derivation():
     assert metrics_url("http://localhost:8000/v1") == "http://localhost:8000/metrics"
     assert metrics_url("http://h:9/v1/") == "http://h:9/metrics"
+
+
+def test_duplicate_worker_series_are_reduced_at_the_correct_level():
+    parsed = parse_prometheus_metrics("""
+vllm:num_requests_running{worker="0"} 3
+vllm:num_requests_running{worker="1"} 5
+vllm:gpu_cache_usage_perc{worker="0"} 0.25
+vllm:gpu_cache_usage_perc{worker="1"} 0.75
+""")
+    record = dict(zip(ENGINE_HEADER, metrics_row(parsed, t=0.0)))
+    assert record["num_requests_running"] == 8.0
+    assert record["gpu_cache_usage_perc"] == 0.5
+
+
+def test_alias_availability_distinguishes_missing_evidence():
+    parsed = parse_prometheus_metrics(SAMPLE_METRICS)
+    available = available_columns(parsed)
+    assert "iteration_tokens_total_count" in available
+    assert "generation_tokens_total" in available

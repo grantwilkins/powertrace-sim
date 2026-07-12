@@ -4,6 +4,77 @@ Goal: using only existing profiling data, drive error metrics as low as possible
 for a **first-principles, explainable** node-power model that works **across
 tensor-parallel degrees** and **splits energy over prefill and decode**.
 
+## Frozen 250 ms feature test
+
+The current evaluator uses one shared request-to-work and physics kernel for
+training and deployment. Source-development-only selection chooses M4A on
+both A100 and H100; both artifacts contain one hardware mode, no model/family
+routing, and fewer than 80 learned scalars. The B2 K10-F2 BiGRU reference is
+retrained per configuration on repeat 0, early-stopped on repeat 1, and scored
+on repeat 2.
+Deployment provenance labels the S0 coefficient fit as
+`production_refit_not_transfer_evidence`; split-local coefficients remain
+`validation_fits` and are never presented as deployable artifacts.
+
+```bash
+uv run python feature-test/evaluate_candidates.py \
+  --out-dir results/feature_test_v2
+```
+
+The current retrospective scorecard is `results/feature_test_v2/`
+(`results/feature_test_v1/` is the pre-correction snapshot). The v2 rebuild
+made three input corrections, each with cited or measured provenance:
+
+- llama-3-405b served weight bytes are 487.23e9 (sum of the served FP8
+  checkpoint's safetensors shards; the FP8 recipe quantizes FFN matmuls only,
+  so BF16 attention/embedding tensors were previously undercounted by 20%),
+  and its FLOP dtype scale follows the recipe's FP8 parameter share (0.7996)
+  instead of a blanket 0.5;
+- the power-meter response is identified from S0-train idle-to-busy steps
+  (`identify_meter_kernel.py` -> `meter_kernel.json`) and independently
+  matches the published NVML metering behavior (arXiv:2312.02741): near-
+  instant on A100, a 1 s averaging window on H100;
+- the M0c candidate caps predictions at the hardware board power limit
+  (400 W A100 / 700 W H100) instead of a fitted training quantile.
+
+M0c is a new mean formulation added after the v1 failure analysis: a concave
+saturating-ramp response in compute and memory utilization (no communication
+column: on every source fit it is collinear with compute, r about 0.99),
+fitted by a phase-anchored staged NNLS in which decode-only bins identify the
+memory response and floors, prefill-influenced bins identify the compute
+response, and a final pass refits the non-compute columns everywhere with the
+compute response frozen. It carries 16 learned scalars and no request-state
+columns.
+
+v2 selected-cell outcome (M4A on both hardwares, 7 of 13 cells pass): the
+405B cell improves to 4.70% median energy (was 5.72%) and H100 TP8 ACF-MAE
+now passes (0.114, was 0.143), but 405B ACF remains failed, A100 gpt-oss
+scale transfer still misses energy (8.55%), A100 TP2 rate bias and TP4
+ACF-MAE persist, H100 S0 still fails only the B2-relative NRMSE clause, and
+the changed 405B source fit regressed H100 hold-TP1 energy to 7.64%. M0c is
+not selected (its source-development energy trails M4A) but passes all four
+H100 TP holdouts, including hold-TP1 where M4A fails, with the best H100
+dynamics in the ladder; on the 405B cell it lifts median ACF R2 from
+negative values to 0.602 while over-predicting energy by 8-11%. These are
+development results, not sealed external validation.
+
+Legacy JSONs retain measured per-request ITLs. The ledger places each
+post-first decode completion at its recorded cumulative ITL time instead of
+uniformly smearing decode work over the request. Across the 800 matched JSONs,
+621,159 of 621,750 request rows have exactly `output_tokens - 1` intervals;
+the remaining 591 chunk/token mismatches are explicitly excluded and counted
+in run-index provenance rather than interpolated. Unrecorded engine
+batch/clock state remains the evidence boundary, not a reason to add routing
+constants: the two residual failure axes isolated by v2 are per-layer
+tensor-parallel synchronization power (same per-GPU bytes per second, less
+power at TP8 than TP1) and MoE iteration granularity (gpt-oss-120b decode is
+launch-bound, not bandwidth-bound). The artifact remains conditional-timing
+and TP-only; arrival-only, PP, EP, DP, and CP claims are explicitly
+unsupported.
+
+The historical exploratory results below are retained for context and are not
+the frozen selection scorecard.
+
 ## Final model
 
 Per hardware platform (A100, H100), node power is a non-negative sum of
@@ -29,12 +100,16 @@ prefill rate and source:
 
 ```bash
 uv run python feature-test/build_ledger_bundle.py \
+  --state-source measured_engine \
   --lambda-prefill 7421.0 \
   --lambda-prefill-source 'prefill staircase run h100_prefill_tp4_...'
 ```
 
 This emits `ledger_cache_bundle.npz` plus a source sidecar mapping each ledger run
-index to the bundle ID, path, hashes, and throughput calibration.
+index to the bundle ID, path, hashes, throughput calibration, state source, and
+per-field lineage. Measured bundles use stock token/request gauges where exact,
+retain TTFT/ITL reconstruction for phase-specific state, and persist iteration
+and cache diagnostics without silently adding them to the frozen candidate.
 Its default `data/runs/*/*` scan skips campaign support directories without a
 `manifest.json`; an explicit `--runs-glob` remains fail-fast for every selected
 directory.
@@ -211,6 +286,9 @@ carried by the architecture arithmetic, not memorized per model.
 
 ## Files
 
+- `baselines.py` — standalone causal activity ridge (B1) and explicitly
+  non-transferable same-configuration physics oracle (B4)
+- `gmm_bigru_baseline.py` — frozen CPU K10-F2 BiGRU baseline (B2) for S0 only
 - `build_ledger_cache.py` — parse runs → per-second work ledger plus
   `run_id`-to-source/hash index (`ledger_cache.npz`, `ledger_cache.runs.json`)
 - `fit_models.py` — model ladder M0–M8 + lag variants, CV/LOMO/LOTO harness

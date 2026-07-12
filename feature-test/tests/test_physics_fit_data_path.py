@@ -35,6 +35,8 @@ def test_run_source_entry_preserves_pair_identity_and_hashes():
     record = SimpleNamespace(
         config_id="toy_H100_tp8",
         source_layout="sharegpt",
+        output_lens=np.asarray([3.0, 2.0, 1.0]),
+        itls=np.asarray([[0.1, 0.2], [], []], dtype=object),
         provenance={
             "pair_key": "rate=2|iteration=3",
             "power_csv_path": "/raw/power.csv",
@@ -46,6 +48,11 @@ def test_run_source_entry_preserves_pair_identity_and_hashes():
     assert entry["source_id"] == "toy_H100_tp8|rate=2|iteration=3"
     assert entry["sha256"] == {"power_csv": "abc", "requests_json": "def"}
     assert entry["paths"]["requests_json"] == "/raw/requests.json"
+    assert entry["timing_projection"] == {
+        "source_requests": 3,
+        "retained_exact_itl_requests": 2,
+        "excluded_chunk_token_mismatch": 1,
+    }
 
 
 def test_failed_candidate_does_not_consume_cell_quota():

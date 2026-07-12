@@ -37,22 +37,25 @@ Per-GPU rows, 4 Hz. Header (units stripped from values):
 | column | type | role |
 |---|---|---|
 | `timestamp` | epoch | alignment key |
-| `num_requests_running` | gauge | true decode batch size |
+| `num_requests_running` | gauge | total running requests across phases; **not** phase-specific decode batch |
 | `num_requests_waiting` | gauge | queue depth |
-| `gpu_cache_usage_perc` | gauge | KV-cache occupancy (→ KV-read proxy, Phase-2) |
+| `gpu_cache_usage_perc` | gauge | KV-cache occupancy diagnostic |
 | `prompt_tokens_total` | counter | prefill token rate (diff on edges) |
 | `generation_tokens_total` | counter | decode token rate (diff on edges) |
 | `iteration_tokens_total_{sum,count}` | counter | iteration/effective-batch |
-| `request_prefill_time_seconds_sum` | counter | prefill-iteration rate (→ `pre_iter`, Phase-2) |
-| `request_decode_time_seconds_sum` | counter | decode-time accounting |
+| `request_prefill_time_seconds_sum` | optional counter | retained when the installed vLLM version exposes it; not required or consumed |
+| `request_decode_time_seconds_sum` | optional counter | retained when exposed; not required or consumed |
+| `num_preemptions_total`, prefix-cache counters | optional counters | retained for audit when exposed; not part of the current ledger |
 
 Counters are cumulative → difference across bin **edges** (never `last−first` within a
 bin). Gauges → bin-mean.
 
-Current roofline and agentic analysis consumes the bundle through the
-reconstruction path (`requests.json` + power) and treats `engine.csv` as collected
-evidence for a future measured-state parser. Do not label those claims as
-measured-engine-state results until that parser exists and is validated.
+The `measured_ledger` evidence profile requires only the stock gauges and token /
+iteration counters above. `feature-test/build_ledger_bundle.py --state-source
+measured_engine` consumes them through a hybrid projection. It never interprets
+`num_requests_running` as decode batch and never fabricates missing collective,
+router, or expert counters. Every required sample must be finite; scrape gaps
+invalidate the bundle rather than being interpolated.
 
 ## 3. `requests.json` — per-request latencies + epoch timestamps
 
@@ -79,7 +82,8 @@ concatenated). This is the reconstruction-ledger contract (`parse_request_json`)
               linear_attention, n_linear_layers, fp8 */ },
   "server": { "max_num_seqs": 256, "enable_chunked_prefill": false,
               "enable_prefix_caching": false, "kv_cache_dtype": "auto",
-              "max_model_len": 131072 },
+              "max_model_len": 131072,
+              "active_gpu_uuids": ["GPU-...", "GPU-..."] },
   "versions": { "vllm": "...", "git_sha": "...", "gpu_driver": "..." },
   "clock": { "local_utc_offset_s": -25200.0,
              "power_timestamp_basis": "local_wall_time",
@@ -110,11 +114,37 @@ concatenated). This is the reconstruction-ledger contract (`parse_request_json`)
    group one 4 Hz sample across at most 50 ms of per-GPU capture skew. Every sample
    must contain the same UUID set with size exactly `gpus_per_node`; a mismatch
    aborts ingestion and rows are never combined into fixed-size anonymous blocks.
+   For a smaller TP leg in a max-TP allocation, require
+   `server.active_gpu_uuids` to match the first `tp` device columns summed into
+   the target.
 3. **Per-level windows** (`t_start_epoch`/`t_end_epoch`) let any consumer slice the
    power/engine series by probe level — e.g. fit the power cap only on the saturation
    level, or `e_kv` only on `context_holds` levels — without re-deriving boundaries.
 4. `requests.json` provides the per-request work (ttft/itl/lens) at each request's
    epoch arrival, which `build_ledger_bundle` turns into per-bin work rates.
+
+## Maintained projection into the model
+
+```text
+power.csv ───────────────┐
+engine.csv ──┐           ├─> RunRecord ─> measured hybrid bins ─> ledger_cache.npz
+requests.json┼─ manifest ┘                         │
+             └─ hashes/clock/arch                  └─> selected physics inputs
+```
+
+| persisted ledger column | exact origin | current status |
+|---|---|---|
+| `power` | summed topology-validated GPU power | regression target |
+| `pre_tok`, `dec_tok` | counter differences on bin edges | selected-model input |
+| `A_t`, `running_requests`, `waiting_requests` | piecewise-linear time means | selected-model input |
+| `batch`, `pre_active`, `iters`, `kv_read` and derived work | request TTFT/ITL plus manifest architecture | selected-model input; reconstructed |
+| `engine_iteration_tokens_rate`, `engine_iterations_rate`, `engine_tokens_per_iteration` | iteration histogram sum/count differences | persisted diagnostic/candidate input |
+| `engine_gpu_cache_usage` | time-mean stock cache gauge | persisted diagnostic/candidate input |
+
+The bundle sidecar records this per-field lineage. The last two rows are present
+only for `--state-source measured_engine`; the frozen selected artifact does not
+consume them automatically. This is deliberate: capture and persistence are now
+ready, while feature selection remains governed by the existing evaluation gates.
 
 The normalized `RunRecord` retains every power column, every list-valued request
 column (including agentic extensions), every engine column, and source hashes.

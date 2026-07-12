@@ -55,6 +55,7 @@ class RunRecord:
     input_lens: np.ndarray
     output_lens: np.ndarray
     ttfts: np.ndarray
+    itls: np.ndarray
     decode_times: np.ndarray
     request_timestamps: np.ndarray
     has_timestamps: bool
@@ -104,6 +105,7 @@ class RunRecord:
                 self.input_lens,
                 self.output_lens,
                 self.ttfts,
+                self.itls,
                 self.decode_times,
                 self.request_timestamps,
             )
@@ -198,6 +200,7 @@ def load_legacy_run(
         input_lens=requests["input_lens"],
         output_lens=requests["output_lens"],
         ttfts=requests["ttfts"],
+        itls=requests["itls"],
         decode_times=requests["decode_times"],
         request_timestamps=requests["request_timestamps"],
         has_timestamps=bool(requests["has_timestamps"]),
@@ -294,6 +297,15 @@ def load_bundle_run(run_dir: str | Path) -> RunRecord:
     )
     if power is None:
         raise ValueError("Bundle power.csv is not a complete per-GPU stream")
+    active_gpu_uuids = (manifest.get("server") or {}).get("active_gpu_uuids")
+    if active_gpu_uuids is not None:
+        active_gpu_uuids = tuple(str(value) for value in active_gpu_uuids)
+        if len(active_gpu_uuids) != tp:
+            raise ValueError("Bundle active_gpu_uuids count must equal tp")
+        if set(active_gpu_uuids) != set(power["device_ids"][:tp]):
+            raise ValueError(
+                "Bundle active_gpu_uuids do not match the TP-group power columns"
+            )
     requests = parse_request_json(str(paths["requests.json"]))
     if requests is None:
         raise ValueError("Bundle requests.json does not satisfy the request contract")
@@ -318,6 +330,7 @@ def load_bundle_run(run_dir: str | Path) -> RunRecord:
         input_lens=requests["input_lens"],
         output_lens=requests["output_lens"],
         ttfts=requests["ttfts"],
+        itls=requests["itls"],
         decode_times=requests["decode_times"],
         request_timestamps=requests["request_timestamps"],
         has_timestamps=True,

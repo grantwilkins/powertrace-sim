@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -35,6 +36,8 @@ from model.utils.io import (
 )
 from model.utils.provenance import file_identity, git_state
 
+_TORCH_INIT_LOCK = threading.Lock()
+
 
 def train_one_config(
     *,
@@ -62,15 +65,15 @@ def train_one_config(
         raise ValueError(f"input_dim must be >= 1; got {input_dim}")
 
     resolved_device = _resolve_device(device)
-    torch.manual_seed(int(seed))
     np.random.default_rng(int(seed))
-
-    model = GRUClassifier(
-        Dx=input_dim,
-        K=k,
-        H=int(hidden_dim),
-        num_layers=int(max(1, num_layers)),
-    ).to(resolved_device)
+    with _TORCH_INIT_LOCK:
+        torch.manual_seed(int(seed))
+        model = GRUClassifier(
+            Dx=input_dim,
+            K=k,
+            H=int(hidden_dim),
+            num_layers=int(max(1, num_layers)),
+        ).to(resolved_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(lr))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,

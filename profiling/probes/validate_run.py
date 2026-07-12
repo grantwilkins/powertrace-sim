@@ -23,19 +23,26 @@ def main():
     p.add_argument("--dataset-path", default=os.environ.get("SHAREGPT_DATASET_PATH"))
     p.add_argument("--num-prompts", type=int, default=200)
     p.add_argument("--request-rate", type=float, default=4.0)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--validation-role", choices=("development", "sealed"),
+        default="development",
+    )
     args = p.parse_args()
     if not args.dataset_path:
         raise SystemExit(
             "validate_run: --dataset-path or $SHAREGPT_DATASET_PATH is required")
 
     workload = {"dataset": args.dataset, "num_prompts": args.num_prompts,
-                "request_rate": args.request_rate}
+                "request_rate": args.request_rate, "seed": args.seed,
+                "validation_role": args.validation_role}
     print(validate_runner.run(
         workload, model=args.model, hardware=args.hardware, tp=args.tp,
         gpus_per_node=args.gpus_per_node, server_cfg=server_cfg(args),
         out_root=args.out_root, dataset_path=args.dataset_path, base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
-        dtype_hint=args.dtype_hint, n_active_override=args.n_active_override))
+        dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
+        evidence_profile=args.evidence_profile))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,9 @@
 # Job Scripts
 
+The authoritative current launch order is
+`profiling/MODEL_READINESS_RUNBOOK.md`. The legacy GPT-OSS grids below are not
+part of that campaign and must not be mixed into its fit or sealed score.
+
 These scripts launch a vLLM server, run a benchmark client, and record `nvidia-smi` power/utilization logs for profiling runs.
 
 ## Campaign Runner Bundle Roots
@@ -13,6 +17,9 @@ when `DRY_RUNS` is set, so review artifacts do not pollute live roots.
 The campaign loader derives `gpus_per_node` from the largest TP degree, matching
 the GPU count requested by `submit_campaign.sh`. Installed-but-unallocated GPUs
 are never advertised in bundle manifests.
+For a smaller TP-pair leg, `run_campaign.sh` pins vLLM to the first TP UUIDs and
+records that exact set. Ingestion checks it against the first-TP power columns,
+so idle GPUs from the larger allocation cannot enter the power target.
 
 ## Current GPT-OSS ShareGPT Runs
 

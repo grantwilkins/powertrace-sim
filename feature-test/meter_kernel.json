@@ -1,0 +1,20 @@
+{
+  "A100": {
+    "ema_alpha": 0.75,
+    "fit_rmse": 0.017983,
+    "moving_average_s": 0.25,
+    "n_events_onset": 230
+  },
+  "H100": {
+    "ema_alpha": 0.8,
+    "fit_rmse": 0.004278,
+    "moving_average_s": 1.0,
+    "n_events_onset": 233
+  },
+  "provenance": {
+    "external_cross_check": "Yang, Adamek, Armour, arXiv:2312.02741: A100 power.draw is a ~25 ms boxcar updated ~10 Hz (near-instant at 250 ms bins); H100 power.draw is a 1 s boxcar updated 10 Hz.",
+    "generator": "feature-test/identify_meter_kernel.py",
+    "procedure": "Ensemble idle->busy step responses from S0 repeat-0 (training) runs only; onsets require >=8 zero-work bins before work starts, a >=100 W node step, uninterrupted work through +24 bins, and are normalized by the local idle level and the +8..+16 bin plateau. A causal boxcar (0.25..1.5 s) followed by a single-pole EMA (alpha 0.10..1.0) is least-squares fitted to the ensemble median onset with a sub-bin phase nuisance. The kernel is fitted on onsets only: the A100 offset shows a ~1.5-1.9 s device power-state relaxation tail that is GPU-side, not meter behavior.",
+    "source_split": "S0 train repeats only, both hardwares"
+  }
+}

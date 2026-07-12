@@ -38,7 +38,7 @@ def _client_mod(name):
 
 
 @contextmanager
-def logging_session(run_dir, base_url):
+def logging_session(run_dir, base_url, *, evidence_profile="core", gpus_per_node=1):
     """Run the continuous power + /metrics loggers for the duration; yield clock.
 
     Shared by the probe runner and the agentic session runner so both bundles get
@@ -47,8 +47,11 @@ def logging_session(run_dir, base_url):
     power_logger = _client_mod("power_logger")
     metrics_logger = _client_mod("metrics_logger")
     run_manifest = _client_mod("run_manifest")
+    evidence_contract = _client_mod("evidence_contract")
 
     run_dir = Path(run_dir)
+    required = evidence_contract.requirements(evidence_profile)
+    metrics_logger.preflight_metrics(base_url, required)
     pf = open(run_dir / "power.csv", "w")
     power_proc = subprocess.Popen(
         power_logger.nvidia_smi_command(), stdout=pf, stderr=subprocess.DEVNULL)
@@ -62,8 +65,16 @@ def logging_session(run_dir, base_url):
 
     engine_t = threading.Thread(target=_engine_thread, daemon=True)
     engine_t.start()
+    capture = {
+        "clock": clock,
+        "instrumentation": evidence_contract.expected_instrumentation(evidence_profile),
+    }
+    failed = False
     try:
-        yield clock
+        yield capture
+    except BaseException:
+        failed = True
+        raise
     finally:
         stop.set()
         engine_t.join(timeout=10)
@@ -72,6 +83,11 @@ def logging_session(run_dir, base_url):
         run_manifest.record_first_samples(
             clock, run_dir / "power.csv", run_dir / "engine.csv"
         )
+        if not failed:
+            capture["instrumentation"] = evidence_contract.validate_streams(
+                run_dir, evidence_profile, gpus_per_node=gpus_per_node,
+                local_utc_offset_s=clock["local_utc_offset_s"],
+            )
 
 
 def build_level_window(level, t_start_epoch, t_end_epoch, command, summary) -> dict:
@@ -100,7 +116,7 @@ def assemble_requests_json(level_results) -> dict:
 def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
         out_root, base_url="http://localhost:8000/v1",
         weight_footprint_bytes=None, dtype_hint=None, n_active_override=None,
-        run_id=None):
+        run_id=None, evidence_profile="core"):
     """Execute ``schedule`` and write the bundle. Returns the run directory."""
     run_manifest = _client_mod("run_manifest")
     arch_extract = _client_mod("arch_extract")
@@ -120,7 +136,10 @@ def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
     # --- drive levels under the continuous loggers -----------------------
     window_start = time.time()
     level_results, level_windows = [], []
-    with logging_session(run_dir, base_url) as clock:
+    with logging_session(
+        run_dir, base_url, evidence_profile=evidence_profile,
+        gpus_per_node=gpus_per_node,
+    ) as capture:
         for lvl in schedule.levels:
             result_path = levels_dir / f"level_{lvl.level:03d}.json"
             command = (None if lvl.concurrency <= 0
@@ -146,7 +165,7 @@ def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
         gpus_per_node=gpus_per_node,
         server=dict(server_cfg, **schedule.server_overrides),
         versions=run_manifest.collect_versions(),
-        clock=clock,
+        clock=capture["clock"], instrumentation=capture["instrumentation"],
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

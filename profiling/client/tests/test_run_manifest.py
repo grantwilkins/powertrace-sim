@@ -24,13 +24,15 @@ def _sample_manifest():
                 "kv_cache_dtype": "auto", "max_model_len": 131072},
         versions={"vllm": "0.x.y", "git_sha": "deadbeef", "gpu_driver": "560.0"},
         clock=capture_clock(),
+        instrumentation={"profile": "core", "status": "validated"},
     )
 
 
 def test_manifest_schema():
     m = _sample_manifest()
     for key in ("manifest_version", "run_id", "probe", "model", "arch", "hardware",
-                "tp", "gpus_per_node", "server", "versions", "clock"):
+                "tp", "gpus_per_node", "server", "versions", "clock",
+                "instrumentation"):
         assert key in m
     assert m["probe"]["type"] == "decode_staircase"
     assert m["probe"]["level"] == 16

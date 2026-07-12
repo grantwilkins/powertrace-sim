@@ -1,8 +1,9 @@
 """vLLM ``/metrics`` scraper sidecar (Tier-0 instrumentation, CAMPAIGN.md §5-A).
 
-Polls the engine's Prometheus endpoint at 4 Hz and writes ``engine.csv`` with the
-true per-bin engine state, turning every power sample into a *labeled*
-``(state -> power)`` row and removing the error-prone ttft/itl reconstruction.
+Polls the engine's Prometheus endpoint at 4 Hz and writes the stock scheduler,
+token, iteration, and cache metrics to ``engine.csv``. These measurements replace
+only ledger fields with an exact mapping; phase-specific batch and context work
+still come from request timing because stock vLLM does not expose them.
 
 ``parse_prometheus_metrics`` mirrors the parser in ``client_async`` but is defined
 here directly: ``client_async`` pulls heavy optional deps (aiohttp/openai) at
@@ -15,11 +16,12 @@ from __future__ import annotations
 
 import csv
 import time
+import urllib.request
 
 
-def parse_prometheus_metrics(text: str) -> dict:
-    """Parse Prometheus exposition format -> {metric_name: value} (last wins)."""
-    metrics: dict = {}
+def parse_prometheus_metrics(text: str) -> dict[str, list[float]]:
+    """Parse exposition format into all series grouped by metric name."""
+    metrics: dict[str, list[float]] = {}
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -29,25 +31,36 @@ def parse_prometheus_metrics(text: str) -> dict:
             value = float(value)
         except ValueError:
             continue
-        metrics[left.split("{", 1)[0]] = value
+        metrics.setdefault(left.split("{", 1)[0], []).append(value)
     return metrics
 
 
-# (engine.csv column, vLLM metric name) — the §2 data contract for engine.csv.
-ENGINE_COLUMNS: tuple[tuple[str, str], ...] = (
-    ("timestamp", "__t__"),  # wall time injected by the logger
-    ("num_requests_running", "vllm:num_requests_running"),
-    ("num_requests_waiting", "vllm:num_requests_waiting"),
-    ("gpu_cache_usage_perc", "vllm:gpu_cache_usage_perc"),
-    ("prompt_tokens_total", "vllm:prompt_tokens_total"),
-    ("generation_tokens_total", "vllm:generation_tokens_total"),
-    ("iteration_tokens_total_sum", "vllm:iteration_tokens_total_sum"),
-    ("iteration_tokens_total_count", "vllm:iteration_tokens_total_count"),
-    ("request_prefill_time_seconds_sum", "vllm:request_prefill_time_seconds_sum"),
-    ("request_decode_time_seconds_sum", "vllm:request_decode_time_seconds_sum"),
+# (column, aliases, reduction). Sharded counters/gauges sum; cache occupancy is
+# averaged because every worker reports a fraction on the same [0, 1] scale.
+ENGINE_COLUMNS = (
+    ("timestamp", ("__t__",), "first"),
+    ("num_requests_running", ("vllm:num_requests_running",), "sum"),
+    ("num_requests_waiting", ("vllm:num_requests_waiting",), "sum"),
+    ("gpu_cache_usage_perc", ("vllm:gpu_cache_usage_perc",), "mean"),
+    ("prompt_tokens_total", ("vllm:prompt_tokens_total",), "sum"),
+    ("generation_tokens_total", ("vllm:generation_tokens_total",), "sum"),
+    ("iteration_tokens_total_sum", ("vllm:iteration_tokens_total_sum",), "sum"),
+    ("iteration_tokens_total_count", ("vllm:iteration_tokens_total_count",), "sum"),
+    ("request_prefill_time_seconds_sum", ("vllm:request_prefill_time_seconds_sum",), "sum"),
+    ("request_decode_time_seconds_sum", ("vllm:request_decode_time_seconds_sum",), "sum"),
+    ("num_preemptions_total", ("vllm:num_preemptions_total",), "sum"),
+    ("prefix_cache_queries_total", ("vllm:prefix_cache_queries_total",), "sum"),
+    ("prefix_cache_hits_total", ("vllm:prefix_cache_hits_total",), "sum"),
 )
 
-ENGINE_HEADER = [name for name, _ in ENGINE_COLUMNS]
+ENGINE_HEADER = [name for name, _, _ in ENGINE_COLUMNS]
+
+
+def _series(parsed: dict[str, list[float]], aliases: tuple[str, ...]):
+    for alias in aliases:
+        if alias in parsed:
+            return parsed[alias]
+    return None
 
 
 def metrics_row(parsed: dict, t: float) -> list[float]:
@@ -57,13 +70,36 @@ def metrics_row(parsed: dict, t: float) -> list[float]:
     the injected wall time ``t`` fills the timestamp column.
     """
     row: list[float] = []
-    for name, metric in ENGINE_COLUMNS:
-        if metric == "__t__":
+    for name, aliases, reduction in ENGINE_COLUMNS:
+        if aliases == ("__t__",):
             row.append(float(t))
         else:
-            v = parsed.get(metric)
-            row.append(float(v) if v is not None else float("nan"))
+            values = _series(parsed, aliases)
+            if values is None:
+                row.append(float("nan"))
+            elif reduction == "sum":
+                row.append(float(sum(values)))
+            elif reduction == "mean":
+                row.append(float(sum(values) / len(values)))
+            else:
+                row.append(float(values[0]))
     return row
+
+
+def available_columns(parsed: dict[str, list[float]]) -> set[str]:
+    return {
+        name for name, aliases, _ in ENGINE_COLUMNS
+        if aliases == ("__t__",) or _series(parsed, aliases) is not None
+    }
+
+
+def preflight_metrics(base_url: str, required_columns, *, timeout_s=5.0) -> None:
+    """Fail before traffic if the server cannot expose required evidence."""
+    with urllib.request.urlopen(metrics_url(base_url), timeout=timeout_s) as response:
+        parsed = parse_prometheus_metrics(response.read().decode())
+    missing = sorted(set(required_columns) - available_columns(parsed))
+    if missing:
+        raise ValueError(f"/metrics lacks required evidence columns: {missing}")
 
 
 def metrics_url(base_url: str) -> str:

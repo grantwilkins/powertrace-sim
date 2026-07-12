@@ -67,7 +67,8 @@ def main():
         out_root=args.out_root, base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
         dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
-        max_concurrency=_concurrency(args.concurrency)))
+        max_concurrency=_concurrency(args.concurrency),
+        evidence_profile=args.evidence_profile))
 
 
 def _concurrency(value):

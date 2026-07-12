@@ -1,0 +1,24 @@
+{
+  "hardware": "A100",
+  "model": "openai/gpt-oss-120b",
+  "campaign_type": "validate",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "_note": "Fresh rates and seed. Collect under SEALED_RUNS and do not inspect until model/artifact freeze.",
+  "server": {
+    "tp": 4,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072,
+    "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
+  },
+  "workload": {
+    "dataset": "sharegpt",
+    "num_prompts": 240,
+    "request_rates": [0.75, 1.5, 3.0],
+    "seed": 2026071202
+  }
+}

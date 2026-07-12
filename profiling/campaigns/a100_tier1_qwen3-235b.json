@@ -3,6 +3,7 @@
   "gpus_per_node": 8,
   "model": "Qwen/Qwen3-235B-A22B",
   "campaign_type": "tier1",
+  "evidence_profile": "measured_ledger",
   "server": {
     "tp": 8,
     "max_num_seqs": 256,
@@ -13,5 +14,5 @@
     "max_model_len": 131072,
     "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
   },
-  "probes": ["idle_hold", "decode_staircase", "prefill_staircase", "context_holds", "transients", "mixed_grid"]
+  "probes": ["idle_hold", "decode_staircase", "decode_context_grid", "prefill_staircase", "context_holds", "transients", "mixed_grid"]
 }

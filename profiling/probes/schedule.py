@@ -157,6 +157,42 @@ def build_context_holds(
     )
 
 
+def build_decode_context_grid(
+    batches=(1, 4, 16), contexts=(2048, 8192, 32768),
+    hold_s: float = 45.0, output_len: int = 512,
+) -> ProbeSchedule:
+    """Orthogonal fixed-batch x context decode grid for up-range shape.
+
+    Unlike ``mixed_grid``, this changes no prefill-injection coordinate: every
+    level has the same eight non-prefix prompt tokens and long steady decode.
+    The Cartesian grid separates batch granularity from context/HBM pressure.
+    """
+    levels = []
+    for batch in batches:
+        for context in contexts:
+            level = len(levels)
+            levels.append(ProbeLevel(
+                level=level,
+                concurrency=int(batch),
+                hold_seconds=hold_s,
+                request=RequestSpec(
+                    input_len=8, output_len=output_len,
+                    prefix_len=max(int(context) - 8, 0), ignore_eos=True,
+                ),
+                label=f"decode_batch{int(batch)}_context{int(context)}",
+                num_prompts=estimate_num_prompts(
+                    int(batch), int(context), output_len, hold_s
+                ),
+            ))
+    return ProbeSchedule(
+        "decode_context_grid", levels,
+        server_overrides={
+            "max_model_len": int(max(contexts)) + output_len + 64,
+            "env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"},
+        },
+    )
+
+
 def build_transients(
     concurrency: int = 64, on_s: float = 20.0, off_s: float = 20.0, repeats: int = 4,
     output_len: int = 2048,
@@ -224,6 +260,7 @@ BUILDERS = {
     "decode_staircase": build_decode_staircase,
     "prefill_staircase": build_prefill_staircase,
     "context_holds": build_context_holds,
+    "decode_context_grid": build_decode_context_grid,
     "transients": build_transients,
     "mixed_grid": build_mixed_grid,
 }

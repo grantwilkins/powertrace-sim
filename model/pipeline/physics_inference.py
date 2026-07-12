@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import csv
-import math
 import re
 from pathlib import Path
 from typing import Mapping, Sequence
 
 import numpy as np
 
-from model.classifiers.physics import load_physics_artifact, predict_mean_node_power
+from model.classifiers.physics import (
+    SELECTED_SCHEMA_VERSION,
+    load_physics_artifact,
+    load_selected_physics_artifact,
+    predict_mean_node_power,
+    predict_selected_physics,
+)
 from model.pipeline.artifact_resolution import resolve_throughput
 from model.pipeline.request_builder import load_request_schedule
 from model.training_data.arch import get_arch
-from model.training_data.ledger_view import KV_ELEM_BYTES, bin_work_rates
+from model.training_data.ledger_view import schedule_work_rates
 from model.utils.io import load_json, write_json
 from model.utils.provenance import file_identity, git_state
 
@@ -40,8 +45,7 @@ def build_modeled_work_ledger(
     if dt <= 0.0 or tp < 1 or prefill_rate <= 0.0 or decode_rate <= 0.0:
         raise ValueError("dt, tp, and throughput rates must be positive")
 
-    parsed: list[tuple[float, float, float, float, float]] = []
-    horizon = 0.0
+    parsed: list[tuple[float, float, float]] = []
     for index, request in enumerate(requests):
         try:
             arrival = float(request["arrival_time"])
@@ -53,81 +57,28 @@ def build_modeled_work_ledger(
             raise ValueError(f"request[{index}] contains non-finite values")
         if arrival < 0.0 or n_in < 0.0 or n_out < 0.0:
             raise ValueError(f"request[{index}] values must be non-negative")
-        prefill_end = arrival + n_in / prefill_rate
-        decode_end = prefill_end + n_out / decode_rate
-        parsed.append((arrival, prefill_end, decode_end, n_in, n_out))
-        horizon = max(horizon, decode_end)
+        parsed.append((arrival, n_in, n_out))
 
+    arrivals = np.asarray([row[0] for row in parsed])
+    input_tokens = np.asarray([row[1] for row in parsed])
+    output_tokens = np.asarray([row[2] for row in parsed])
+    prefill_ends = arrivals + input_tokens / prefill_rate
+    decode_ends = prefill_ends + output_tokens / decode_rate
+    horizon = float(np.max(decode_ends)) if parsed else 0.0
     if T is None:
         if not parsed:
             raise ValueError("empty request schedules require explicit T")
-        T = int(math.ceil(horizon / dt))
+        T = int(np.ceil(horizon / dt))
     T = int(T)
     if T < 0:
         raise ValueError("T must be non-negative")
+    if horizon > T * dt + np.finfo(np.float64).eps * max(1.0, horizon):
+        raise ValueError("T truncates modeled request work")
 
     edges = np.arange(T + 1, dtype=np.float64) * dt
-    bin_lo, bin_hi = edges[:-1], edges[1:]
-    pre_tok = np.zeros(T, dtype=np.float64)
-    dec_tok = np.zeros(T, dtype=np.float64)
-    batch = np.zeros(T, dtype=np.float64)
-    pre_active = np.zeros(T, dtype=np.float64)
-    pre_iter = np.zeros(T, dtype=np.float64)
-    kv_read = np.zeros(T, dtype=np.float64)
-    kv_tok = (
-        2.0
-        * float(arch["n_layers"])
-        * float(arch["n_kv"])
-        * float(arch["head_dim"])
-        * KV_ELEM_BYTES
-    )
-    swa = float(arch.get("swa_window", 0.0))
-
-    for arrival, prefill_end, decode_end, n_in, n_out in parsed:
-        prefill_duration = prefill_end - arrival
-        decode_duration = decode_end - prefill_end
-        overlap_pre = np.clip(
-            np.minimum(prefill_end, bin_hi) - np.maximum(arrival, bin_lo),
-            0.0,
-            None,
-        )
-        overlap_decode = np.clip(
-            np.minimum(decode_end, bin_hi) - np.maximum(prefill_end, bin_lo),
-            0.0,
-            None,
-        )
-        if prefill_duration > 0.0:
-            pre_tok += prefill_rate * overlap_pre / dt
-            pre_active += overlap_pre / dt
-            pre_iter += overlap_pre / prefill_duration / dt
-        if decode_duration > 0.0:
-            dec_tok += decode_rate * overlap_decode / dt
-            batch += overlap_decode / dt
-            progress = np.clip(
-                ((bin_lo + bin_hi) / 2.0 - prefill_end) / decode_duration,
-                0.0,
-                1.0,
-            )
-            context = n_in + progress * n_out
-            context_effective = (
-                context
-                if swa <= 0.0
-                else 0.5 * context + 0.5 * np.minimum(context, swa)
-            )
-            kv_read += (
-                decode_rate * (overlap_decode / dt) * context_effective * kv_tok
-            )
-
-    return bin_work_rates(
-        pre_tok,
-        dec_tok,
-        batch,
-        pre_active,
-        pre_iter,
-        kv_read,
-        arch,
-        tp,
-        T,
+    return schedule_work_rates(
+        arrivals, arrivals, prefill_ends, decode_ends,
+        input_tokens, output_tokens, edges, arch, tp,
     )
 
 
@@ -146,7 +97,18 @@ def run_physics_inference(
         raise ValueError(f"invalid config_id for physics inference: {config_id!r}")
     model, hardware, tp_text = match.groups()
     tp = int(tp_text)
-    artifact = load_physics_artifact(physics_artifact)
+    artifact_header = load_json(physics_artifact)
+    selected = artifact_header.get("schema_version") == SELECTED_SCHEMA_VERSION
+    artifact = (
+        load_selected_physics_artifact(physics_artifact)
+        if selected else load_physics_artifact(physics_artifact)
+    )
+    if selected and artifact["hardware"] != hardware:
+        raise ValueError(
+            f"Selected physics artifact is for {artifact['hardware']!r}, not {hardware!r}"
+        )
+    if selected and artifact["timing_contract"] != "arrival_only_validated":
+        raise ValueError("Conditional-timing physics artifacts cannot run arrival-only inference")
     architectures = artifact.get("architectures", {})
     arch = dict(architectures[model]) if model in architectures else get_arch(model)
     throughput_payload = load_json(throughput_db)
@@ -161,12 +123,9 @@ def run_physics_inference(
         dt=resolved_dt,
         T=T,
     )
-    power = predict_mean_node_power(
-        ledger,
-        arch,
-        tp=tp,
-        hardware=hardware,
-        artifact=artifact,
+    predict = predict_selected_physics if selected else predict_mean_node_power
+    power = predict(
+        ledger, arch, tp=tp, hardware=hardware, artifact=artifact,
         dt_s=resolved_dt,
     )
 
@@ -182,7 +141,7 @@ def run_physics_inference(
             writer.writerow(
                 {
                     "t_bin": index,
-                    "time_s": index * resolved_dt,
+                    "time_s": (index + 1) * resolved_dt,
                     "power_w": float(value),
                     "generation_mode": "physics_modeled_mean",
                 }
@@ -195,6 +154,9 @@ def run_physics_inference(
         "config_id": config_id,
         "generation_mode": "physics_modeled_mean",
         "timing_mode": "arrival_only_modeled_throughput",
+        "artifact_timing_contract": artifact.get(
+            "timing_contract", "legacy_unspecified"
+        ),
         "dt": resolved_dt,
         "T": int(power.size),
         "inputs": {

@@ -1,0 +1,34 @@
+{
+  "candidates": [
+    "B0",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "M0",
+    "M0b",
+    "M0bR",
+    "M0dR",
+    "M4A",
+    "M1",
+    "M2",
+    "M3"
+  ],
+  "exact_offered_marks": true,
+  "exact_request_state": true,
+  "limitations": [],
+  "ridge_strengths": [
+    0.001,
+    0.01,
+    0.1,
+    1.0,
+    10.0
+  ],
+  "taps_s": [
+    0,
+    1,
+    2,
+    4,
+    8
+  ]
+}

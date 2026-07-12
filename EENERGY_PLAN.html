@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A plain-language review of the PowerTrace-Sim e-Energy paper plan.">
+  <title>PowerTrace-Sim Paper Plan</title>
+  <style>
+    :root {
+      --ink: #18212f;
+      --muted: #5f6b7a;
+      --paper: #f6f3ed;
+      --card: #fffdf9;
+      --line: #d9d4ca;
+      --blue: #155eef;
+      --blue-soft: #e9f0ff;
+      --green: #18794e;
+      --green-soft: #e8f5ee;
+      --amber: #9a5b00;
+      --amber-soft: #fff1d6;
+      --red: #b42318;
+      --red-soft: #feeceb;
+      --nav: #101828;
+      --radius: 16px;
+      --shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 17px;
+      line-height: 1.62;
+    }
+    a { color: var(--blue); }
+    button, a.button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    button.primary, a.primary { color: white; background: var(--blue); }
+    button.secondary, a.secondary { color: var(--ink); background: white; border: 1px solid var(--line); }
+    .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 22px;
+      color: white;
+      background: var(--nav);
+      overflow-y: auto;
+    }
+    .brand { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+    .brand-note { margin: 5px 0 24px; color: #aab4c5; font-size: 13px; }
+    nav a.section-link {
+      display: block;
+      margin: 3px 0;
+      padding: 8px 10px;
+      color: #dce3ef;
+      border-radius: 8px;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    nav a.section-link:hover { color: white; background: #253149; }
+    nav .actions { display: grid; gap: 8px; margin-top: 22px; }
+    main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 50px 48px 90px; }
+    .hero {
+      padding: 38px;
+      color: white;
+      background: linear-gradient(135deg, #13213a, #174ea6);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+    h1, h2, h3 { line-height: 1.18; letter-spacing: -0.025em; }
+    h1 { max-width: 820px; margin: 0; font-size: clamp(34px, 6vw, 58px); }
+    h2 { margin: 0 0 18px; font-size: clamp(27px, 3.5vw, 38px); }
+    h3 { margin: 0 0 9px; font-size: 20px; }
+    .hero p { max-width: 760px; margin: 18px 0 0; color: #dbe8ff; font-size: 20px; }
+    .hero .meta { margin-top: 24px; color: #b9cdf5; font-size: 14px; }
+    section { scroll-margin-top: 24px; margin-top: 72px; }
+    .lead { max-width: 820px; color: var(--muted); font-size: 19px; }
+    .grid { display: grid; gap: 18px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card {
+      padding: 24px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 5px 14px rgba(16, 24, 40, 0.04);
+    }
+    .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+    .number {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 16px;
+      color: white;
+      background: var(--blue);
+      border-radius: 10px;
+      font-weight: 800;
+    }
+    .tag { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .ready { color: var(--green); background: var(--green-soft); }
+    .blocked { color: var(--red); background: var(--red-soft); }
+    .later { color: var(--amber); background: var(--amber-soft); }
+    .plain { color: #174ea6; background: var(--blue-soft); }
+    .callout { padding: 20px 22px; background: var(--blue-soft); border-left: 5px solid var(--blue); border-radius: 0 12px 12px 0; }
+    .callout strong { color: #123f8c; }
+    ul.clean { padding-left: 20px; }
+    ul.clean li { margin: 8px 0; }
+    .status-list { display: grid; gap: 11px; margin-top: 18px; }
+    .status-row { display: grid; grid-template-columns: 90px 1fr; gap: 13px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line); }
+    .status-row:first-child { border-top: 0; }
+    .path { display: grid; gap: 10px; max-width: 850px; }
+    .step { display: grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: center; }
+    .step-index { display: grid; place-items: center; width: 42px; height: 42px; color: white; background: var(--nav); border-radius: 50%; font-weight: 800; }
+    .step-body { padding: 15px 18px; background: white; border: 1px solid var(--line); border-radius: 12px; }
+    .arrow { height: 20px; margin-left: 20px; border-left: 2px solid #aeb7c4; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    th, td { padding: 15px 17px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #344054; background: #f4f5f7; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:last-child td { border-bottom: 0; }
+    .definition { display: grid; grid-template-columns: 190px 1fr; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .definition:last-child { border-bottom: 0; }
+    .definition dt { font-weight: 800; }
+    .definition dd { margin: 0; color: var(--muted); }
+    .review { display: grid; gap: 10px; }
+    .review label { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 15px; background: white; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+    .review input { width: 19px; height: 19px; margin-top: 4px; accent-color: var(--green); }
+    .review label:has(input:checked) { color: #486052; background: var(--green-soft); border-color: #a7d7bd; }
+    .small { color: var(--muted); font-size: 14px; }
+    footer { margin-top: 70px; padding-top: 22px; color: var(--muted); border-top: 1px solid var(--line); font-size: 14px; }
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      nav { position: static; width: 100%; height: auto; padding: 18px 20px; }
+      nav .links { display: flex; gap: 4px; overflow-x: auto; }
+      nav a.section-link { flex: 0 0 auto; }
+      nav .actions { display: none; }
+      .brand-note { margin-bottom: 10px; }
+      main { padding: 28px 20px 70px; }
+      .grid.three, .grid.two { grid-template-columns: 1fr; }
+    }
+    @media print {
+      body { background: white; font-size: 12px; }
+      nav { display: none; }
+      .layout { display: block; }
+      main { max-width: none; padding: 0; }
+      section { margin-top: 32px; break-inside: avoid; }
+      .hero { color: black; background: white; border: 2px solid black; box-shadow: none; }
+      .hero p, .hero .meta { color: #333; }
+      .card { box-shadow: none; }
+      button { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav aria-label="Page sections">
+      <div class="brand">PowerTrace-Sim</div>
+      <div class="brand-note">Paper plan review</div>
+      <div class="links">
+        <a class="section-link" href="#goal">The goal</a>
+        <a class="section-link" href="#words">Simple definitions</a>
+        <a class="section-link" href="#status">Where we are</a>
+        <a class="section-link" href="#decisions">Fixed choices</a>
+        <a class="section-link" href="#path">Critical path</a>
+        <a class="section-link" href="#parallel">Parallel work</a>
+        <a class="section-link" href="#features">Feature plan</a>
+        <a class="section-link" href="#profiling">Exact profiling</a>
+        <a class="section-link" href="#traffic">Traffic tests</a>
+        <a class="section-link" href="#sampling">Sampling plan</a>
+        <a class="section-link" href="#validation">Model tests</a>
+        <a class="section-link" href="#outputs">Paper outputs</a>
+        <a class="section-link" href="#cuts">What we will not build</a>
+        <a class="section-link" href="#review">Review checklist</a>
+      </div>
+      <div class="actions">
+        <button class="primary" type="button" onclick="window.print()">Print this page</button>
+        <a class="button secondary" href="EENERGY_PLAN.md">Open full plan</a>
+      </div>
+    </nav>
+
+    <main>
+      <header class="hero">
+        <p class="eyebrow">Review copy · July 10, 2026</p>
+        <h1>A clear plan for the PowerTrace-Sim paper</h1>
+        <p>What we want to prove, what must happen first, and what different people can build at the same time.</p>
+        <div class="meta">First fix one 250 ms work timeline. Then build the simple power model. Token-aware learned models follow on the same timeline.</div>
+      </header>
+
+      <section id="goal">
+        <h2>The paper has three goals</h2>
+        <p class="lead">Each goal needs its own test. We should not mix them into one large claim.</p>
+        <div class="grid three">
+          <article class="card">
+            <div class="number">1</div>
+            <h3>Build the simple power model first</h3>
+            <p>We first need one trusted link from work done by the GPU to measured power. This becomes the base for every later model.</p>
+          </article>
+          <article class="card">
+            <div class="number">2</div>
+            <h3>Capture fast power swings</h3>
+            <p>We want to know which model best keeps the sharp one-second changes seen during AI inference.</p>
+          </article>
+          <article class="card">
+            <div class="number">3</div>
+            <h3>Show the range of site loads</h3>
+            <p>We want to repeat the site simulation and show how traffic timing changes peaks, ramps, and sustained load.</p>
+          </article>
+        </div>
+        <div class="callout" style="margin-top: 22px">
+          <strong>Main wording rule:</strong> We will show ranges for clearly stated scenarios. We will not call them limits for every data center.
+        </div>
+      </section>
+
+      <section id="words">
+        <h2>Simple definitions</h2>
+        <div class="card">
+          <dl style="margin: 0">
+            <div class="definition"><dt>Load duration curve</dt><dd>A power trace sorted from highest to lowest. It shows how often the load stays above each power level.</dd></div>
+            <div class="definition"><dt>Monte Carlo</dt><dd>Run the same scenario many times with different random choices. Then show the middle and outer results.</dd></div>
+            <div class="definition"><dt>Traffic sync setting</dt><dd>A number called <strong>rho</strong>. A low value means servers receive bursts at different times. A high value means bursts happen together.</dd></div>
+            <div class="definition"><dt>Measured timing</dt><dd>Use the request start and finish times recorded during a real run.</dd></div>
+            <div class="definition"><dt>Arrival-only timing</dt><dd>Predict request work using only arrival time, input length, output length, and the server setup.</dd></div>
+            <div class="definition"><dt>Offered tokens</dt><dd>Input and output tokens attached to a request when it arrives. They describe demand, not when the GPU does the work.</dd></div>
+            <div class="definition"><dt>Executed tokens</dt><dd>Input or output tokens the GPU actually processes during one time window.</dd></div>
+            <div class="definition"><dt>Sealed test</dt><dd>A final test whose power data stays hidden until the model and pass rules are fixed.</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="status">
+        <h2>Where we are now</h2>
+        <div class="grid two">
+          <article class="card">
+            <span class="tag ready">Ready</span>
+            <h3 style="margin-top: 14px">The shared software path</h3>
+            <ul class="clean">
+              <li>Real runs now use one data format.</li>
+              <li>Training and test data are kept separate.</li>
+              <li>The learned model and simple power model can both run.</li>
+              <li>Power ramps and load curves use shared calculations.</li>
+              <li>All seven Azure day files are present.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <span class="tag blocked">Must fix first</span>
+            <h3 style="margin-top: 14px">The saved evidence</h3>
+            <ul class="clean">
+              <li>The saved training files use the old format.</li>
+              <li>Only one of seven Azure days is parsed.</li>
+              <li>There are no new live profiling runs.</li>
+              <li>The arrival-only model has no waiting line or overload behavior.</li>
+              <li>The learned model uses request counts but drops token work.</li>
+              <li>The saved simple power model was fit at one second, not 250 ms.</li>
+              <li>The two power models label time differently by one second.</li>
+              <li>One saved random seed does not match the seed used.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="decisions">
+        <h2>Choices we will use first</h2>
+        <p class="lead">These choices keep every workstream on the same experiment.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Choice</th><th>First version</th><th>Why</th></tr></thead>
+            <tbody>
+              <tr><td>Model time step</td><td>250 milliseconds</td><td>This matches power and server measurements and keeps fast changes.</td></tr>
+              <tr><td>Paper comparison</td><td>One second</td><td>We add four native samples after both models are correct.</td></tr>
+              <tr><td>Build order</td><td>Work timeline, simple model, learned model, site runs</td><td>Every model then uses the same meaning of work and time.</td></tr>
+              <tr><td>Reference site</td><td>240 servers</td><td>This matches the current site example.</td></tr>
+              <tr><td>Layout</td><td>10 rows, 6 racks per row, 4 servers per rack</td><td>It is simple and already supported.</td></tr>
+              <tr><td>Server setup</td><td>Llama 70B on eight A100 GPUs</td><td>This keeps the first site run compatible with current work.</td></tr>
+              <tr><td>Extra server power</td><td>1,000 watts per server</td><td>This is a stated study choice, not a measurement.</td></tr>
+              <tr><td>Cooling and power loss</td><td>Multiply IT power by 1.3</td><td>This is also a stated study choice.</td></tr>
+              <tr><td>Traffic sync</td><td>rho = 0.0, 0.5, and 0.9</td><td>These cover low, medium, and high shared bursts.</td></tr>
+              <tr><td>Larger site</td><td>2,400 servers only after a small test</td><td>We must prove the fast method matches the direct method.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="path">
+        <h2>The critical path</h2>
+        <p class="lead">The large simulation is not the first task. The models and timing must be trusted first.</p>
+        <div class="path">
+          <div class="step"><div class="step-index">1</div><div class="step-body"><strong>Fix one work timeline.</strong> Use 250 ms windows. Put arrivals, input work, output work, waiting work, and power on the same clock.</div></div>
+          <div class="arrow"></div>
+          <div class="step"><div class="step-index">2</div><div class="step-body"><strong>Run one small profiling test.</strong> Prove that clocks, power, server counters, and request records line up before using more GPUs.</div></div>
+          <div class="arrow"></div>
+          <div class="step"><div class="step-index">3</div><div class="step-body"><strong>Fit the simple power model.</strong> Measure idle, input work, output work, long context, sudden steps, and two GPU group sizes.</div></div>
+          <div class="arrow"></div>
+          <div class="step"><div class="step-index">4</div><div class="step-body"><strong>Test token-aware learned models.</strong> Start with arrivals plus input and output work. Add waiting and long-context memory only if tests improve.</div></div>
+          <div class="arrow"></div>
+          <div class="step"><div class="step-index">5</div><div class="step-body"><strong>Test request timing and overload.</strong> Keep arrivals unchanged. Let unfinished requests remain waiting. Never hide overload by dropping work.</div></div>
+          <div class="arrow"></div>
+          <div class="step"><div class="step-index">6</div><div class="step-body"><strong>Run site tests.</strong> Start with a small run, then 240 servers. Add 2,400 only if the faster method gives the same answer.</div></div>
+        </div>
+      </section>
+
+      <section id="parallel">
+        <h2>Work that can happen at the same time</h2>
+        <div class="grid three">
+          <article class="card"><span class="tag plain">Data team</span><h3 style="margin-top: 14px">Prepare traffic</h3><p>Parse six more days. Save file hashes. Keep the old 240-server replay unchanged. Build the new sync test.</p></article>
+          <article class="card"><span class="tag plain">Model team</span><h3 style="margin-top: 14px">Build shared work features</h3><p>Fix the time label and seed. Build input work, output work, waiting, and context features once. Reuse them in both models.</p></article>
+          <article class="card"><span class="tag plain">Site team</span><h3 style="margin-top: 14px">Build the fast site runner</h3><p>Read one scenario file. Add one server trace at a time. Keep site totals, not every server file.</p></article>
+          <article class="card"><span class="tag plain">Profiling team</span><h3 style="margin-top: 14px">Prepare live GPU runs</h3><p>Check containers, model files, GPU fit, dry runs, and short live tests. Mark each campaign clearly.</p></article>
+          <article class="card"><span class="tag plain">Timing team</span><h3 style="margin-top: 14px">Test the waiting line</h3><p>Compare predicted and measured request time at light, heavy, and overloaded traffic. Limit the paper if this fails.</p></article>
+          <article class="card"><span class="tag plain">Paper team</span><h3 style="margin-top: 14px">Write the fixed methods</h3><p>Write what each number means, what data it uses, and what it does not prove. Wait to write result claims.</p></article>
+        </div>
+      </section>
+      <section id="features">
+        <h2>Yes, token features are needed</h2>
+        <p class="lead">Request length matters. But the model must separate tokens offered at arrival from tokens actually run by the GPU.</p>
+        <div class="grid two">
+          <article class="card"><span class="tag plain">Demand</span><h3 style="margin-top: 14px">What arrives</h3><p>Count new requests. Sum their input tokens and planned output tokens. Keep the change in arrivals as a test feature.</p></article>
+          <article class="card"><span class="tag ready">Power driver</span><h3 style="margin-top: 14px">What executes</h3><p>Count input tokens processed and output tokens generated in each 250 ms window. Also record running and waiting requests.</p></article>
+        </div>
+        <div class="table-wrap" style="margin-top: 18px">
+          <table>
+            <thead><tr><th>Test</th><th>Features</th><th>Question</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>Active requests and change in active requests</td><td>How good is the current model?</td></tr>
+              <tr><td>B</td><td>Arrivals, arrival change, input and output tokens at arrival</td><td>Do request sizes improve the result?</td></tr>
+              <tr><td>C</td><td>Arrivals, arrival change, input and output tokens actually processed</td><td>Does timed work improve fast power changes?</td></tr>
+              <tr><td>D</td><td>C plus running and waiting requests</td><td>Does the waiting line explain heavy load?</td></tr>
+              <tr><td>E</td><td>D plus context memory work and reused prefix tokens</td><td>Does this help long and multi-turn prompts?</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout" style="margin-top: 18px"><strong>Stop rule:</strong> Keep the smallest feature set that improves every important workload. Do not keep features that only improve one pooled average.</div>
+      </section>
+      <section id="profiling">
+        <h2>The exact profiling campaign</h2>
+        <p class="lead">The new campaign code exists, but it has not produced a live bundle. We start with one small test.</p>
+        <div class="card">
+          <h3>Checks before the full campaign</h3>
+          <ul class="clean"><li>Record and remove a 60-second warm-up.</li><li>Remove the first and last 2 seconds of every level.</li><li>Keep at least 30 clean seconds per level.</li><li>Require four power and server samples each second.</li><li>Require at least 99% complete server fields and no gap longer than one second.</li><li>Stop if GPU identity, clocks, token counts, or request lengths do not match.</li></ul>
+        </div>
+        <div class="table-wrap" style="margin-top: 18px">
+          <table>
+            <thead><tr><th>Test</th><th>Exact levels</th><th>Time</th></tr></thead>
+            <tbody>
+              <tr><td>Idle</td><td>No requests</td><td>60 seconds</td></tr>
+              <tr><td>Output work</td><td>1, 2, 4, 8, 16, 32, 64, 128, 256 requests; input 8; output 2048</td><td>45 seconds each</td></tr>
+              <tr><td>Input work</td><td>Input 256, 1k, 4k, 16k, 65k; one request; output 1; input chunking off</td><td>45 seconds each</td></tr>
+              <tr><td>Long context</td><td>Saved context 2k, 8k, 32k, 131k; batch 8; output 256</td><td>45 seconds each</td></tr>
+              <tr><td>Sudden changes</td><td>Four pairs of idle and 64 active requests</td><td>20 + 20 seconds per pair</td></tr>
+              <tr><td>Mixed work</td><td>16 fixed combinations of input length and active requests</td><td>45 seconds each</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="status-list card" style="margin-top: 18px">
+          <div class="status-row"><span class="tag ready">Fit</span><div>A100 Llama 70B on 4 GPUs. H100 Llama 70B on 8 GPUs, plus the 4-GPU input/output tests.</div></div>
+          <div class="status-row"><span class="tag plain">Develop</span><div>A100 Gemma 31B dense and Gemma 26B mixture models. Use short input/output tests.</div></div>
+          <div class="status-row"><span class="tag later">Hold out</span><div>Chat, long-context, and agent runs stay out of coefficient fitting.</div></div>
+          <div class="status-row"><span class="tag blocked">Keep sealed</span><div>A100 Qwen3 8B and H100 Qwen3 30B mixture power stays hidden until the model and pass rules are fixed.</div></div>
+        </div>
+      </section>
+
+      <section id="traffic">
+        <h2>Two traffic tests only</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>1. Exact replay</h3>
+            <p>Each real request goes to one random server. No request is copied or removed.</p>
+            <p><strong>Purpose:</strong> Keep one direct use of the public Azure day.</p>
+          </article>
+          <article class="card">
+            <h3>2. Shared-burst test</h3>
+            <p>Make one-second request counts. Keep the slow shape of the day. Change how often server bursts happen together.</p>
+            <p>Keep input and output lengths paired. Keep average work per server fixed.</p>
+          </article>
+        </div>
+        <div class="callout" style="margin-top: 22px">
+          <strong>Important:</strong> Azure does not tell us the real server-to-server sync. The shared-burst test is a clear "what if" study.
+        </div>
+      </section>
+
+      <section id="sampling">
+        <h2>How repeated runs become load curves</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>For each run</h3>
+            <ol class="clean">
+              <li>Build one full site power trace.</li>
+              <li>Make one-second, one-minute, and fifteen-minute versions.</li>
+              <li>Sort each trace from highest power to lowest.</li>
+              <li>Save peaks, ramps, average power, energy, waiting work, and failures.</li>
+            </ol>
+          </article>
+          <article class="card">
+            <h3>Across runs</h3>
+            <ol class="clean">
+              <li>Compare curves at the same point.</li>
+              <li>Show a lower curve, middle curve, and upper curve.</li>
+              <li>Keep each Azure day visible.</li>
+              <li>Give every day the same weight.</li>
+            </ol>
+          </article>
+        </div>
+        <div class="status-list card" style="margin-top: 18px">
+          <div class="status-row"><span class="tag ready">Start</span><div>Use 3 repeats for the first speed and memory test.</div></div>
+          <div class="status-row"><span class="tag plain">Grow</span><div>Add repeats in groups of 10. Use at least 30 and no more than 200.</div></div>
+          <div class="status-row"><span class="tag later">Tail rule</span><div>Do not show the upper 95% result until there are at least 100 accepted repeats for that case.</div></div>
+          <div class="status-row"><span class="tag blocked">Stop rule</span><div>If more repeats still move the answer too much, report that fact. Do not hide it by mixing days together.</div></div>
+        </div>
+      </section>
+
+      <section id="validation">
+        <h2>How we will test the models</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Question</th><th>What the model may use</th><th>What we check</th></tr></thead>
+            <tbody>
+              <tr><td>Does it match a known setup?</td><td>Training runs from that setup</td><td>Power shape, energy, peaks, ramps, and failures on held-back runs</td></tr>
+              <tr><td>Does the simple power model transfer?</td><td>Measured request timing, but no target power fit</td><td>Average power, one-second error, energy, peaks, and ramps</td></tr>
+              <tr><td>Does the full simulator transfer?</td><td>Arrivals, token lengths, and source-approved setup data only</td><td>Request time, waiting work, finished work, power, and service goals</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">The older 405B and gpt-oss tests are useful examples. They are not final hidden tests because they helped shape the model.</p>
+      </section>
+
+      <section id="outputs">
+        <h2>What the paper should show</h2>
+        <div class="grid two">
+          <article class="card"><h3>Figure 1</h3><p>Where measured data ends and modeled data begins.</p></article>
+          <article class="card"><h3>Figure 2</h3><p>Server power accuracy and transfer to held-back setups.</p></article>
+          <article class="card"><h3>Table 1</h3><p>Which model to use for each job, plus where each model fails.</p></article>
+          <article class="card"><h3>Figure 3</h3><p>Lower, middle, and upper load curves as traffic sync and site size change.</p></article>
+          <article class="card"><h3>Figure 4</h3><p>Peak power and ramp changes at one second, one minute, and fifteen minutes.</p></article>
+          <article class="card"><h3>Appendix</h3><p>Extra model tests, repeat checks, traffic checks, scale checks, and agent traffic.</p></article>
+        </div>
+      </section>
+
+      <section id="cuts">
+        <h2>What we will not build for the main paper</h2>
+        <p class="lead">These items add work but do not strengthen the three main answers enough.</p>
+        <div class="grid three">
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">24,000 servers</h3><p>The storage and run cost are too high before the smaller method is proven.</p></article>
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">Mixed server fleets</h3><p>Routing between different GPUs and models is a separate paper-sized problem.</p></article>
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">Cached agent runs</h3><p>We first need measured engine state and a correct cache model.</p></article>
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">Grid optimization</h3><p>A power trace can feed a grid study later. It is not needed to prove this model.</p></article>
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">Very rare tail claims</h3><p>We will not show 99% results without enough repeated runs.</p></article>
+          <article class="card"><span class="tag later">Later</span><h3 style="margin-top: 14px">Many traffic models</h3><p>We will start with exact replay and one clear shared-burst test.</p></article>
+        </div>
+      </section>
+
+      <section id="review">
+        <h2>Review checklist</h2>
+        <p class="lead">Use these boxes to mark the choices you accept. Your browser remembers them on this computer.</p>
+        <div class="review" id="review-list">
+          <label><input type="checkbox" data-key="claims"><span>The three paper goals are separate and clear.</span></label>
+          <label><input type="checkbox" data-key="reference"><span>The 240-server reference site and its power settings are acceptable.</span></label>
+          <label><input type="checkbox" data-key="traffic"><span>Exact replay plus one shared-burst test is enough for the first paper.</span></label>
+          <label><input type="checkbox" data-key="models"><span>The learned model handles known fast swings. The simple model handles transfer.</span></label>
+          <label><input type="checkbox" data-key="features"><span>The demand-versus-executed-token feature plan is correct.</span></label>
+          <label><input type="checkbox" data-key="profiling"><span>The exact profiling levels and campaign order are acceptable.</span></label>
+          <label><input type="checkbox" data-key="timing"><span>The request waiting-line test must pass before the large simulation.</span></label>
+          <label><input type="checkbox" data-key="sampling"><span>The repeated-run and tail rules are strong enough.</span></label>
+          <label><input type="checkbox" data-key="cuts"><span>The delayed items should stay out of the main paper.</span></label>
+        </div>
+        <button class="secondary" type="button" style="margin-top: 14px" id="reset-review">Clear review boxes</button>
+      </section>
+
+      <footer>
+        Plain-language review of <a href="EENERGY_PLAN.md">EENERGY_PLAN.md</a>. The Markdown file remains the detailed source of truth.
+      </footer>
+    </main>
+  </div>
+  <script>
+    const boxes = document.querySelectorAll('[data-key]');
+    boxes.forEach((box) => {
+      box.checked = localStorage.getItem(`eenergy-review-${box.dataset.key}`) === 'yes';
+      box.addEventListener('change', () => {
+        localStorage.setItem(`eenergy-review-${box.dataset.key}`, box.checked ? 'yes' : 'no');
+      });
+    });
+    document.getElementById('reset-review').addEventListener('click', () => {
+      boxes.forEach((box) => {
+        box.checked = false;
+        localStorage.removeItem(`eenergy-review-${box.dataset.key}`);
+      });
+    });
+  </script>
+</body>
+</html>

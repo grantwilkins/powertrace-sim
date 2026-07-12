@@ -44,6 +44,10 @@ unset CC CXX 2>/dev/null || true
 CCFG="$PY -m profiling.jobs.campaign_config"
 CAMP_ID="$(basename "$CAMPAIGN" .json)"
 CTYPE="$($CCFG "$CAMPAIGN" --emit type)"
+ROLE="$($CCFG "$CAMPAIGN" --emit role)"
+if [ "$EXECUTE" = true ] && [ "$ROLE" = "sealed" ]; then
+    BASE_RUNS="${SEALED_RUNS:?sealed campaigns require SEALED_RUNS on unmounted/restricted storage}"
+fi
 RUNS="${BASE_RUNS%/}/$CAMP_ID"
 LOGS="${LOGS:-$RUNS/logs}"
 export RUNS          # campaign_config.out_root() reads $RUNS to place bundles
@@ -61,6 +65,24 @@ fi
 
 # ----------------------------- live execution ----------------------------- #
 source "$SCRIPT_DIR/server_lifecycle.sh"
+
+# A max-TP allocation may run a smaller TP-pair leg. Pin vLLM to the first TP
+# nvidia-smi UUIDs, record that exact set in the bundle, and let RunRecord verify
+# that its first-TP power sum is the same device set.
+configure_active_gpus() {  # <tp>
+    local tp="$1" count
+    POWERTRACE_ACTIVE_GPU_UUIDS="$(
+        nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nounits \
+        | sort -t, -k1,1n | head -n "$tp" | cut -d, -f2 | tr -d ' ' | paste -sd, -
+    )"
+    count="$(awk -F, '{print NF}' <<< "$POWERTRACE_ACTIVE_GPU_UUIDS")"
+    if [ -z "$POWERTRACE_ACTIVE_GPU_UUIDS" ] || [ "$count" -ne "$tp" ]; then
+        echo "ERROR: could not select exactly $tp active GPU UUIDs" >&2
+        return 1
+    fi
+    export POWERTRACE_ACTIVE_GPU_UUIDS
+    echo "TP=$tp active GPUs: $POWERTRACE_ACTIVE_GPU_UUIDS"
+}
 
 DONE_DIR="$RUNS/.done"
 mkdir -p "$DONE_DIR" "$LOGS"
@@ -103,6 +125,7 @@ if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ]; then
     # the run's --prefix-cache (same regime index -> they can't disagree).
     NREG="$($CCFG "$CAMPAIGN" --emit regimes)"
     for TP in $($CCFG "$CAMPAIGN" --emit tps); do
+        configure_active_gpus "$TP"
         for R in $(seq 0 $((NREG - 1))); do
             MARK="$DONE_DIR/${CAMP_ID}_tp${TP}_r${R}"
             if [ -f "$MARK" ]; then
@@ -110,8 +133,9 @@ if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ]; then
             fi
             echo "### $CTYPE TP=$TP regime=$R/$((NREG - 1)) ###"
             SERVER_LOG="$LOGS/server-${CAMP_ID}-tp${TP}-r${R}.log" \
-                start_server "$APP $($CCFG "$CAMPAIGN" --emit serve --tp "$TP" --regime-idx "$R")" || exit 1
+                start_server "$APP env CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_UUIDS $($CCFG "$CAMPAIGN" --emit serve --tp "$TP" --regime-idx "$R")" || exit 1
             RUNCMD="$($CCFG "$CAMPAIGN" --emit run-cmd --tp "$TP" --regime-idx "$R")"
+            RUNCMD="$RUNCMD --active-gpu-uuids $POWERTRACE_ACTIVE_GPU_UUIDS"
             echo "+ $APP $RUNCMD"
             run_bundle_command "$MARK" "$RUNCMD" || { stop_server; exit 1; }
             stop_server
@@ -123,6 +147,7 @@ fi
 
 if [ "$CTYPE" = "roofline" ]; then
     for TP in $($CCFG "$CAMPAIGN" --emit tps); do
+        configure_active_gpus "$TP"
         echo "### roofline TP=$TP ###"
         mapfile -t SERVES < <($CCFG "$CAMPAIGN" --emit probe-serves --tp "$TP")
         mapfile -t PROBES < <($CCFG "$CAMPAIGN" --emit probes --tp "$TP")
@@ -135,9 +160,10 @@ if [ "$CTYPE" = "roofline" ]; then
             fi
             echo "--- roofline probe $((i + 1))/${#PROBES[@]}: $PROBE (TP=$TP) ---"
             SERVER_LOG="$LOGS/server-${CAMP_ID}-tp${TP}-${PROBE}.log" \
-                start_server "$APP ${SERVES[$i]}" || exit 1
-            echo "+ $APP ${PROBES[$i]}"
-            run_bundle_command "$MARK" "${PROBES[$i]}" || { stop_server; exit 1; }
+                start_server "$APP env CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_UUIDS ${SERVES[$i]}" || exit 1
+            PROBECMD="${PROBES[$i]} --active-gpu-uuids $POWERTRACE_ACTIVE_GPU_UUIDS"
+            echo "+ $APP $PROBECMD"
+            run_bundle_command "$MARK" "$PROBECMD" || { stop_server; exit 1; }
             stop_server
         done
 
@@ -147,8 +173,9 @@ if [ "$CTYPE" = "roofline" ]; then
         else
             echo "--- roofline long agentic (TP=$TP) ---"
             SERVER_LOG="$LOGS/server-${CAMP_ID}-tp${TP}-long-agentic.log" \
-                start_server "$APP $($CCFG "$CAMPAIGN" --emit serve --tp "$TP")" || exit 1
+                start_server "$APP env CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_UUIDS $($CCFG "$CAMPAIGN" --emit serve --tp "$TP")" || exit 1
             RUNCMD="$($CCFG "$CAMPAIGN" --emit roofline-agentic --tp "$TP")"
+            RUNCMD="$RUNCMD --active-gpu-uuids $POWERTRACE_ACTIVE_GPU_UUIDS"
             echo "+ $APP $RUNCMD"
             run_bundle_command "$MARK" "$RUNCMD" || { stop_server; exit 1; }
             stop_server
@@ -169,6 +196,7 @@ if [ "$CTYPE" = "roofline" ]; then
 fi
 
 for TP in $($CCFG "$CAMPAIGN" --emit tps); do
+    configure_active_gpus "$TP"
     echo "### TP=$TP ###"
     # One server per probe: probes need different launch flags (e.g. prefill
     # staircase requires chunked-prefill OFF, context holds a long max-model-len).
@@ -183,9 +211,10 @@ for TP in $($CCFG "$CAMPAIGN" --emit tps); do
         fi
         echo "--- probe $((i + 1))/${#PROBES[@]}: $PROBE (TP=$TP) ---"
         SERVER_LOG="$LOGS/server-${CAMP_ID}-tp${TP}-${PROBE}.log" \
-            start_server "$APP ${SERVES[$i]}" || exit 1
-        echo "+ $APP ${PROBES[$i]}"
-        run_bundle_command "$MARK" "${PROBES[$i]}" || { stop_server; exit 1; }
+            start_server "$APP env CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_UUIDS ${SERVES[$i]}" || exit 1
+        PROBECMD="${PROBES[$i]} --active-gpu-uuids $POWERTRACE_ACTIVE_GPU_UUIDS"
+        echo "+ $APP $PROBECMD"
+        run_bundle_command "$MARK" "$PROBECMD" || { stop_server; exit 1; }
         stop_server
     done
 done

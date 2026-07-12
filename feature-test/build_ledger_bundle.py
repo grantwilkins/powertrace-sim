@@ -14,8 +14,8 @@ work-rate math:
 * ``reconstruct_bins`` — the ttft/itl reconstruction path. Its guarded additions are
   guarded branches that are inert when ``n_linear_layers == 0`` and when a
   manifest clock offset is supplied, so existing softmax runs are unchanged.
-* ``bins_from_engine_csv`` — the measured-state path (vLLM ``/metrics``). Primary
-  for new bundles; compared against reconstruction in Phase-2.
+* ``bins_from_engine_csv`` — the measured hybrid path (stock vLLM ``/metrics``
+  plus request timing). Primary for new measured-ledger campaigns.
 
 Run from repo root:
     uv run python feature-test/build_ledger_bundle.py --runs-glob 'data/runs/*/*'
@@ -51,6 +51,8 @@ DEFAULT_RUNS_GLOB = "data/runs/*/*"
 BIN_KEYS = (
     "power", "pre_tok", "dec_tok", "batch", "pre_active", "iters",
     "w_read", "w_read_pre", "w_read_dec", "kv_read", "kv_write", "comm",
+    "arrivals", "input_tokens_arriving", "output_tokens_requested",
+    "A_t", "delta_A_t", "running_requests", "waiting_requests",
 )
 
 
@@ -62,33 +64,138 @@ def state_from_requests(json_path, csv_path, arch, tp, lambda_prefill, dt=1.0,
     return reconstruct_bins(req, pw, arch, tp, lambda_prefill, dt=dt, trim_s=trim_s)
 
 
-def bins_from_engine_csv(*args, **kwargs):
-    """Measured-state (engine.csv) consumption — DEFERRED to Phase-2.
+MEASURED_ENGINE_FIELDS = (
+    "timestamp", "num_requests_running", "num_requests_waiting",
+    "gpu_cache_usage_perc", "prompt_tokens_total", "generation_tokens_total",
+    "iteration_tokens_total_sum", "iteration_tokens_total_count",
+)
 
-    The /metrics scraper already COLLECTS engine.csv; consuming it as the ledger
-    state source is intentionally not implemented here. The reconstruction path
-    above is the single source for now. A first draft of this function
-    was removed because it produced biased data; implement it only against REAL
-    bundles, getting each of these right (each was a bug in that draft):
+MEASURED_LEDGER_KEYS = (
+    "engine_iteration_tokens_rate",
+    "engine_iterations_rate",
+    "engine_tokens_per_iteration",
+    "engine_gpu_cache_usage",
+)
 
-      1. Per-bin token rate: interpolate the cumulative counter onto the bin
-         EDGES and diff — ``np.diff(np.interp(edges, t - t0, counter)) / dt``.
-         Do NOT use ``(last - first)`` of the samples strictly inside a bin: that
-         drops the increment between a bin's last sample and the next bin's first
-         sample (~25% undercount at 4 Hz / 1 s bins, ~50% at 2 Hz).
-      2. Clock alignment: engine.csv stamps ``time.time()`` (true epoch) while
-         power.csv is nvidia-smi local wall time coerced to UTC by
-         ``power_timestamp_to_epoch`` — a whole-hour skew off-UTC hosts. Align
-         both to one epoch before binning (reconstruction sidesteps this via the
-         %1800 fold; the measured path cannot).
-      3. Fill ``pre_iter`` / ``kv_read`` from the logged-but-currently-unused
-         counters (``request_prefill_time_seconds_sum`` for prefill iterations;
-         ``gpu_cache_usage_perc`` — a gauge, bin-MEAN it — for KV occupancy).
-         Never emit zeros for these: ``w_read_pre``/``kv_read`` are live fit FEATS,
-         and zeros would bias e_w_pre / e_kv and inflate residual variance.
-      4. Validate measured-vs-reconstructed agreement before trusting it (Phase-2).
+
+def ledger_bin_keys(state_source: str) -> tuple[str, ...]:
+    if state_source == "reconstruction":
+        return BIN_KEYS
+    if state_source == "measured_engine":
+        return BIN_KEYS + MEASURED_LEDGER_KEYS
+    raise ValueError(f"Unknown bundle state source: {state_source!r}")
+
+
+def _counter_rate(table, name, edges):
+    """Cumulative counter -> conserved rate on half-open bin edges."""
+    timestamps = np.asarray(table["timestamp"], dtype=np.float64)
+    values = np.asarray(table[name], dtype=np.float64)
+    if not np.all(np.isfinite(values)) or np.any(np.diff(values) < -1e-9):
+        raise ValueError(f"engine counter {name!r} must be finite and nondecreasing")
+    if timestamps[0] > edges[0] or timestamps[-1] < edges[-1]:
+        raise ValueError(f"engine counter {name!r} does not cover the ledger grid")
+    return np.diff(np.interp(edges, timestamps, values)) / np.diff(edges)
+
+
+def _gauge_mean(table, name, edges):
+    """Piecewise-linear time mean of a gauge in every half-open bin."""
+    timestamps = np.asarray(table["timestamp"], dtype=np.float64)
+    values = np.asarray(table[name], dtype=np.float64)
+    if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+        raise ValueError(f"engine gauge {name!r} must be finite and non-negative")
+    if timestamps[0] > edges[0] or timestamps[-1] < edges[-1]:
+        raise ValueError(f"engine gauge {name!r} does not cover the ledger grid")
+    output = np.empty(edges.size - 1)
+    for index, (left, right) in enumerate(zip(edges[:-1], edges[1:])):
+        inside = timestamps[(timestamps > left) & (timestamps < right)]
+        points = np.r_[left, inside, right]
+        output[index] = np.trapezoid(
+            np.interp(points, timestamps, values), points
+        ) / (right - left)
+    return output
+
+
+def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
+    """Project measured engine state into the maintained ledger schema.
+
+    Request reconstruction supplies offered marks, phase-specific active state,
+    prefill iterations, and context geometry. Stock vLLM counters replace only
+    fields with an exact map: actually computed prompt/decode tokens and total
+    running/waiting state. Iteration-token histogram counters are retained as
+    diagnostics. Per-field lineage makes this hybrid contract explicit.
     """
-    raise NotImplementedError(bins_from_engine_csv.__doc__)
+    table = record.engine_table
+    missing = sorted(set(MEASURED_ENGINE_FIELDS) - set(table))
+    if missing:
+        raise ValueError(f"engine.csv lacks measured-ledger fields: {missing}")
+    timestamps = np.asarray(table["timestamp"], dtype=np.float64)
+    if not np.all(np.isfinite(timestamps)) or not np.all(np.diff(timestamps) > 0.0):
+        raise ValueError("engine timestamps must be finite and strictly increasing")
+
+    base = reconstruct_bins_from_record(
+        record, lambda_prefill=lambda_prefill, dt=dt, trim_s=trim_s,
+        include_time=True,
+    )
+    if base is None:
+        return None
+    time_epoch = np.asarray(base["time_epoch_s"], dtype=np.float64)
+    if time_epoch.size > 1 and not np.allclose(np.diff(time_epoch), dt):
+        raise ValueError("Measured-state ledger requires a complete uniform power grid")
+    edges = np.r_[time_epoch[0] - dt, time_epoch]
+
+    pre_tok = _counter_rate(table, "prompt_tokens_total", edges)
+    dec_tok = _counter_rate(table, "generation_tokens_total", edges)
+    batch = np.asarray(base["batch"], dtype=np.float64)
+    pre_active = np.asarray(base["pre_active"], dtype=np.float64)
+    pre_iter = np.asarray(base["w_read_pre"], dtype=np.float64) / record.arch["w_bytes"]
+    measured = _bin_work_rates(
+        pre_tok, dec_tok, batch, pre_active, pre_iter,
+        np.asarray(base["kv_read"], dtype=np.float64),
+        record.arch, record.tp, pre_tok.size,
+    )
+
+    running = _gauge_mean(table, "num_requests_running", edges)
+    waiting = _gauge_mean(table, "num_requests_waiting", edges)
+    iteration_tokens = _counter_rate(table, "iteration_tokens_total_sum", edges)
+    iterations = _counter_rate(table, "iteration_tokens_total_count", edges)
+    measured.update({
+        key: base[key] for key in (
+            "power", "arrivals", "input_tokens_arriving", "output_tokens_requested"
+        )
+    })
+    measured.update({
+        "A_t": running + waiting,
+        "delta_A_t": np.r_[0.0, np.diff(running + waiting)],
+        "running_requests": running,
+        "waiting_requests": waiting,
+        "engine_iteration_tokens_rate": iteration_tokens,
+        "engine_iterations_rate": iterations,
+        "engine_tokens_per_iteration": np.divide(
+            iteration_tokens, iterations,
+            out=np.zeros_like(iteration_tokens), where=iterations > 0.0,
+        ),
+        "engine_gpu_cache_usage": _gauge_mean(
+            table, "gpu_cache_usage_perc", edges
+        ),
+        "time_epoch_s": time_epoch,
+        "n": int(pre_tok.size),
+        "arch": base["arch"],
+        "field_sources": {
+            "pre_tok": "engine.prompt_tokens_total",
+            "dec_tok": "engine.generation_tokens_total",
+            "A_t": "engine.num_requests_running+num_requests_waiting",
+            "running_requests": "engine.num_requests_running",
+            "waiting_requests": "engine.num_requests_waiting",
+            "batch": "requests.itls reconstruction",
+            "pre_active": "requests.ttft reconstruction",
+            "pre_iter": "requests.ttft+lambda_prefill reconstruction",
+            "kv_read": "requests.itls+architecture reconstruction",
+            "engine_iteration_tokens_rate": "engine.iteration_tokens_total_sum",
+            "engine_iterations_rate": "engine.iteration_tokens_total_count",
+            "engine_gpu_cache_usage": "engine.gpu_cache_usage_perc",
+        },
+    })
+    return measured
 
 
 # --------------------------------------------------------------------------- #
@@ -113,23 +220,32 @@ def rate_from_manifest(manifest: dict) -> float:
     return completed / duration if duration > 0 else 0.0
 
 
-def build_bundle(run_dir, *, lambda_prefill, lambda_prefill_source, dt=1.0):
-    """Build per-bin arrays for one bundle via the reconstruction path.
-
-    engine.csv is collected by the scraper but not consumed here yet — measured-
-    state consumption is Phase-2 (see ``bins_from_engine_csv``). Reconstruction is
-    the shared source.
-    """
+def build_bundle(
+    run_dir, *, lambda_prefill, lambda_prefill_source, dt=1.0,
+    state_source="reconstruction",
+):
+    """Build one bundle through an explicitly named state projection."""
     record = load_bundle_run(run_dir)
-    bins = reconstruct_bins_from_record(
-        record, lambda_prefill=lambda_prefill, dt=dt
-    )
+    if state_source == "reconstruction":
+        bins = reconstruct_bins_from_record(
+            record, lambda_prefill=lambda_prefill, dt=dt
+        )
+    elif state_source == "measured_engine":
+        bins = bins_from_engine_csv(
+            record, lambda_prefill=lambda_prefill, dt=dt
+        )
+    else:
+        raise ValueError(f"Unknown bundle state source: {state_source!r}")
     manifest = json.loads((Path(run_dir) / "manifest.json").read_text())
     manifest["_ledger_source"] = {
         "run_dir": str(Path(run_dir)),
         "sha256": record.provenance["sha256"],
         "lambda_prefill_tok_s": float(lambda_prefill),
         "lambda_prefill_source": str(lambda_prefill_source),
+        "state_source": state_source,
+        "field_sources": bins.get(
+            "field_sources", {"work_and_state": "requests timing reconstruction"}
+        ) if bins is not None else {},
     }
     return bins, manifest
 
@@ -155,6 +271,10 @@ def main():
     ap.add_argument("--dt", type=float, default=1.0)
     ap.add_argument("--lambda-prefill", type=float, required=True)
     ap.add_argument("--lambda-prefill-source", required=True)
+    ap.add_argument(
+        "--state-source", choices=("reconstruction", "measured_engine"),
+        default="reconstruction",
+    )
     args = ap.parse_args()
 
     run_dirs = discover_run_dirs(args.runs_glob)
@@ -167,6 +287,7 @@ def main():
         bins, m = build_bundle(
             rd, lambda_prefill=args.lambda_prefill,
             lambda_prefill_source=args.lambda_prefill_source, dt=args.dt,
+            state_source=args.state_source,
         )
         if bins is None:
             continue
@@ -186,7 +307,7 @@ def main():
             model_arch_json.append(json.dumps(m["arch"], sort_keys=True))
         if family not in family_names:
             family_names.append(family)
-        for key in BIN_KEYS:
+        for key in ledger_bin_keys(args.state_source):
             cols[key].append(bins[key])
         cols["n_active"].append(np.full(n, a["n_active"]))
         cols["w_bytes"].append(np.full(n, a["w_bytes"]))
@@ -225,6 +346,7 @@ def main():
         "ledger_path": str(args.out),
         "lambda_prefill_tok_s": float(args.lambda_prefill),
         "lambda_prefill_source": args.lambda_prefill_source,
+        "state_source": args.state_source,
         "runs": source_runs,
     }, indent=2, sort_keys=True) + "\n")
     print(f"Parsed {n_ok}/{len(run_dirs)} bundles -> {out['power'].size} bins -> {args.out}")

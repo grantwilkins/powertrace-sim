@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "profiling" / "client"))
 sys.path.insert(0, str(REPO_ROOT / "profiling" / "jobs"))
 
@@ -19,6 +20,7 @@ import campaign_config  # noqa: E402
 import metrics_logger  # noqa: E402
 import power_logger  # noqa: E402
 import run_manifest  # noqa: E402
+import evidence_contract  # noqa: E402
 
 
 def dry_run_out_root(campaign_id: str) -> Path:
@@ -58,6 +60,9 @@ def write_sample_bundle(campaign_path) -> Path:
         tp=tp, gpus_per_node=c["gpus_per_node"], server=c["server"],
         versions={"vllm": "DRY-RUN", "git_sha": "DRY-RUN", "gpu_driver": "DRY-RUN"},
         clock=run_manifest.capture_clock(),
+        instrumentation=evidence_contract.expected_instrumentation(
+            c.get("evidence_profile", "core")
+        ),
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

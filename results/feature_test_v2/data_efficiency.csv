@@ -1,0 +1,3 @@
+hardware,candidate,one_repeat_energy_delta_pct_points,one_repeat_acf_r2_decrease,passes
+A100,M4A,0.29652516512117355,-1.1455993688347377e-05,True
+H100,M4A,-0.05026167273733462,-0.00030854082448428244,True

@@ -524,8 +524,9 @@
       "num_power_only": 1
     }
   },
-  "generated_at_utc": "2026-03-04T17:27:26Z",
+  "generated_at_utc": "2026-07-11T02:10:18Z",
   "include_families": [
+    "benchmark",
     "sharegpt-benchmark"
   ],
   "paired_runs": [
