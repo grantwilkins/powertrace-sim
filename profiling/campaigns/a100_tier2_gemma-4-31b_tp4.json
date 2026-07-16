@@ -1,0 +1,19 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-31B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "_note": "A100 Tier-2 EXTRA-TP leg at tp=4 (companion to a100_tier2_gemma-4-31b.json at tp=2). Adds a second TP point for the NVLink/comm term (LOTO). tp=4 gives ~15.5GB/GPU weights, ample KV headroom for the N=256 decode staircase and 65536 prefill.",
+  "server": {
+    "tp": 4,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"],
+  "prefill_input_lens": [256, 1024, 4096, 16384]
+}

@@ -25,14 +25,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# owners is mixed-GPU and preemptible: pin the 80GB A100 SKU (so we never land on a
-# smaller/other GPU our configs aren't sized for) and allow requeue — the per-(TP,probe)
-# done-markers make a requeued job resume instead of restart. `-p ramr,owners` lets
-# Slurm place the job wherever an A100 frees first. ramr-only needs no constraint.
 REQUEUE=""
-case ",$PART," in
-    *,owners,*) [ -n "$CONS" ] || CONS="GPU_SKU:A100_SXM4"; REQUEUE=1;;
-esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -49,6 +42,19 @@ N="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
 [ -n "$N" ] || { echo "could not determine TP for $CAMPAIGN" >&2; exit 1; }
 HARDWARE="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
         "$CAMPAIGN_ABS" --emit json | python3 -c 'import json,sys; print(json.load(sys.stdin)["hardware"])')"
+# owners is mixed-GPU and preemptible. Pin the GPU class and memory size so
+# large-model campaigns do not land on another accelerator or a 40GB A100.
+case ",$PART," in
+    *,owners,*)
+        if [ -z "$CONS" ]; then
+            case "$HARDWARE" in
+                A100) CONS="GPU_SKU:A100_SXM4&GPU_MEM:80GB";;
+                H100) CONS="GPU_SKU:H100_SXM5&GPU_MEM:80GB";;
+            esac
+        fi
+        REQUEUE=1
+        ;;
+esac
 if [ "$HARDWARE" = "H100" ]; then
     [ "$PART_EXPLICIT" = true ] || {
         echo "H100 campaign requires an explicit -p <H100_PARTITION>" >&2; exit 1; }
@@ -63,5 +69,5 @@ set -x
 # `set -u` on Sherlock's bash); none of these values word-split.
 exec sbatch -p "$PART" --gres=gpu:"$N" \
     ${CONS:+--constraint "$CONS"} ${REQUEUE:+--requeue} ${TIME:+--time "$TIME"} \
-    --export=ALL,CAMPAIGN="$CAMPAIGN_ABS" \
+    --export=ALL,CAMPAIGN="$CAMPAIGN_ABS",POWERTRACE_REPO="$REPO_ROOT" \
     "$SCRIPT_DIR/campaign.sbatch" "$CAMPAIGN_ABS"

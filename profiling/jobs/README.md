@@ -17,9 +17,20 @@ when `DRY_RUNS` is set, so review artifacts do not pollute live roots.
 The campaign loader derives `gpus_per_node` from the largest TP degree, matching
 the GPU count requested by `submit_campaign.sh`. Installed-but-unallocated GPUs
 are never advertised in bundle manifests.
-For a smaller TP-pair leg, `run_campaign.sh` pins vLLM to the first TP UUIDs and
-records that exact set. Ingestion checks it against the first-TP power columns,
-so idle GPUs from the larger allocation cannot enter the power target.
+For a smaller TP-pair leg, `run_campaign.sh` pins vLLM to the first TP CUDA
+ordinals and records the matching UUID set. Ingestion checks UUIDs against the
+first-TP power columns, so idle GPUs from the larger allocation cannot enter the
+power target.
+`submit_campaign.sh -p owners` adds a hardware-specific 80GB GPU constraint
+when none is supplied: A100 campaigns use `GPU_SKU:A100_SXM4&GPU_MEM:80GB`,
+and H100 campaigns use `GPU_SKU:H100_SXM5&GPU_MEM:80GB`. The submit wrapper
+also exports `POWERTRACE_REPO` so the batch job runs the checkout that submitted
+the campaign rather than assuming `$HOME/powertrace-sim`.
+`stage_models.sh` sets `HF_SNAPSHOT_MAX_WORKERS=2` by default; lower it to `1`
+when staging very large checkpoints on constrained login-node environments.
+Native `arch_extract` sanity is opt-in with `STAGE_MODELS_ARCH_SANITY=1`; the
+launch container performs the authoritative parse. Probe campaigns launch direct
+`profiling/probes/<probe>.py` entry points, one per `schedule.BUILDERS` probe.
 
 ## Current GPT-OSS ShareGPT Runs
 

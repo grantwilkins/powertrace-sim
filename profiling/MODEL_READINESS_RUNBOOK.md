@@ -101,22 +101,27 @@ only the TP/rate combinations listed above.
 
 ## Submission
 
-A100 campaigns use the reserved A100 partition:
+A100 submission must respect the current shared `ramr` cap. Use `ramr` only
+for campaigns whose maximum TP is at most 2; the current model-readiness A100
+configs all require TP4, so submit them to `owners`. The wrapper defaults owners
+A100 jobs to `GPU_SKU:A100_SXM4&GPU_MEM:80GB` and enables requeue:
 
 ```bash
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_tier1_llama70b.json -p ramr
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_iteration_gpt-oss-20b.json -p ramr
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_iteration_gpt-oss-120b.json -p ramr
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_hardcells_gpt-oss-20b.json -p ramr
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_hardcells_gpt-oss-120b.json -p ramr
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_tier1_llama70b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_iteration_gpt-oss-20b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_iteration_gpt-oss-120b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_hardcells_gpt-oss-20b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_hardcells_gpt-oss-120b.json -p owners
 ```
 
-H100 submission requires real site values; replace both placeholders:
+H100 submission requires an explicit non-`ramr` GPU partition. On Sherlock,
+`owners` is valid; the wrapper defaults owners H100 jobs to
+`GPU_SKU:H100_SXM5&GPU_MEM:80GB`. On other sites, replace both values:
 
 ```bash
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_tier1_llama70b.json -p <H100_PARTITION> -C <H100_CONSTRAINT>
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_hardcells_llama70b.json -p <H100_PARTITION> -C <H100_CONSTRAINT>
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_hardcells_llama405b.json -p <H100_PARTITION> -C <H100_CONSTRAINT>
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_tier1_llama70b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_hardcells_llama70b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_hardcells_llama405b.json -p owners
 ```
 
 Resubmit the identical command after preemption or failure. Checkpoints skip
@@ -176,9 +181,14 @@ visible in the container) and submit:
 export SEALED_RUNS="$SCRATCH/ptsim/sealed-runs"
 mkdir -p "$SEALED_RUNS"
 chmod 700 "$SEALED_RUNS"
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_sealed_gpt-oss-120b.json -p ramr
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_sealed_llama405b.json -p <H100_PARTITION> -C <H100_CONSTRAINT>
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_sealed_gpt-oss-120b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_sealed_llama405b.json -p owners
 ```
 
-Do not inspect per-run sealed traces before score-only evaluation. Do not refit
-after seeing sealed metrics. Report every declared cell, including failures.
+The 405B sealed and development cells use the pre-quantized
+`RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8` checkpoint
+(`server.quantization=compressed-tensors`, `dtype_hint=fp8`) because BF16 does
+not fit on 8x80GB H100; keep that checkpoint/dtype as part of the reported cell
+identity. Do not inspect per-run sealed traces before
+score-only evaluation. Do not refit after seeing sealed metrics. Report every
+declared cell, including failures.

@@ -37,12 +37,19 @@ def test_prefill_staircase():
 
 
 def test_context_holds():
-    contexts = (2048, 8192, 32768, 131072)
-    s = build_context_holds(contexts=contexts, batch=8)
+    contexts = (2048, 8192, 32768, 122880)
+    s = build_context_holds(batch=8)
     assert [l.request.prefix_len for l in s.levels] == list(contexts)
     assert all(l.concurrency == 8 for l in s.levels)
     assert s.server_overrides["max_model_len"] >= max(contexts)
     assert s.server_overrides["env"]["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] == "1"
+
+
+def test_context_holds_cli_default_matches_schedule():
+    import context_holds
+
+    s = build_context_holds()
+    assert context_holds.DEFAULT_CONTEXTS == tuple(l.request.prefix_len for l in s.levels)
 
 
 def test_decode_context_grid_orthogonally_excites_batch_and_context():

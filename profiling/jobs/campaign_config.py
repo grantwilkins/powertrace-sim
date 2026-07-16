@@ -16,8 +16,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "profiling" / "client"))
-from evidence_contract import PROFILE_REQUIREMENTS  # noqa: E402
+KNOWN_EVIDENCE_PROFILES = {"core", "measured_ledger"}
 
 # Mirrors profiling/probes/schedule.BUILDERS; a test asserts they stay in sync.
 KNOWN_PROBES = {
@@ -60,7 +59,7 @@ def _validate(c: dict, path) -> None:
         raise CampaignError(f"{where}unknown campaign_type '{c['campaign_type']}'")
     if "tp" not in c["server"]:
         raise CampaignError(f"{where}server.tp is required")
-    if c.get("evidence_profile", "core") not in PROFILE_REQUIREMENTS:
+    if c.get("evidence_profile", "core") not in KNOWN_EVIDENCE_PROFILES:
         raise CampaignError(f"{where}unknown evidence_profile {c.get('evidence_profile')!r}")
     if c.get("validation_role", "development") not in {"development", "sealed"}:
         raise CampaignError(f"{where}validation_role must be development or sealed")
@@ -139,7 +138,7 @@ def _with_defaults(c: dict) -> dict:
         "max_num_seqs": 256, "max_num_batched_tokens": 8192,
         "enable_chunked_prefill": True, "enable_prefix_caching": False,
         "kv_cache_dtype": "auto", "max_model_len": 131072,
-        "dtype_hint": None, "extra_args": [], "extra_env": {},
+        "quantization": None, "dtype_hint": None, "extra_args": [], "extra_env": {},
     })
     # submit_campaign.sh allocates exactly the largest TP degree.  The logger
     # must describe that visible set, not the physical node's installed GPUs.
@@ -194,8 +193,19 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
         parts.append("--enable-chunked-prefill")
     if pc:
         parts.append("--enable-prefix-caching")
+    if s.get("quantization"):
+        parts.append(f"--quantization {s['quantization']}")
     parts.extend(s["extra_args"])
     return _env_prefix(s.get("extra_env", {})) + " ".join(parts)
+
+
+def _server_record_flags(s: dict) -> list[str]:
+    flags = []
+    if s.get("quantization"):
+        flags.append(f"--quantization {s['quantization']}")
+    if s.get("dtype_hint"):
+        flags.append(f"--dtype-hint {s['dtype_hint']}")
+    return flags
 
 
 def regimes(c: dict) -> list[dict]:
@@ -335,8 +345,9 @@ def probe_commands(c: dict, tp: int) -> list[str]:
         f"--kv-cache-dtype {s['kv_cache_dtype']} "
         f"--out-root {out_root()} --evidence-profile {c['evidence_profile']}"
     )
-    if s.get("dtype_hint"):
-        common += f" --dtype-hint {s['dtype_hint']}"
+    flags = _server_record_flags(s)
+    if flags:
+        common += " " + " ".join(flags)
     # MoE models: prefer the vendor-published active-param count ("A<N>B") over the
     # analytic estimate (good only to ~10-30%); n_active scales the FLOPs work rate.
     if c.get("n_active_override"):
@@ -367,6 +378,9 @@ def validate_command(c: dict, tp: int, regime=None) -> str:
     )
     if w.get("dataset_path"):
         cmd += f" --dataset-path {w['dataset_path']}"
+    flags = _server_record_flags(s)
+    if flags:
+        cmd += " " + " ".join(flags)
     # Keep MoE active-param count identical to the probe (training) bundles so the
     # held-out validate test isn't graded against a different arch for the same model.
     if c.get("n_active_override"):
@@ -391,6 +405,7 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
         f"--evidence-profile {c['evidence_profile']}",
         f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
     ]
+    parts.extend(_server_record_flags(s))
     if c.get("n_active_override"):
         parts.append(f"--n-active-override {c['n_active_override']}")
     if ss.get("concurrency") is not None:
@@ -414,6 +429,7 @@ def roofline_agentic_command(c: dict, tp: int) -> str:
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",
     ]
+    parts.extend(_server_record_flags(s))
     for flag, key in (
         ("n-sessions", "n_sessions"), ("seed", "seed"), ("concurrency", "concurrency"),
         ("min-turns", "min_turns"), ("max-turns", "max_turns"),
@@ -494,9 +510,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("campaign")
     ap.add_argument("--emit", default="plan",
-                    choices=["plan", "json", "tps", "type", "serve", "probes",
-                             "probe-names", "probe-serves", "run-cmd", "regimes",
-                             "roofline-agentic", "analyze-cmd", "role"])
+                    choices=["plan", "json", "model", "tps", "type", "serve",
+                             "probes", "probe-names", "probe-serves", "run-cmd",
+                             "regimes", "roofline-agentic", "analyze-cmd", "role"])
     ap.add_argument("--tp", type=int, default=None)
     ap.add_argument("--regime-idx", type=int, default=0,
                     help="prefix-cache regime index (agentic; see --emit regimes)")
@@ -504,6 +520,8 @@ def main():
     c = load_campaign(args.campaign)
     if args.emit == "json":
         print(json.dumps(c, indent=2))
+    elif args.emit == "model":
+        print(c["model"])
     elif args.emit == "type":
         print(c["campaign_type"])
     elif args.emit == "role":

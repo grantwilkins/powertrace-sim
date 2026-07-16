@@ -26,7 +26,9 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _CLIENT = Path(__file__).resolve().parents[1] / "client"
+sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_CLIENT))
 
 import bench_driver  # noqa: E402

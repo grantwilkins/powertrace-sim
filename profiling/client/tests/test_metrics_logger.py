@@ -10,6 +10,7 @@ from metrics_logger import (  # noqa: E402
     ENGINE_HEADER,
     metrics_row,
     metrics_url,
+    observed_metrics_row,
     parse_prometheus_metrics,
     available_columns,
 )
@@ -52,6 +53,10 @@ def test_missing_metric_maps_to_nan():
     record = dict(zip(ENGINE_HEADER, metrics_row(parsed, t=0.0)))
     assert record["num_requests_running"] == 4.0
     assert math.isnan(record["generation_tokens_total"])
+
+
+def test_observed_metrics_row_skips_failed_scrape():
+    assert observed_metrics_row({}, t=0.0) is None
 
 
 def test_header_starts_with_timestamp():

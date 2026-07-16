@@ -1,0 +1,20 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-31B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "_note": "A100 COMPUTE-BOUND prefill probe for gemma-4-31B: concurrency 8 at short/mid contexts so prefill draws real compute power (concurrency-1 prefill is too low-SNR to identify e_flop; its small bump is absorbed by the busy floor). Short max_model_len=8192 (max input 4096, output 1) -> tiny KV reservation, fast start, no 80GB pressure at concurrency 8. Pairs with the concurrency-1 L-sweep (which carries the e_attn L-shape) to break the flop/active collinearity.",
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 8192
+  },
+  "probes": ["prefill_staircase"],
+  "prefill_input_lens": [256, 1024, 4096],
+  "prefill_concurrency": 8
+}

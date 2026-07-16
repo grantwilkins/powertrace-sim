@@ -128,7 +128,7 @@ def build_prefill_staircase(
 
 
 def build_context_holds(
-    contexts=(2048, 8192, 32768, 131072), batch: int = 8,
+    contexts=(2048, 8192, 32768, 122880), batch: int = 8,
     hold_s: float = 45.0, output_len: int = 256,
 ) -> ProbeSchedule:
     """Primed long prefix then steady decode at fixed batch, varying context.

@@ -1,0 +1,19 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "n_active_override": 4.0e9,
+  "_note": "A100 Tier-2 EXTRA-TP leg at tp=4 (companion to a100_tier2_gemma-4-26b-a4b.json at tp=2). Second TP point for the NVLink/comm term. n_active_override matches the tp=2 bundles so train arch is identical across TP.",
+  "server": {
+    "tp": 4,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"]
+}

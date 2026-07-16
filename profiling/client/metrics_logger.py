@@ -86,6 +86,15 @@ def metrics_row(parsed: dict, t: float) -> list[float]:
     return row
 
 
+def observed_metrics_row(parsed: dict, t: float) -> list[float] | None:
+    """Return a row only for a successful scrape.
+
+    Preflight proves required counters exist. A transient HTTP failure should not
+    write an all-NaN sample that poisons strict evidence validation.
+    """
+    return metrics_row(parsed, t) if parsed else None
+
+
 def available_columns(parsed: dict[str, list[float]]) -> set[str]:
     return {
         name for name, aliases, _ in ENGINE_COLUMNS
@@ -127,8 +136,10 @@ async def poll_loop(base_url: str, out_csv: str, period_s: float, stop_event) ->
                         )
                 except Exception:
                     parsed = {}
-                writer.writerow(metrics_row(parsed, t))
-                f.flush()
+                row = observed_metrics_row(parsed, t)
+                if row is not None:
+                    writer.writerow(row)
+                    f.flush()
                 await _sleep(period_s)
 
 

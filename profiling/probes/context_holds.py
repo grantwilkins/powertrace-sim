@@ -3,11 +3,13 @@
 from _cli import base_parser, execute
 from schedule import build_context_holds
 
+DEFAULT_CONTEXTS = (2048, 8192, 32768, 122880)
+
 
 def main():
     p = base_parser(__doc__)
     p.add_argument("--contexts", type=int, nargs="+",
-                   default=[2048, 8192, 32768, 131072])
+                   default=DEFAULT_CONTEXTS)
     p.add_argument("--batch", type=int, default=8)
     p.add_argument("--output-len", type=int, default=256)
     args = p.parse_args()
