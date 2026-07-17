@@ -30,6 +30,11 @@ Per-GPU rows, 4 Hz. Header (units stripped from values):
 | `memory.used` | KV/weight footprint sanity |
 | `temperature.gpu` | thermal context |
 
+The `tp8_state` power profile adds `pstate`, `power.limit`, and NVIDIA clock-event
+reasons for software power capping, hardware slowdown, and software/hardware
+thermal slowdown. A diagnostic bundle is rejected if any requested column is
+absent; it is not silently reduced to the core profile.
+
 ## 2. `engine.csv` — measured engine state (source: `metrics_logger`)
 
 4 Hz scrape of vLLM `/metrics`. First column `timestamp` = `time.time()` epoch.
@@ -150,10 +155,12 @@ The normalized `RunRecord` retains every power column, every list-valued request
 column (including agentic extensions), every engine column, and source hashes.
 GRU and physics views intentionally project only the fields they consume.
 
-## Multi-turn / agentic extension (planned)
+## Multi-turn and exact-trace extensions
 
-The agentic workload emits the **same four files**; `requests.json` gains per-turn
-fields so a session is reconstructable:
+The agentic and `trace_replay` workloads emit the **same four files**.
+`trace_replay` consumes a hash-bound plan and uses deterministic direct token IDs,
+so cache-off/on runs have identical prompts and arrival marks without retaining
+private trace text. `requests.json` gains:
 
 | extra field | role |
 |---|---|
@@ -161,7 +168,16 @@ fields so a session is reconstructable:
 | `turn_idx` | turn number within the session (context grows with it) |
 | `post_gap_s` | think-time / tool-execution idle after this turn (the agentic idle the model must capture) |
 | `prefix_cache` | whether prefix caching was on (a cache hit skips prefill) |
+| `planned_ready_epoch`, `arrival_delay_s` | requested release and observed send delay; release precedes concurrency acquisition |
+| `prefix_tokens`, `new_input_tokens`, `planned_output_tokens` | exact replay marks |
+| `cached_prompt_tokens` | server-reported prompt tokens served from cache |
+| `expected_cached_tokens` | plan expectation; measured value must be within one declared cache block |
+| `reasoning_tokens` | server-reported reasoning subset of completion tokens |
+| `source_ids` | source-local row/session provenance |
+| `prompt_sha256`, `output_sha256` | direct-token identity checks across paired regimes |
 
 `input_lens` already grows per turn (full prior context + new message), so KV/prefill
-scaling falls out. The manifest's `probe.type` becomes `agentic`, and
-`server.enable_prefix_caching` records the on/off regime.
+scaling falls out. Reasoning is charged once as ordinary decode through
+`output_lens`; `reasoning_tokens` is a slice label, not additional work. The
+manifest records `probe.type`, the trace source/revision/hash/seed, and
+`server.enable_prefix_caching`.

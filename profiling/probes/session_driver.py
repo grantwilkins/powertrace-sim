@@ -19,7 +19,8 @@ import time
 
 def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
                 request_timestamp, post_gap_s, prefix_cache,
-                tool_class="", observation_tokens=0) -> dict:
+                tool_class="", observation_tokens=0, reasoning_tokens=0,
+                cached_prompt_tokens=0) -> dict:
     """One per-turn record (pure)."""
     return {
         "session_id": session_id,
@@ -33,6 +34,8 @@ def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
         "prefix_cache": int(bool(prefix_cache)),
         "tool_class": str(tool_class),          # provenance (replay); ignored by the ledger
         "observation_tokens": int(observation_tokens),
+        "reasoning_tokens": int(reasoning_tokens),
+        "cached_prompt_tokens": int(cached_prompt_tokens),
     }
 
 
@@ -53,6 +56,8 @@ def build_requests_json(records: list[dict]) -> dict:
         # replay provenance (ignored by the reconstruction ledger; for slicing)
         "tool_class": [r.get("tool_class", "") for r in records],
         "observation_tokens": [r.get("observation_tokens", 0) for r in records],
+        "reasoning_tokens": [r.get("reasoning_tokens", 0) for r in records],
+        "cached_prompt_tokens": [r.get("cached_prompt_tokens", 0) for r in records],
     }
 
 
@@ -96,35 +101,63 @@ async def send_session(http, base_url, model, session, prefix_cache,
             # not, and only counts/timing feed the power ledger).
             payload["ignore_eos"] = True
         t_send = time.time()
-        ttft, last, n_out, reply, prompt_tokens = None, t_send, 0, [], None
+        ttft, last, reply, reasoning = None, t_send, [], []
+        usage = None
         async with http.post(url, json=payload) as resp:
             if resp.status >= 400:
-                # A turn the server rejected (e.g. context-length) breaks the
-                # conversation downstream; stop here rather than record a bad turn.
-                break
+                raise RuntimeError(
+                    f"session {session.session_id} turn {turn.turn_idx} "
+                    f"failed with HTTP {resp.status}"
+                )
             async for raw in resp.content:
-                line = raw.decode("utf-8", "ignore").strip()
-                if not line.startswith("data:"):
-                    continue
-                data = line[len("data:"):].strip()
-                if data == "[DONE]":
-                    break
-                try:
+                for encoded in raw.decode("utf-8", "strict").splitlines():
+                    line = encoded.strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        continue
                     chunk = json.loads(data)
-                except Exception:
-                    continue
-                if chunk.get("usage"):
-                    prompt_tokens = chunk["usage"].get("prompt_tokens")
-                choices = chunk.get("choices") or [{}]
-                delta = (choices[0].get("delta") or {}).get("content", "")
-                if not delta:
-                    continue
-                now = time.time()
-                if ttft is None:
-                    ttft = now - t_send
-                last = now
-                n_out += 1
-                reply.append(delta)
+                    if chunk.get("usage"):
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices") or [{}]
+                    delta = choices[0].get("delta") or {}
+                    content = delta.get("content") or ""
+                    thought = delta.get("reasoning_content") or ""
+                    if not content and not thought:
+                        continue
+                    now = time.time()
+                    if ttft is None:
+                        ttft = now - t_send
+                    last = now
+                    reply.append(content)
+                    reasoning.append(thought)
+        if usage is None:
+            raise ValueError("chat completion stream ended without usage")
+        if "prompt_tokens" not in usage or "completion_tokens" not in usage:
+            raise ValueError("usage must include prompt_tokens and completion_tokens")
+        prompt_tokens = int(usage["prompt_tokens"])
+        n_out = int(usage["completion_tokens"])
+        if replay and n_out != turn.output_tokens:
+            raise ValueError(
+                f"session {session.session_id} turn {turn.turn_idx} returned "
+                f"{n_out} tokens, planned {turn.output_tokens}"
+            )
+        prompt_details = usage.get("prompt_tokens_details") or {}
+        completion_details = usage.get("completion_tokens_details") or {}
+        if prefix_cache and "cached_tokens" not in prompt_details:
+            raise ValueError(
+                "cache-on session requires usage.prompt_tokens_details.cached_tokens"
+            )
+        cached_tokens = int(prompt_details.get("cached_tokens") or 0)
+        reasoning_tokens = completion_details.get("reasoning_tokens")
+        if reasoning_tokens is None:
+            reasoning_tokens = len(tokenizer.encode("".join(reasoning))) if any(reasoning) else 0
+        reasoning_tokens = int(reasoning_tokens)
+        if not 0 <= cached_tokens <= prompt_tokens:
+            raise ValueError("cached prompt tokens exceed prompt tokens")
+        if not 0 <= reasoning_tokens <= n_out:
+            raise ValueError("reasoning tokens exceed completion tokens")
         latency = max(last - t_send, 1e-6)
         tpot = (latency - (ttft or 0.0)) / max(n_out - 1, 1)
         # Faithful replay: grow context with the trace's REAL reply so the next
@@ -137,7 +170,9 @@ async def send_session(http, base_url, model, session, prefix_cache,
             output_len=n_out, ttft=ttft or latency, tpot=tpot,
             request_timestamp=t_send, post_gap_s=turn.post_gap_s,
             prefix_cache=prefix_cache, tool_class=turn.tool_class,
-            observation_tokens=turn.observation_tokens))
+            observation_tokens=turn.observation_tokens,
+            reasoning_tokens=reasoning_tokens,
+            cached_prompt_tokens=cached_tokens))
         if turn.post_gap_s > 0:
             await asyncio.sleep(turn.post_gap_s)   # tool-execution gap (idle)
     return records

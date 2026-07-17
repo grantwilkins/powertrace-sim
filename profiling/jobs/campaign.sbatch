@@ -22,6 +22,7 @@ REPO="$HOME/powertrace-sim"
 RUNS="$ROOT/runs"
 LOGS="$ROOT/logs"
 NATIVE_VENV="$ROOT/venv-native"
+GROUP_DATA="${GROUP_HOME:?Sherlock GROUP_HOME is required}/gfw"
 CAMPAIGN="${1:-${CAMPAIGN:?set CAMPAIGN env or pass campaign.json as arg}}"
 mkdir -p "$RUNS" "$LOGS"
 
@@ -44,8 +45,10 @@ export APPTAINERENV_OUTLINES_CACHE_DIR="$OUTLINES_CACHE_DIR"
 export APPTAINERENV_VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 # validate campaigns read ShareGPT from $SHAREGPT_DATASET_PATH (so the config need
 # not hardcode the scratch path); harmless for probe/agentic campaigns.
-export SHAREGPT_DATASET_PATH="$ROOT/data/ShareGPT_V3_unfiltered_cleaned_split.json"
+export SHAREGPT_DATASET_PATH="$GROUP_DATA/ShareGPT_V3_unfiltered_cleaned_split.json"
+export BURSTGPT_DATASET_PATH="$GROUP_DATA/BurstGPT_without_fails_2.csv"
 export APPTAINERENV_SHAREGPT_DATASET_PATH="$SHAREGPT_DATASET_PATH"
+export APPTAINERENV_BURSTGPT_DATASET_PATH="$BURSTGPT_DATASET_PATH"
 
 echo "### preflight"
 source /etc/profile.d/modules.sh 2>/dev/null || true
@@ -60,7 +63,7 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 read -r SANDBOX_NAME MODEL < <(python3 profiling/jobs/campaign_config.py "$CAMPAIGN" --emit json \
     | python3 -c 'import json,sys; c=json.load(sys.stdin); print(c.get("container") or "vllm-openai-v0.10.1.1.sandbox", c["model"])')
 SANDBOX="$ROOT/$SANDBOX_NAME"
-APP="apptainer exec --nv --bind $SCRATCH $SANDBOX"
+APP="apptainer exec --nv --bind $SCRATCH --bind $GROUP_HOME $SANDBOX"
 echo "container: $SANDBOX"
 test -d "$SANDBOX" || { echo "MISSING $SANDBOX; build it: bash profiling/jobs/build_container.sh"; exit 1; }
 

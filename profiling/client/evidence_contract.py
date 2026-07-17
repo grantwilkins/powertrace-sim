@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from model.training_data.power_parsing import parse_power_csv_per_gpu
+from power_logger import POWER_PROFILES
 
 CORE_GAUGES = (
     "num_requests_running",
@@ -101,9 +102,22 @@ def validate_streams(
     *,
     gpus_per_node: int,
     local_utc_offset_s: float,
+    power_profile: str = "core",
 ) -> dict:
     """Validate both logger streams and their common epoch alignment."""
     root = Path(run_dir)
+    if power_profile not in POWER_PROFILES:
+        raise ValueError(f"unknown power telemetry profile: {power_profile!r}")
+    with (root / "power.csv").open(newline="") as stream:
+        header = next(csv.reader(stream), [])
+    normalized_header = {
+        value.strip().split(" [", 1)[0].strip() for value in header
+    }
+    missing_power = sorted(set(POWER_PROFILES[power_profile]) - normalized_header)
+    if missing_power:
+        raise ValueError(
+            f"power.csv missing {power_profile} telemetry columns: {missing_power}"
+        )
     engine = validate_engine_csv(root / "engine.csv", profile)
     power = parse_power_csv_per_gpu(
         str(root / "power.csv"),
@@ -130,6 +144,8 @@ def validate_streams(
         "required_engine_columns": list(requirements(profile)),
         "engine": engine,
         "power": {
+            "profile": power_profile,
+            "required_columns": list(POWER_PROFILES[power_profile]),
             "samples": int(power["timestamps"].size),
             "median_cadence_s": power_cadence,
             "device_ids": list(power["device_ids"]),
@@ -139,11 +155,15 @@ def validate_streams(
     }
 
 
-def expected_instrumentation(profile: str) -> dict:
+def expected_instrumentation(profile: str, power_profile: str = "core") -> dict:
     """Manifest contract for a dry run before observed stream stats exist."""
+    if power_profile not in POWER_PROFILES:
+        raise ValueError(f"unknown power telemetry profile: {power_profile!r}")
     return {
         "profile": profile,
         "purpose": PROFILE_PURPOSE[profile],
         "required_engine_columns": list(requirements(profile)),
+        "power_profile": power_profile,
+        "required_power_columns": list(POWER_PROFILES[power_profile]),
         "status": "expected_dry_run",
     }

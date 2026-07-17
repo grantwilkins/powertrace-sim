@@ -106,6 +106,29 @@ def test_agentic_requires_regimes(tmp_path):
         cc.load_campaign(bad)
 
 
+def test_trace_replay_command_binds_plan_cache_and_power_profile():
+    c = cc.load_campaign(
+        CAMPAIGNS_DIR / "trace_replay_qwen3-8b_a100.json"
+    )
+    off, on = cc.regimes(c)
+    off_command = cc.run_command(c, 1, off)
+    on_command = cc.run_command(c, 1, on)
+    assert "--trace-plan data/trace_plans/tracelab_code.json" in off_command
+    assert "--power-profile core" in off_command
+    assert "--prefix-cache" not in off_command
+    assert "--prefix-cache" in on_command
+
+
+def test_tp8_state_campaign_has_idle_and_required_telemetry():
+    c = cc.load_campaign(
+        CAMPAIGNS_DIR / "h100_tp8_state_diagnostic.json"
+    )
+    command = cc.run_command(c, 8, cc.regimes(c)[0])
+    assert "--pre-idle-s 180.0" in command
+    assert "--power-profile tp8_state" in command
+    assert cc.tp_degrees(c) == [8, 4]
+
+
 def test_validate_single_rate_becomes_one_explicit_regime():
     c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
     assert cc.regimes(c) == [{"request_rate": 4.0}]

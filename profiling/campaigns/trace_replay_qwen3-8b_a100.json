@@ -1,0 +1,21 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "trace_replay",
+  "_note": "Replace trace.plan with a normalized immutable TraceLab/code-arrival plan. Cache-off/on reuse the identical plan hash and token seed.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 131072
+  },
+  "trace": {
+    "plan": "data/trace_plans/tracelab_code.json",
+    "concurrency": 64,
+    "cache_block_tokens": 16,
+    "regimes": [
+      {"prefix_cache": false},
+      {"prefix_cache": true}
+    ]
+  }
+}

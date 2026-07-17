@@ -41,6 +41,9 @@ def base_parser(description: str) -> argparse.ArgumentParser:
         "--evidence-profile", default="core",
         choices=("core", "measured_ledger"),
     )
+    p.add_argument(
+        "--power-profile", default="core", choices=("core", "tp8_state"),
+    )
     return p
 
 
@@ -76,4 +79,5 @@ def execute(schedule, args):
         dtype_hint=args.dtype_hint,
         n_active_override=args.n_active_override,
         evidence_profile=args.evidence_profile,
+        power_profile=args.power_profile,
     )

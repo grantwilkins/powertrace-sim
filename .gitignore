@@ -1,7 +1,8 @@
 .DS_Store
 *.py[cod]
 data/*
-data
+!data/trace_plans/
+!data/trace_plans/*.json
 random_plots_training_data
 *__pycache__*
 *wandb*

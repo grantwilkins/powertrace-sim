@@ -86,6 +86,16 @@ def test_stream_validation_checks_epoch_alignment_and_gpu_identity(tmp_path):
     assert abs(result["first_sample_skew_s"]) < 1e-9
 
 
+def test_tp8_state_profile_rejects_core_only_power(tmp_path):
+    _write_engine(tmp_path / "engine.csv")
+    _write_power(tmp_path / "power.csv")
+    with pytest.raises(ValueError, match="tp8_state telemetry columns"):
+        validate_streams(
+            tmp_path, "core", gpus_per_node=2, local_utc_offset_s=0.0,
+            power_profile="tp8_state",
+        )
+
+
 def test_stream_validation_rejects_clock_basis_skew(tmp_path):
     _write_engine(tmp_path / "engine.csv", start=1_781_571_600.0)
     _write_power(tmp_path / "power.csv", start=1_781_568_000.0)

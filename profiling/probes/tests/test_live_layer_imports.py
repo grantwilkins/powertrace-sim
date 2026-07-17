@@ -17,6 +17,8 @@ import pytest
     "decode_staircase", "prefill_staircase", "context_holds",
     "transients", "mixed_grid",
     "agentic", "session_driver", "session_runner", "agentic_run",
+    "trace_replay_driver", "trace_replay_runner", "trace_replay_run",
+    "compare_trace_replays",
     "validate_runner", "validate_run",
 ])
 def test_live_modules_import(mod):

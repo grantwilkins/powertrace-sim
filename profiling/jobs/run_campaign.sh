@@ -119,7 +119,8 @@ run_bundle_command() {  # <marker> <command>
     checkpoint_bundle "$mark" "$rd"
 }
 
-if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ]; then
+if [ "$CTYPE" = "validate" ] || [ "$CTYPE" = "agentic" ] \
+   || [ "$CTYPE" = "trace_replay" ]; then
     # One prefix-cache regime per pass (1 for validate; cache off+on for agentic).
     # The server is relaunched per regime so --enable-prefix-caching always matches
     # the run's --prefix-cache (same regime index -> they can't disagree).

@@ -1,0 +1,21 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "trace_replay",
+  "_note": "Sherlock compatibility smoke: one four-round TraceLab session, cache off then on. Promote to the 136-round campaign only after both bundles validate.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 8,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 32768
+  },
+  "trace": {
+    "plan": "data/trace_plans/tracelab_smoke.json",
+    "concurrency": 1,
+    "cache_block_tokens": 16,
+    "regimes": [
+      {"prefix_cache": false},
+      {"prefix_cache": true}
+    ]
+  }
+}

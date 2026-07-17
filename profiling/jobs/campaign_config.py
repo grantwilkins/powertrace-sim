@@ -18,13 +18,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "profiling" / "client"))
 from evidence_contract import PROFILE_REQUIREMENTS  # noqa: E402
+from power_logger import POWER_PROFILES  # noqa: E402
 
 # Mirrors profiling/probes/schedule.BUILDERS; a test asserts they stay in sync.
 KNOWN_PROBES = {
     "idle_hold", "decode_staircase", "prefill_staircase",
     "context_holds", "decode_context_grid", "transients", "mixed_grid",
 }
-CAMPAIGN_TYPES = {"tier1", "tier1_partial", "tier2", "validate", "agentic", "roofline"}
+CAMPAIGN_TYPES = {
+    "tier1", "tier1_partial", "tier2", "validate", "agentic",
+    "trace_replay", "roofline",
+}
 # The tp_pair second leg only repeats decode+prefill (CAMPAIGN.md §3): those two
 # probes identify e_comm; re-running the full set at the 2nd TP is wasted budget.
 DEFAULT_TP_PAIR_PROBES = ["decode_staircase", "prefill_staircase"]
@@ -62,6 +66,8 @@ def _validate(c: dict, path) -> None:
         raise CampaignError(f"{where}server.tp is required")
     if c.get("evidence_profile", "core") not in PROFILE_REQUIREMENTS:
         raise CampaignError(f"{where}unknown evidence_profile {c.get('evidence_profile')!r}")
+    if c.get("power_profile", "core") not in POWER_PROFILES:
+        raise CampaignError(f"{where}unknown power_profile {c.get('power_profile')!r}")
     if c.get("validation_role", "development") not in {"development", "sealed"}:
         raise CampaignError(f"{where}validation_role must be development or sealed")
 
@@ -78,20 +84,25 @@ def _validate(c: dict, path) -> None:
             isinstance(rates, list) and rates and all(float(value) > 0 for value in rates)
         ):
             raise CampaignError(f"{where}workload.request_rates must be positive")
-    elif c["campaign_type"] == "agentic":
-        ss = c.get("sessions")
+    elif c["campaign_type"] in {"agentic", "trace_replay"}:
+        block = "sessions" if c["campaign_type"] == "agentic" else "trace"
+        ss = c.get(block)
         if not ss:
-            raise CampaignError(f"{where}agentic campaigns need a 'sessions' block")
+            raise CampaignError(
+                f"{where}{c['campaign_type']} campaigns need a '{block}' block"
+            )
+        if c["campaign_type"] == "trace_replay" and not ss.get("plan"):
+            raise CampaignError(f"{where}trace_replay trace.plan is required")
         regs = ss.get("regimes")
         if not (isinstance(regs, list) and regs
                 and all(isinstance(r, dict) and "prefix_cache" in r for r in regs)):
             raise CampaignError(
-                f"{where}agentic sessions need a non-empty 'regimes' list, each "
+                f"{where}{block} needs a non-empty 'regimes' list, each "
                 f"with a 'prefix_cache' boolean")
         if "enable_prefix_caching" in c["server"] or "prefix_cache" in ss:
             raise CampaignError(
-                f"{where}agentic prefix-caching is derived per regime; drop "
-                f"server.enable_prefix_caching and sessions.prefix_cache")
+                f"{where}{c['campaign_type']} prefix-caching is derived per regime; "
+                f"drop server.enable_prefix_caching and {block}.prefix_cache")
     elif c["campaign_type"] == "roofline":
         probes = c.get("probes", [])
         if not probes:
@@ -146,6 +157,7 @@ def _with_defaults(c: dict) -> dict:
     c["gpus_per_node"] = max(tp_degrees(c))
     c.setdefault("probes", [])
     c.setdefault("evidence_profile", "core")
+    c.setdefault("power_profile", "core")
     c.setdefault("validation_role", "development")
     c.setdefault("tp_pair_probes", list(DEFAULT_TP_PAIR_PROBES))
     if c["campaign_type"] == "roofline":
@@ -200,8 +212,9 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
 
 def regimes(c: dict) -> list[dict]:
     """Prefix-cache regimes to run: one per regime for agentic, a single pass else."""
-    if c["campaign_type"] == "agentic":
-        return list(c["sessions"]["regimes"])
+    if c["campaign_type"] in {"agentic", "trace_replay"}:
+        block = "sessions" if c["campaign_type"] == "agentic" else "trace"
+        return list(c[block]["regimes"])
     if c["campaign_type"] == "validate":
         workload = c["workload"]
         rates = workload.get("request_rates", [workload.get("request_rate")])
@@ -334,6 +347,7 @@ def probe_commands(c: dict, tp: int) -> list[str]:
         f"--max-model-len {s['max_model_len']} "
         f"--kv-cache-dtype {s['kv_cache_dtype']} "
         f"--out-root {out_root()} --evidence-profile {c['evidence_profile']}"
+        f" --power-profile {c['power_profile']}"
     )
     if s.get("dtype_hint"):
         common += f" --dtype-hint {s['dtype_hint']}"
@@ -364,9 +378,12 @@ def validate_command(c: dict, tp: int, regime=None) -> str:
         f"--num-prompts {w.get('num_prompts')} --request-rate {request_rate} "
         f"--seed {w.get('seed', 0)} --validation-role {c['validation_role']} "
         f"--evidence-profile {c['evidence_profile']}"
+        f" --power-profile {c['power_profile']}"
     )
     if w.get("dataset_path"):
         cmd += f" --dataset-path {w['dataset_path']}"
+    if float(w.get("pre_idle_s", 0.0)):
+        cmd += f" --pre-idle-s {float(w['pre_idle_s'])}"
     # Keep MoE active-param count identical to the probe (training) bundles so the
     # held-out validate test isn't graded against a different arch for the same model.
     if c.get("n_active_override"):
@@ -389,6 +406,7 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--out-root {out_root()}",
         f"--evidence-profile {c['evidence_profile']}",
+        f"--power-profile {c['power_profile']}",
         f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
     ]
     if c.get("n_active_override"):
@@ -399,6 +417,28 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
         parts.append(f"--replay --corpus {ss['corpus']} --gap-params {ss['gap_params']}")
     else:
         parts.append(f"--gap-mean-s {ss.get('gap_mean_s', 3.0)}")
+    if regime.get("prefix_cache"):
+        parts.append("--prefix-cache")
+    return " ".join(parts)
+
+
+def trace_replay_command(c: dict, tp: int, regime: dict) -> str:
+    """Exact direct-token replay invocation for one cache regime."""
+    s, trace = c["server"], c["trace"]
+    parts = [
+        "python3 profiling/probes/trace_replay_run.py",
+        f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--gpus-per-node {c['gpus_per_node']}",
+        f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
+        f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",
+        f"--evidence-profile {c['evidence_profile']}",
+        f"--power-profile {c['power_profile']}",
+        f"--trace-plan {trace['plan']}",
+        f"--concurrency {int(trace.get('concurrency', 64))}",
+        f"--cache-block-tokens {int(trace.get('cache_block_tokens', 16))}",
+    ]
+    if c.get("n_active_override"):
+        parts.append(f"--n-active-override {c['n_active_override']}")
     if regime.get("prefix_cache"):
         parts.append("--prefix-cache")
     return " ".join(parts)
@@ -447,14 +487,19 @@ def run_command(c: dict, tp: int, regime=None) -> str:
         return validate_command(c, tp, regime)
     if t == "agentic":
         return agentic_command(c, tp, regime or {})
-    raise CampaignError(f"run_command is only for validate/agentic, not '{t}'")
+    if t == "trace_replay":
+        return trace_replay_command(c, tp, regime or {})
+    raise CampaignError(
+        f"run_command is only for validate/agentic/trace_replay, not '{t}'"
+    )
 
 
 def render_plan(c: dict) -> str:
     lines = [
         f"# Campaign: {c['campaign_type']} | {c['model']} | {c['hardware']}",
         f"# TP degrees: {tp_degrees(c)}",
-        f"# evidence: {c['evidence_profile']} | role: {c['validation_role']}",
+        f"# evidence: {c['evidence_profile']} | power: {c['power_profile']} "
+        f"| role: {c['validation_role']}",
     ]
     for tp in tp_degrees(c):
         lines.append(f"\n## TP={tp}")
@@ -466,14 +511,16 @@ def render_plan(c: dict) -> str:
                     f"VALIDATE: benchmark_serving --dataset {w.get('dataset')} "
                     f"--num-prompts {w.get('num_prompts')} "
                     f"--request-rate {regime['request_rate']} "
-                    f"--seed {w.get('seed', 0)}"
+                    f"--seed {w.get('seed', 0)} "
+                    f"--pre-idle-s {float(w.get('pre_idle_s', 0.0))}"
                 )
-        elif c["campaign_type"] == "agentic":
+        elif c["campaign_type"] in {"agentic", "trace_replay"}:
             for r in regimes(c):
                 pc = bool(r.get("prefix_cache"))
                 lines.append(f"SERVE[prefix_cache={pc}]: {serve_command(c, tp, pc)}")
                 lines.append(
-                    f"AGENTIC[prefix_cache={pc}]: {run_command(c, tp, r)}")
+                    f"{c['campaign_type'].upper()}[prefix_cache={pc}]: "
+                    f"{run_command(c, tp, r)}")
         elif c["campaign_type"] == "roofline":
             lines.append(f"# output root: {out_root()}")
             for probe, cmd in zip(probes_for_tp(c, tp), probe_commands(c, tp)):

@@ -81,6 +81,7 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
                    "request_rate": workload["request_rate"],
                    "num_prompts": int(workload["num_prompts"]),
                    "seed": int(workload.get("seed", 0)),
+                   "pre_idle_s": float(workload.get("pre_idle_s", 0.0)),
                    "validation_role": workload.get("validation_role", "development")},
         "command": command,
         "summary": summary,
@@ -90,7 +91,7 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
 def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         dataset_path, base_url="http://localhost:8000/v1",
         weight_footprint_bytes=None, dtype_hint=None, n_active_override=None,
-        run_id=None, evidence_profile="core"):
+        run_id=None, evidence_profile="core", power_profile="core"):
     """Drive ``benchmark_serving`` over a real dataset; write the §2 bundle."""
     run_manifest = probe_runner._client_mod("run_manifest")
     arch_extract = probe_runner._client_mod("arch_extract")
@@ -116,8 +117,11 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     window_start = time.time()
     with probe_runner.logging_session(
         run_dir, base_url, evidence_profile=evidence_profile,
-        gpus_per_node=gpus_per_node,
+        gpus_per_node=gpus_per_node, power_profile=power_profile,
     ) as capture:
+        idle_start = time.time()
+        time.sleep(float(workload.get("pre_idle_s", 0.0)))
+        idle_end = time.time()
         t0 = time.time()
         subprocess.run(command, check=True)
         t1 = time.time()
@@ -131,6 +135,10 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         run_id=run_id,
         probe={"type": "validate",
                "validation_role": workload.get("validation_role", "development"),
+               "idle_window": {
+                   "start_epoch": idle_start, "end_epoch": idle_end,
+                   "requested_s": float(workload.get("pre_idle_s", 0.0)),
+               },
                "window": {"start_epoch": window_start, "end_epoch": window_end},
                "levels": [build_validate_window(
                    workload, t0, t1, command, level["summary"])]},

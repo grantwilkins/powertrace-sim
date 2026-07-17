@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "source": "tracelab",
+  "revision": "v0.0.1+sha256:9d265eae69a31cae203848bea936f018148eed7ca8bf56050c5abe96da0b4e6b",
+  "seed": 0,
+  "rounds": [
+    {
+      "session_id": "codex:ef608fc7-55e7-7cc9-0e85-738ad507b4fb",
+      "round_idx": 0,
+      "ready_s": 0.0,
+      "prefix_tokens": 3200,
+      "input_tokens": 929,
+      "output_tokens": 31,
+      "tool_wait_s": 0.122,
+      "source_id": "turn_31d229567e0048f2:0",
+      "cached_prefix_tokens": 0
+    },
+    {
+      "session_id": "codex:ef608fc7-55e7-7cc9-0e85-738ad507b4fb",
+      "round_idx": 1,
+      "ready_s": 0.0,
+      "prefix_tokens": 3968,
+      "input_tokens": 250,
+      "output_tokens": 44,
+      "tool_wait_s": 0.075,
+      "source_id": "turn_31d229567e0048f2:1",
+      "cached_prefix_tokens": 3968
+    },
+    {
+      "session_id": "codex:ef608fc7-55e7-7cc9-0e85-738ad507b4fb",
+      "round_idx": 2,
+      "ready_s": 0.0,
+      "prefix_tokens": 4096,
+      "input_tokens": 863,
+      "output_tokens": 281,
+      "tool_wait_s": 0.0,
+      "source_id": "turn_31d229567e0048f2:2",
+      "cached_prefix_tokens": 4096
+    },
+    {
+      "session_id": "codex:ef608fc7-55e7-7cc9-0e85-738ad507b4fb",
+      "round_idx": 3,
+      "ready_s": 0.0,
+      "prefix_tokens": 3200,
+      "input_tokens": 1915,
+      "output_tokens": 41,
+      "tool_wait_s": 0.021,
+      "source_id": "turn_31d229567e0048f2:3",
+      "cached_prefix_tokens": 3200
+    }
+  ]
+}

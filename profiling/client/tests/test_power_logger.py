@@ -6,7 +6,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # profiling/client
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root
 
-from power_logger import DEFAULT_INTERVAL_MS, nvidia_smi_command  # noqa: E402
+from power_logger import (  # noqa: E402
+    DEFAULT_INTERVAL_MS, TP8_STATE_FIELDS, nvidia_smi_command,
+    nvidia_smi_snapshot_command,
+)
 from model.training_data.power_parsing import parse_power_csv  # noqa: E402
 
 
@@ -20,6 +23,26 @@ def test_query_has_extended_fields():
     assert f"-lms={DEFAULT_INTERVAL_MS}" in cmd
     # compatibility: timestamp + power.draw must lead the query
     assert query.split("=", 1)[1].startswith("timestamp,index,uuid,power.draw")
+
+
+def test_tp8_state_profile_requests_clock_cause_not_just_power():
+    """Claim: the TP8 diagnostic records the state needed to identify the jump.
+
+    This catches a plausible run that adds P-state but silently omits power caps,
+    thermal slowdown, or hardware slowdown and therefore cannot distinguish the
+    competing causes.
+    """
+    query = next(
+        value for value in nvidia_smi_command(profile="tp8_state")
+        if value.startswith("--query-gpu=")
+    )
+    assert tuple(query.split("=", 1)[1].split(",")) == TP8_STATE_FIELDS
+    for field in ("pstate", "power.limit", "clocks_event_reasons.sw_power_cap",
+                  "clocks_event_reasons.hw_thermal_slowdown"):
+        assert field in query
+    snapshot = nvidia_smi_snapshot_command("tp8_state")
+    assert "-lms=250" not in snapshot
+    assert "--format=csv,noheader,nounits" in snapshot
 
 
 def _write_extended_power_csv(path, n_samples=3, gpus=8, watts=100.0):

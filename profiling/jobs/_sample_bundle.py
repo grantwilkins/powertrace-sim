@@ -47,7 +47,10 @@ def write_sample_bundle(campaign_path) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # empty logger CSVs with the real headers
-    (run_dir / "power.csv").write_text(", ".join(power_logger.EXTENDED_FIELDS) + "\n")
+    power_profile = c.get("power_profile", "core")
+    (run_dir / "power.csv").write_text(
+        ", ".join(power_logger.POWER_PROFILES[power_profile]) + "\n"
+    )
     (run_dir / "engine.csv").write_text(",".join(metrics_logger.ENGINE_HEADER) + "\n")
     (run_dir / "requests.json").write_text(json.dumps(
         {k: [] for k in ("input_lens", "output_lens", "ttfts", "itls",
@@ -61,7 +64,7 @@ def write_sample_bundle(campaign_path) -> Path:
         versions={"vllm": "DRY-RUN", "git_sha": "DRY-RUN", "gpu_driver": "DRY-RUN"},
         clock=run_manifest.capture_clock(),
         instrumentation=evidence_contract.expected_instrumentation(
-            c.get("evidence_profile", "core")
+            c.get("evidence_profile", "core"), power_profile
         ),
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)

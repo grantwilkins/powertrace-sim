@@ -16,7 +16,8 @@ import session_driver
 _SSE = [
     b'data: {"choices":[{"delta":{"content":"LIVE"}}]}',
     b'data: {"choices":[{"delta":{"content":"GEN"}}]}',
-    b'data: {"usage":{"prompt_tokens":42}}',
+    b'data: {"usage":{"prompt_tokens":42,"completion_tokens":2,'
+    b'"prompt_tokens_details":{"cached_tokens":16}}}',
     b'data: [DONE]',
 ]
 
@@ -111,12 +112,13 @@ class FailSecondHttp:
         return _Post() if self.n == 1 else _FailPost()
 
 
-def test_failed_turn_stops_session_without_degenerate_record():
-    recs = asyncio.run(session_driver.send_session(
-        FailSecondHttp(), "http://x/v1", "m", _replay_session(),
-        prefix_cache=False, tokenizer=BoomTok()))
-    assert len(recs) == 1            # only the successful turn; the 400 turn is dropped
-    assert recs[0]["output_len"] == 2
+def test_failed_turn_fails_the_session():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="turn 1 failed with HTTP 400"):
+        asyncio.run(session_driver.send_session(
+            FailSecondHttp(), "http://x/v1", "m", _replay_session(),
+            prefix_cache=False, tokenizer=BoomTok()))
 
 
 def test_requests_json_includes_provenance_arrays():
@@ -128,3 +130,25 @@ def test_requests_json_includes_provenance_arrays():
     assert rj["tool_class"][0] == "bash"
     assert rj["observation_tokens"][0] == 5
     assert len(rj["input_lens"]) == 2  # still a reconstruction-compatible superset
+
+
+def test_reasoning_is_a_completion_subset_not_extra_decode(monkeypatch):
+    reasoning_sse = [
+        b'data: {"choices":[{"delta":{"reasoning_content":"THINK"}}]}',
+        b'data: {"choices":[{"delta":{"content":"ANSWER"}}]}',
+        b'data: {"usage":{"prompt_tokens":42,"completion_tokens":5,'
+        b'"completion_tokens_details":{"reasoning_tokens":3}}}',
+        b'data: [DONE]',
+    ]
+    monkeypatch.setattr(__import__(__name__), "_SSE", reasoning_sse)
+    session = _replay_session()
+    session.turns[:] = session.turns[:1]
+    session.turns[0] = agentic.SessionTurn(
+        turn_idx=0, new_input_tokens=2, output_tokens=5, post_gap_s=0.0,
+        user_text="hello", assistant_text="TRACE",
+    )
+    records = asyncio.run(session_driver.send_session(
+        FakeHttp(), "http://x/v1", "m", session, prefix_cache=False,
+        tokenizer=BoomTok()))
+    assert records[0]["output_len"] == 5
+    assert records[0]["reasoning_tokens"] == 3

@@ -1,0 +1,21 @@
+{
+  "hardware": "H100",
+  "model": "meta-llama/Llama-3.1-70B-Instruct",
+  "campaign_type": "validate",
+  "_note": "One causal TP8 state diagnostic plus matched TP4 control: 180 s measured idle, then approximately 420 s at rate 4. Requires every tp8_state NVIDIA counter.",
+  "power_profile": "tp8_state",
+  "server": {
+    "tp": 8,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 8192
+  },
+  "tp_pair": [8, 4],
+  "workload": {
+    "dataset": "sharegpt",
+    "num_prompts": 1680,
+    "request_rate": 4.0,
+    "seed": 0,
+    "pre_idle_s": 180.0
+  }
+}
