@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "model": "openai/gpt-oss-120b",
+  "source_path": "/home/groups/ramr/gfw/moe_routing_samples.jsonl",
+  "source_sha256": "951abb3b763a4bf139e0ec406eaf0cfefad383a97e3cf4f3d1034cd994a9f3cc",
+  "artifact": "/scratch/users/gfw/ptsim/moe-routing/gpt-oss-120b-routing.npz",
+  "tokens": 114384,
+  "layers": 36,
+  "top_k": 4,
+  "max_tokens_per_sample": 4096,
+  "phase_codes": {
+    "prefill": 0,
+    "decode": 1
+  },
+  "prefill_group_sizes": [
+    1,
+    4,
+    16,
+    64,
+    256
+  ],
+  "decode_batch_sizes": [
+    1,
+    4,
+    16,
+    64,
+    128
+  ],
+  "curve_semantics": {
+    "prefill": "contiguous teacher-forced tokens",
+    "decode": "one completion token per active sequence and position"
+  }
+}
