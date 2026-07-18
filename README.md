@@ -244,6 +244,36 @@ bash profiling/jobs/run_campaign.sh profiling/campaigns/roofline_gemma-4-26b-a4b
 bash profiling/jobs/run_campaign.sh profiling/campaigns/roofline_gemma-4-26b-a4b_a100.json --execute
 ```
 
+Slurm submissions should use `profiling/jobs/submit_campaign.sh`; it passes the
+current checkout to the batch job as `POWERTRACE_REPO`. Override that variable
+only when the submitted job must run a different checkout. On Sherlock, submit
+A100 campaigns whose maximum TP needs more than two GPUs to `owners` rather than
+`ramr`; the wrapper pins owners A100/H100 jobs to the matching 80GB GPU class.
+For large checkpoint staging, `profiling/jobs/stage_models.sh` defaults
+`HF_SNAPSHOT_MAX_WORKERS=2`; lower it to `1` if the login-node downloader is
+killed. Native `arch_extract` sanity is opt-in with
+`STAGE_MODELS_ARCH_SANITY=1`; the launch container performs the authoritative
+parse. Live campaign server processes are pinned with CUDA ordinal indices while
+bundle manifests still record the exact active GPU UUIDs. Server teardown
+refuses to signal the batch shell's process group if `setsid` has not
+isolated the vLLM launcher yet. Campaign server readiness waits for `/health`,
+the served model to appear in `/v1/models`, and a one-token `/v1/completions`
+smoke request before probes start, so large checkpoints cannot be marked ready
+while weights are still loading. Campaign
+`server.quantization` is emitted to vLLM and recorded in bundle manifests; the
+Llama-3.1-405B H100 TP8 cells use the pre-quantized
+`RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8` checkpoint with
+`server.quantization=compressed-tensors` and `dtype_hint=fp8` because BF16
+weights do not fit on 8x80GB H100. The live power logger
+stamps each all-GPU `nvidia-smi` query with one shared timestamp so bundle
+ingestion can keep enforcing the 50 ms per-sample skew contract, and the metrics
+logger records only successful scrapes so transient HTTP misses do not create
+all-NaN evidence rows. Probe campaigns launch direct
+`profiling/probes/<probe>.py` entry points, one per `schedule.BUILDERS` probe.
+The standard `context_holds` schedule and direct CLI default use a 122880-token
+top prefix rather than 131072 so tokenizer expansion cannot exceed the served
+Llama context.
+
 Live campaign bundles are written under `data/runs/<campaign_id>/<run_id>/` by
 default. The analyzer writes CSVs to `results/occupancy_roofline/` and figures
 to `figures/occupancy_roofline/`. The occupancy coordinate is `ell = f / F + g / G`,

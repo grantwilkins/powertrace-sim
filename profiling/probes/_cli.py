@@ -23,6 +23,7 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--base-url", default="http://localhost:8000/v1")
     p.add_argument("--hold-s", type=float, default=45.0)
     p.add_argument("--dtype-hint", default=None)
+    p.add_argument("--quantization", default=None)
     p.add_argument("--weight-footprint-bytes", type=float, default=None)
     p.add_argument("--n-active-override", type=float, default=None,
                    help="vendor-stated active param count (MoE; overrides analytic)")
@@ -56,6 +57,8 @@ def server_cfg(args) -> dict:
         "kv_cache_dtype": args.kv_cache_dtype,
         "max_model_len": args.max_model_len,
     }
+    if args.quantization:
+        config["quantization"] = args.quantization
     active = args.active_gpu_uuids.strip()
     if active:
         config["active_gpu_uuids"] = active.split(",")

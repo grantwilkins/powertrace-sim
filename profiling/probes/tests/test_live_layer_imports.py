@@ -34,11 +34,12 @@ def test_cli_server_cfg_shape(monkeypatch):
         max_num_seqs=256, max_num_batched_tokens=8192,
         enable_chunked_prefill=True, enable_prefix_caching=False,
         kv_cache_dtype="auto", max_model_len=131072,
-        active_gpu_uuids="GPU-a,GPU-b",
+        quantization="fp8", active_gpu_uuids="GPU-a,GPU-b",
     )
     cfg = _cli.server_cfg(ns)
     assert cfg["max_num_seqs"] == 256
     assert cfg["enable_chunked_prefill"] is True
+    assert cfg["quantization"] == "fp8"
     assert cfg["active_gpu_uuids"] == ["GPU-a", "GPU-b"]
     for k in ("max_num_batched_tokens", "enable_prefix_caching",
               "kv_cache_dtype", "max_model_len"):

@@ -1,0 +1,20 @@
+{
+  "hardware": "H100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "n_active_override": 4.0e9,
+  "_note": "H100 Tier-2 for gemma-4-26B-A4B (MoE). Second hardware platform. tp=2 primary + tp_pair[2,4]. n_active_override matches the A100 bundles so cross-hardware arch is identical (the held-out axis is hardware, not arch).",
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072
+  },
+  "probes": ["decode_staircase", "prefill_staircase"],
+  "tp_pair": [2, 4]
+}

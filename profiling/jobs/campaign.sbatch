@@ -18,7 +18,7 @@ set -Eeuo   # no pipefail: diagnostic `| head` pipes would SIGPIPE-kill the scri
 ulimit -n 65536 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null || true
 
 ROOT="$SCRATCH/ptsim"
-REPO="$HOME/powertrace-sim"
+REPO="${POWERTRACE_REPO:-$HOME/powertrace-sim}"
 RUNS="$ROOT/runs"
 LOGS="$ROOT/logs"
 NATIVE_VENV="$ROOT/venv-native"

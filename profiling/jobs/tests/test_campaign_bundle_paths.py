@@ -22,6 +22,8 @@ from _sample_bundle import write_sample_bundle
 ROOT = Path(__file__).resolve().parents[3]
 RUN_CAMPAIGN = ROOT / "profiling" / "jobs" / "run_campaign.sh"
 SUBMIT_CAMPAIGN = ROOT / "profiling" / "jobs" / "submit_campaign.sh"
+CAMPAIGN_SBATCH = ROOT / "profiling" / "jobs" / "campaign.sbatch"
+SERVER_LIFECYCLE = ROOT / "profiling" / "jobs" / "server_lifecycle.sh"
 
 
 def _write_campaign(path: Path) -> None:
@@ -85,7 +87,17 @@ def test_run_campaign_checkpointing_does_not_use_bundle_globs():
     assert 'checkpoint_bundle "$MARK" "$RUNS/*' not in text
     assert 'run_bundle_command "$MARK"' in text
     assert "POWERTRACE_ACTIVE_GPU_UUIDS" in text
-    assert "CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_UUIDS" in text
+    assert "POWERTRACE_ACTIVE_GPU_INDICES" in text
+    assert "CUDA_VISIBLE_DEVICES=$POWERTRACE_ACTIVE_GPU_INDICES" in text
+    assert 'SERVER_MODEL="$($CCFG "$CAMPAIGN" --emit model)"' in text
+
+
+def test_server_lifecycle_waits_for_openai_model_endpoint():
+    text = SERVER_LIFECYCLE.read_text()
+    assert "SERVER_MODEL" in text
+    assert "http://localhost:8000/v1/models" in text
+    assert "http://localhost:8000/v1/completions" in text
+    assert "completion probe" in text
 
 
 def test_sealed_execute_requires_separate_output_root(tmp_path):
@@ -111,3 +123,16 @@ def test_submit_script_refuses_implicit_a100_partition_for_h100():
     text = SUBMIT_CAMPAIGN.read_text()
     assert 'H100 campaign requires an explicit -p <H100_PARTITION>' in text
     assert 'H100 campaign cannot use the A100 ramr partition' in text
+
+
+def test_submit_script_exports_current_repo_to_sbatch():
+    submit = SUBMIT_CAMPAIGN.read_text()
+    sbatch = CAMPAIGN_SBATCH.read_text()
+    assert 'POWERTRACE_REPO="$REPO_ROOT"' in submit
+    assert 'REPO="${POWERTRACE_REPO:-$HOME/powertrace-sim}"' in sbatch
+
+
+def test_submit_script_owners_defaults_are_hardware_specific():
+    text = SUBMIT_CAMPAIGN.read_text()
+    assert 'A100) CONS="GPU_SKU:A100_SXM4&GPU_MEM:80GB"' in text
+    assert 'H100) CONS="GPU_SKU:H100_SXM5&GPU_MEM:80GB"' in text

@@ -8,12 +8,23 @@ The bundle parser groups rows by a bounded capture window and UUID, validates a
 stable UUID-to-index mapping, and rejects topology drift; it never infers samples
 from anonymous row blocks.
 
-Only the command/argv construction lives here (pure, unit-testable). The actual
-process is spawned by ``probe_runner`` / the bash logger, redirecting stdout to
-``power.csv`` — there is nothing GPU-specific to test offline.
+Only the command/argv construction and the small timestamping wrapper live here.
+The wrapper runs one ``nvidia-smi`` query per sample and stamps every GPU row in
+that query with the same wall timestamp, so busy-node per-row ``nvidia-smi``
+timestamp skew cannot violate the bundle contract.
 """
 
 from __future__ import annotations
+
+import argparse
+import csv
+import datetime as dt
+import signal
+import subprocess
+import sys
+import time
+from io import StringIO
+from pathlib import Path
 
 # Stable identity is part of every row; ingestion groups bounded capture windows.
 EXTENDED_FIELDS = (
@@ -45,21 +56,56 @@ POWER_PROFILES = {
 
 DEFAULT_INTERVAL_MS = 250  # 4 Hz, aligned to the engine /metrics scraper
 
+DISPLAY_FIELDS = {
+    "power.draw": "power.draw [W]",
+    "clocks.sm": "clocks.current.sm [MHz]",
+    "clocks.mem": "clocks.current.memory [MHz]",
+    "utilization.gpu": "utilization.gpu [%]",
+    "utilization.memory": "utilization.memory [%]",
+    "memory.used": "memory.used [MiB]",
+}
+
+_STOP = False
+
+
+def _query_fields(fields=EXTENDED_FIELDS) -> tuple[str, ...]:
+    return tuple(field for field in fields if field != "timestamp")
+
+
+def display_header(fields=EXTENDED_FIELDS) -> list[str]:
+    return [DISPLAY_FIELDS.get(field, field) for field in fields]
+
+
+def nvidia_smi_query_command(fields=EXTENDED_FIELDS) -> list[str]:
+    return [
+        "nvidia-smi",
+        f"--query-gpu={','.join(_query_fields(fields))}",
+        "--format=csv,nounits,noheader",
+    ]
+
 
 def nvidia_smi_command(
     fields=None, interval_ms: int = DEFAULT_INTERVAL_MS, profile: str = "core"
 ) -> list[str]:
-    """Return the ``nvidia-smi`` argv that streams the extended per-GPU fields."""
+    """Return the argv for the live logger process."""
     if fields is None:
         try:
             fields = POWER_PROFILES[profile]
         except KeyError as exc:
             raise ValueError(f"unknown power telemetry profile: {profile!r}") from exc
+    matching = [
+        name for name, profile_fields in POWER_PROFILES.items()
+        if tuple(fields) == tuple(profile_fields)
+    ]
+    if not matching:
+        raise ValueError("fields must match a declared power telemetry profile")
     return [
-        "nvidia-smi",
-        f"--query-gpu={','.join(fields)}",
-        "--format=csv,nounits",
-        f"-lms={int(interval_ms)}",
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--interval-ms",
+        str(int(interval_ms)),
+        "--profile",
+        matching[0],
     ]
 
 
@@ -74,3 +120,59 @@ def nvidia_smi_snapshot_command(profile: str = "core") -> list[str]:
         f"--query-gpu={','.join(fields)}",
         "--format=csv,noheader,nounits",
     ]
+
+
+def write_query_rows(stream, timestamp: str, query_stdout: str) -> None:
+    writer = csv.writer(stream, lineterminator="\n")
+    for row in csv.reader(StringIO(query_stdout)):
+        if row:
+            writer.writerow([timestamp] + [cell.strip() for cell in row])
+
+
+def _timestamp_now() -> str:
+    return dt.datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
+
+
+def _stop(_signum, _frame) -> None:
+    global _STOP
+    _STOP = True
+
+
+def stream_power(
+    interval_ms: int = DEFAULT_INTERVAL_MS, profile: str = "core"
+) -> None:
+    try:
+        fields = POWER_PROFILES[profile]
+    except KeyError as exc:
+        raise ValueError(f"unknown power telemetry profile: {profile!r}") from exc
+    signal.signal(signal.SIGTERM, _stop)
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(display_header(fields))
+    sys.stdout.flush()
+    interval_s = int(interval_ms) / 1000.0
+    while not _STOP:
+        start = time.monotonic()
+        timestamp = _timestamp_now()
+        result = subprocess.run(
+            nvidia_smi_query_command(fields),
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        write_query_rows(sys.stdout, timestamp, result.stdout)
+        sys.stdout.flush()
+        remaining = interval_s - (time.monotonic() - start)
+        if remaining > 0:
+            time.sleep(remaining)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--interval-ms", type=int, default=DEFAULT_INTERVAL_MS)
+    parser.add_argument("--profile", choices=POWER_PROFILES, default="core")
+    args = parser.parse_args()
+    stream_power(args.interval_ms, args.profile)
+
+
+if __name__ == "__main__":
+    main()

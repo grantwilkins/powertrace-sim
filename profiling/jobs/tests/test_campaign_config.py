@@ -46,6 +46,12 @@ def test_visible_gpu_count_is_derived_from_largest_tp(tmp_path):
     assert "--gpus-per-node 4" in cc.probe_commands(c, 4)[0]
 
 
+def test_campaign_config_keeps_submission_metadata_stdlib_only():
+    text = Path(cc.__file__).read_text()
+    assert "evidence_contract" not in text
+    assert cc.KNOWN_EVIDENCE_PROFILES == {"core", "measured_ledger"}
+
+
 def test_known_probes_match_schedule_builders():
     """Drift guard: campaign_config.KNOWN_PROBES mirrors schedule.BUILDERS."""
     import schedule
@@ -306,7 +312,7 @@ def test_probe_serve_disables_chunked_prefill_for_prefill_staircase():
 def test_probe_serve_raises_max_model_len_for_context_holds():
     c = cc.load_campaign(CAMPAIGNS_DIR / "h100_tier1_llama70b.json")
     serve = cc.probe_serve_command(c, "context_holds", 8)
-    # context holds need max_model_len >= the largest context (131072) + margin
+    # context holds keep a long-prefix tier while leaving tokenizer headroom.
     import re
     mml = int(re.search(r"--max-model-len (\d+)", serve).group(1))
     assert mml >= 131072
@@ -320,6 +326,11 @@ def test_probe_commands_nonempty_for_probe_campaign():
     # there is no profiling/__init__.py, so only the script-path form resolves.
     assert all(cmd.startswith("python3 profiling/probes/") and ".py " in cmd
                for cmd in cmds)
+
+
+def test_known_probe_scripts_exist():
+    for probe in cc.KNOWN_PROBES:
+        assert (cc.REPO_ROOT / "profiling" / "probes" / f"{probe}.py").is_file()
 
 
 def test_probe_commands_carry_out_root(monkeypatch):
@@ -387,6 +398,21 @@ def test_llama_matrix_has_matched_scale_rates_and_within_model_tp_rates():
     )
     assert small["workload"]["seed"] == large["workload"]["seed"]
     assert cc.tp_degrees(small) == [8, 4]
+
+
+def test_llama405b_campaigns_use_fp8_checkpoint():
+    for name in ("h100_hardcells_llama405b.json", "h100_sealed_llama405b.json"):
+        campaign = cc.load_campaign(CAMPAIGNS_DIR / name)
+        server = campaign["server"]
+        assert server["quantization"] == "compressed-tensors"
+        assert server["dtype_hint"] == "fp8"
+
+        serve = cc.serve_command(campaign, 8)
+        run = cc.run_command(campaign, 8, cc.regimes(campaign)[0])
+        assert campaign["model"] == "RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8"
+        assert "--quantization compressed-tensors" in serve
+        assert "--quantization compressed-tensors" in run
+        assert "--dtype-hint fp8" in run
 
 
 def test_sealed_campaign_role_is_emitted_and_commands_keep_fresh_seed():

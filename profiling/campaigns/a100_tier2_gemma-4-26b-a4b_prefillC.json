@@ -1,0 +1,21 @@
+{
+  "hardware": "A100",
+  "gpus_per_node": 8,
+  "model": "google/gemma-4-26B-A4B-it",
+  "campaign_type": "tier2",
+  "container": "vllm-openai-gemma4.sandbox",
+  "n_active_override": 4.0e9,
+  "_note": "A100 COMPUTE-BOUND prefill probe for gemma-4-26B-A4B (MoE): concurrency 8 at short/mid contexts to draw real compute power and identify e_flop. NOTE MoE prefill activates ALL experts (per-token routing covers them across a batch), so prefill FLOPs use full not active params -- the compute-bound signal is correspondingly larger. Short max_model_len=8192. n_active_override matches the other bundles.",
+  "server": {
+    "tp": 2,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 8192
+  },
+  "probes": ["prefill_staircase"],
+  "prefill_input_lens": [256, 1024, 4096],
+  "prefill_concurrency": 8
+}

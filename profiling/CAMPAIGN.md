@@ -148,7 +148,7 @@ must be **fixed within a campaign and recorded in every manifest**:
   prefill cost); **both on and off for agentic Tier 3** (both regimes occur in
   production).
 - `--kv-cache-dtype`, `--max-model-len` — set `max-model-len` high enough for the
-  128k context holds (`VLLM_ALLOW_LONG_MAX_MODEL_LEN=1`); record KV dtype (it
+  122880-token context holds (`VLLM_ALLOW_LONG_MAX_MODEL_LEN=1`); record KV dtype (it
   scales `e_kv`).
 
 ---
@@ -271,7 +271,7 @@ ambiguity in `FEATURE_TEST_LEARNINGS.md`:
 | 2 | `a100_iteration_gpt-oss-20b.json` | 20B TP2↔TP4 at identical batch × context points | isolates TP on one model |
 | 3 | `a100_iteration_gpt-oss-{20b,120b}.json` TP4 legs | 20B↔120B at identical TP, batch, and context | isolates model scale without changing TP |
 | 4 | `h100_tier1_llama70b.json` | dense TP4↔TP8 decode, prefill, and context grid | establishes the H100 response surface and TP contrast on the same model |
-| 5 | `h100_hardcells_llama{70b,405b}.json` | matched ShareGPT marks/rates, fixed seed | localizes the 405B TP8 bias using the exact stock evidence available in serving |
+| 5 | `h100_hardcells_llama{70b,405b}.json` | matched ShareGPT marks/rates, fixed seed | localizes the 405B TP8 bias using the FP8 checkpoint required to fit 405B on one 8xH100 node |
 | 6 | `a100_hardcells_gpt-oss-{20b,120b}.json` | matched TP4 ShareGPT marks/rates, fixed seed | checks model scale under realistic scheduling without a TP confound |
 | 7 | `h100_sealed_llama405b.json`, `a100_sealed_gpt-oss-120b.json` | fresh rates and seeds on restricted storage | final score only after equations and artifacts freeze |
 
@@ -290,3 +290,9 @@ experimental contrasts, never directly observed per-iteration mechanisms.
 Agentic remains a later Tier-3 workload. Prefix-cache-on grading is not ready:
 the arrival-only twin still treats the full prompt as executed prefill. This does
 not block the model-readiness campaign above, which is cache-off throughout.
+
+Operationally, keep shared `ramr` A100 usage to the approved cap for the active
+run. If a campaign needs more A100s than that cap, submit it to `owners`;
+`profiling/jobs/submit_campaign.sh` pins owners A100/H100 jobs to the matching
+80GB GPU class and passes the current checkout to the batch job as
+`POWERTRACE_REPO`.

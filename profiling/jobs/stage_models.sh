@@ -18,6 +18,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NATIVE_VENV="$ROOT/venv-native"
 export HF_HOME="$ROOT/hf"
 export HF_HUB_ENABLE_HF_TRANSFER=1
+HF_SNAPSHOT_MAX_WORKERS="${HF_SNAPSHOT_MAX_WORKERS:-2}"
+STAGE_MODELS_ARCH_SANITY="${STAGE_MODELS_ARCH_SANITY:-0}"
+export HF_SNAPSHOT_MAX_WORKERS STAGE_MODELS_ARCH_SANITY
 mkdir -p "$HF_HOME"
 
 MODELS=("$@")
@@ -60,6 +63,7 @@ PY
 for MODEL in "${MODELS[@]}"; do
     echo "### staging $MODEL"
     python3 - "$MODEL" <<'PY'
+import os
 import sys
 from huggingface_hub import snapshot_download
 p = snapshot_download(
@@ -68,6 +72,7 @@ p = snapshot_download(
         "*.safetensors", "*.json", "*.txt", "*.model", "*.tiktoken",
         "*.py", "*.jinja",
     ],
+    max_workers=int(os.environ["HF_SNAPSHOT_MAX_WORKERS"]),
 )
 print("cached at:", p)
 from pathlib import Path
@@ -76,10 +81,11 @@ snapshot = Path(p)
     snapshot.name + "\n"
 )
 PY
-    # arch_extract uses transformers.AutoConfig; gemma-4 needs transformers>=5.5.0,
-    # which lives in the run container, not this native venv — so this is a
-    # best-effort sanity check, not a gate. The authoritative parse runs in-container.
-    HF_HUB_OFFLINE=1 python3 - "$MODEL" <<'PY' || echo "  (arch_extract sanity skipped — likely needs transformers>=5.5.0; parsed in-container at run time)"
+    # The authoritative arch parse runs in the vLLM container at launch. Keep
+    # the native transformers sanity check opt-in so large staging runs do not
+    # block on login-node import scans.
+    if [ "$STAGE_MODELS_ARCH_SANITY" = "1" ]; then
+        HF_HUB_OFFLINE=1 python3 - "$MODEL" <<'PY' || echo "  (arch_extract sanity skipped; parsed in-container at run time)"
 import sys
 sys.path.insert(0, "profiling/client")
 import arch_extract
@@ -87,6 +93,9 @@ a = arch_extract.extract_arch(arch_extract.load_config(sys.argv[1]))
 assert a.get("n_layers", 0) > 0, a
 print("  arch_extract OK | n_layers", a["n_layers"])
 PY
+    else
+        echo "  arch_extract sanity skipped (STAGE_MODELS_ARCH_SANITY=0; parsed in-container at run time)"
+    fi
 done
 
 echo "### staged sizes"
