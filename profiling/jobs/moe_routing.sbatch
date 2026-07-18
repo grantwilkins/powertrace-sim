@@ -27,10 +27,14 @@ test -d "$SANDBOX" || { echo "MISSING container: $SANDBOX"; exit 1; }
 test -d "$HF_HOME/hub/models--${MODEL//\//--}" || {
     echo "MISSING staged model: $MODEL"; exit 1;
 }
+test -s "$HF_HOME/hub/models--${MODEL//\//--}/.powertrace-stage-complete" || {
+    echo "INCOMPLETE staged model: $MODEL"; exit 1;
+}
 
 APP=(apptainer exec --nv --bind "$SCRATCH" --bind "$GROUP_HOME" "$SANDBOX")
 "${APP[@]}" python3 -c \
-    "import accelerate, transformers; print(transformers.__version__)"
+    'import accelerate,sys,transformers; version=tuple(map(int, transformers.__version__.split(".")[:2])); assert sys.argv[1] != "google/gemma-4-26B-A4B-it" or version >= (5, 5); print(transformers.__version__)' \
+    "$MODEL"
 "${APP[@]}" python3 profiling/moe_routing/router_capture.py \
     --model "$MODEL" \
     --input-jsonl "$INPUT_JSONL" \

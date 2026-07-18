@@ -21,6 +21,44 @@ For a smaller TP-pair leg, `run_campaign.sh` pins vLLM to the first TP UUIDs and
 records that exact set. Ingestion checks it against the first-TP power columns,
 so idle GPUs from the larger allocation cannot enter the power target.
 
+## Minimal expansion matrix
+
+The expansion is a set of independent Slurm jobs. It holds the ShareGPT sample
+and seed fixed while changing one axis:
+
+| comparison | campaign files | changed axis |
+|---|---|---|
+| dense Qwen transfer | `validate_qwen3-8b_a100.json`, `validate_qwen3-8b.json` | hardware |
+| off-grid arrival rate | `validate_qwen3-8b_a100.json`, `arrival_rate_qwen3-8b_a100_r2p5.json` | 4.0 versus 2.5 requests/s |
+| controlled arrival pattern | `arrival_rate_qwen3-8b_a100_r2p5.json`, `arrival_pattern_qwen3-8b_a100_{bursty,smooth}.json` | Gamma shape 1.0, 0.25, 4.0 |
+| exact arbitrary timestamps | `burstgpt_qwen3-8b_a100.json` | recorded BurstGPT arrivals |
+| agentic context/cache | `trace_replay_qwen3-8b_a100_cache_{off,on}.json` | prefix cache |
+| cross-family MoE | `validate_gemma-4-26b-a4b_moe_transfer_a100.json` | Gemma routing/model family |
+
+Gamma shape changes variance without changing mean interarrival: shape 1 is
+Poisson, 0.25 has coefficient of variation 2, and 4 has coefficient of
+variation 0.5. Every JSON contains one rate and becomes one checkpointed job.
+
+GPU jobs are offline. `stage_models.sh` writes a completion marker after each
+selected snapshot is complete; submission rejects a cache directory without
+that marker. Submission also checks the model-specific container, local dataset
+or trace plan, and frozen MoE JSONL before allocating GPUs.
+
+```bash
+bash profiling/jobs/stage_models.sh \
+  Qwen/Qwen3-8B meta-llama/Llama-3.1-70B-Instruct \
+  openai/gpt-oss-20b openai/gpt-oss-120b \
+  google/gemma-4-26B-A4B-it
+
+H100_PARTITION=<partition> \
+  bash profiling/jobs/submit_expansion_jobs.sh
+```
+
+The wrapper preflights the whole matrix before its first `sbatch`, then submits
+each campaign and router capture independently so Sherlock can schedule them in
+parallel. Freeze predictions before invoking it. The TraceLab smoke remains a
+separate compatibility gate and is not scientific evidence.
+
 ## Exact arrivals, sessions, and TP8 state
 
 Normalize a released TraceLab CSV (arrival and tool-wait columns are
@@ -36,7 +74,9 @@ uv run python profiling/agentic_traces/build_trace_plan.py \
   --context-band 16384:24576:2 --context-band 24576:31745:2
 
 bash profiling/jobs/run_campaign.sh \
-  profiling/campaigns/trace_replay_qwen3-8b_a100.json
+  profiling/campaigns/trace_replay_qwen3-8b_a100_cache_off.json
+bash profiling/jobs/run_campaign.sh \
+  profiling/campaigns/trace_replay_qwen3-8b_a100_cache_on.json
 ```
 
 On Sherlock, submit the one-session compatibility gate before the full plan:
@@ -47,8 +87,9 @@ bash profiling/jobs/submit_campaign.sh \
   --time 00:30:00
 ```
 
-It runs one four-round session in cache-off and cache-on modes. Submit
-`trace_replay_qwen3-8b_a100.json` only after both smoke bundles validate.
+It runs one four-round session in cache-off and cache-on modes. Submit the two
+full `trace_replay_qwen3-8b_a100_cache_{off,on}.json` jobs only after both smoke
+bundles validate.
 
 Execute mode preserves each plan release before acquiring concurrency and
 preserves per-session turn order/tool waits. The direct completion path requires
@@ -73,10 +114,10 @@ uv run python profiling/agentic_traces/build_trace_plan.py \
 This keeps exact timestamp gaps from the densest contiguous ten-minute window.
 BurstGPT rows are independent requests, not fabricated multi-turn sessions.
 
-The H100 TP8 transition diagnostic and matched TP4 control are scaffolded in
-`profiling/campaigns/h100_tp8_state_diagnostic.json`. Each leg records 180 seconds
-of idle before approximately 420 seconds at four requests/second and requires the
-`tp8_state` telemetry profile. Set `SHAREGPT_DATASET_PATH` before execution.
+The H100 TP8 transition diagnostic and matched TP4 control are independent
+`h100_tp8_state_diagnostic.json` and `h100_tp4_state_control.json` jobs. Each
+records 180 seconds of idle before approximately 420 seconds at four
+requests/second and requires the `tp8_state` telemetry profile.
 
 Build a small, deterministic router-capture set on a networked login node:
 
@@ -87,7 +128,8 @@ uv run python profiling/moe_routing/build_routing_samples.py \
   --n-per-source 64 --seed 0
 
 bash profiling/jobs/stage_models.sh \
-  openai/gpt-oss-20b openai/gpt-oss-120b
+  openai/gpt-oss-20b openai/gpt-oss-120b \
+  google/gemma-4-26B-A4B-it
 
 bash profiling/jobs/submit_moe_routing.sh \
   openai/gpt-oss-20b 1 \
@@ -96,15 +138,20 @@ bash profiling/jobs/submit_moe_routing.sh \
 bash profiling/jobs/submit_moe_routing.sh \
   openai/gpt-oss-120b 4 \
   "$GROUP_HOME/gfw/moe_routing_samples.jsonl" gpt-oss-120b-routing.npz
+
+bash profiling/jobs/submit_moe_routing.sh \
+  google/gemma-4-26B-A4B-it 1 \
+  "$GROUP_HOME/gfw/moe_routing_samples.jsonl" gemma-4-26b-a4b-routing.npz \
+  vllm-openai-gemma4.sandbox
 ```
 
 The builder downloads the `tool` split of
 `SWE-bench/SWE-smith-trajectories` through `datasets` and selects 64 usable
-examples from each source. Each row contains `id`, `source`, `prompt_text`, and
-the immediately following `completion_text`. The Slurm jobs write the NPZ and
-manifest under `$SCRATCH/ptsim/moe-routing/`; they retain token, layer, top-k
-expert IDs, prompt/decode phase, source hash, and distinct-expert curves. Missing
-router logits fail the capture instead of falling back to uniform routing.
+examples from each source. This networked preparation happens before Slurm; GPU
+jobs consume only the frozen JSONL. Capture fails when a sample exceeds 4,096
+tokens. The NPZ retains raw token/layer/top-k assignments, a contiguous-token
+prefill curve, and a decode curve formed from one completion token per active
+sequence. Missing router logits fail instead of falling back to uniform routing.
 
 TraceLab sessions whose reported prefix exceeds the preceding reproducible
 context are ineligible for exact replay. Context-band selection excludes them

@@ -4,7 +4,7 @@
   "campaign_type": "validate",
   "evidence_profile": "measured_ledger",
   "validation_role": "development",
-  "_note": "Dense Qwen transfer, A100 leg. The H100 leg uses the identical ShareGPT sample, seed, rate, and server settings.",
+  "_note": "Off-grid arrival-rate transfer. Compare with validate_qwen3-8b_a100; only the mean request rate changes.",
   "server": {
     "tp": 1,
     "max_num_seqs": 256,
@@ -17,7 +17,7 @@
   "workload": {
     "dataset": "sharegpt",
     "num_prompts": 200,
-    "request_rate": 4.0,
+    "request_rate": 2.5,
     "burstiness": 1.0,
     "seed": 20260712
   }

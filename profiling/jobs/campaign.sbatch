@@ -29,6 +29,7 @@ mkdir -p "$RUNS" "$LOGS"
 # caches -> scratch (never NFS $HOME), and force them into the container too
 export HF_HOME="$ROOT/hf"
 export HF_HUB_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
 export XDG_CACHE_HOME="$ROOT/cache/xdg"
 export VLLM_CACHE_ROOT="$ROOT/cache/vllm"
 export TRITON_CACHE_DIR="$ROOT/cache/triton"
@@ -36,6 +37,7 @@ export OUTLINES_CACHE_DIR="$ROOT/cache/outlines"
 mkdir -p "$XDG_CACHE_HOME" "$VLLM_CACHE_ROOT" "$TRITON_CACHE_DIR" "$OUTLINES_CACHE_DIR"
 export APPTAINERENV_HF_HOME="$HF_HOME"
 export APPTAINERENV_HF_HUB_OFFLINE=1
+export APPTAINERENV_HF_DATASETS_OFFLINE=1
 export APPTAINERENV_XDG_CACHE_HOME="$XDG_CACHE_HOME"
 export APPTAINERENV_VLLM_CACHE_ROOT="$VLLM_CACHE_ROOT"
 export APPTAINERENV_TRITON_CACHE_DIR="$TRITON_CACHE_DIR"
@@ -62,6 +64,7 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 # and the served model, parsed together from the campaign JSON.
 read -r SANDBOX_NAME MODEL < <(python3 profiling/jobs/campaign_config.py "$CAMPAIGN" --emit json \
     | python3 -c 'import json,sys; c=json.load(sys.stdin); print(c.get("container") or "vllm-openai-v0.10.1.1.sandbox", c["model"])')
+CTYPE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["campaign_type"])' "$CAMPAIGN")"
 SANDBOX="$ROOT/$SANDBOX_NAME"
 APP="apptainer exec --nv --bind $SCRATCH --bind $GROUP_HOME $SANDBOX"
 echo "container: $SANDBOX"
@@ -74,8 +77,32 @@ test -d "$CACHE_DIR" || {
     echo "  expected: $CACHE_DIR"
     echo "  -> bash profiling/jobs/stage_models.sh   (login node; after 'hf auth login')"
     exit 1; }
+test -s "$CACHE_DIR/.powertrace-stage-complete" || {
+    echo "INCOMPLETE staged model: $MODEL"
+    echo "  rerun: bash profiling/jobs/stage_models.sh $MODEL"
+    exit 1; }
 echo "weights present: $CACHE_DIR"
-$APP python3 -c "import vllm; print('container vllm', vllm.__version__)"
+
+if [ "$CTYPE" = "validate" ]; then
+    test -s "$SHAREGPT_DATASET_PATH" || {
+        echo "MISSING ShareGPT data: $SHAREGPT_DATASET_PATH"; exit 1; }
+elif [ "$CTYPE" = "trace_replay" ]; then
+    TRACE_PLAN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["trace"]["plan"])' "$CAMPAIGN")"
+    case "$TRACE_PLAN" in
+        /*) ;;
+        *) TRACE_PLAN="$REPO/$TRACE_PLAN";;
+    esac
+    test -s "$TRACE_PLAN" || { echo "MISSING trace plan: $TRACE_PLAN"; exit 1; }
+fi
+
+$APP python3 -c \
+    "import aiohttp,datasets,numpy,pandas,PIL,transformers,vllm; print('container vllm', vllm.__version__)"
+$APP python3 -c \
+    'import sys; from transformers import AutoConfig,AutoTokenizer; AutoConfig.from_pretrained(sys.argv[1], local_files_only=True); AutoTokenizer.from_pretrained(sys.argv[1], local_files_only=True); print("offline model metadata OK")' \
+    "$MODEL"
+if [ "$CTYPE" = "roofline" ]; then
+    $APP python3 -c "import matplotlib; print('matplotlib', matplotlib.__version__)"
+fi
 
 echo "### run campaign (server+probes in-container; campaign_config native)"
 RUNS="$RUNS" LOGS="$LOGS" APP="$APP" PYBIN=python3 \

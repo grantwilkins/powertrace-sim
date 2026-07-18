@@ -1,4 +1,14 @@
-"""Unit tests for the campaign loader/validator (CAMPAIGN.md §5-F)."""
+"""
+Claim:
+Campaign JSONs isolate model, arrival-rate, and arrival-pattern comparisons and
+thread every declared workload parameter into the live command.
+
+Plausible wrong implementations:
+- Accept a zero or negative scalar rate even though only rate lists are checked.
+- Ignore Gamma burstiness and silently run every workload as Poisson.
+- Change prompts, server settings, or hardware alongside the intended comparison.
+- Put multiple scientific comparisons into one sequential Slurm job.
+"""
 
 import json
 from pathlib import Path
@@ -107,31 +117,46 @@ def test_agentic_requires_regimes(tmp_path):
 
 
 def test_trace_replay_command_binds_plan_cache_and_power_profile():
-    c = cc.load_campaign(
-        CAMPAIGNS_DIR / "trace_replay_qwen3-8b_a100.json"
+    off_campaign = cc.load_campaign(
+        CAMPAIGNS_DIR / "trace_replay_qwen3-8b_a100_cache_off.json"
     )
-    off, on = cc.regimes(c)
-    off_command = cc.run_command(c, 1, off)
-    on_command = cc.run_command(c, 1, on)
+    on_campaign = cc.load_campaign(
+        CAMPAIGNS_DIR / "trace_replay_qwen3-8b_a100_cache_on.json"
+    )
+    assert off_campaign["server"] == on_campaign["server"]
+    off = cc.regimes(off_campaign)[0]
+    on = cc.regimes(on_campaign)[0]
+    assert off == {"prefix_cache": False}
+    assert on == {"prefix_cache": True}
+    off_command = cc.run_command(off_campaign, 1, off)
+    on_command = cc.run_command(on_campaign, 1, on)
     assert "--trace-plan data/trace_plans/tracelab_code.json" in off_command
     assert "--power-profile core" in off_command
     assert "--prefix-cache" not in off_command
     assert "--prefix-cache" in on_command
 
 
-def test_tp8_state_campaign_has_idle_and_required_telemetry():
-    c = cc.load_campaign(
+def test_tp8_state_pair_is_two_jobs_with_identical_marks():
+    tp8 = cc.load_campaign(
         CAMPAIGNS_DIR / "h100_tp8_state_diagnostic.json"
     )
-    command = cc.run_command(c, 8, cc.regimes(c)[0])
-    assert "--pre-idle-s 180.0" in command
-    assert "--power-profile tp8_state" in command
-    assert cc.tp_degrees(c) == [8, 4]
+    tp4 = cc.load_campaign(CAMPAIGNS_DIR / "h100_tp4_state_control.json")
+    assert tp8["workload"] == tp4["workload"]
+    assert tp8["power_profile"] == tp4["power_profile"] == "tp8_state"
+    assert cc.tp_degrees(tp8) == [8]
+    assert cc.tp_degrees(tp4) == [4]
+    for campaign in (tp8, tp4):
+        command = cc.run_command(
+            campaign, campaign["server"]["tp"], cc.regimes(campaign)[0]
+        )
+        assert "--pre-idle-s 180.0" in command
+        assert "--power-profile tp8_state" in command
 
 
 def test_validate_single_rate_becomes_one_explicit_regime():
     c = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
     assert cc.regimes(c) == [{"request_rate": 4.0}]
+    assert c["workload"]["burstiness"] == 1.0
 
 
 def test_validate_multi_rate_regimes_preserve_one_seed(tmp_path):
@@ -151,8 +176,8 @@ def test_validate_multi_rate_regimes_preserve_one_seed(tmp_path):
     commands = [
         cc.run_command(campaign, 8, regime) for regime in cc.regimes(campaign)
     ]
-    assert "--request-rate 1.0 --seed 17" in commands[0]
-    assert "--request-rate 2.0 --seed 17" in commands[1]
+    assert "--request-rate 1.0 --burstiness 1.0 --seed 17" in commands[0]
+    assert "--request-rate 2.0 --burstiness 1.0 --seed 17" in commands[1]
     assert all("--evidence-profile measured_ledger" in command for command in commands)
 
 
@@ -164,6 +189,76 @@ def test_validate_requires_workload(tmp_path):
     }))
     with pytest.raises(cc.CampaignError):
         cc.load_campaign(bad)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("request_rate", 0.0, "request_rate must be positive"),
+        ("burstiness", -0.25, "burstiness must be positive"),
+    ],
+)
+def test_validate_rejects_nonpositive_arrival_parameters(
+    tmp_path, field, value, message
+):
+    workload = {
+        "dataset": "sharegpt", "num_prompts": 20,
+        "request_rate": 2.5, "burstiness": 1.0,
+    }
+    workload[field] = value
+    path = tmp_path / "invalid_arrival.json"
+    path.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "validate",
+        "server": {"tp": 1}, "workload": workload,
+    }))
+    with pytest.raises(cc.CampaignError, match=message):
+        cc.load_campaign(path)
+
+
+def test_qwen_transfer_and_arrival_matrix_change_one_axis():
+    a100 = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b_a100.json")
+    h100 = cc.load_campaign(CAMPAIGNS_DIR / "validate_qwen3-8b.json")
+    off_grid = cc.load_campaign(
+        CAMPAIGNS_DIR / "arrival_rate_qwen3-8b_a100_r2p5.json"
+    )
+    bursty = cc.load_campaign(
+        CAMPAIGNS_DIR / "arrival_pattern_qwen3-8b_a100_bursty.json"
+    )
+    smooth = cc.load_campaign(
+        CAMPAIGNS_DIR / "arrival_pattern_qwen3-8b_a100_smooth.json"
+    )
+
+    assert a100["model"] == h100["model"]
+    assert a100["server"] == h100["server"]
+    assert a100["workload"] == h100["workload"]
+    assert {a100["hardware"], h100["hardware"]} == {"A100", "H100"}
+
+    rate_baseline = dict(a100["workload"])
+    rate_off_grid = dict(off_grid["workload"])
+    assert rate_baseline.pop("request_rate") == 4.0
+    assert rate_off_grid.pop("request_rate") == 2.5
+    assert rate_baseline == rate_off_grid
+
+    for pattern, expected_shape in ((bursty, 0.25), (smooth, 4.0)):
+        pattern_workload = dict(pattern["workload"])
+        poisson_workload = dict(off_grid["workload"])
+        assert pattern_workload.pop("burstiness") == expected_shape
+        assert poisson_workload.pop("burstiness") == 1.0
+        assert pattern_workload == poisson_workload
+
+
+def test_arrival_matrix_is_one_regime_per_independent_job():
+    paths = [
+        "validate_qwen3-8b_a100.json",
+        "validate_qwen3-8b.json",
+        "arrival_rate_qwen3-8b_a100_r2p5.json",
+        "arrival_pattern_qwen3-8b_a100_bursty.json",
+        "arrival_pattern_qwen3-8b_a100_smooth.json",
+    ]
+    assert all(
+        len(cc.regimes(cc.load_campaign(CAMPAIGNS_DIR / path))) == 1
+        for path in paths
+    )
 
 
 def test_tier1_set_declares_both_anchors_with_correct_tp():
@@ -324,6 +419,7 @@ def test_validate_run_command_carries_campaign_max_model_len():
     assert f"--max-model-len {mml}" in cmd
     assert f"--max-model-len {mml}" in cc.serve_command(c, c["server"]["tp"])
     assert f"--dataset {c['workload']['dataset']}" in cmd
+    assert "--burstiness 1.0" in cmd
 
 
 def test_run_command_rejects_probe_campaign():

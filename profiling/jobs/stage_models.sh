@@ -64,9 +64,17 @@ import sys
 from huggingface_hub import snapshot_download
 p = snapshot_download(
     sys.argv[1],
-    allow_patterns=["*.safetensors", "*.json", "*.txt", "*.model", "*.tiktoken"],
+    allow_patterns=[
+        "*.safetensors", "*.json", "*.txt", "*.model", "*.tiktoken",
+        "*.py", "*.jinja",
+    ],
 )
 print("cached at:", p)
+from pathlib import Path
+snapshot = Path(p)
+(snapshot.parents[1] / ".powertrace-stage-complete").write_text(
+    snapshot.name + "\n"
+)
 PY
     # arch_extract uses transformers.AutoConfig; gemma-4 needs transformers>=5.5.0,
     # which lives in the run container, not this native venv — so this is a

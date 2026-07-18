@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shlex
 import sys
@@ -81,9 +82,17 @@ def _validate(c: dict, path) -> None:
                 f"{where}validate workload needs exactly one of request_rate/request_rates"
             )
         if rates is not None and not (
-            isinstance(rates, list) and rates and all(float(value) > 0 for value in rates)
+            isinstance(rates, list) and rates
+            and all(math.isfinite(float(value)) and float(value) > 0 for value in rates)
         ):
             raise CampaignError(f"{where}workload.request_rates must be positive")
+        if rate is not None and not (
+            math.isfinite(float(rate)) and float(rate) > 0
+        ):
+            raise CampaignError(f"{where}workload.request_rate must be positive")
+        burstiness = float(c["workload"].get("burstiness", 1.0))
+        if not math.isfinite(burstiness) or burstiness <= 0:
+            raise CampaignError(f"{where}workload.burstiness must be positive")
     elif c["campaign_type"] in {"agentic", "trace_replay"}:
         block = "sessions" if c["campaign_type"] == "agentic" else "trace"
         ss = c.get(block)
@@ -160,6 +169,8 @@ def _with_defaults(c: dict) -> dict:
     c.setdefault("power_profile", "core")
     c.setdefault("validation_role", "development")
     c.setdefault("tp_pair_probes", list(DEFAULT_TP_PAIR_PROBES))
+    if c["campaign_type"] == "validate":
+        c["workload"].setdefault("burstiness", 1.0)
     if c["campaign_type"] == "roofline":
         r = c.setdefault("roofline", {})
         _defaults(r, {"window_s": 5.0, "contexts": [2048, 8192, 32768, 65536]})
@@ -376,7 +387,8 @@ def validate_command(c: dict, tp: int, regime=None) -> str:
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()} "
         f"--dataset {w.get('dataset', 'sharegpt')} "
         f"--num-prompts {w.get('num_prompts')} --request-rate {request_rate} "
-        f"--seed {w.get('seed', 0)} --validation-role {c['validation_role']} "
+        f"--burstiness {w['burstiness']} --seed {w.get('seed', 0)} "
+        f"--validation-role {c['validation_role']} "
         f"--evidence-profile {c['evidence_profile']}"
         f" --power-profile {c['power_profile']}"
     )
@@ -511,6 +523,7 @@ def render_plan(c: dict) -> str:
                     f"VALIDATE: benchmark_serving --dataset {w.get('dataset')} "
                     f"--num-prompts {w.get('num_prompts')} "
                     f"--request-rate {regime['request_rate']} "
+                    f"--burstiness {w['burstiness']} "
                     f"--seed {w.get('seed', 0)} "
                     f"--pre-idle-s {float(w.get('pre_idle_s', 0.0))}"
                 )

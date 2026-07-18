@@ -1,14 +1,13 @@
 # Data inventory and minimal replay campaign
 
-Status: evidence-backed campaign plan, 2026-07-17.
+Status: evidence-backed campaign plan, 2026-07-18.
 
 Implementation status: the bounded canonical-plan builder, TraceLab adapter,
-exact-arrival/direct-token replay runner, cache/reasoning accounting, TP8
-telemetry profile and paired campaign, and direct MoE router capture now live
-under `profiling/`. The remaining launch inputs are immutable dataset/model
-revisions, source files, and confirmation that the selected H100 driver exposes
-every `tp8_state` counter. Those are recorded inputs, not reasons to broaden the
-campaign.
+exact-arrival/direct-token replay runner, controlled Gamma arrivals,
+cache/reasoning accounting, TP8 telemetry profile and paired campaign, and
+direct MoE router capture now live under `profiling/`. Submission rejects
+missing local datasets, trace plans, containers, and incomplete model snapshots
+before requesting GPUs.
 
 This document answers one question: what is the smallest additional campaign
 that can support claims about non-ShareGPT workloads, long contexts, coding
@@ -25,7 +24,7 @@ not justified.
 Do not submit the existing Qwen-235B Tier-1 campaigns or another dense/MoE
 staircase sweep.
 
-Before any new workload campaign:
+Before interpreting or fitting any new workload bundle:
 
 1. Reconcile architecture metadata between the legacy registry and canonical
    manifests.
@@ -39,19 +38,22 @@ Before any new workload campaign:
 6. Replace the MoE uniform-routing assumption with directly observed router
    choices.
 
-After those gates, the default live campaign is:
+The independent collection jobs may run in parallel after offline preflight.
+Predictions must be frozen before their corresponding power bundles are opened
+for grading. The default live campaign is:
 
 - two telemetry-rich Llama-70B runs to identify the TP8 state transition;
 - one offline router pass for each existing gpt-oss model;
 - one same-marks Qwen3-8B transfer run on A100 and one on H100;
-- one paired cache-off/cache-on TraceLab replay on Qwen3-8B/A100;
-- conditionally, one Qwen3-30B-A3B/H100 transfer run after its routing law is
-  available.
+- three A100 jobs that compare an off-grid rate and bursty/Poisson/smooth
+  arrivals while holding prompts and mean rate fixed;
+- two parallel cache-off/cache-on TraceLab jobs on Qwen3-8B/A100;
+- one exact BurstGPT arrival replay;
+- one Gemma-4-26B-A4B routing pass and A100 transfer validation.
 
-No separate reasoning, LMSYS, Azure, BurstGPT, or LongBench GPU run is in the
-default campaign. Those sources first produce deterministic request schedules
-for CPU-only simulation. A live run is added only if a schedule leaves the
-measured support of the selected live workloads.
+No separate reasoning, LMSYS, Azure, or LongBench GPU run is in the default
+campaign. Reasoning remains ordinary decode; the data sources otherwise produce
+deterministic CPU-side schedules before submission.
 
 ## 2. What already exists
 
@@ -277,7 +279,7 @@ repository does not need to rerun private tools or synthesize semantic answers.
 Run G0-G4. Then build three offline replay families:
 
 1. Azure Code and Conversation: one contiguous 10-minute window each.
-2. BurstGPT: one 10-minute burst window containing multiple session IDs.
+2. BurstGPT: one 10-minute exact-timestamp window of independent requests.
 3. TraceLab: eight sessions, two from each maximum-context band
    `[4k,8k)`, `[8k,16k)`, `[16k,24k)`, and `[24k,31k]`, selected by a
    fixed seed and preserving all included rounds and exact waits.
@@ -324,7 +326,8 @@ Decision:
   high-load operation beyond the observed transition. Do not fit another
   retrospective step.
 
-No later power validation starts until this decision is recorded.
+No later power validation is interpreted until this decision is recorded;
+independent collection may already be queued or complete.
 
 ### Phase 2: identify MoE routing
 
@@ -360,17 +363,22 @@ Decision:
 - If the corrected model still fails, collect only the two missing
   gpt-oss-20B ShareGPT controls at rates 1 and 2 to isolate model scale.
 
-### Phase 3: dense Qwen transfer
+### Phase 3: dense Qwen and arrival transfer
 
-Run the existing same-marks ShareGPT validation once on each hardware:
+Run five independent jobs with one common ShareGPT sample and seed:
 
-| run | model | hardware/TP | prompts/rate |
-|---|---|---|---|
-| QD-A | Qwen3-8B | A100/TP1 | 200, 4 requests/s |
-| QD-H | Qwen3-8B | H100/TP1 | identical marks |
+| run | hardware/TP | rate | Gamma shape | identifying comparison |
+|---|---|---:|---:|---|
+| QD-A | A100/TP1 | 4.0 | 1.0 | dense Qwen transfer |
+| QD-H | H100/TP1 | 4.0 | 1.0 | hardware transfer versus QD-A |
+| QR | A100/TP1 | 2.5 | 1.0 | off-grid rate versus QD-A |
+| QB | A100/TP1 | 2.5 | 0.25 | bursty pattern versus QR |
+| QS | A100/TP1 | 2.5 | 4.0 | smooth pattern versus QR |
 
-Freeze predictions before either run. These isolate model transfer because the
-workload is held to the established ShareGPT contract.
+All use 200 prompts and seed `20260712`. Shape 1 is Poisson; shapes 0.25 and 4
+have interarrival coefficients of variation 2 and 0.5. Freeze predictions
+before submission. Grade prediction error inside each run; raw total energy
+across different rates is not itself a transfer metric.
 
 Decision:
 
@@ -410,20 +418,21 @@ If the cache-off run fails, stop: the issue is not prefix caching. If cache-off
 passes and cache-on fails, fix executed-prefill/cache accounting and rerun only
 cache-on.
 
-### Phase 5: conditional Qwen MoE transfer
+### Phase 5: cross-family Gemma MoE transfer
 
-Run this phase only after Phase 2 passes and the paper needs a cross-family MoE
-claim.
+Use `google/gemma-4-26B-A4B-it`, the Gemma 4 MoE checkpoint: 128 experts,
+top-8 routing, and about 4B active parameters. Keep A100 hardware fixed.
 
-1. Measure the Qwen3-30B-A3B router law with the Phase-2 protocol.
+1. Measure the Gemma router law with the Phase-2 64+64 protocol.
 2. Freeze the prediction.
-3. Run one Qwen3-30B-A3B/H100 TP2 ShareGPT validation with 200 prompts at
-   4 requests/s.
+3. Run one Gemma/A100 TP2 ShareGPT validation with the QD-A marks.
 
 Pass threshold: the same 6% energy and 10% timing limits used for Qwen3-8B.
-Escalate only the failed term. Do not run Qwen3-235B unless this validation
-misses and the residual specifically requires scale rather than routing,
-engine mode, or metadata repair.
+Do not use the existing Gemma calibration or roofline probes before scoring;
+otherwise this is no longer zero-shot cross-family transfer. Gemma requires the
+dedicated Gemma 4 container. Model facts are bound to the
+[official config](https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/config.json)
+and [vLLM recipe](https://docs.vllm.ai/projects/recipes/en/stable/Google/Gemma4.html).
 
 ## 7. Reasoning decision
 
@@ -456,10 +465,11 @@ Default new workload cost, excluding model load and scheduler wait:
 | TP8 state diagnostic | 0 | 2.0 |
 | gpt-oss router logging | at most 2.0 | 0 |
 | Qwen3-8B same-marks transfer | less than 0.1 | less than 0.1 |
+| controlled arrival rate/pattern | less than 0.2 | 0 |
 | paired TraceLab replay | cap at 1.0 | 0 |
-| Qwen3-30B-A3B conditional run | 0 | cap at 0.5 |
-| default total | cap at 3.1 | about 2.1 |
-| with conditional Qwen MoE | cap at 3.1 | cap at 2.6 |
+| exact BurstGPT replay | cap at 0.5 | 0 |
+| Gemma routing and transfer | cap at 1.0 | 0 |
+| default total | cap at 4.8 | about 2.1 |
 
 Slurm reservations should include model load and shutdown time, but a job must
 request only its TP degree; the current submit script already does this.
@@ -472,7 +482,7 @@ boundary is identified. In particular:
 - no full LMSYS replay;
 - no full SWE-bench environment execution;
 - no Qwen3-14B/32B ladder after an 8B pass;
-- no Qwen3-235B Tier-1 anchor after a 30B-A3B pass;
+- no Qwen3-235B Tier-1 anchor for the cross-family MoE claim;
 - no second hardware for agentic distribution validation unless the first
   hardware shows a hardware-specific residual.
 
@@ -486,11 +496,13 @@ Each final claim has one identifying comparison:
 | controlled long-context operator physics | existing Llama-70B probes to about 123k |
 | realistic long-context/session execution | QA-off |
 | prefix-cache accounting | QA-on minus QA-off, identical rows |
-| non-Poisson and coding arrival support | CPU replay support audit; one conditional live window only if out of support |
+| arbitrary arrival rate | QD-A versus QR |
+| controlled non-Poisson pattern | QR versus QB/QS |
+| exact recorded arrival pattern | BurstGPT replay |
 | reasoning semantics | all generated tokens counted as decode; existing architecture twins |
 | dense Qwen transfer | QD-A and QD-H |
 | gpt-oss MoE result | direct router law plus existing gpt-oss bundles |
-| cross-family MoE transfer | conditional Qwen3-30B-A3B run |
+| cross-family MoE transfer | Gemma router law plus frozen Gemma validation |
 | sustained TP8 support boundary | D1/D2 plus existing affected traces |
 
 This matrix is intentionally sparse. Every new run either resolves one named

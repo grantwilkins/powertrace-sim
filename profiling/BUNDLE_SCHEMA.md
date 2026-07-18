@@ -181,3 +181,9 @@ scaling falls out. Reasoning is charged once as ordinary decode through
 `output_lens`; `reasoning_tokens` is a slice label, not additional work. The
 manifest records `probe.type`, the trace source/revision/hash/seed, and
 `server.enable_prefix_caching`.
+
+Synthetic real-text validation records both `request_rate` and `burstiness` in
+the level parameters and benchmark command. Interarrival times use a Gamma
+distribution with mean `1 / request_rate` and shape `burstiness`: shape 1 is
+Poisson, smaller values are burstier, and larger values are smoother. These
+fields describe offered arrivals, not achieved throughput.

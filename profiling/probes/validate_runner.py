@@ -1,8 +1,9 @@
 """Validate runner: real-dataset workload under the continuous loggers -> §2 bundle.
 
 The ``validate`` campaign drives the vendored ``benchmark_serving.py`` against a
-**real dataset** (ShareGPT prompts) with a **synthetic Poisson arrival schedule**
-(``--request-rate``), and emits the SAME four-file bundle as the probes
+**real dataset** (ShareGPT prompts) with a **synthetic Gamma arrival schedule**
+(``--request-rate`` and ``--burstiness``), and emits the SAME four-file bundle
+as the probes
 (``power.csv`` + ``engine.csv`` + ``requests.json`` + ``manifest.json``) by reusing
 ``probe_runner.logging_session`` and ``run_manifest``. The probes use
 ``--dataset-name random`` (synthetic content); this is the real-data path: real
@@ -37,7 +38,8 @@ def build_validate_command(model, base_url, tp, workload, dataset_path,
     """``benchmark_serving.py`` argv for one real-dataset validate workload (pure).
 
     Real prompts (``workload['dataset']`` + ``dataset_path``) paced by a synthetic
-    Poisson arrival process (``--request-rate``). ``base_url`` carries the ``/v1``
+    Gamma arrival process. Shape one is Poisson; smaller shapes are burstier and
+    larger shapes are smoother at the same mean rate. ``base_url`` carries the ``/v1``
     the loggers derive ``/metrics`` from; ``benchmark_serving`` composes its URL as
     ``base_url + endpoint``, so we strip ``/v1`` and pass ``--endpoint`` explicitly
     to avoid a doubled path. ``--save-detailed`` is what writes the per-request
@@ -56,6 +58,7 @@ def build_validate_command(model, base_url, tp, workload, dataset_path,
         "--dataset-name", str(workload["dataset"]),
         "--dataset-path", str(dataset_path),
         "--request-rate", str(workload["request_rate"]),
+        "--burstiness", str(workload.get("burstiness", 1.0)),
         "--seed", str(int(workload.get("seed", 0))),
         "--num-prompts", str(workload["num_prompts"]),
         "--tensor-parallel-size", str(tp),
@@ -72,13 +75,17 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
     """Manifest entry locating the workload in absolute time (pure)."""
     return {
         "level": 0,
-        "label": f"{workload['dataset']}_rate{workload['request_rate']}",
+        "label": (
+            f"{workload['dataset']}_rate{workload['request_rate']}"
+            f"_burst{workload.get('burstiness', 1.0)}"
+        ),
         "concurrency": -1,                       # open-loop arrival, not fixed conc
         "num_prompts": int(workload["num_prompts"]),
         "t_start_epoch": float(t_start_epoch),
         "t_end_epoch": float(t_end_epoch),
         "params": {"dataset": workload["dataset"],
                    "request_rate": workload["request_rate"],
+                   "burstiness": float(workload.get("burstiness", 1.0)),
                    "num_prompts": int(workload["num_prompts"]),
                    "seed": int(workload.get("seed", 0)),
                    "pre_idle_s": float(workload.get("pre_idle_s", 0.0)),
@@ -97,9 +104,11 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     arch_extract = probe_runner._client_mod("arch_extract")
 
     rate = str(workload["request_rate"]).replace(".", "p")
+    burstiness = str(workload.get("burstiness", 1.0)).replace(".", "p")
     seed = int(workload.get("seed", 0))
     run_id = run_id or (
-        f"{hardware.lower()}_validate_tp{tp}_r{rate}_s{seed}_{int(time.time())}"
+        f"{hardware.lower()}_validate_tp{tp}_r{rate}_b{burstiness}"
+        f"_s{seed}_{int(time.time())}"
     )
     run_dir = Path(out_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)

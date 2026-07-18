@@ -40,21 +40,75 @@ CAMPAIGN_ABS="$(readlink -f "$CAMPAIGN")"
 test -f "$CAMPAIGN_ABS" || { echo "no such campaign: $CAMPAIGN" >&2; exit 1; }
 
 # Max TP degree -> GPU count for the single node (tp_pair second leg uses fewer).
-# Use the python module directly: `uv run` here tries to sync the heavy project env
-# (torch has no glibc-2.17 wheel on Sherlock) and fails. campaign_config is pure stdlib.
+# Parse only the submission fields with stdlib json. Importing campaign_config here
+# also imports the scientific NumPy stack, which is not guaranteed on a login node.
 source /etc/profile.d/modules.sh 2>/dev/null || true
 ml devel python/3.12.1 2>/dev/null || true
-N="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
-        "$CAMPAIGN_ABS" --emit tps | sort -n | tail -1)"
+read -r N HARDWARE MODEL SANDBOX_NAME CTYPE TRACE_PLAN DATASET < <(
+    python3 -c '
+import json, sys
+c = json.load(open(sys.argv[1]))
+tps = [int(c["server"]["tp"])] + [int(x) for x in c.get("tp_pair", [])]
+print(
+    max(tps), c["hardware"], c["model"],
+    c.get("container") or "vllm-openai-v0.10.1.1.sandbox",
+    c["campaign_type"], c.get("trace", {}).get("plan", "-"),
+    c.get("workload", {}).get("dataset", "-"),
+)
+' "$CAMPAIGN_ABS"
+)
 [ -n "$N" ] || { echo "could not determine TP for $CAMPAIGN" >&2; exit 1; }
-HARDWARE="$(cd "$REPO_ROOT" && python3 -m profiling.jobs.campaign_config \
-        "$CAMPAIGN_ABS" --emit json | python3 -c 'import json,sys; print(json.load(sys.stdin)["hardware"])')"
 if [ "$HARDWARE" = "H100" ]; then
     [ "$PART_EXPLICIT" = true ] || {
         echo "H100 campaign requires an explicit -p <H100_PARTITION>" >&2; exit 1; }
     case ",$PART," in
         *,ramr,*) echo "H100 campaign cannot use the A100 ramr partition" >&2; exit 1;;
     esac
+fi
+
+ROOT="${SCRATCH:?Sherlock SCRATCH is required}/ptsim"
+GROUP_DATA="${GROUP_HOME:?Sherlock GROUP_HOME is required}/gfw"
+test -d "$ROOT/$SANDBOX_NAME" || {
+    echo "MISSING container: $ROOT/$SANDBOX_NAME" >&2; exit 1;
+}
+CACHE_DIR="$ROOT/hf/hub/models--${MODEL//\//--}"
+test -s "$CACHE_DIR/.powertrace-stage-complete" || {
+    echo "INCOMPLETE staged model: $MODEL" >&2
+    echo "  run: bash profiling/jobs/stage_models.sh $MODEL" >&2
+    exit 1
+}
+if [ "$CTYPE" = "validate" ]; then
+    case "$DATASET" in
+        sharegpt)
+            test -s "$GROUP_DATA/ShareGPT_V3_unfiltered_cleaned_split.json" || {
+                echo "MISSING ShareGPT data under $GROUP_DATA" >&2; exit 1; };;
+        burstgpt)
+            test -s "$GROUP_DATA/BurstGPT_without_fails_2.csv" || {
+                echo "MISSING BurstGPT data under $GROUP_DATA" >&2; exit 1; };;
+    esac
+elif [ "$CTYPE" = "trace_replay" ]; then
+    case "$TRACE_PLAN" in
+        /*) ;;
+        *) TRACE_PLAN="$REPO_ROOT/$TRACE_PLAN";;
+    esac
+    test -s "$TRACE_PLAN" || {
+        echo "MISSING trace plan: $TRACE_PLAN" >&2; exit 1;
+    }
+    python3 -c '
+import json, sys
+plan = json.load(open(sys.argv[1]))
+campaign = json.load(open(sys.argv[2]))
+limit = int(campaign["server"]["max_model_len"])
+rounds = plan.get("rounds", [])
+if not rounds:
+    raise SystemExit("trace plan has no rounds")
+peak = max(
+    int(row["prefix_tokens"]) + int(row["input_tokens"]) + int(row["output_tokens"])
+    for row in rounds
+)
+if peak > limit:
+    raise SystemExit(f"trace plan peak {peak} exceeds max_model_len {limit}")
+' "$TRACE_PLAN" "$CAMPAIGN_ABS"
 fi
 
 echo "Submitting $(basename "$CAMPAIGN_ABS") on -p $PART --gres=gpu:$N${CONS:+ -C $CONS}${REQUEUE:+ --requeue}${TIME:+ --time $TIME}"

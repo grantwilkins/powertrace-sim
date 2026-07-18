@@ -2,10 +2,10 @@
   "hardware": "H100",
   "model": "meta-llama/Llama-3.1-70B-Instruct",
   "campaign_type": "validate",
-  "_note": "TP8 causal state leg: 180 s measured idle, then approximately 420 s at rate 4. The TP4 control is an independent job with identical marks.",
+  "_note": "TP4 matched state control: identical idle, ShareGPT marks, seed, and telemetry to the independent TP8 diagnostic job.",
   "power_profile": "tp8_state",
   "server": {
-    "tp": 8,
+    "tp": 4,
     "max_num_seqs": 256,
     "max_num_batched_tokens": 8192,
     "max_model_len": 8192

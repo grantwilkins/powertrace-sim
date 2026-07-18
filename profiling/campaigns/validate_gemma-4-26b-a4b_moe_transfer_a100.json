@@ -1,12 +1,14 @@
 {
   "hardware": "A100",
-  "model": "Qwen/Qwen3-8B",
+  "model": "google/gemma-4-26B-A4B-it",
   "campaign_type": "validate",
+  "container": "vllm-openai-gemma4.sandbox",
+  "n_active_override": 4.0e9,
   "evidence_profile": "measured_ledger",
   "validation_role": "development",
-  "_note": "Dense Qwen transfer, A100 leg. The H100 leg uses the identical ShareGPT sample, seed, rate, and server settings.",
+  "_note": "Cross-family MoE transfer on the paper-wide ShareGPT marks: 200 prompts at rate 4 with seed 20260712. Score it before any Gemma calibration; TP2 and the dedicated container are execution requirements.",
   "server": {
-    "tp": 1,
+    "tp": 2,
     "max_num_seqs": 256,
     "max_num_batched_tokens": 8192,
     "enable_chunked_prefill": true,
