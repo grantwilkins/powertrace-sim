@@ -1,0 +1,177 @@
+{
+  "arch": {
+    "d_model": 2816,
+    "family": "moe-8b",
+    "fp8": 0,
+    "head_dim": 256,
+    "linear_attention": 0,
+    "moe_frac": 0.9560887279311906,
+    "n_active": 4000000000.0,
+    "n_experts": 128,
+    "n_kv": 8,
+    "n_layers": 30,
+    "n_linear_layers": 0,
+    "swa_global_ratio": 5.0,
+    "swa_window": 1024.0,
+    "top_k": 8,
+    "w_bytes": 49250172928.0
+  },
+  "clock": {
+    "engine_epoch_offset_s": 0.0,
+    "engine_first_epoch_s": 1784415613.4310856,
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "monotonic_start": 5800882.667510736,
+    "power_epoch_offset_s": 0.0,
+    "power_first_timestamp": "2026/07/18 16:00:13.244",
+    "power_timestamp_basis": "local_wall_time",
+    "reference_epoch_s": 1784415613.0224907,
+    "reference_local_iso8601": "2026-07-18T16:00:13.022501-07:00",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "gpus_per_node": 2,
+  "hardware": "A100",
+  "instrumentation": {
+    "engine": {
+      "coverage": {
+        "generation_tokens_total": 1.0,
+        "gpu_cache_usage_perc": 1.0,
+        "iteration_tokens_total_count": 1.0,
+        "iteration_tokens_total_sum": 1.0,
+        "num_requests_running": 1.0,
+        "num_requests_waiting": 1.0,
+        "prompt_tokens_total": 1.0
+      },
+      "median_cadence_s": 0.2557845115661621,
+      "samples": 260
+    },
+    "first_sample_skew_s": 0.18708562850952148,
+    "power": {
+      "device_ids": [
+        "GPU-c5d32af0-0857-3b36-6541-1a688a9ec165",
+        "GPU-e2681f6e-8d94-2d66-484f-43ea602335f9"
+      ],
+      "median_cadence_s": 0.25,
+      "profile": "core",
+      "required_columns": [
+        "timestamp",
+        "index",
+        "uuid",
+        "power.draw",
+        "clocks.sm",
+        "clocks.mem",
+        "utilization.gpu",
+        "utilization.memory",
+        "memory.used",
+        "temperature.gpu"
+      ],
+      "samples": 270
+    },
+    "profile": "measured_ledger",
+    "purpose": "stock counters replace token rates and total A_t in the hybrid ledger",
+    "required_engine_columns": [
+      "num_requests_running",
+      "num_requests_waiting",
+      "gpu_cache_usage_perc",
+      "prompt_tokens_total",
+      "generation_tokens_total",
+      "iteration_tokens_total_sum",
+      "iteration_tokens_total_count"
+    ],
+    "status": "validated"
+  },
+  "manifest_version": 2,
+  "model": "google/gemma-4-26B-A4B-it",
+  "probe": {
+    "idle_window": {
+      "end_epoch": 1784415613.0234983,
+      "requested_s": 0.0,
+      "start_epoch": 1784415613.0231512
+    },
+    "levels": [
+      {
+        "command": [
+          "/usr/bin/python3",
+          "/home/groups/ramr/gfw/powertrace-sim/profiling/client/benchmark_serving.py",
+          "--model",
+          "google/gemma-4-26B-A4B-it",
+          "--backend",
+          "vllm",
+          "--base-url",
+          "http://127.0.0.1:46254",
+          "--endpoint",
+          "/v1/completions",
+          "--dataset-name",
+          "sharegpt",
+          "--dataset-path",
+          "/home/groups/ramr/gfw/ShareGPT_V3_unfiltered_cleaned_split.json",
+          "--request-rate",
+          "4.0",
+          "--burstiness",
+          "1.0",
+          "--seed",
+          "20260712",
+          "--num-prompts",
+          "200",
+          "--tensor-parallel-size",
+          "2",
+          "--save-result",
+          "--save-detailed",
+          "--result-filename",
+          "/scratch/users/gfw/ptsim/runs/validate_gemma-4-26b-a4b_moe_transfer_a100/a100_validate_tp2_r4p0_b1p0_s20260712_1784415591/levels/validate.json",
+          "--max-model-len",
+          "32768"
+        ],
+        "concurrency": -1,
+        "label": "sharegpt_rate4.0_burst1.0",
+        "level": 0,
+        "num_prompts": 200,
+        "params": {
+          "burstiness": 1.0,
+          "dataset": "sharegpt",
+          "num_prompts": 200,
+          "pre_idle_s": 0.0,
+          "request_rate": 4.0,
+          "seed": 20260712,
+          "validation_role": "development"
+        },
+        "summary": {
+          "completed": 200,
+          "duration": 53.51811633910984,
+          "output_throughput": 725.5487049274922,
+          "request_throughput": 3.737052304545414,
+          "total_input_tokens": 70202,
+          "total_output_tokens": 38830,
+          "total_token_throughput": 2037.291434345978
+        },
+        "t_end_epoch": 1784415680.384231,
+        "t_start_epoch": 1784415613.023499
+      }
+    ],
+    "type": "validate",
+    "validation_role": "development",
+    "window": {
+      "end_epoch": 1784415680.6837933,
+      "start_epoch": 1784415612.9329364
+    }
+  },
+  "run_id": "a100_validate_tp2_r4p0_b1p0_s20260712_1784415591",
+  "server": {
+    "active_gpu_uuids": [
+      "GPU-c5d32af0-0857-3b36-6541-1a688a9ec165",
+      "GPU-e2681f6e-8d94-2d66-484f-43ea602335f9"
+    ],
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 256
+  },
+  "tp": 2,
+  "versions": {
+    "git_sha": "unknown",
+    "gpu_driver": "550.163.01",
+    "vllm": "0.19.1.dev6+g6d4a8e6d2"
+  }
+}

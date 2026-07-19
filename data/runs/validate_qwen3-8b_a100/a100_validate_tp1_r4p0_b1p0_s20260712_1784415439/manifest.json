@@ -1,0 +1,175 @@
+{
+  "arch": {
+    "d_model": 4096,
+    "family": "dense-8b",
+    "fp8": 0,
+    "head_dim": 128,
+    "linear_attention": 0,
+    "moe_frac": 0.0,
+    "n_active": 8190427136.0,
+    "n_experts": 1,
+    "n_kv": 8,
+    "n_layers": 36,
+    "n_linear_layers": 0,
+    "swa_global_ratio": 0.0,
+    "swa_window": 0.0,
+    "top_k": 1,
+    "w_bytes": 16380854272.0
+  },
+  "clock": {
+    "engine_epoch_offset_s": 0.0,
+    "engine_first_epoch_s": 1784415445.639233,
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "monotonic_start": 5800715.08750552,
+    "power_epoch_offset_s": 0.0,
+    "power_first_timestamp": "2026/07/18 15:57:25.621",
+    "power_timestamp_basis": "local_wall_time",
+    "reference_epoch_s": 1784415445.4424822,
+    "reference_local_iso8601": "2026-07-18T15:57:25.442497-07:00",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "gpus_per_node": 1,
+  "hardware": "A100",
+  "instrumentation": {
+    "engine": {
+      "coverage": {
+        "generation_tokens_total": 1.0,
+        "gpu_cache_usage_perc": 1.0,
+        "iteration_tokens_total_count": 1.0,
+        "iteration_tokens_total_sum": 1.0,
+        "num_requests_running": 1.0,
+        "num_requests_waiting": 1.0,
+        "prompt_tokens_total": 1.0
+      },
+      "median_cadence_s": 0.2546011209487915,
+      "samples": 293
+    },
+    "first_sample_skew_s": 0.018233060836791992,
+    "power": {
+      "device_ids": [
+        "GPU-03a84180-d660-dbdc-17f4-0e0655717066"
+      ],
+      "median_cadence_s": 0.25,
+      "profile": "core",
+      "required_columns": [
+        "timestamp",
+        "index",
+        "uuid",
+        "power.draw",
+        "clocks.sm",
+        "clocks.mem",
+        "utilization.gpu",
+        "utilization.memory",
+        "memory.used",
+        "temperature.gpu"
+      ],
+      "samples": 298
+    },
+    "profile": "measured_ledger",
+    "purpose": "stock counters replace token rates and total A_t in the hybrid ledger",
+    "required_engine_columns": [
+      "num_requests_running",
+      "num_requests_waiting",
+      "gpu_cache_usage_perc",
+      "prompt_tokens_total",
+      "generation_tokens_total",
+      "iteration_tokens_total_sum",
+      "iteration_tokens_total_count"
+    ],
+    "status": "validated"
+  },
+  "manifest_version": 2,
+  "model": "Qwen/Qwen3-8B",
+  "probe": {
+    "idle_window": {
+      "end_epoch": 1784415445.444476,
+      "requested_s": 0.0,
+      "start_epoch": 1784415445.4434144
+    },
+    "levels": [
+      {
+        "command": [
+          "/usr/bin/python3",
+          "/home/groups/ramr/gfw/powertrace-sim/profiling/client/benchmark_serving.py",
+          "--model",
+          "Qwen/Qwen3-8B",
+          "--backend",
+          "vllm",
+          "--base-url",
+          "http://127.0.0.1:46245",
+          "--endpoint",
+          "/v1/completions",
+          "--dataset-name",
+          "sharegpt",
+          "--dataset-path",
+          "/home/groups/ramr/gfw/ShareGPT_V3_unfiltered_cleaned_split.json",
+          "--request-rate",
+          "4.0",
+          "--burstiness",
+          "1.0",
+          "--seed",
+          "20260712",
+          "--num-prompts",
+          "200",
+          "--tensor-parallel-size",
+          "1",
+          "--save-result",
+          "--save-detailed",
+          "--result-filename",
+          "/scratch/users/gfw/ptsim/runs/validate_qwen3-8b_a100/a100_validate_tp1_r4p0_b1p0_s20260712_1784415439/levels/validate.json",
+          "--max-model-len",
+          "32768"
+        ],
+        "concurrency": -1,
+        "label": "sharegpt_rate4.0_burst1.0",
+        "level": 0,
+        "num_prompts": 200,
+        "params": {
+          "burstiness": 1.0,
+          "dataset": "sharegpt",
+          "num_prompts": 200,
+          "pre_idle_s": 0.0,
+          "request_rate": 4.0,
+          "seed": 20260712,
+          "validation_role": "development"
+        },
+        "summary": {
+          "completed": 200,
+          "duration": 55.63720202445984,
+          "output_throughput": 766.9688346520385,
+          "request_throughput": 3.594717072797331,
+          "total_input_tokens": 66356,
+          "total_output_tokens": 42672,
+          "total_token_throughput": 1959.624065064737
+        },
+        "t_end_epoch": 1784415520.6581297,
+        "t_start_epoch": 1784415445.4444764
+      }
+    ],
+    "type": "validate",
+    "validation_role": "development",
+    "window": {
+      "end_epoch": 1784415520.708174,
+      "start_epoch": 1784415445.3512704
+    }
+  },
+  "run_id": "a100_validate_tp1_r4p0_b1p0_s20260712_1784415439",
+  "server": {
+    "active_gpu_uuids": [
+      "GPU-03a84180-d660-dbdc-17f4-0e0655717066"
+    ],
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 256
+  },
+  "tp": 1,
+  "versions": {
+    "git_sha": "0e984e096fba7de5f00eeab79af51354b7631e48",
+    "gpu_driver": "550.163.01",
+    "vllm": "0.10.1.1"
+  }
+}
