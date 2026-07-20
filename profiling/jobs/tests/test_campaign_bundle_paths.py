@@ -95,9 +95,16 @@ def test_run_campaign_checkpointing_does_not_use_bundle_globs():
 def test_server_lifecycle_waits_for_openai_model_endpoint():
     text = SERVER_LIFECYCLE.read_text()
     assert "SERVER_MODEL" in text
-    assert "http://localhost:8000/v1/models" in text
-    assert "http://localhost:8000/v1/completions" in text
+    assert "POWERTRACE_BASE_URL" in text
+    assert '"$base_url/v1/models"' in text
+    assert '"$base_url/v1/completions"' in text
     assert "completion probe" in text
+
+
+def test_sbatch_assigns_a_job_specific_api_port():
+    text = CAMPAIGN_SBATCH.read_text()
+    assert "SLURM_JOB_ID % 40000" in text
+    assert 'POWERTRACE_BASE_URL="http://localhost:$POWERTRACE_PORT"' in text
 
 
 def test_sealed_execute_requires_separate_output_root(tmp_path):
@@ -128,11 +135,68 @@ def test_submit_script_refuses_implicit_a100_partition_for_h100():
 def test_submit_script_exports_current_repo_to_sbatch():
     submit = SUBMIT_CAMPAIGN.read_text()
     sbatch = CAMPAIGN_SBATCH.read_text()
-    assert 'POWERTRACE_REPO="$REPO_ROOT"' in submit
+    assert 'EXPORTS="ALL,CAMPAIGN=$CAMPAIGN_ABS,POWERTRACE_REPO=$REPO_ROOT"' in submit
+    assert '--export="$EXPORTS"' in submit
     assert 'REPO="${POWERTRACE_REPO:-$HOME/powertrace-sim}"' in sbatch
+
+
+def test_sealed_submission_explicitly_exports_private_run_root(tmp_path):
+    campaign = tmp_path / "sealed.json"
+    campaign.write_text(json.dumps({
+        "hardware": "A100", "model": "unit/model", "campaign_type": "tier1",
+        "validation_role": "sealed", "server": {"tp": 1},
+        "probes": ["idle_hold"],
+    }))
+    scratch = tmp_path / "scratch"
+    root = scratch / "ptsim"
+    (root / "vllm-openai-v0.10.1.1.sandbox").mkdir(parents=True)
+    model = root / "hf" / "hub" / "models--unit--model"
+    model.mkdir(parents=True)
+    (model / ".powertrace-stage-complete").write_text("complete\n")
+    group_home = tmp_path / "group"
+    group_home.mkdir()
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    sbatch = fake_bin / "sbatch"
+    sbatch.write_text("#!/bin/bash\nprintf '%s\\n' \"$@\"\n")
+    sbatch.chmod(0o755)
+    env = dict(os.environ)
+    env.update({
+        "SCRATCH": str(scratch), "GROUP_HOME": str(group_home),
+        "PATH": f"{fake_bin}:{env['PATH']}",
+    })
+    env.pop("SEALED_RUNS", None)
+
+    result = subprocess.run(
+        ["bash", str(SUBMIT_CAMPAIGN), str(campaign)],
+        cwd=ROOT, env=env, text=True, capture_output=True, check=True,
+    )
+
+    sealed_root = root / "sealed-runs"
+    export = (
+        f"ALL,CAMPAIGN={campaign},POWERTRACE_REPO={ROOT},"
+        f"SEALED_RUNS={sealed_root}"
+    )
+    assert f"--export={export}" in result.stdout
+    assert sealed_root.stat().st_mode & 0o777 == 0o700
+
+
+def test_batch_entrypoint_defaults_and_exports_sealed_root():
+    text = CAMPAIGN_SBATCH.read_text()
+    assert 'SEALED_RUNS="${SEALED_RUNS:-$ROOT/sealed-runs}"' in text
+    assert 'chmod 700 "$SEALED_RUNS"' in text
+    assert "export SEALED_RUNS" in text
 
 
 def test_submit_script_owners_defaults_are_hardware_specific():
     text = SUBMIT_CAMPAIGN.read_text()
     assert 'A100) CONS="GPU_SKU:A100_SXM4&GPU_MEM:80GB"' in text
     assert 'H100) CONS="GPU_SKU:H100_SXM5&GPU_MEM:80GB"' in text
+
+
+def test_offline_openhands_data_is_staged_and_exported():
+    submit = SUBMIT_CAMPAIGN.read_text()
+    sbatch = CAMPAIGN_SBATCH.read_text()
+    assert "profiling/jobs/stage_openhands.sh" in submit
+    assert "APPTAINERENV_OPENHANDS_DATASET_PATH" in sbatch
+    assert 'TIME="$DEFAULT_TIME"' in submit

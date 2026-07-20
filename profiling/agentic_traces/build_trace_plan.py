@@ -11,9 +11,9 @@ import argparse
 
 from trace_plan import (  # noqa: E402
     assign_poisson_session_arrivals, load_burstgpt_csv, load_canonical_csv,
+    load_stratified_burstgpt_csv,
     load_tracelab_csv, load_tracelab_jsonl, select_context_bands,
-    select_densest_arrival_window, select_sessions,
-    select_stratified_arrival_window, write_plan,
+    select_densest_arrival_window, select_sessions, write_plan,
 )
 
 
@@ -53,9 +53,16 @@ def main() -> None:
             args.input_csv, revision=args.revision, seed=args.seed
         )
     elif args.format == "burstgpt":
-        plan = load_burstgpt_csv(
-            args.input_csv, revision=args.revision, seed=args.seed
-        )
+        if args.window_index is not None:
+            plan = load_stratified_burstgpt_csv(
+                args.input_csv, revision=args.revision, seed=args.seed,
+                duration_s=args.window_duration_s,
+                window_index=args.window_index, window_count=args.window_count,
+            )
+        else:
+            plan = load_burstgpt_csv(
+                args.input_csv, revision=args.revision, seed=args.seed
+            )
     else:
         if not args.source:
             parser.error("--source is required for --format canonical")
@@ -63,12 +70,7 @@ def main() -> None:
             args.input_csv, source=args.source, revision=args.revision, seed=args.seed
         )
     if args.format == "burstgpt":
-        if args.window_index is not None:
-            plan = select_stratified_arrival_window(
-                plan, duration_s=args.window_duration_s,
-                window_index=args.window_index, window_count=args.window_count,
-            )
-        else:
+        if args.window_index is None:
             if args.max_sessions is None:
                 parser.error(
                     "--max-sessions is required unless BurstGPT "

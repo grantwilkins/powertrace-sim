@@ -289,7 +289,20 @@ disjoint fixed 900-second Fano strata with `--window-index 0/1/2
 --window-count 3`. The OpenHands adapter reads the pinned evaluation JSONL,
 preserves real event text and observed action-to-observation gaps, and uses
 three disjoint hash packs. Its cache pairs apply the same deterministic
-singleton-token protocol as direct trace replay.
+singleton-token protocol as direct trace replay. The pinned vLLM 0.10.1.1
+image returns exact IDs through its logprob token-ID transport. Preserved
+OpenHands waits make the six-regime job approximately 34 hours, so its config
+binds a 48-hour Slurm limit.
+
+Stage the two unseen checkpoints and the pinned OpenHands JSONL before
+submission. GPU jobs are offline and the submit wrapper rejects any missing
+asset:
+
+```bash
+bash profiling/jobs/stage_models.sh Qwen/Qwen3-14B Qwen/Qwen3-30B-A3B
+bash profiling/jobs/stage_openhands.sh \
+  aa8977805b4cefd317001d80ddf1ad52790e9d23
+```
 
 After freezing fits and collecting into a separate sealed root, score all
 bundles exactly once:
@@ -650,6 +663,13 @@ current checkout to the batch job as `POWERTRACE_REPO`. Override that variable
 only when the submitted job must run a different checkout. On Sherlock, submit
 A100 campaigns whose maximum TP needs more than two GPUs to `owners` rather than
 `ramr`; the wrapper pins owners A100/H100 jobs to the matching 80GB GPU class.
+Each allocation derives a job-specific vLLM port and passes the matching base URL
+to readiness checks and every workload client, allowing campaigns to safely share
+a node without cross-serving requests. Set `POWERTRACE_PORT` only to override it.
+Sealed submissions explicitly export `$SCRATCH/ptsim/sealed-runs` as
+`SEALED_RUNS`, create it with mode `0700`, and do not depend on the submitting
+shell to define that variable. The batch entrypoint applies the same default for
+direct `sbatch` use.
 For large checkpoint staging, `profiling/jobs/stage_models.sh` defaults
 `HF_SNAPSHOT_MAX_WORKERS=2`; lower it to `1` if the login-node downloader is
 killed. Native `arch_extract` sanity is opt-in with
@@ -669,7 +689,9 @@ weights do not fit on 8x80GB H100. The live power logger
 stamps each all-GPU `nvidia-smi` query with one shared timestamp so bundle
 ingestion can keep enforcing the 50 ms per-sample skew contract, and the metrics
 logger records only successful scrapes so transient HTTP misses do not create
-all-NaN evidence rows. Probe campaigns launch direct
+all-NaN evidence rows. Clock headers use canonical `clocks.sm` / `clocks.mem`
+names; ingestion also accepts the older `clocks.current.*` display aliases. Probe
+campaigns launch direct
 `profiling/probes/<probe>.py` entry points, one per `schedule.BUILDERS` probe.
 The standard `context_holds` schedule and direct CLI default use a 122880-token
 top prefix rather than 131072 so tokenizer expansion cannot exceed the served

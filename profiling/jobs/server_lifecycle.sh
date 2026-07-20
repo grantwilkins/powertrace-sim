@@ -8,6 +8,7 @@ start_server() {
     local serve_cmd="$1"
     local log="${SERVER_LOG:-server.log}"
     local model="${SERVER_MODEL:-}"
+    local base_url="${POWERTRACE_BASE_URL:-http://localhost:${POWERTRACE_PORT:-8000}}"
     POWERTRACE_SERVER_LAUNCH_EPOCH_S="$(date +%s)"
     export POWERTRACE_SERVER_LAUNCH_EPOCH_S
     setsid bash -c "$serve_cmd" > "$log" 2>&1 &
@@ -27,7 +28,7 @@ start_server() {
     fi
     echo "Launched server (PID=$SERVING_PID${SERVING_PGID:+ PGID=$SERVING_PGID}); log -> $log"
     local tries=0
-    while ! curl -s -f http://localhost:8000/health &> /dev/null; do
+    while ! curl -s -f "$base_url/health" &> /dev/null; do
         sleep 10
         tries=$((tries + 1))
         if [ "$tries" -gt 180 ]; then
@@ -39,8 +40,8 @@ start_server() {
     if [ -n "$model" ]; then
         local payload
         payload="{\"model\":\"$model\",\"prompt\":\"ready\",\"max_tokens\":1,\"temperature\":0}"
-        while ! curl -s -f http://localhost:8000/v1/models | grep -F "\"id\":\"$model\"" &> /dev/null \
-              && ! curl -s -f http://localhost:8000/v1/models | grep -F "\"id\": \"$model\"" &> /dev/null; do
+        while ! curl -s -f "$base_url/v1/models" | grep -F "\"id\":\"$model\"" &> /dev/null \
+              && ! curl -s -f "$base_url/v1/models" | grep -F "\"id\": \"$model\"" &> /dev/null; do
             sleep 10
             tries=$((tries + 1))
             if [ "$tries" -gt 180 ]; then
@@ -52,7 +53,7 @@ start_server() {
         while ! curl -s -f --max-time 300 \
               -H 'Content-Type: application/json' \
               -d "$payload" \
-              http://localhost:8000/v1/completions &> /dev/null; do
+              "$base_url/v1/completions" &> /dev/null; do
             sleep 10
             tries=$((tries + 1))
             if [ "$tries" -gt 180 ]; then

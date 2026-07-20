@@ -133,7 +133,9 @@ async def send_session(http, base_url, model, session, prefix_cache,
             payload["ignore_eos"] = True
             payload["seed"] = request_seed
             payload["allowed_token_ids"] = [forced_output_token_id]
-            payload["return_token_ids"] = True
+            payload["logprobs"] = True
+            payload["top_logprobs"] = 0
+            payload["return_tokens_as_token_ids"] = True
         prompt_sha256 = hashlib.sha256(json.dumps(
             payload["messages"], sort_keys=True, separators=(",", ":")
         ).encode()).hexdigest()
@@ -160,9 +162,7 @@ async def send_session(http, base_url, model, session, prefix_cache,
                         usage = chunk["usage"]
                     choices = chunk.get("choices") or [{}]
                     delta = choices[0].get("delta") or {}
-                    token_ids = choices[0].get("token_ids") or delta.get("token_ids") or ()
-                    if isinstance(token_ids, int):
-                        token_ids = (token_ids,)
+                    token_ids = trace_replay_driver.response_token_ids(choices[0])
                     output_token_ids.extend(int(token) for token in token_ids)
                     content = delta.get("content") or ""
                     thought = delta.get("reasoning_content") or ""

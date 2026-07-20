@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from model.training_data.power_parsing import parse_power_csv_per_gpu
-from power_logger import POWER_PROFILES
+from power_logger import POWER_PROFILES, canonical_field_name
 
 CORE_GAUGES = (
     "num_requests_running",
@@ -110,9 +110,7 @@ def validate_streams(
         raise ValueError(f"unknown power telemetry profile: {power_profile!r}")
     with (root / "power.csv").open(newline="") as stream:
         header = next(csv.reader(stream), [])
-    normalized_header = {
-        value.strip().split(" [", 1)[0].strip() for value in header
-    }
+    normalized_header = {canonical_field_name(value) for value in header}
     missing_power = sorted(set(POWER_PROFILES[power_profile]) - normalized_header)
     if missing_power:
         raise ValueError(

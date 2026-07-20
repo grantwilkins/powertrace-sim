@@ -1,0 +1,188 @@
+{
+  "arch": {
+    "d_model": 5120,
+    "family": "dense-14b",
+    "fp8": 0,
+    "head_dim": 128,
+    "input_embedding_params": 777912320.0,
+    "input_embedding_weight_bytes": 1555824640.0,
+    "linear_attention": 0,
+    "moe_frac": 0.0,
+    "n_active": 14767882240.0,
+    "n_experts": 1,
+    "n_kv": 8,
+    "n_layers": 40,
+    "n_linear_layers": 0,
+    "output_head_params": 777912320.0,
+    "output_head_weight_bytes": 1555824640.0,
+    "swa_global_ratio": 0.0,
+    "swa_window": 0.0,
+    "tied_embeddings": 0,
+    "top_k": 1,
+    "transformer_active_params": 13212057600.0,
+    "transformer_weight_bytes": 26424115200.0,
+    "vocab_size": 151936,
+    "w_bytes": 29535764480.0
+  },
+  "clock": {
+    "engine_epoch_offset_s": 0.0,
+    "engine_first_epoch_s": 1784576425.0190494,
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "monotonic_start": 5961694.531492826,
+    "power_epoch_offset_s": 0.0,
+    "power_first_timestamp": "2026/07/20 12:40:24.937",
+    "power_timestamp_basis": "local_wall_time",
+    "reference_epoch_s": 1784576424.8864732,
+    "reference_local_iso8601": "2026-07-20T12:40:24.886491-07:00",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "evidence_profile": "measured_ledger",
+  "gpus_per_node": 1,
+  "hardware": "A100",
+  "instrumentation": {
+    "engine": {
+      "coverage": {
+        "generation_tokens_total": 1.0,
+        "gpu_cache_usage_perc": 1.0,
+        "iteration_tokens_total_count": 1.0,
+        "iteration_tokens_total_sum": 1.0,
+        "num_requests_running": 1.0,
+        "num_requests_waiting": 1.0,
+        "prompt_tokens_total": 1.0
+      },
+      "median_cadence_s": 0.25603699684143066,
+      "samples": 1368
+    },
+    "first_sample_skew_s": 0.08204936981201172,
+    "power": {
+      "device_ids": [
+        "GPU-c5d32af0-0857-3b36-6541-1a688a9ec165"
+      ],
+      "median_cadence_s": 0.25,
+      "profile": "core",
+      "required_columns": [
+        "timestamp",
+        "index",
+        "uuid",
+        "power.draw",
+        "clocks.sm",
+        "clocks.mem",
+        "utilization.gpu",
+        "utilization.memory",
+        "memory.used",
+        "temperature.gpu"
+      ],
+      "samples": 1401
+    },
+    "profile": "measured_ledger",
+    "purpose": "stock counters replace token rates and total A_t in the hybrid ledger",
+    "required_engine_columns": [
+      "num_requests_running",
+      "num_requests_waiting",
+      "gpu_cache_usage_perc",
+      "prompt_tokens_total",
+      "generation_tokens_total",
+      "iteration_tokens_total_sum",
+      "iteration_tokens_total_count"
+    ],
+    "status": "validated"
+  },
+  "manifest_version": 2,
+  "model": "Qwen/Qwen3-14B",
+  "probe": {
+    "idle_window": {
+      "end_epoch": 1784576484.887397,
+      "requested_s": 60.0,
+      "start_epoch": 1784576424.887321
+    },
+    "levels": [
+      {
+        "command": [
+          "/usr/bin/python3",
+          "/home/groups/ramr/gfw/powertrace-sim/profiling/client/benchmark_serving.py",
+          "--model",
+          "Qwen/Qwen3-14B",
+          "--backend",
+          "vllm",
+          "--base-url",
+          "http://localhost:41605",
+          "--endpoint",
+          "/v1/completions",
+          "--dataset-name",
+          "sharegpt",
+          "--dataset-path",
+          "/home/groups/ramr/gfw/ShareGPT_V3_unfiltered_cleaned_split.json",
+          "--request-rate",
+          "2.5",
+          "--burstiness",
+          "1.0",
+          "--seed",
+          "20260720",
+          "--num-prompts",
+          "600",
+          "--tensor-parallel-size",
+          "1",
+          "--save-result",
+          "--save-detailed",
+          "--result-filename",
+          "/scratch/users/gfw/ptsim/sealed-runs/sealed_qwen3-14b_a100/a100_validate_tp1_r2p5_b1p0_s20260720_1784576420/levels/validate.json",
+          "--max-model-len",
+          "32768"
+        ],
+        "concurrency": -1,
+        "label": "sharegpt_rate2.5_burst1.0",
+        "level": 0,
+        "num_prompts": 600,
+        "params": {
+          "burstiness": 1.0,
+          "dataset": "sharegpt",
+          "num_prompts": 600,
+          "pre_idle_s": 60.0,
+          "request_rate": 2.5,
+          "seed": 20260720,
+          "validation_role": "sealed"
+        },
+        "summary": {
+          "completed": 600,
+          "duration": 272.16133833210915,
+          "output_throughput": 486.8950190063282,
+          "request_throughput": 2.2045746970417985,
+          "total_input_tokens": 173761,
+          "total_output_tokens": 132514,
+          "total_token_throughput": 1125.343525560795
+        },
+        "t_end_epoch": 1784576775.8965607,
+        "t_start_epoch": 1784576484.8873982
+      }
+    ],
+    "type": "validate",
+    "validation_role": "sealed",
+    "window": {
+      "end_epoch": 1784576776.0564072,
+      "start_epoch": 1784576424.8368979
+    }
+  },
+  "run_id": "a100_validate_tp1_r2p5_b1p0_s20260720_1784576420",
+  "server": {
+    "active_gpu_uuids": [
+      "GPU-c5d32af0-0857-3b36-6541-1a688a9ec165"
+    ],
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 256,
+    "scheduling_policy": "sync",
+    "server_launch_epoch_s": 1784576338.0,
+    "server_ready_epoch_s": 1784576418.0
+  },
+  "tp": 1,
+  "validation_role": "sealed",
+  "versions": {
+    "git_sha": "6bb6f6441fbf6cd72dd63b54b69572212aa6ba2e",
+    "gpu_driver": "550.163.01",
+    "vllm": "0.10.1.1"
+  }
+}

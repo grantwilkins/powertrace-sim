@@ -34,9 +34,11 @@ def _write_engine(path, *, n=6, missing=None, decreasing=None, start=1_781_568_0
             writer.writerow(row)
 
 
-def _write_power(path, *, start=1_781_568_000.0, gpus=2, n=6):
+def _write_power(path, *, start=1_781_568_000.0, gpus=2, n=6, legacy=False):
+    sm = "clocks.current.sm" if legacy else "clocks.sm"
+    mem = "clocks.current.memory" if legacy else "clocks.mem"
     fields = (
-        "timestamp,index,uuid,power.draw [W],clocks.sm [MHz],clocks.mem [MHz],"
+        f"timestamp,index,uuid,power.draw [W],{sm} [MHz],{mem} [MHz],"
         "utilization.gpu [%],utilization.memory [%],memory.used [MiB],temperature.gpu"
     )
     lines = [fields]
@@ -84,6 +86,15 @@ def test_stream_validation_checks_epoch_alignment_and_gpu_identity(tmp_path):
     assert result["status"] == "validated"
     assert result["power"]["device_ids"] == ["GPU-0", "GPU-1"]
     assert abs(result["first_sample_skew_s"]) < 1e-9
+
+
+def test_stream_validation_accepts_legacy_display_clock_names(tmp_path):
+    _write_engine(tmp_path / "engine.csv")
+    _write_power(tmp_path / "power.csv", legacy=True)
+    result = validate_streams(
+        tmp_path, "measured_ledger", gpus_per_node=2, local_utc_offset_s=0.0
+    )
+    assert result["status"] == "validated"
 
 
 def test_tp8_state_profile_rejects_core_only_power(tmp_path):

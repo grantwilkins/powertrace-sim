@@ -65,7 +65,17 @@ The OpenHands input is pinned to dataset commit
 `aa8977805b4cefd317001d80ddf1ad52790e9d23` and the CodeActAgent
 Claude-3.5-Sonnet v2.2 output JSONL named in `openhands_adapter.py`. Dataset
 text and observed action-to-observation timestamps are preserved. There is no
-fitted or sampled tool-gap model on this path.
+fitted or sampled tool-gap model on this path. The selected packs contain real
+multi-hour waits, so `sealed_openhands_qwen3-8b_a100.json` binds a 48-hour
+Slurm limit rather than relying on the four-hour batch default.
+
+Stage the unseen checkpoints and the pinned OpenHands file before submission:
+
+```bash
+bash profiling/jobs/stage_models.sh Qwen/Qwen3-14B Qwen/Qwen3-30B-A3B
+bash profiling/jobs/stage_openhands.sh \
+  aa8977805b4cefd317001d80ddf1ad52790e9d23
+```
 
 Dry-run all four configs and inspect their exact commands before submission:
 

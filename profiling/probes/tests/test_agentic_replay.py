@@ -36,7 +36,10 @@ class _Content:
                 chunk = json.loads(raw.decode().split("data: ", 1)[1])
                 take = 1 if index != active[-1] else remaining
                 remaining -= take
-                chunk["choices"][0]["token_ids"] = [token] * take
+                chunk["choices"][0]["logprobs"] = {"content": [
+                    {"token": f"token_id:{token}", "logprob": 0.0}
+                    for _ in range(take)
+                ]}
                 raw = f"data: {json.dumps(chunk)}".encode()
             self.lines.append(raw)
 
@@ -104,6 +107,8 @@ def test_faithful_replay_injects_trace_reply_and_real_text():
 
     first = http.payloads[0]
     assert first["ignore_eos"] is True and first["max_tokens"] == 2  # forced length
+    assert first["return_tokens_as_token_ids"] is True
+    assert first["logprobs"] is True
     assert first["messages"][0] == {"role": "system", "content": "SYS REAL"}
     assert first["messages"][1] == {"role": "user", "content": "hello"}
 

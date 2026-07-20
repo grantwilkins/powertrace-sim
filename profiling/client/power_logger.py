@@ -58,11 +58,16 @@ DEFAULT_INTERVAL_MS = 250  # 4 Hz, aligned to the engine /metrics scraper
 
 DISPLAY_FIELDS = {
     "power.draw": "power.draw [W]",
-    "clocks.sm": "clocks.current.sm [MHz]",
-    "clocks.mem": "clocks.current.memory [MHz]",
+    "clocks.sm": "clocks.sm [MHz]",
+    "clocks.mem": "clocks.mem [MHz]",
     "utilization.gpu": "utilization.gpu [%]",
     "utilization.memory": "utilization.memory [%]",
     "memory.used": "memory.used [MiB]",
+}
+
+POWER_FIELD_ALIASES = {
+    "clocks.current.sm": "clocks.sm",
+    "clocks.current.memory": "clocks.mem",
 }
 
 _STOP = False
@@ -74,6 +79,11 @@ def _query_fields(fields=EXTENDED_FIELDS) -> tuple[str, ...]:
 
 def display_header(fields=EXTENDED_FIELDS) -> list[str]:
     return [DISPLAY_FIELDS.get(field, field) for field in fields]
+
+
+def canonical_field_name(header: str) -> str:
+    field = header.strip().split(" [", 1)[0].strip()
+    return POWER_FIELD_ALIASES.get(field, field)
 
 
 def nvidia_smi_query_command(fields=EXTENDED_FIELDS) -> list[str]:

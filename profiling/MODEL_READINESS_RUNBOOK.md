@@ -19,7 +19,8 @@ The work is complete only when all of these are true:
    250 ms measured ledger plus a `ledger-run-index-v1` index.
 3. Candidate equations and selection rules were frozen using development data
    only, then exported as one artifact per hardware.
-4. The two sealed campaigns were collected under `SEALED_RUNS` after the freeze.
+4. The 11 paper-final sealed runs in `DATA_INVENTORY_CAMPAIGN_PLAN.md` were
+   collected under `SEALED_RUNS` after the freeze.
 5. A score-only path evaluated the sealed bundles once without refitting,
    reselection, threshold changes, or feature changes.
 
@@ -59,14 +60,9 @@ Run development campaigns in this order:
 8. `h100_hardcells_llama405b.json`
 
 These produce 35 development bundles: 23 controlled-probe bundles and 12
-realistic validation bundles. Do not run the sealed campaigns yet.
-
-After the model and thresholds are frozen, run exactly:
-
-1. `a100_sealed_gpt-oss-120b.json`
-2. `h100_sealed_llama405b.json`
-
-These produce six sealed bundles at fresh rates and seeds.
+realistic validation bundles. The former GPT-OSS/405B sealed closeout is
+superseded; after the model and thresholds are frozen, run only the 11-launch
+paper-final matrix in `DATA_INVENTORY_CAMPAIGN_PLAN.md`.
 
 ## Before submission
 
@@ -82,7 +78,7 @@ On Sherlock, verify all of the following before spending GPU time:
 
 - `$SCRATCH/ptsim/vllm-openai-v0.10.1.1.sandbox` exists.
 - Every campaign model is staged below `$SCRATCH/ptsim/hf/hub/`.
-- `$SCRATCH/ptsim/data/ShareGPT_V3_unfiltered_cleaned_split.json` exists.
+- `$GROUP_HOME/gfw/ShareGPT_V3_unfiltered_cleaned_split.json` exists.
 - The H100 partition and constraint are known. They are site-specific and are
   not safely inferable from this repository. Never submit an H100 campaign to
   the default A100 `ramr` partition.
@@ -186,14 +182,11 @@ visible in the container) and submit:
 export SEALED_RUNS="$SCRATCH/ptsim/sealed-runs"
 mkdir -p "$SEALED_RUNS"
 chmod 700 "$SEALED_RUNS"
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/a100_sealed_gpt-oss-120b.json -p owners
-bash profiling/jobs/submit_campaign.sh profiling/campaigns/h100_sealed_llama405b.json -p owners
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/sealed_burstgpt_qwen3-8b_a100.json
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/sealed_openhands_qwen3-8b_a100.json
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/sealed_qwen3-14b_a100.json
+bash profiling/jobs/submit_campaign.sh profiling/campaigns/sealed_qwen3-30b-a3b_h100.json -p owners
 ```
 
-The 405B sealed and development cells use the pre-quantized
-`RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8` checkpoint
-(`server.quantization=compressed-tensors`, `dtype_hint=fp8`) because BF16 does
-not fit on 8x80GB H100; keep that checkpoint/dtype as part of the reported cell
-identity. Do not inspect per-run sealed traces before
-score-only evaluation. Do not refit after seeing sealed metrics. Report every
-declared cell, including failures.
+Do not inspect per-run sealed traces before score-only evaluation. Do not refit
+after seeing sealed metrics. Report every declared cell, including failures.

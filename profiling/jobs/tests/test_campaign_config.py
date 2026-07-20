@@ -46,6 +46,29 @@ def test_visible_gpu_count_is_derived_from_largest_tp(tmp_path):
     assert "--gpus-per-node 4" in cc.probe_commands(c, 4)[0]
 
 
+def test_job_port_is_shared_by_server_and_every_client(monkeypatch):
+    monkeypatch.setenv("POWERTRACE_PORT", "23456")
+    campaigns = [
+        "sealed_burstgpt_qwen3-8b_a100.json",
+        "sealed_openhands_qwen3-8b_a100.json",
+        "sealed_qwen3-14b_a100.json",
+    ]
+    for name in campaigns:
+        campaign = cc.load_campaign(CAMPAIGNS_DIR / name)
+        tp = campaign["server"]["tp"]
+        regime = cc.regimes(campaign)[0]
+        assert "--port 23456" in cc.serve_command(campaign, tp, False)
+        assert "--base-url http://localhost:23456/v1" in cc.run_command(
+            campaign, tp, regime
+        )
+
+
+def test_invalid_job_port_is_rejected(monkeypatch):
+    monkeypatch.setenv("POWERTRACE_PORT", "70000")
+    with pytest.raises(cc.CampaignError, match="POWERTRACE_PORT"):
+        cc.server_port()
+
+
 def test_campaign_config_keeps_submission_metadata_stdlib_only():
     text = Path(cc.__file__).read_text()
     assert "evidence_contract" not in text
@@ -481,6 +504,7 @@ def test_final_sealed_campaigns_are_minimal_and_explicit():
         for regime in cc.regimes(agentic)
     ]
     assert len(commands) == 6
+    assert agentic["slurm_time"] == "48:00:00"
     assert "--dataset-revision aa8977805b4cefd317001d80ddf1ad52790e9d23" \
         in commands[0]
     assert "--pack-index 0 --pack-count 3" in commands[0]

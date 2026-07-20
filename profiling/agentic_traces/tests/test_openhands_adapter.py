@@ -62,3 +62,14 @@ def test_requires_immutable_revision():
 
     with pytest.raises(ValueError, match="immutable dataset revision"):
         openhands_adapter.load_openhands(1, 0, Tokenizer())
+
+
+def test_local_staged_dataset_is_used(monkeypatch, tmp_path):
+    path = tmp_path / "output.jsonl"
+    path.write_text(__import__("json").dumps(_row("x")) + "\n")
+
+    monkeypatch.setenv(openhands_adapter.LOCAL_DATA_ENV, str(path))
+    sessions = openhands_adapter.load_openhands(
+        1, 0, Tokenizer(), revision="commit"
+    )
+    assert sessions[0].session_id == "x"

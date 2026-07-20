@@ -24,7 +24,16 @@ LOGS="$ROOT/logs"
 NATIVE_VENV="$ROOT/venv-native"
 GROUP_DATA="${GROUP_HOME:?Sherlock GROUP_HOME is required}/gfw"
 CAMPAIGN="${1:-${CAMPAIGN:?set CAMPAIGN env or pass campaign.json as arg}}"
-mkdir -p "$RUNS" "$LOGS"
+SEALED_RUNS="${SEALED_RUNS:-$ROOT/sealed-runs}"
+mkdir -p "$RUNS" "$LOGS" "$SEALED_RUNS"
+chmod 700 "$SEALED_RUNS"
+export SEALED_RUNS
+
+# Multiple one-GPU jobs can share a node. Give each allocation its own API port
+# so readiness and workload traffic cannot attach to a neighboring vLLM server.
+export POWERTRACE_PORT="${POWERTRACE_PORT:-$((20000 + SLURM_JOB_ID % 40000))}"
+export POWERTRACE_BASE_URL="http://localhost:$POWERTRACE_PORT"
+echo "campaign API endpoint: $POWERTRACE_BASE_URL"
 
 # caches -> scratch (never NFS $HOME), and force them into the container too
 export HF_HOME="$ROOT/hf"
@@ -65,6 +74,25 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 read -r SANDBOX_NAME MODEL < <(python3 profiling/jobs/campaign_config.py "$CAMPAIGN" --emit json \
     | python3 -c 'import json,sys; c=json.load(sys.stdin); print(c.get("container") or "vllm-openai-v0.10.1.1.sandbox", c["model"])')
 CTYPE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["campaign_type"])' "$CAMPAIGN")"
+if [ "$CTYPE" = "agentic" ]; then
+    read -r CORPUS DATASET_REVISION < <(python3 -c '
+import json, sys
+c = json.load(open(sys.argv[1]))
+print(
+    c.get("sessions", {}).get("corpus", "-"),
+    c.get("sessions", {}).get("dataset_revision", "-"),
+)
+' "$CAMPAIGN")
+    if [ "$CORPUS" = "openhands" ]; then
+        OPENHANDS_DATASET_PATH="$ROOT/data/openhands/$DATASET_REVISION/output.jsonl"
+        test -s "$OPENHANDS_DATASET_PATH" || {
+            echo "MISSING pinned OpenHands data: $OPENHANDS_DATASET_PATH"
+            exit 1
+        }
+        export OPENHANDS_DATASET_PATH
+        export APPTAINERENV_OPENHANDS_DATASET_PATH="$OPENHANDS_DATASET_PATH"
+    fi
+fi
 SANDBOX="$ROOT/$SANDBOX_NAME"
 APP="apptainer exec --nv --bind $SCRATCH --bind $GROUP_HOME $SANDBOX"
 echo "container: $SANDBOX"

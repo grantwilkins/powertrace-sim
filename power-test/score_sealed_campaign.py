@@ -8,6 +8,7 @@ import json
 import sys
 from collections import defaultdict
 from pathlib import Path
+from statistics import median
 
 
 GATES = {
@@ -21,6 +22,12 @@ GATES = {
 REQUIRED_BUNDLE_FILES = (
     "manifest.json", "requests.json", "power.csv", "engine.csv",
 )
+CAMPAIGN_QUESTIONS = {
+    "sealed_burstgpt_qwen3-8b_a100": ("irregular_arrivals", 3),
+    "sealed_openhands_qwen3-8b_a100": ("agent_cache", 6),
+    "sealed_qwen3-14b_a100": ("unseen_dense", 1),
+    "sealed_qwen3-30b-a3b_h100": ("unseen_moe_hardware", 1),
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -80,6 +87,20 @@ def grade_run(run: dict) -> dict:
     return {**run, "gate_checks": checks, "passed": all(checks.values())}
 
 
+def validate_campaign_matrix(validated) -> None:
+    counts = defaultdict(int)
+    for root, _ in validated:
+        counts[root.parent.name] += 1
+    expected = {
+        campaign: count for campaign, (_, count) in CAMPAIGN_QUESTIONS.items()
+    }
+    if dict(counts) != expected:
+        raise ValueError(
+            f"sealed campaign matrix must contain exactly {expected}, got "
+            f"{dict(counts)}"
+        )
+
+
 def _cache_pairs(validated):
     groups = defaultdict(dict)
     required = set()
@@ -91,7 +112,10 @@ def _cache_pairs(validated):
                 plan_hash, manifest.get("model"), manifest.get("hardware"),
                 manifest.get("tp"), probe.get("pack_index", 0),
             )
-            groups[key][bool(probe.get("prefix_cache"))] = root
+            treatment = bool(probe.get("prefix_cache"))
+            if treatment in groups[key]:
+                raise ValueError(f"duplicate cache treatment for plan: {key}")
+            groups[key][treatment] = root
             if probe.get("type") == "agentic":
                 required.add(key)
     incomplete = [key for key in required if set(groups[key]) != {False, True}]
@@ -118,6 +142,37 @@ def _compare_pairs(validated) -> list[dict]:
     return results
 
 
+def summarize_questions(runs: list[dict]) -> dict:
+    metrics = {
+        "timing_e2e_medabs_pct": ("timing", "e2e_s_medabs_pct", max),
+        "energy_error_pct": ("power", "energy_error_pct", max),
+        "acf_mae": ("power", "acf_mae", max),
+        "acf_r2": ("power", "acf_r2", min),
+        "nrmse_range": ("power", "nrmse_range", max),
+    }
+    grouped = defaultdict(list)
+    for run in runs:
+        question, _ = CAMPAIGN_QUESTIONS[run["campaign"]]
+        grouped[question].append(run)
+    return {
+        question: {
+            "runs": len(values),
+            "passed": all(run["passed"] for run in values),
+            "failed_run_ids": [
+                run["run_id"] for run in values if not run["passed"]
+            ],
+            "metrics": {
+                name: {
+                    "median": median(run[section][field] for run in values),
+                    "worst": worst(run[section][field] for run in values),
+                }
+                for name, (section, field, worst) in metrics.items()
+            },
+        }
+        for question, values in sorted(grouped.items())
+    }
+
+
 def score_campaign(
     bundle_dirs, timing_fit_path, power_fit_path, out_path, *, dt=0.25
 ) -> dict:
@@ -125,6 +180,7 @@ def score_campaign(
     if out.exists():
         raise FileExistsError(f"sealed report already exists: {out}")
     validated = validate_sealed_bundles(bundle_dirs)
+    validate_campaign_matrix(validated)
     timing_path, power_path = Path(timing_fit_path), Path(power_fit_path)
     timing_fit = json.loads(timing_path.read_text())
     power_fit = json.loads(power_path.read_text())
@@ -136,6 +192,7 @@ def score_campaign(
         grade_run(evaluate_bundle(root, timing_fit, power_fit, dt=dt))
         for root, _ in validated
     ]
+    cache_pairs = _compare_pairs(validated)
     report = {
         "schema_version": "sealed-campaign-score-v1",
         "validation_role": "sealed",
@@ -154,7 +211,11 @@ def score_campaign(
         },
         "gates": GATES,
         "runs": runs,
-        "cache_pair_identity": _compare_pairs(validated),
+        "questions": summarize_questions(runs),
+        "failures": [
+            run["run_id"] for run in runs if not run["passed"]
+        ],
+        "cache_pair_identity": cache_pairs,
         "passed": all(run["passed"] for run in runs),
     }
     out.parent.mkdir(parents=True, exist_ok=True)

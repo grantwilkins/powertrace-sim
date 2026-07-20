@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trace_replay_driver import (  # noqa: E402
     TokenSession, _usage_details, completion_payload, deterministic_tokens,
-    validate_exact_accounting, validate_forced_output,
+    response_token_ids, validate_exact_accounting, validate_forced_output,
 )
 from trace_replay_runner import round_release_epoch  # noqa: E402
 
@@ -55,6 +55,14 @@ def test_forced_output_and_request_seed_are_stable_per_round():
     assert payload["seed"] == 9
     assert payload["ignore_eos"] is True
     assert payload["max_tokens"] == 3
+    assert payload["return_tokens_as_token_ids"] is True
+    assert payload["logprobs"] == 0
+    assert response_token_ids({
+        "logprobs": {"tokens": ["token_id:17", "token_id:17"]}
+    }) == [17, 17]
+    assert response_token_ids({
+        "logprobs": {"content": [{"token": "token_id:17"}]}
+    }) == [17]
 
 
 def test_release_requires_arrival_and_closed_loop_readiness():

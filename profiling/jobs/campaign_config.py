@@ -41,6 +41,18 @@ def out_root() -> str:
     return os.environ.get("RUNS") or "data/runs"
 
 
+def server_port() -> int:
+    """Port shared by one campaign's server, readiness checks, and clients."""
+    port = int(os.environ.get("POWERTRACE_PORT", "8000"))
+    if not 1024 <= port <= 65535:
+        raise CampaignError(f"POWERTRACE_PORT must be in [1024, 65535], got {port}")
+    return port
+
+
+def base_url() -> str:
+    return f"http://localhost:{server_port()}/v1"
+
+
 class CampaignError(ValueError):
     pass
 
@@ -217,6 +229,7 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
     # registers the model under its local snapshot PATH, and the benchmark client
     # (which requests --model <hf id>) then 404s ("model not found").
     parts = [f"vllm serve {c['model']}", f"--served-model-name {c['model']}",
+             f"--port {server_port()}",
              f"--tensor-parallel-size {tp}",
              f"--max-num-seqs {s['max_num_seqs']}",
              f"--max-num-batched-tokens {s['max_num_batched_tokens']}",
@@ -383,6 +396,7 @@ def probe_commands(c: dict, tp: int) -> list[str]:
     s = c["server"]
     common = (
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
+        f"--base-url {base_url()} "
         f"--gpus-per-node {c['gpus_per_node']} "
         f"--max-num-seqs {s['max_num_seqs']} "
         f"--max-model-len {s['max_model_len']} "
@@ -414,6 +428,7 @@ def validate_command(c: dict, tp: int, regime=None) -> str:
     cmd = (
         f"python3 profiling/probes/validate_run.py "
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp} "
+        f"--base-url {base_url()} "
         f"--gpus-per-node {c['gpus_per_node']} "
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']} "
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()} "
@@ -449,6 +464,7 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
     parts = [
         "python3 profiling/probes/agentic_run.py",
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--base-url {base_url()}",
         f"--gpus-per-node {c['gpus_per_node']}",
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--out-root {out_root()}",
@@ -487,6 +503,7 @@ def trace_replay_command(c: dict, tp: int, regime: dict) -> str:
     parts = [
         "python3 profiling/probes/trace_replay_run.py",
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--base-url {base_url()}",
         f"--gpus-per-node {c['gpus_per_node']}",
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",
@@ -512,6 +529,7 @@ def roofline_agentic_command(c: dict, tp: int) -> str:
     parts = [
         "python3 profiling/probes/agentic_run.py",
         f"--model {c['model']} --hardware {c['hardware']} --tp {tp}",
+        f"--base-url {base_url()}",
         f"--gpus-per-node {c['gpus_per_node']}",
         f"--max-model-len {s['max_model_len']} --max-num-seqs {s['max_num_seqs']}",
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",

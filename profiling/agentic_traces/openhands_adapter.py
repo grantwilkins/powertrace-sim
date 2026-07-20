@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
 import tool_classes
 from swe_smith_adapter import TextSession, TextTurn
@@ -15,6 +17,7 @@ DATA_FILE = (
     "outputs/SWE-bench_Lite-test/CodeActAgent/"
     "claude-3-5-sonnet-20241022_maxiter_100_N_v2.2-no-hint/output.jsonl"
 )
+LOCAL_DATA_ENV = "OPENHANDS_DATASET_PATH"
 
 
 def _epoch(value) -> float:
@@ -119,6 +122,13 @@ def select_rows(
     return list(itertools.islice(selected, n_sessions))
 
 
+def _local_rows(path: str):
+    with Path(path).open() as stream:
+        for line in stream:
+            if line.strip():
+                yield json.loads(line)
+
+
 def load_openhands(
     n_sessions: int, seed: int, tokenizer, *, pack_index: int = 0,
     pack_count: int = 1, revision: str | None = None,
@@ -126,12 +136,16 @@ def load_openhands(
     """Load a pinned offline dataset revision and one disjoint hash pack."""
     if not revision:
         raise ValueError("OpenHands replay requires an immutable dataset revision")
-    from datasets import load_dataset
+    local_path = os.environ.get(LOCAL_DATA_ENV)
+    if local_path:
+        rows = _local_rows(str(Path(local_path).resolve()))
+    else:
+        from datasets import load_dataset
 
-    source = f"hf://datasets/{DATASET}@{revision}/{DATA_FILE}"
-    rows = load_dataset(
-        "json", data_files={"test": source}, split="test", streaming=True
-    )
+        source = f"hf://datasets/{DATASET}@{revision}/{DATA_FILE}"
+        rows = load_dataset(
+            "json", data_files={"test": source}, split="test", streaming=True
+        )
     chosen = select_rows(
         rows, n_sessions=n_sessions * 4, pack_index=pack_index,
         pack_count=pack_count, seed=seed,

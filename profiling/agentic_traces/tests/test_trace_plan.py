@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from trace_plan import (  # noqa: E402
     TracePlan, TraceRound,
     assign_poisson_session_arrivals, load_bundle_requests_json,
-    load_burstgpt_csv, load_plan,
+    load_burstgpt_csv, load_plan, load_stratified_burstgpt_csv,
     load_tracelab_csv, load_tracelab_jsonl, select_context_bands,
     select_densest_arrival_window, select_sessions, write_plan,
     select_stratified_arrival_window,
@@ -165,6 +165,37 @@ def test_burstgpt_strata_are_disjoint_and_preserve_full_horizon():
     assert [len(item.rounds) for item in selected] == sorted(
         len(item.rounds) for item in selected
     )
+
+
+def test_burstgpt_strata_reject_empty_trace():
+    with pytest.raises(ValueError, match="no requests"):
+        select_stratified_arrival_window(
+            TracePlan("burst", "commit", ()),
+            duration_s=10.0, window_index=0, window_count=1,
+        )
+
+
+def test_streamed_burstgpt_stratum_matches_in_memory(tmp_path):
+    path = tmp_path / "burst.csv"
+    path.write_text(
+        "Timestamp,Model,Request tokens,Response tokens,Total tokens,Log Type\n"
+        + "".join(
+            f"{window * 10 + offset / (window + 1)},ChatGPT,8,2,10,API log\n"
+            for window in range(9)
+            for offset in range(window + 1)
+        )
+        + "90,ChatGPT,8,2,10,API log\n"
+    )
+    full = load_burstgpt_csv(path, revision="sha")
+    for index in range(3):
+        expected = select_stratified_arrival_window(
+            full, duration_s=10, window_index=index, window_count=3
+        )
+        streamed = load_stratified_burstgpt_csv(
+            path, revision="sha", duration_s=10,
+            window_index=index, window_count=3,
+        )
+        assert streamed == expected
 
 
 def test_bundle_requests_plan_preserves_marks_and_scales_release_time(tmp_path):

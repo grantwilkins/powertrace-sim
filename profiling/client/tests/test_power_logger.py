@@ -30,6 +30,13 @@ def test_query_has_extended_fields():
     assert query.split("=", 1)[1].startswith("index,uuid,power.draw")
 
 
+def test_display_header_uses_canonical_clock_names():
+    header = power_logger.display_header()
+    assert "clocks.sm [MHz]" in header
+    assert "clocks.mem [MHz]" in header
+    assert all("clocks.current" not in field for field in header)
+
+
 def test_logger_command_uses_python_wrapper():
     cmd = nvidia_smi_command()
     assert cmd[:2] == [sys.executable, str(Path(power_logger.__file__).resolve())]

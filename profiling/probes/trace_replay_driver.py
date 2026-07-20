@@ -184,6 +184,18 @@ def validate_forced_output(
         )
 
 
+def response_token_ids(choice: dict) -> list[int]:
+    """Read IDs from vLLM's logprob token transport."""
+    logprobs = choice.get("logprobs") or {}
+    values = logprobs.get("tokens") or [
+        item["token"] for item in (logprobs.get("content") or [])
+    ]
+    prefix = "token_id:"
+    if any(not value.startswith(prefix) for value in values):
+        raise ValueError("server returned a non-token-ID logprob value")
+    return [int(value[len(prefix):]) for value in values]
+
+
 def completion_payload(
     model, row, prompt, forced_output_token_id: int, request_seed: int
 ) -> dict:
@@ -195,9 +207,10 @@ def completion_payload(
         "temperature": 0.0,
         "seed": int(request_seed),
         "allowed_token_ids": [int(forced_output_token_id)],
+        "logprobs": 0,
+        "return_tokens_as_token_ids": True,
         "stream": True,
         "stream_options": {"include_usage": True},
-        "return_token_ids": True,
     }
 
 
@@ -236,9 +249,7 @@ async def send_round(
                 for choice in chunk.get("choices") or ():
                     text = choice.get("text")
                     delta = choice.get("delta") or {}
-                    token_ids = choice.get("token_ids") or delta.get("token_ids") or ()
-                    if isinstance(token_ids, int):
-                        token_ids = (token_ids,)
+                    token_ids = response_token_ids(choice)
                     output_token_ids.extend(int(token) for token in token_ids)
                     active = bool(
                         text or delta.get("content") or delta.get("reasoning_content")

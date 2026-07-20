@@ -75,3 +75,32 @@ def test_agentic_cache_plan_requires_both_legs(tmp_path):
     validated = score.validate_sealed_bundles([root])
     with pytest.raises(ValueError, match="complete off/on pairs"):
         score._cache_pairs(validated)
+
+
+def test_campaign_matrix_requires_all_eleven_runs(tmp_path):
+    validated = [score.validate_sealed_bundles([_bundle(tmp_path)])[0]]
+    with pytest.raises(ValueError, match="exactly"):
+        score.validate_campaign_matrix(validated)
+
+
+def test_question_summary_reports_median_worst_and_failures():
+    runs = []
+    for index, error in enumerate((1.0, 2.0, 9.0)):
+        runs.append(score.grade_run({
+            "campaign": "sealed_burstgpt_qwen3-8b_a100",
+            "run_id": f"run-{index}",
+            "timing": {"e2e_s_medabs_pct": error},
+            "power": {
+                "energy_error_pct": 1.0, "duration_s": 900.0,
+                "acf_mae": 0.01, "acf_r2": 0.95,
+                "nrmse_range": 0.1,
+            },
+        }))
+    runs[-1]["power"]["acf_r2"] = 0.89
+    runs[-1] = score.grade_run(runs[-1])
+    summary = score.summarize_questions(runs)["irregular_arrivals"]
+    assert summary["metrics"]["timing_e2e_medabs_pct"] == {
+        "median": 2.0, "worst": 9.0,
+    }
+    assert summary["metrics"]["acf_r2"]["worst"] == 0.89
+    assert summary["failed_run_ids"] == ["run-2"]

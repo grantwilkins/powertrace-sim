@@ -4,6 +4,7 @@
   "campaign_type": "agentic",
   "evidence_profile": "measured_ledger",
   "validation_role": "sealed",
+  "slurm_time": "48:00:00",
   "_note": "Three disjoint OpenHands session packs, each replayed cache-off/on with identical prompts and forced output token IDs.",
   "server": {
     "tp": 1,

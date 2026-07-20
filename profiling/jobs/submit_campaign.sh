@@ -37,7 +37,7 @@ test -f "$CAMPAIGN_ABS" || { echo "no such campaign: $CAMPAIGN" >&2; exit 1; }
 # also imports the scientific NumPy stack, which is not guaranteed on a login node.
 source /etc/profile.d/modules.sh 2>/dev/null || true
 ml devel python/3.12.1 2>/dev/null || true
-read -r N HARDWARE MODEL SANDBOX_NAME CTYPE TRACE_PLAN DATASET < <(
+read -r N HARDWARE MODEL SANDBOX_NAME CTYPE TRACE_PLAN DATASET CORPUS DATASET_REVISION DEFAULT_TIME ROLE < <(
     python3 -c '
 import json, sys
 c = json.load(open(sys.argv[1]))
@@ -47,9 +47,14 @@ print(
     c.get("container") or "vllm-openai-v0.10.1.1.sandbox",
     c["campaign_type"], c.get("trace", {}).get("plan", "-"),
     c.get("workload", {}).get("dataset", "-"),
+    c.get("sessions", {}).get("corpus", "-"),
+    c.get("sessions", {}).get("dataset_revision", "-"),
+    c.get("slurm_time", "-"),
+    c.get("validation_role", "development"),
 )
 ' "$CAMPAIGN_ABS"
 )
+[ -n "$TIME" ] || [ "$DEFAULT_TIME" = "-" ] || TIME="$DEFAULT_TIME"
 [ -n "$N" ] || { echo "could not determine TP for $CAMPAIGN" >&2; exit 1; }
 # owners is mixed-GPU and preemptible. Pin the GPU class and memory size so
 # large-model campaigns do not land on another accelerator or a 40GB A100.
@@ -74,6 +79,14 @@ fi
 
 ROOT="${SCRATCH:?Sherlock SCRATCH is required}/ptsim"
 GROUP_DATA="${GROUP_HOME:?Sherlock GROUP_HOME is required}/gfw"
+SEALED_RUNS="$ROOT/sealed-runs"
+if [ "$ROLE" = "sealed" ]; then
+    mkdir -p "$SEALED_RUNS"
+    chmod 700 "$SEALED_RUNS"
+    [ "$(stat -c %a "$SEALED_RUNS")" = "700" ] || {
+        echo "SEALED_RUNS must have mode 700: $SEALED_RUNS" >&2; exit 1;
+    }
+fi
 test -d "$ROOT/$SANDBOX_NAME" || {
     echo "MISSING container: $ROOT/$SANDBOX_NAME" >&2; exit 1;
 }
@@ -93,35 +106,50 @@ if [ "$CTYPE" = "validate" ]; then
                 echo "MISSING BurstGPT data under $GROUP_DATA" >&2; exit 1; };;
     esac
 elif [ "$CTYPE" = "trace_replay" ]; then
-    case "$TRACE_PLAN" in
-        /*) ;;
-        *) TRACE_PLAN="$REPO_ROOT/$TRACE_PLAN";;
-    esac
-    test -s "$TRACE_PLAN" || {
-        echo "MISSING trace plan: $TRACE_PLAN" >&2; exit 1;
-    }
     python3 -c '
 import json, sys
-plan = json.load(open(sys.argv[1]))
-campaign = json.load(open(sys.argv[2]))
+from pathlib import Path
+campaign = json.load(open(sys.argv[1]))
 limit = int(campaign["server"]["max_model_len"])
-rounds = plan.get("rounds", [])
-if not rounds:
-    raise SystemExit("trace plan has no rounds")
-peak = max(
-    int(row["prefix_tokens"]) + int(row["input_tokens"]) + int(row["output_tokens"])
-    for row in rounds
-)
-if peak > limit:
-    raise SystemExit(f"trace plan peak {peak} exceeds max_model_len {limit}")
-' "$TRACE_PLAN" "$CAMPAIGN_ABS"
+plans = {
+    row.get("plan", campaign["trace"]["plan"])
+    for row in campaign["trace"]["regimes"]
+}
+for value in sorted(plans):
+    path = Path(value)
+    if not path.is_absolute():
+        path = Path(sys.argv[2]) / path
+    if not path.is_file() or path.stat().st_size == 0:
+        raise SystemExit(f"MISSING trace plan: {path}")
+    plan = json.loads(path.read_text())
+    rounds = plan.get("rounds", [])
+    if not rounds:
+        raise SystemExit(f"trace plan has no rounds: {path}")
+    peak = max(
+        int(row["prefix_tokens"]) + int(row["input_tokens"])
+        + int(row["output_tokens"])
+        for row in rounds
+    )
+    if peak > limit:
+        raise SystemExit(f"{path} peak {peak} exceeds max_model_len {limit}")
+' "$CAMPAIGN_ABS" "$REPO_ROOT"
+elif [ "$CTYPE" = "agentic" ] && [ "$CORPUS" = "openhands" ]; then
+    OPENHANDS_DIR="$ROOT/data/openhands/$DATASET_REVISION"
+    test -s "$OPENHANDS_DIR/output.jsonl" \
+        && test -s "$OPENHANDS_DIR/source.json" || {
+        echo "MISSING pinned OpenHands data for $DATASET_REVISION" >&2
+        echo "  run: bash profiling/jobs/stage_openhands.sh $DATASET_REVISION" >&2
+        exit 1
+    }
 fi
 
 echo "Submitting $(basename "$CAMPAIGN_ABS") on -p $PART --gres=gpu:$N${CONS:+ -C $CONS}${REQUEUE:+ --requeue}${TIME:+ --time $TIME}"
+EXPORTS="ALL,CAMPAIGN=$CAMPAIGN_ABS,POWERTRACE_REPO=$REPO_ROOT"
+[ "$ROLE" != "sealed" ] || EXPORTS="$EXPORTS,SEALED_RUNS=$SEALED_RUNS"
 set -x
 # ${VAR:+...} keeps each flag optional without empty-array expansion (fails under
 # `set -u` on Sherlock's bash); none of these values word-split.
 exec sbatch -p "$PART" --gres=gpu:"$N" \
     ${CONS:+--constraint "$CONS"} ${REQUEUE:+--requeue} ${TIME:+--time "$TIME"} \
-    --export=ALL,CAMPAIGN="$CAMPAIGN_ABS",POWERTRACE_REPO="$REPO_ROOT" \
+    --export="$EXPORTS" \
     "$SCRIPT_DIR/campaign.sbatch" "$CAMPAIGN_ABS"
