@@ -129,7 +129,8 @@ def assemble_requests_json(level_results) -> dict:
 
 def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
         out_root, base_url="http://localhost:8000/v1",
-        weight_footprint_bytes=None, dtype_hint=None, n_active_override=None,
+        weight_footprint_bytes=None, embedding_bytes_per_param=None,
+        fp8_flop_frac=None, dtype_hint=None, n_active_override=None,
         run_id=None, evidence_profile="core", power_profile="core"):
     """Execute ``schedule`` and write the bundle. Returns the run directory."""
     run_manifest = _client_mod("run_manifest")
@@ -144,6 +145,8 @@ def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
     arch = arch_extract.extract_arch(
         arch_extract.load_config(model), dtype_hint=dtype_hint,
         weight_footprint_bytes=weight_footprint_bytes,
+        embedding_bytes_per_param=embedding_bytes_per_param,
+        fp8_flop_frac=fp8_flop_frac,
         n_active_override=n_active_override,
     )
 

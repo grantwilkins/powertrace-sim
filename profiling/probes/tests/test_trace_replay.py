@@ -1,8 +1,9 @@
 """Claim: exact replay preserves prefix identity and both arrival constraints.
 
 Plausible wrong implementations caught here: regenerating a prefix each round,
-letting a semaphore replace release times, and counting cached or reasoning
-tokens outside the server's authoritative prompt/completion totals.
+letting a semaphore replace release times, accepting a same-length response with
+the wrong forced token, and counting cached or reasoning tokens outside the
+server's authoritative prompt/completion totals.
 """
 
 import sys
@@ -14,8 +15,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trace_replay_driver import (  # noqa: E402
-    TokenSession, _usage_details, deterministic_tokens,
-    validate_exact_accounting,
+    TokenSession, _usage_details, completion_payload, deterministic_tokens,
+    validate_exact_accounting, validate_forced_output,
 )
 from trace_replay_runner import round_release_epoch  # noqa: E402
 
@@ -36,6 +37,24 @@ def test_seeded_prompt_reuses_exact_prior_prefix():
     assert second[:5] == session.history[:5]
     assert first[:4] == deterministic_tokens("s:prefix", 4, 100, 7)
     assert len(second) == 7
+
+
+def test_forced_output_and_request_seed_are_stable_per_round():
+    a = TokenSession("s", vocab_size=100, seed=7)
+    b = TokenSession("s", vocab_size=100, seed=7)
+    assert a.forced_output_token(_row(1, 5)) == b.forced_output_token(_row(1, 5))
+    assert a.request_seed(_row(1, 5)) == b.request_seed(_row(1, 5))
+    assert a.forced_output_token(_row(1, 5)) != (
+        a.forced_output_token(_row(2, 5))
+    )
+    validate_forced_output([17, 17, 17], 17)
+    with pytest.raises(ValueError, match="singleton constraint"):
+        validate_forced_output([17, 18, 17], 17)
+    payload = completion_payload("m", _row(1, 5), [20, 21], 17, 9)
+    assert payload["allowed_token_ids"] == [17]
+    assert payload["seed"] == 9
+    assert payload["ignore_eos"] is True
+    assert payload["max_tokens"] == 3
 
 
 def test_release_requires_arrival_and_closed_loop_readiness():

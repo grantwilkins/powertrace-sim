@@ -16,11 +16,33 @@ from model.training_data.alignment import align_arrivals
 KV_ELEM_BYTES = 2.0
 
 
+def effective_context(context, arch):
+    """KV context actually read per decoded token (SWA + linear-layer mix)."""
+    context = np.asarray(context, dtype=np.float64)
+    swa = float(arch.get("swa_window", 0.0))
+    if swa > 0.0:
+        context = 0.5 * context + 0.5 * np.minimum(context, swa)
+    n_lin = int(arch.get("n_linear_layers", 0) or 0)
+    if n_lin > 0:
+        linear_fraction = n_lin / max(int(arch["n_layers"]), 1)
+        context = (
+            context * (1.0 - linear_fraction)
+            + float(arch["head_dim"]) * linear_fraction
+        )
+    return context
+
+
+def kv_bytes_per_token(arch):
+    """KV-cache bytes written per token across all layers."""
+    return 2.0 * arch["n_layers"] * arch["n_kv"] * arch["head_dim"] * KV_ELEM_BYTES
+
+
 def exact_itl_mask(output_tokens, decode_itls):
     """Identify requests with one measured interval per post-first token."""
     return np.asarray([
         float(tokens).is_integer()
         and float(tokens) >= 0.0
+        and isinstance(intervals, (list, tuple, np.ndarray))
         and len(intervals) == max(int(tokens) - 1, 0)
         for tokens, intervals in zip(output_tokens, decode_itls)
     ])
@@ -29,6 +51,7 @@ def exact_itl_mask(output_tokens, decode_itls):
 def schedule_work_rates(
     arrivals, prefill_starts, prefill_ends, decode_ends, input_tokens,
     output_tokens, edges, arch, tp, *, decode_itls=None,
+    first_token_in_prefill=False,
 ):
     """Project one executed request schedule onto half-open time bins.
 
@@ -78,9 +101,7 @@ def schedule_work_rates(
     kv_read = np.zeros(nb)
     measured_event_bins = []
     measured_event_contexts = []
-    kv_tok = 2.0 * arch["n_layers"] * arch["n_kv"] * arch["head_dim"] * KV_ELEM_BYTES
-    swa = float(arch.get("swa_window", 0.0))
-    n_lin = int(arch.get("n_linear_layers", 0) or 0)
+    kv_tok = kv_bytes_per_token(arch)
 
     for j in range(arr.size):
         pre_dur = pre_e[j] - pre_s[j]
@@ -108,31 +129,19 @@ def schedule_work_rates(
             measured_event_contexts.append(n_in[j] + np.arange(1, intervals.size + 1)[in_grid])
             batch += ov_dec / dt
         elif dec_dur > 0.0:
-            dec_rate = n_out[j] / dec_dur
+            decode_tokens = max(
+                n_out[j] - (1.0 if first_token_in_prefill else 0.0), 0.0
+            )
+            dec_rate = decode_tokens / dec_dur
             dec_tok += dec_rate * ov_dec / dt
             batch += ov_dec / dt
             progress = np.clip(((bin_lo + bin_hi) / 2.0 - pre_e[j]) / dec_dur, 0.0, 1.0)
-            context = n_in[j] + progress * n_out[j]
-            context_effective = context if swa <= 0.0 else 0.5 * context + 0.5 * np.minimum(context, swa)
-            if n_lin > 0:
-                linear_fraction = n_lin / max(int(arch["n_layers"]), 1)
-                context_effective = (
-                    context_effective * (1.0 - linear_fraction)
-                    + float(arch["head_dim"]) * linear_fraction
-                )
-            kv_read += dec_rate * (ov_dec / dt) * context_effective * kv_tok
+            context = n_in[j] + progress * decode_tokens
+            kv_read += dec_rate * (ov_dec / dt) * effective_context(context, arch) * kv_tok
 
     if measured_event_bins:
         event_bins = np.concatenate(measured_event_bins)
-        contexts = np.concatenate(measured_event_contexts)
-        if swa > 0.0:
-            contexts = 0.5 * contexts + 0.5 * np.minimum(contexts, swa)
-        if n_lin > 0:
-            linear_fraction = n_lin / max(int(arch["n_layers"]), 1)
-            contexts = (
-                contexts * (1.0 - linear_fraction)
-                + float(arch["head_dim"]) * linear_fraction
-            )
+        contexts = effective_context(np.concatenate(measured_event_contexts), arch)
         dec_tok += np.bincount(event_bins, minlength=nb) / dt
         kv_read += np.bincount(event_bins, weights=contexts, minlength=nb) * kv_tok / dt
 
@@ -171,8 +180,7 @@ def bin_work_rates(pre_tok, dec_tok, batch, pre_active, pre_iter, kv_read,
     w_read_dec = w_eff_dec * dec_iter
     w_read_pre = arch["w_bytes"] * pre_iter
     w_read = w_read_dec + w_read_pre
-    kv_tok = 2.0 * arch["n_layers"] * arch["n_kv"] * arch["head_dim"] * KV_ELEM_BYTES
-    kv_write = (pre_tok + dec_tok) * kv_tok
+    kv_write = (pre_tok + dec_tok) * kv_bytes_per_token(arch)
     tok_rate = pre_tok + dec_tok
     comm = (
         tok_rate * arch["n_layers"] * 2.0
@@ -187,7 +195,7 @@ def bin_work_rates(pre_tok, dec_tok, batch, pre_active, pre_iter, kv_read,
 
 def reconstruct_bins(
     req, pw, arch, tp, lambda_prefill, dt=1.0, trim_s=5.0,
-    arrival_alignment="fold_1800", include_time=False,
+    arrival_alignment="fold_1800", include_time=False, keep_power_gaps=False,
 ):
     """Reconstruct per-bin work rates from request timing + power.
 
@@ -217,14 +225,25 @@ converted nvidia-smi wall time to Unix epoch; bundle alignment never folds time.
     ttft, dec = req["ttfts"], req["decode_times"]
     n_in, n_out = req["input_lens"], req["output_lens"]
     decode_itls = req.get("itls")
+    scalar = np.zeros(np.asarray(n_out).size, dtype=bool)
     if decode_itls is not None:
         exact = exact_itl_mask(n_out, decode_itls)
-        arr, ttft, dec, n_in, n_out = (
-            np.asarray(values)[exact] for values in (arr, ttft, dec, n_in, n_out)
-        )
-        decode_itls = np.asarray(decode_itls, dtype=object)[exact]
-        if n_out.size == 0:
-            return None
+        scalar = np.asarray([
+            isinstance(value, (int, float, np.integer, np.floating))
+            and np.isfinite(float(value))
+            and float(value) > 0.0
+            for value in decode_itls
+        ])
+        if np.all(scalar):
+            decode_itls = None
+        else:
+            arr, ttft, dec, n_in, n_out = (
+                np.asarray(values)[exact]
+                for values in (arr, ttft, dec, n_in, n_out)
+            )
+            decode_itls = np.asarray(decode_itls, dtype=object)[exact]
+            if n_out.size == 0:
+                return None
 
     # TTFT includes queueing; the actual prefill burst ends when the first
     # token is emitted and lasts ~ n_in / lambda_prefill. Place it at the end
@@ -254,13 +273,16 @@ converted nvidia-smi wall time to Unix epoch; bundle alignment never folds time.
     out = schedule_work_rates(
         arr, pre_s, pre_e, dec_e, n_in, n_out, edges, arch, tp,
         decode_itls=decode_itls,
+        first_token_in_prefill=(decode_itls is None and np.all(scalar)),
     )
-    keep = valid & np.isfinite(power)
+    keep = np.ones(nb, dtype=bool) if keep_power_gaps else valid & np.isfinite(power)
     n = int(keep.sum())
     if n == 0:
         return None
     out = {k: v[keep] for k, v in out.items()}
     out["power"] = power[keep]
+    if keep_power_gaps:
+        out["power_valid"] = valid[keep] & np.isfinite(power[keep])
     if include_time:
         out["time_epoch_s"] = (t0 + edges[1:])[keep]
     arch_scalar = {k: float(v) for k, v in arch.items() if k != "family"}
@@ -268,7 +290,8 @@ converted nvidia-smi wall time to Unix epoch; bundle alignment never folds time.
 
 
 def reconstruct_bins_from_record(
-    record, *, lambda_prefill, dt=1.0, trim_s=5.0, include_time=False
+    record, *, lambda_prefill, dt=1.0, trim_s=5.0, include_time=False,
+    keep_power_gaps=False,
 ):
     """Ledger view over a RunRecord: per-bin work rates + power.
 
@@ -288,6 +311,7 @@ def reconstruct_bins_from_record(
     return reconstruct_bins(
         req, pw, record.arch, record.tp, lambda_prefill, dt=dt, trim_s=trim_s,
         include_time=include_time,
+        keep_power_gaps=keep_power_gaps,
         arrival_alignment=(
             "exact_epoch" if record.source_layout == "bundle" else "fold_1800"
         ),

@@ -138,6 +138,49 @@ def write_plan(plan: TracePlan, path: str | Path) -> None:
     Path(path).write_text(json.dumps(plan.canonical_dict(), indent=2) + "\n")
 
 
+def load_bundle_requests_json(
+    path: str | Path, *, time_scale: float = 1.0, seed: int = 0
+) -> TracePlan:
+    """Convert one canonical bundle's request marks to independent replay rows."""
+    if time_scale <= 0:
+        raise ValueError("time_scale must be positive")
+    source_path = Path(path)
+    payload = json.loads(source_path.read_text())
+    required = ("input_lens", "output_lens", "request_timestamps")
+    if any(key not in payload for key in required):
+        raise ValueError("bundle requests need input/output lengths and timestamps")
+    lengths = {len(payload[key]) for key in required}
+    if len(lengths) != 1 or not lengths or next(iter(lengths)) == 0:
+        raise ValueError("bundle request arrays must be nonempty and equal length")
+    timestamps = [float(value) for value in payload["request_timestamps"]]
+    if timestamps != sorted(timestamps):
+        raise ValueError("bundle request timestamps must be nondecreasing")
+    source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    origin = timestamps[0]
+    rounds = tuple(
+        TraceRound(
+            session_id=f"request-{index:05d}",
+            round_idx=0,
+            ready_s=(timestamp - origin) * float(time_scale),
+            prefix_tokens=0,
+            input_tokens=int(input_tokens),
+            output_tokens=int(output_tokens),
+            source_id=f"{source_path.parent.name}:{index}",
+        )
+        for index, (timestamp, input_tokens, output_tokens) in enumerate(zip(
+            timestamps, payload["input_lens"], payload["output_lens"]
+        ))
+    )
+    plan = TracePlan(
+        source=f"canonical-bundle:{source_path.parent.name}",
+        revision=f"sha256:{source_hash};time_scale:{float(time_scale):.12g}",
+        rounds=rounds,
+        seed=int(seed),
+    )
+    plan.validate()
+    return plan
+
+
 def assign_poisson_session_arrivals(
     plan: TracePlan, *, rate_rps: float, seed: int
 ) -> TracePlan:

@@ -43,10 +43,12 @@ async def drive_plan(
             )
             await asyncio.sleep(max(0.0, release - time.time()))
             prompt = token_session.prompt(row)
+            forced_output_token_id = token_session.forced_output_token(row)
+            request_seed = token_session.request_seed(row)
             async with semaphore:
                 record = await trace_replay_driver.send_round(
                     http, base_url, model, row, prompt, prefix_cache,
-                    cache_block_tokens,
+                    forced_output_token_id, request_seed, cache_block_tokens,
                 )
             record["planned_ready_epoch"] = planned_ready
             record["arrival_delay_s"] = record["request_timestamp"] - planned_ready
@@ -79,9 +81,10 @@ async def drive_plan(
 def run(
     plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
+    embedding_bytes_per_param=None, fp8_flop_frac=None,
     dtype_hint=None, n_active_override=None, run_id=None, concurrency=64,
     prefix_cache=False, evidence_profile="core", power_profile="core",
-    cache_block_tokens=16,
+    cache_block_tokens=16, pre_idle_s=0.0,
 ):
     import aiohttp
     import transformers
@@ -95,6 +98,8 @@ def run(
     arch = arch_extract.extract_arch(
         arch_extract.load_config(model), dtype_hint=dtype_hint,
         weight_footprint_bytes=weight_footprint_bytes,
+        embedding_bytes_per_param=embedding_bytes_per_param,
+        fp8_flop_frac=fp8_flop_frac,
         n_active_override=n_active_override,
     )
     tokenizer = transformers.AutoTokenizer.from_pretrained(model)
@@ -102,6 +107,8 @@ def run(
     concurrency = min(int(concurrency), len(plan.by_session()))
     if concurrency <= 0:
         raise ValueError("concurrency must be positive")
+    if pre_idle_s < 0.0:
+        raise ValueError("pre_idle_s must be non-negative")
 
     async def drive(start_epoch):
         async with aiohttp.ClientSession() as http:
@@ -116,6 +123,9 @@ def run(
         run_dir, base_url, evidence_profile=evidence_profile,
         gpus_per_node=gpus_per_node, power_profile=power_profile,
     ) as capture:
+        idle_start = time.time()
+        time.sleep(float(pre_idle_s))
+        idle_end = time.time()
         session_windows, records = asyncio.run(drive(time.time()))
     window_end = time.time()
     (run_dir / "requests.json").write_text(
@@ -133,7 +143,15 @@ def run(
             "concurrency": concurrency,
             "cache_block_tokens": int(cache_block_tokens),
             "token_content": "deterministic_seeded_ids",
+            "decode_constraint": (
+                trace_replay_driver.DETERMINISTIC_DECODE_PROTOCOL
+            ),
             "window": {"start_epoch": window_start, "end_epoch": window_end},
+            "idle_window": {
+                "start_epoch": idle_start,
+                "end_epoch": idle_end,
+                "requested_s": float(pre_idle_s),
+            },
             "sessions": session_windows,
         },
         model=model, arch=arch, hardware=hardware, tp=tp,

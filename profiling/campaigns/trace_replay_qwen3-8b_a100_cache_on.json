@@ -2,6 +2,7 @@
   "hardware": "A100",
   "model": "Qwen/Qwen3-8B",
   "campaign_type": "trace_replay",
+  "power_profile": "tp8_state",
   "_note": "TraceLab cache-on scientific leg. The cache-off job uses the identical plan hash, token seed, server limits, and concurrency.",
   "server": {
     "tp": 1,
@@ -13,6 +14,7 @@
     "plan": "data/trace_plans/tracelab_code.json",
     "concurrency": 64,
     "cache_block_tokens": 16,
+    "pre_idle_s": 60,
     "regimes": [
       {"prefix_cache": true}
     ]

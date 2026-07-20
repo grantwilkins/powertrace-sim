@@ -15,7 +15,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trace_plan import (  # noqa: E402
-    assign_poisson_session_arrivals, load_burstgpt_csv, load_plan,
+    assign_poisson_session_arrivals, load_bundle_requests_json,
+    load_burstgpt_csv, load_plan,
     load_tracelab_csv, load_tracelab_jsonl, select_context_bands,
     select_densest_arrival_window, select_sessions, write_plan,
 )
@@ -133,3 +134,30 @@ def test_burstgpt_preserves_exact_irregular_arrivals(tmp_path):
     )
     assert [row.ready_s for row in selected.rounds] == [0.0, 1.0, 2.0]
     assert [row.input_tokens for row in selected.rounds] == [30, 40, 50]
+
+
+def test_bundle_requests_plan_preserves_marks_and_scales_release_time(tmp_path):
+    source = tmp_path / "bundle" / "requests.json"
+    source.parent.mkdir()
+    source.write_text(json.dumps({
+        "input_lens": [8, 16],
+        "output_lens": [3, 5],
+        "request_timestamps": [100.0, 102.0],
+    }))
+    plan = load_bundle_requests_json(source, time_scale=0.5, seed=7)
+    assert [row.ready_s for row in plan.rounds] == [0.0, 1.0]
+    assert [row.input_tokens for row in plan.rounds] == [8, 16]
+    assert [row.output_tokens for row in plan.rounds] == [3, 5]
+    assert plan.seed == 7
+    assert "time_scale:0.5" in plan.revision
+
+
+def test_bundle_requests_plan_rejects_ragged_rows(tmp_path):
+    path = tmp_path / "requests.json"
+    path.write_text(json.dumps({
+        "input_lens": [8, 16],
+        "output_lens": [3],
+        "request_timestamps": [100.0, 99.0],
+    }))
+    with pytest.raises(ValueError, match="equal length"):
+        load_bundle_requests_json(path)

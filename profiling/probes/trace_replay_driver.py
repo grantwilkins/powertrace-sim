@@ -6,6 +6,13 @@ import hashlib
 import json
 import time
 
+DETERMINISTIC_DECODE_PROTOCOL = "singleton_allowed_token_v1"
+
+
+def deterministic_uint32(label: str, seed: int) -> int:
+    digest = hashlib.sha256(f"{seed}:{label}".encode()).digest()
+    return int.from_bytes(digest[:4], "little")
+
 
 def deterministic_tokens(label: str, count: int, vocab_size: int, seed: int) -> list[int]:
     """Stable non-special token IDs without hidden process-local randomness."""
@@ -53,12 +60,25 @@ class TokenSession:
             raise ValueError("returned output token IDs do not match planned length")
         self.history = prompt + output_tokens
 
+    def forced_output_token(self, row) -> int:
+        return deterministic_tokens(
+            f"{self.session_id}:{row.round_idx}:output",
+            1,
+            self.vocab_size,
+            self.seed,
+        )[0]
+
+    def request_seed(self, row) -> int:
+        return deterministic_uint32(
+            f"{self.session_id}:{row.round_idx}:request", self.seed
+        )
+
 
 def request_record(
     row, *, prompt_tokens: int, completion_tokens: int, reasoning_tokens: int,
     cached_prompt_tokens: int, request_timestamp: float, planned_ready_epoch: float,
     ttft: float, tpot: float, prefix_cache: bool, prompt_sha256: str,
-    output_sha256: str,
+    output_sha256: str, forced_output_token_id: int, request_seed: int,
 ) -> dict:
     return {
         "session_id": row.session_id,
@@ -83,6 +103,9 @@ def request_record(
         "source_id": row.source_id,
         "prompt_sha256": prompt_sha256,
         "output_sha256": output_sha256,
+        "forced_output_token_id": int(forced_output_token_id),
+        "request_seed": int(request_seed),
+        "decode_constraint": DETERMINISTIC_DECODE_PROTOCOL,
     }
 
 
@@ -109,6 +132,9 @@ def build_requests_json(records: list[dict]) -> dict:
         ("source_ids", "source_id"),
         ("prompt_sha256", "prompt_sha256"),
         ("output_sha256", "output_sha256"),
+        ("forced_output_token_id", "forced_output_token_id"),
+        ("request_seed", "request_seed"),
+        ("decode_constraint", "decode_constraint"),
     )
     return {array: [row[field] for row in records] for array, field in keys}
 
@@ -149,21 +175,41 @@ def validate_exact_accounting(
         )
 
 
-async def send_round(
-    http, base_url, model, row, prompt, prefix_cache, cache_block_tokens=16
+def validate_forced_output(
+    output_token_ids: list[int], forced_output_token_id: int
+) -> None:
+    if any(token != forced_output_token_id for token in output_token_ids):
+        raise ValueError(
+            "server returned a token outside the deterministic singleton constraint"
+        )
+
+
+def completion_payload(
+    model, row, prompt, forced_output_token_id: int, request_seed: int
 ) -> dict:
-    """Send one exact-length completion and require authoritative usage."""
-    url = base_url.rsplit("/v1", 1)[0].rstrip("/") + "/v1/completions"
-    payload = {
+    return {
         "model": model,
         "prompt": prompt,
         "max_tokens": row.output_tokens,
         "ignore_eos": True,
         "temperature": 0.0,
+        "seed": int(request_seed),
+        "allowed_token_ids": [int(forced_output_token_id)],
         "stream": True,
         "stream_options": {"include_usage": True},
         "return_token_ids": True,
     }
+
+
+async def send_round(
+    http, base_url, model, row, prompt, prefix_cache,
+    forced_output_token_id, request_seed, cache_block_tokens=16,
+) -> dict:
+    """Send one exact-length completion and require authoritative usage."""
+    url = base_url.rsplit("/v1", 1)[0].rstrip("/") + "/v1/completions"
+    payload = completion_payload(
+        model, row, prompt, forced_output_token_id, request_seed
+    )
     t_send = time.time()
     first_activity = None
     last_activity = None
@@ -218,6 +264,7 @@ async def send_round(
             f"server returned {len(output_token_ids)} output token IDs for "
             f"{output_count} completion tokens"
         )
+    validate_forced_output(output_token_ids, forced_output_token_id)
     if first_activity is None or last_activity is None:
         raise ValueError("non-empty completion had no timed output activity")
     ttft = first_activity - t_send
@@ -233,6 +280,8 @@ async def send_round(
         output_sha256=hashlib.sha256(
             json.dumps(output_token_ids, separators=(",", ":")).encode()
         ).hexdigest(),
+        forced_output_token_id=forced_output_token_id,
+        request_seed=request_seed,
     )
     record["_output_token_ids"] = output_token_ids
     return record

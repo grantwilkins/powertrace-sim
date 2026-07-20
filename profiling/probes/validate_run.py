@@ -50,6 +50,8 @@ def main():
         gpus_per_node=args.gpus_per_node, server_cfg=server_cfg(args),
         out_root=args.out_root, dataset_path=args.dataset_path, base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
+        embedding_bytes_per_param=args.embedding_bytes_per_param,
+        fp8_flop_frac=args.fp8_flop_frac,
         dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
         evidence_profile=args.evidence_profile,
         power_profile=args.power_profile))

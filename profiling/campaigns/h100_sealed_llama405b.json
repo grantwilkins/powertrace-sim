@@ -16,6 +16,9 @@
     "max_model_len": 131072,
     "quantization": "compressed-tensors",
     "dtype_hint": "fp8",
+    "weight_footprint_bytes": 487230000000,
+    "embedding_bytes_per_param": 2.0,
+    "fp8_flop_frac": 0.7996,
     "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
   },
   "workload": {

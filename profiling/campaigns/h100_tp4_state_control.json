@@ -2,7 +2,7 @@
   "hardware": "H100",
   "model": "meta-llama/Llama-3.1-70B-Instruct",
   "campaign_type": "validate",
-  "_note": "TP4 matched state control: identical idle, ShareGPT marks, seed, and telemetry to the independent TP8 diagnostic job.",
+  "_note": "Collected historical TP4 state control. Do not rerun. Its relative releases and input/output lengths seed the deterministic TP8 replay plan; prompt token identity was not preserved.",
   "power_profile": "tp8_state",
   "server": {
     "tp": 4,

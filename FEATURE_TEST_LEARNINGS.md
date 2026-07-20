@@ -81,8 +81,15 @@ undercounted by 20%. The FLOP dtype scale follows the FP8 parameter share
 resident on Ampere (Marlin dequantize-on-read; a BF16-resident copy cannot
 fit the published 2xA100 serving footprint), so the existing 60.8/12.8 GiB
 constants were already correct. KV cache is BF16 everywhere (vLLM default
-`auto`). These corrections improved every candidate's 405B energy and are
-independent of model choice.
+`auto`). CORRECTED CLAIM (2026-07-16 adversarial review, section 14): these
+corrections shifted every physics candidate's 405B bias positive by roughly
+8-12 percentage points; they improved the formerly under-predicting
+candidates (M4A 5.72 -> 4.70%) by moving them through zero and regressed the
+formerly near-zero ones (M0bR 2.39 -> 7.39%, M0dR 2.70 -> 6.81%). On the
+cancellation-free measured-engine bundles the whole family over-predicts
+(section 10). The constants are still right — they are checkpoint facts —
+but the response surface they feed is mis-shaped, so the v2 4.70% must not
+be read as model accuracy.
 
 ### 3.2 The power meter response is now identified, not assumed
 
@@ -217,6 +224,10 @@ engine and device state for cells that separate the two named axes:
    over batch × context, using stock tokens-per-iteration and iteration rate —
    does the sign flip follow iteration granularity after context is controlled?
    Router/expert-touch counters are not in the maintained runtime path.
+   UPDATE 2026-07-16: the expert-touch half no longer needs runtime
+   counters — routing is a pure function of weights and text, so one
+   offline forward pass over the reconstructed benchmark prompts measures
+   the routing law directly. Specified in TODO.md item 1.
 3. Up-range shape: fixed-batch decode at several context lengths pushing
    per-GPU memory utilization through 0.4-0.9 on both hardwares — concave
    or not, measured, once;
@@ -310,3 +321,516 @@ that moved transfer cells), and the two remaining failure axes now have
 names — tensor-parallel synchronization power and MoE iteration granularity —
 with specific probes that would identify them. The next breakthrough is those
 probes, not another surface.
+
+## 10. Repaired-data audit (2026-07-16)
+
+The current legacy raw tree was re-inventoried and rebuilt independently at
+250 ms: 800 matched runs across 29 configurations produced the same 450-run,
+1,088,106-bin ledger. Its NPZ SHA-256 is byte-for-byte identical to the July 11
+ledger (`20ee96c…`). Therefore the repaired legacy files do not change any v2
+model input or score; rerunning v2 would reproduce the same result.
+
+Removing the acknowledged A100 Llama-70B TP4 cell also does not explain the
+remaining failures. For selected M4A, S3 A100 hold-TP4 median energy changes
+4.75% -> 4.20%, but the split still fails; S1 gpt-oss, H100 S0, and H100 405B
+are disjoint from that cell and are unchanged.
+
+The new canonical hard-cell bundles do change the evidence because they contain
+stock engine counters. Scoring the frozen v2 artifacts on a complete 250 ms
+causal feature grid, while masking rather than interpolating missing meter
+targets, gives:
+
+| cell | measured-engine signed energy bias | energy error | 1 s ACF R2 | NRMSE-range |
+|---|---:|---:|---:|---:|
+| A100 gpt-oss-120B TP4 rate 1 | -11.29% | 11.29% | -0.145 | 0.324 |
+| A100 gpt-oss-120B TP4 rate 2 | -14.49% | 14.49% | -0.457 | 0.274 |
+| H100 Llama-405B TP8 rate 1 | +11.93% | 11.93% | unavailable | 0.204 |
+| H100 Llama-405B TP8 rate 2 | +7.48% | 7.48% | unavailable | 0.195 |
+
+H100 ACF is unavailable because no contiguous observed one-second section is
+long enough for the predeclared 60-lag statistic; gaps are not bridged. Direct
+observed-sample biases (-11.21%, -14.53%, +12.22%, +6.76%) confirm the same
+energy conclusion.
+
+Measured engine state improves A100 energy relative to request reconstruction
+(24.8-33.9% error -> 11.3-14.5%) but does not reach the gate and makes ACF
+negative. On H100, reconstruction's apparently good 0.8-2.3% energy error turns
+into 7.5-11.9% overprediction under executed-token/active-state evidence. The
+old agreement was cancellation, not a fixed model. The repaired data therefore
+clarify the failure but do not fix the frozen model.
+
+## 11. What the working GMM-BiGRU result actually establishes (2026-07-16)
+
+The main IID GMM-BiGRU result is useful evidence for a **state-conditioned**
+power model, but it is not evidence that the architecture-transfer problem is
+solved. Its contract is materially easier than the feature test:
+
+- each exact `(model, hardware, TP)` configuration has its own GMM power
+  centers, normalization, throughput calibration, and BiGRU checkpoint;
+- the split is random over repeated traces inside that exact configuration;
+  all 120 evaluated test traces have an offered rate that is also present in
+  their configuration's training set, and all 25 training sets contain the
+  complete `{0.125, 0.25, 0.5, 1, 2, 4}` rate set;
+- the classifier is bidirectional. At each time it can use the complete future
+  reconstructed active-request trajectory, which is itself built from the
+  completed request log including observed `output_tokens` and a
+  configuration-local throughput fit;
+- it generates a distribution from configuration-local power states. Its good
+  energy and ACF do not imply good pointwise prediction.
+
+On `results/continuous_v1_gmm_bigru/k10_f2/eval_metrics_fullheldout`, the 25
+configuration medians are 2.33% energy error and 0.993 ACF R2, but median
+NRMSE is 0.341. The operating-condition split is sharper:
+
+| offered rate | test traces | median idle fraction | energy error | NRMSE | ACF R2 | KS |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.125 | 45 | 0.877 | 2.893% | 0.349 | 0.995 | 0.285 |
+| 0.25 | 20 | 0.720 | 3.081% | 0.409 | 0.995 | 0.186 |
+| 0.5 | 24 | 0.516 | 2.409% | 0.420 | 0.995 | 0.127 |
+| 4.0 | 25 | 0.027 | 0.800% | 0.142 | 0.932 | 0.131 |
+
+Thus it is genuinely strongest pointwise at sustained, high-load operation.
+At sparse load, long idle residence makes aggregate ACF easy to preserve while
+burst timing/amplitude remains inaccurate. Large configurations also remain
+hard: configuration-median energy error is 7.13% for H100 Llama-405B TP8,
+7.64% for A100 Llama-70B TP4, and 7.90% for A100 Llama-70B TP8.
+
+### The transferable geometric lesson
+
+The useful part is the latent-state geometry. Fixed request counts do not map
+to fixed power. In source training data:
+
+- A100 Llama-70B TP4 at `A=0` spans 284-1048 W (p05-p95). At `A=1`, mean
+  power is 736 W on entry (`delta_A>0`), 1211 W while steady, and 1222 W on
+  exit (`delta_A<0`).
+- H100 Llama-405B TP8 at `A=1` similarly averages 1536 W on entry, 3524 W
+  while steady, and 3612 W on exit.
+- exact-configuration GMM centers directly encode different floors and
+  plateaus: A100 Llama-70B TP4 spans 291-1600 W, while A100 gpt-oss-120B TP4
+  spans 263-1056 W.
+
+Some spread is the measured meter/device relaxation already identified in
+section 3.2; the rest combines prefill/decode phase, saturation, iteration
+granularity, and hardware operating state. The BiGRU can infer proxies for
+these regimes from history, future active duration, and configuration-local
+calibration. The current physics candidate instead asks one shared response
+surface to be nearly single-valued in computed work. That mismatch is the
+most obvious missing structure.
+
+The next candidate should therefore be a shared physics mean plus a small
+**causal latent operating-state correction**, not a wholesale replacement by
+the existing BiGRU. Inputs must follow the declared deployment contract. Stock
+vLLM provides completed prompt/decode and iteration-counter deltas plus
+running/waiting and cache gauges; it does not provide upcoming scheduled-token
+state in this data path. A measured-online model may use only left-edge or
+lagged versions of those fields. An arrival-only simulator cannot use them
+until its scheduler twin predicts them. Clocks, utilization, and temperature
+are valid explanatory diagnostics, but are model inputs only if the deployment
+path will actually observe them. Do not add a raw configuration lookup if the
+claim remains zero-shot model/TP transfer.
+
+### Minimal tests before building that candidate
+
+No new full profiling grid is required to decide whether this direction is
+real. Run these discriminating ablations first:
+
+1. retrain the GMM-GRU with rate-grouped holdouts (one interior rate and rate
+   4 as an extrapolation edge), so no test trace shares its rate with training;
+2. replace the BiGRU with a causal GRU under the identical split and inputs;
+3. hold out an entire model/TP configuration or train one hardware-shared
+   state model, removing the exact-configuration GMM/normalization lookup;
+4. on the measured-engine hard cells, compare the frozen physics mean against
+   (a) a training-only affine DC calibration and (b) a causal latent residual.
+   The former isolates mean calibration; only the latter can justify a claim
+   about missing dynamics.
+
+These tests separate three hypotheses without confounding them: local power
+calibration, future-schedule lookahead, and a genuinely reusable operating
+state. There is no direct held-out-power leakage in the audited pipeline; the
+problem is that its present evaluation support and information contract are
+much narrower than the feature test's transfer contract.
+
+## 12. HSMM critic decision (2026-07-16)
+
+Three independent audits — model structure, maintained data path, and primary
+literature — reached the same decision: **do not make a plain HSMM the next
+main model**. Test one small input-driven autoregressive switching residual as
+a falsifiable ablation, and add explicit duration only if it beats an otherwise
+identical input-output HMM on untouched transfer runs.
+
+The old K10 labels do contain non-geometric duration, but mostly as chattering
+wattage quantization rather than demonstrated physical modes. Across the 25
+configuration training sets there are about 339k state runs: median duration is
+one 250 ms bin, 54.9% last one bin, and 64.8% of changes move only to an
+adjacent wattage component. An HSMM trained on those labels would first learn a
+smoother. It would not establish a reusable scheduler/device regime.
+
+The admissible candidate keeps the frozen shared physics mean and known meter
+kernel, then models its residual with two to four hardware-local states and no
+configuration ID:
+
+```text
+r_t = P_t - meter_h(physics_h(x_t))
+Pr(z_t | z_{t-1}, q_t)                       # input-output HMM
+r_t = b_z + rho_z * rhat_{t-1} + beta_z q_t # ARX residual emission
+```
+
+`rhat_{t-1}` is the previous predicted residual in an open-loop simulator, not
+held-out power. The HSMM variant adds elapsed state age only to the exit hazard:
+
+```text
+logit Pr(exit_t | z_t, age_t, q_t)
+    = a_z + s_z(log(1 + age_t)) + c_z q_t
+```
+
+This avoids a fitted maximum-duration constant and allows workload state to
+govern residence. Fit states and emissions jointly; do not preassign GMM
+labels. Apply the identified meter response outside the switching layer so
+duration does not rediscover the H100 one-second window. Do not call the states
+DVFS modes: active clocks are nearly fixed in the audited transient probes;
+the supported interpretation is scheduler/iteration regime plus device/meter
+relaxation.
+
+### Required falsification ladder
+
+Use the same parameter budget, folds, and causal inputs for:
+
+1. physics plus affine DC calibration;
+2. physics plus one-state causal ARX/asymmetric response;
+3. physics plus a two- or three-state input-output AR-HMM;
+4. the identical model with an age-dependent exit hazard;
+5. a deterministic engine-feature gate.
+
+Oracle smoothing is diagnostic only. Primary results must be schedule-only
+open-loop rollouts; causal filtering with past observed power is a separate
+online-forecast contract. Hold out an offered-rate group and entire model/TP
+configurations. Use the existing deterministic energy/NRMSE/ACF gates for the
+predictive mean and add held-out likelihood or CRPS/calibration for sampled
+traces. Reject explicit duration if it does not improve over the matched HMM,
+if the gain disappears open-loop, if state occupancy/meaning changes under
+configuration holdout, or if the deterministic gate matches it.
+
+### Evidence boundary before implementation
+
+The legacy 450-run cache has no engine stream. The measured-engine builder
+persists executed token rates, running/waiting state, iteration rate,
+tokens/iteration, and cache usage, but these are retrospective bin aggregates;
+same-bin means/deltas are not strict online inputs. Several validated bundles
+also contain multi-second logger gaps. A duration model must split sequences at
+engine discontinuities and mask power gaps, never count interpolation as state
+residence.
+
+There are currently 20 complete validated bundles from four campaigns, versus
+35 development bundles across eight campaigns required by the runbook. That is
+enough for the HMM-versus-HSMM kill test, not enough to tune and declare a
+transferable state model ready. The trainer also needs the still-missing merged
+run index with validation role/status; random 250 ms bin splits or ad hoc
+directory selection are forbidden.
+
+Primary foundations: [Bengio and Frasconi's input-output
+HMM](https://papers.nips.cc/paper_files/paper/1994/file/8065d07da4a77621450aa84fee5656d9-Paper.pdf)
+conditions sequence dynamics on external inputs; [Johnson and
+Willsky](https://www.jmlr.org/papers/v14/johnson13a.html) show why explicit
+duration is needed only beyond geometric dwell;
+[Chiappa](https://arxiv.org/abs/1909.05800) separates explicit-duration,
+segment, and reset formulations; [Linderman et
+al.](https://proceedings.mlr.press/v54/linderman17a.html) show recurrent
+switching dynamics but at substantially greater identifiability cost. The
+repository's small-data, shared-physics setting justifies the finite
+AR-HMM/HSMM ablation, not an rSLDS, neural HSMM, or new per-configuration
+mixture.
+
+## 13. Broader model research: the general model should be an input-driven system (2026-07-16)
+
+Section 12 rules on one possible residual model; it is not the overall design.
+The broader literature and this repository's failures point to a clearer
+decomposition: **requests drive a scheduler and timing model; the resulting
+executed phases drive a low-order power system; measurement noise is last**.
+Do not ask one sequence network to learn all four maps at once.
+
+```text
+(arrival, input tokens, output-token mark/distribution)
+                         |
+                         v
+          scheduler + KV/queue state machine
+                         |
+                         v
+     per-iteration prefill/decode/communication plan
+                         |
+             timing and exposed-stall model
+                         |
+                         v
+       phase-resolved work and duty on wall time
+                         |
+                         v
+  hardware power equilibrium -> device dynamics -> meter -> noise
+```
+
+This follows the system-identification distinction between known exogenous
+inputs, internal state, process disturbance, and measurement noise. Schoukens
+and Ljung's [nonlinear system-identification
+roadmap](https://arxiv.org/abs/1902.00683) emphasizes starting with the
+simplest structure supported by prior knowledge, designing experiments for the
+intended input domain, and separating structural error from noise. Those are
+exactly the three places the configuration-local BiGRU/GMM is weak.
+
+### 13.1 The proposed model interfaces
+
+Let request `i` have arrival `a_i`, input length `l_i`, and output length mark
+`o_i`. An engine-policy state machine, not the power model, produces iteration
+`k`:
+
+```text
+s_(k+1) = scheduler(s_k, newly_arrived_requests; policy, KV_capacity)
+q_k = (prefill_tokens, decode_tokens, batch, context_sum, cache,
+       collective_count, collective_bytes, expert_work_expectation)
+```
+
+Architecture descriptors — layers, width, FFN size, attention/KV heads,
+active and resident parameters, dtype/quantization, MoE experts/top-k, sliding
+window — transform `q_k` into FLOPs and bytes. Parallelism and topology — TP
+now; PP/EP only when declared — transform it into collective messages and
+volumes. They should not be free categorical embeddings.
+
+Iteration duration should be modeled before power:
+
+```text
+T_compute_memory = smooth_max(F_k / C_eff, B_k / M_eff)
+T_collective = N_collective * alpha + V_collective / beta_eff
+T_k = T_launch + T_compute_memory + exposed_fraction * T_collective + T_sync
+```
+
+`alpha`, `beta_eff`, launch cost, and overlap may depend on hardware, topology,
+parallel plan, message size, and iteration granularity, but not model name.
+This is the key correction to the current single communication-byte-rate
+column. Tensor parallelism pays repeated synchronization/message latency, not
+just energy per transferred byte. A single aggregate `comm bytes/s` is
+collinear with compute in source data and cannot represent a GPU waiting at a
+collective. Standard Megatron tensor parallelism introduces collectives inside
+each transformer layer; [Megatron-LM](https://arxiv.org/abs/1909.08053) and
+[ASTRA-sim](https://doi.org/10.1109/ISPASS48437.2020.00018) motivate keeping
+collective count, volume, topology, and compute/communication overlap explicit.
+
+The scheduler then places each predicted iteration on wall time and exposes
+separate fractions for compute/memory work, communication, launch/sync stall,
+and idle. This preserves the two coordinates our residual analysis says are
+missing: tokens or work **per iteration**, and iterations or synchronization
+points **per second**.
+
+The simplest credible power system is a gray-box block model:
+
+```text
+P_eq(t) = p_idle_h + g_h(u_compute, u_memory, phase_duty,
+                         comm_duty, stall_duty, granularity)
+x_(t+1) = A_h(q_t) x_t + B_h(q_t) P_eq(t)
+P_device(t) = C_h x_t + D_h P_eq(t)
+P_meter(t) = meter_kernel_h(P_device)(t) + epsilon(t)
+```
+
+`g_h` is one hardware-local, shape-constrained piecewise-linear/GAM surface in
+dimensionless coordinates, with only predeclared low-order interactions. The
+state dimension starts at one and may grow to two only if transient probes
+identify separate rise/recovery time scales. `A_h(q_t)` may switch smoothly
+between idle/busy or rise/fall coefficients; this is a linear-parameter-varying
+(LPV) model with observed scheduling variables, not an unobserved-state model.
+The identified NVML kernel remains outside the device state.
+
+This is a generalized Hammerstein/LPV structure: a static nonlinear work-to-
+equilibrium-power map followed by short linear dynamics. Block-oriented models
+are attractive precisely because they separate static nonlinearity from
+dynamics and remain understandable; see the [block-oriented identification
+survey](https://arxiv.org/abs/1607.01217). Shape-constrained additive models
+provide flexible but regularized surfaces without arbitrary off-support spikes
+([Pya and Wood](https://doi.org/10.1007/s11222-013-9448-7)). Constraints belong
+on achieved utilization or duty, not directly on offered token counts.
+
+### 13.2 Why request tokens and timing remain first-class
+
+The input/output token pair is not merely another neural feature. It defines
+the future sequence of prefill work, decode iterations, context growth, KV
+traffic, and — through the scheduler — interference and queueing. Systems work
+supports this separation:
+
+- [Vidur](https://proceedings.mlsys.org/paper_files/paper/2024/hash/b74a8de47d2b3c928360e0a011f48351-Abstract-Conference.html)
+  couples an event-driven scheduler to operator-specific profiled/predictive
+  timing models and reports less than 5% error for end-to-end performance in
+  its evaluated settings. It explicitly reduces attention batches using token
+  and context geometry rather than treating a trace as an opaque sequence.
+- [Sarathi-Serve](https://arxiv.org/abs/2403.02310) shows that chunked prefill
+  changes decode interference and iteration composition; the same requests can
+  therefore produce different wall-time work under a different scheduler.
+- [DistServe](https://www.usenix.org/conference/osdi24/presentation/zhong-yinmin)
+  demonstrates that prefill/decode placement and communication change their
+  interference and parallelism plan. A power model cannot bury scheduler mode
+  inside a learned recurrent state and still claim generality.
+- [NeuSight](https://arxiv.org/abs/2407.13853) obtains better unseen-model/GPU
+  timing forecasts by decomposing kernels into physically bounded working sets
+  instead of regressing whole-kernel latency directly. That is the same design
+  principle needed here: learn small efficiency/overhead closures around known
+  work, not a configuration-to-trace lookup.
+
+There are three distinct output-length contracts and they must never be mixed:
+
+1. trace replay/offline simulation: final `o_i` is a legitimate input mark;
+2. workload generation: sample `(l_i, o_i)` jointly before scheduling and
+   propagate that sample through the engine;
+3. online prediction: final `o_i` is unknown. Use a declared desired/max length
+   or a conditional output-length distribution, and update state as tokens are
+   generated. Conditioning online results on the completed output is an oracle.
+
+### 13.3 Model-family decision table
+
+| family | useful role | decision here |
+|---|---|---|
+| static physics or shape-constrained GAM | equilibrium power over executed work | required, but insufficient without timing/dynamics |
+| Hammerstein / low-order LPV state space | nonlinear equilibrium plus short causal device response | **first choice** |
+| sparse NFIR/NARX or Volterra model | tests explicit input histories/interactions | strong diagnostic; avoid held-out past power in simulator mode |
+| Kalman/linear state-space residual | uncertainty and a small continuous latent response | viable if transient probes identify it |
+| GP/NARX or GP state-space | uncertainty with little data | useful on aggregated probe points; too costly/weakly identified for the full ledger first |
+| HMM/HSMM/switching LDS | residual conditional multimodality or discrete modes | only after observed-input continuous models fail |
+| causal TCN/CNN | flexible nonlinear finite-memory residual | **last practical fallback**, under 5k parameters |
+| GRU/LSTM/general neural state-space | unrestricted hidden memory | not justified before the above ladder |
+
+A causal TCN is not an arbitrary idea: TCNs can be viewed as nonlinear FIR/
+Volterra or block-oriented system models ([Andersson et
+al.](https://arxiv.org/abs/1909.01730)), and causal convolutions have compared
+favorably with recurrent networks on broad sequence tasks ([Bai et
+al.](https://arxiv.org/abs/1803.01271)). If used here, it consumes the
+phase-resolved, dimensionless iteration/work stream, never raw configuration
+IDs and never future inputs. Its finite receptive field is a feature: every
+second of memory is visible and falsifiable. A TCN directly on request bins
+would merely become a more convenient overfit estimator than the BiGRU.
+
+### 13.4 What to fit, in what order
+
+Do not train the complete graph end-to-end initially. Each interface has its
+own target and holdout:
+
+1. **Scheduler fidelity:** replay requests through the actual policy; validate
+   batch composition, queue/backlog, completion order, cache, TTFT, and ITL.
+2. **Timing model:** on controlled holds, predict iteration rate/duration from
+   tokens/iteration, context, architecture work, TP collectives, and topology.
+   Compare analytical roofline plus alpha-beta communication against a small
+   GAM residual and a tree/MLP baseline. Hold out context levels, one TP, and
+   one model scale.
+3. **Equilibrium power:** use measured executed state and observed iteration
+   timing to fit the hardware-local shape-constrained surface. Hold out entire
+   operating points, models, and TPs — never random bins.
+4. **Dynamics:** identify one- then two-state rise/recovery response from the
+   transient probes, with the meter kernel fixed. Retain a state only if it
+   improves open-loop transfer.
+5. **Flexible residual:** add the tiny input-only causal TCN only if residuals
+   retain reproducible correlation with causal work history in at least two
+   source-development cells.
+6. **Noise:** after the conditional mean passes, estimate heteroscedastic/
+   correlated innovations from repeats. Noise never repairs the mean score.
+
+The evaluation matrix must independently hold out: input/context-length bands,
+output-length bands, offered-rate or burst pattern, model architecture/scale,
+TP, and finally a combined model+TP+workload cell. This is how input/output
+tokens and architecture descriptors become demonstrated generalization rather
+than decorative columns. Report both component fidelity and end-to-end power;
+otherwise a good power score may hide timing cancellation, as the measured-
+engine audit already showed.
+
+### 13.5 Data implication
+
+No exhaustive model x TP x rate grid is required. The existing campaign's
+orthogonal token/context/batch sweeps and matched TP/model contrasts are the
+right experiment design. The remaining gpt-oss 20B/120B contrasts are important
+because they identify launch/iteration and TP effects separately. The final
+model-readiness claim still requires the runbook's role-aware development index
+and sealed cells.
+
+The most important data addition is not another power trace. It is a clean
+iteration timing table with, per controlled interval: prompt/decode tokens,
+tokens/iteration, iterations/s, context/KV summary, architecture-derived work,
+collective count/bytes implied by the declared parallel plan, and synchronized
+power. Direct collective duration would improve attribution but remains outside
+the stock path; until instrumented, fit exposed communication only from matched
+TP contrasts and report it as such.
+
+### 13.6 Decisive next model
+
+The next named candidate should therefore be:
+
+> **shared phase-resolved physics + analytical/profiled scheduler timing + a
+> one-state hardware-local LPV power response + the fixed meter kernel**.
+
+It is meaningfully different from M4A. M4A filters reconstructed aggregate
+work and two `A_t` channels after per-request timing; the new candidate predicts
+iteration timing first, separates collective count/volume and exposed stall,
+and drives device dynamics with equilibrium phase power rather than using
+active-request EMAs as proxies. Try a shape-constrained interaction surface and
+a second device state before any CNN. If those fail with correct timing, test
+the predeclared tiny causal TCN on their residual. Only then is a richer latent
+or switching model warranted.
+
+## 14. Adversarial review findings (2026-07-16)
+
+Three independent reviews attacked the v2 pipeline's claims. Record of what
+broke and what survived; every number below was recomputed, not quoted.
+
+### Confirmed errors and overstatements
+
+1. Section 3.1's original "improved every candidate" claim was false — see
+   the corrected paragraph there. The mechanism was a uniform positive bias
+   shift, not error reduction.
+2. The step-response identification script has a bug: its sub-bin phase
+   term cannot represent the ~1.2-bin lag between recorded work onset and
+   power response, so the fit laundered that alignment lag into a spurious
+   smoothing constant (A100 0.75, H100 0.8). With the lag represented, the
+   corrected result is: A100 near-instant, H100 a pure 1.0 s moving average
+   (independently confirmed from offset events the onset fit never used),
+   plus an explicit ~0.3 s onset delay that belongs in the timing layer,
+   not in a filter. Development scores actively prefer over-smoothing
+   (alpha 0.5 beats both the shipped and the correct value), i.e. the
+   filter absorbs model error — so any smoothing constant must either be
+   declared a fitted hyperparameter or replaced by the explicit delay.
+3. "M0c passes all four H100 TP holdouts": three are robust (bootstrap
+   failure probability <= 0.001); hold-TP8 is a knife edge (ACF-MAE P90
+   sits at a bimodal cluster boundary, bootstrap failure probability 0.42,
+   one run flips it). M0c's dynamics edge over M4A exists mainly where
+   M4A's fitted cap clips. All these passes are retrospective: the cells
+   were inspected before the mechanisms were designed.
+4. The staged fit enforces a phase prior; it does not break the
+   compute/memory exchange in general. In a synthetic regime where prefill
+   bins carry elevated memory traffic it silently recovers curves off by
+   -37%/+11% while a plain joint fit is near-exact. On the real ledger the
+   prior's premise holds in-sample (prefill-bin memory utilization ratio
+   0.97-0.98x) and stage-1-to-stage-3 movement is small; a large movement
+   is a usable tripwire. The "restored compute response" is one linear
+   segment whose extrapolation is exactly the +8-11% 405B over-prediction.
+5. Test coverage gaps proven by mutation: a variant of the staged fit that
+   trains on test bins survives the current suite (fixtures use all runs
+   as refit); the influence-mask tail and the consumption of the shipped
+   kernel JSON are untested. The board-power cap is well pinned.
+6. Reporting: 405B ACF R2 medians average regimes with 10x different
+   denominators (measured-ACF total variance 2.2-3.1 at low rates vs
+   0.19-0.33 at rates 1-4); ACF-MAE is the stable metric and should carry
+   temporal claims. energy_error_pct equals |mean_bias_pct| per run, which
+   is what let a sign flip read as improvement. The deployed v2 artifacts
+   (M4A) still carry the 0.5 s window and fitted quantile cap that
+   sections 3.2-3.3 describe as superseded — the fixes shipped only in the
+   unselected candidate.
+
+### Independently reproduced and confirmed
+
+- Section 10's measured-engine scoring: all four energy biases exact to
+  two decimals, NRMSE exact, H100 ACF-unavailability confirmed, and the
+  cancellation comparison confirmed (reconstruction-path H100 error
+  -0.9..-2.5% vs measured-path +6.8..+12.2%). One value (A100 r1 ACF R2
+  -0.145) is not reproducible under any tried convention; all variants
+  are more negative, so the failure was understated. Note: section 10
+  used the bundle manifests' architecture constants, not the frozen
+  artifacts' descriptors (moves biases <= 1.6 pp; should be reconciled).
+- The H100 1.0 s reading window, the idle anchors, the ledger equivalence
+  proof, the bit-exact B2 reproduction, and the source-only fit machinery
+  (no target power enters any fit; artifact loader rejects routing keys)
+  all survived attack.
+- Provenance honesty: every audited constant is target-blind in value but
+  target-driven in selection (each entered after a target cell failed).
+  The correct label is the one selected_model.json already carries —
+  "source development only after retrospective model design" — and it
+  must also be carried on the deployable artifacts and README, and can
+  only be discharged by the sealed campaign.

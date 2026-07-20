@@ -18,6 +18,7 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=64)
     parser.add_argument("--prefix-cache", action="store_true")
     parser.add_argument("--cache-block-tokens", type=int, default=16)
+    parser.add_argument("--pre-idle-s", type=float, default=0.0)
     args = parser.parse_args()
     plan = load_plan(args.trace_plan, args.max_model_len)
     print(trace_replay_runner.run(
@@ -25,11 +26,14 @@ def main() -> None:
         gpus_per_node=args.gpus_per_node, server_cfg=server_cfg(args),
         out_root=args.out_root, base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
+        embedding_bytes_per_param=args.embedding_bytes_per_param,
+        fp8_flop_frac=args.fp8_flop_frac,
         dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
         concurrency=args.concurrency, prefix_cache=args.prefix_cache,
         evidence_profile=args.evidence_profile,
         power_profile=args.power_profile,
         cache_block_tokens=args.cache_block_tokens,
+        pre_idle_s=args.pre_idle_s,
     ))
 
 

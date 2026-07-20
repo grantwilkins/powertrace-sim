@@ -8,6 +8,8 @@ start_server() {
     local serve_cmd="$1"
     local log="${SERVER_LOG:-server.log}"
     local model="${SERVER_MODEL:-}"
+    POWERTRACE_SERVER_LAUNCH_EPOCH_S="$(date +%s)"
+    export POWERTRACE_SERVER_LAUNCH_EPOCH_S
     setsid bash -c "$serve_cmd" > "$log" 2>&1 &
     SERVING_PID=$!
     SERVING_PGID=""
@@ -59,8 +61,12 @@ start_server() {
                 return 1
             fi
         done
+        POWERTRACE_SERVER_READY_EPOCH_S="$(date +%s)"
+        export POWERTRACE_SERVER_READY_EPOCH_S
         echo "Server ready for model $model."
     else
+        POWERTRACE_SERVER_READY_EPOCH_S="$(date +%s)"
+        export POWERTRACE_SERVER_READY_EPOCH_S
         echo "Server ready."
     fi
 }

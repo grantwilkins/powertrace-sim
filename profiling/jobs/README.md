@@ -125,10 +125,42 @@ uv run python profiling/agentic_traces/build_trace_plan.py \
 This keeps exact timestamp gaps from the densest contiguous ten-minute window.
 BurstGPT rows are independent requests, not fabricated multi-turn sessions.
 
-The H100 TP8 transition diagnostic and matched TP4 control are independent
-`h100_tp8_state_diagnostic.json` and `h100_tp4_state_control.json` jobs. Each
-records 180 seconds of idle before approximately 420 seconds at four
-requests/second and requires the `tp8_state` telemetry profile.
+The collected TP4 state control is not rerun. Rebuild its normalized
+release/length plan and dry-run the pending TP8 leg with:
+
+```bash
+uv run python profiling/agentic_traces/build_bundle_replay_plan.py \
+  data/runs/h100_tp4_state_control/h100_validate_tp4_r4p0_b1p0_s0_1784435159/requests.json \
+  data/trace_plans/h100_tp4_state_marks.json
+
+bash profiling/jobs/run_campaign.sh \
+  profiling/campaigns/h100_tp8_state_diagnostic.json
+```
+
+The plan hash is
+`7be58efca871bcb38fa8d56d7ecbb106c0f09de627df0f42efd80469f7b905a4`.
+It preserves the TP4 relative releases and input/output lengths, then uses
+deterministic direct tokens because the historical TP4 artifact did not retain
+prompt IDs. The TP8 run records a 180-second idle window, server launch/ready
+epochs, and the full `tp8_state`/measured-ledger telemetry.
+
+This is the only unconditional new state job:
+
+```bash
+bash profiling/jobs/submit_campaign.sh \
+  profiling/campaigns/h100_tp8_state_diagnostic.json \
+  -p owners --time 01:00:00
+```
+
+Two additional exact-plan campaigns are prepared but remain conditional:
+
+- `h100_405b_rate4_exact_replay.json` is T4-B and must not run until the
+  mixed-iteration candidate is frozen.
+- `h100_qwen3_8b_idle_decomposition.json` is L1 and must not run until T4/P4
+  are resolved.
+
+Neither file is included in `submit_expansion_jobs.sh`, so the conditional
+budget cannot be spent by the broad expansion wrapper.
 
 Build a small, deterministic router-capture set on a networked login node:
 

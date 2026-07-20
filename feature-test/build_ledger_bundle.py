@@ -75,6 +75,7 @@ MEASURED_LEDGER_KEYS = (
     "engine_iterations_rate",
     "engine_tokens_per_iteration",
     "engine_gpu_cache_usage",
+    "power_valid",
 )
 
 
@@ -115,7 +116,9 @@ def _gauge_mean(table, name, edges):
     return output
 
 
-def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
+def bins_from_engine_csv(
+    record, *, lambda_prefill, dt=1.0, trim_s=5.0, keep_power_gaps=False,
+):
     """Project measured engine state into the maintained ledger schema.
 
     Request reconstruction supplies offered marks, phase-specific active state,
@@ -125,6 +128,11 @@ def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
     diagnostics. Per-field lineage makes this hybrid contract explicit.
     """
     table = record.engine_table
+    itls = getattr(record, "itls", None)
+    scalar_mean_itl = itls is not None and all(
+        isinstance(value, (int, float, np.integer, np.floating))
+        for value in itls
+    )
     missing = sorted(set(MEASURED_ENGINE_FIELDS) - set(table))
     if missing:
         raise ValueError(f"engine.csv lacks measured-ledger fields: {missing}")
@@ -134,7 +142,7 @@ def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
 
     base = reconstruct_bins_from_record(
         record, lambda_prefill=lambda_prefill, dt=dt, trim_s=trim_s,
-        include_time=True,
+        include_time=True, keep_power_gaps=keep_power_gaps,
     )
     if base is None:
         return None
@@ -163,6 +171,8 @@ def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
             "power", "arrivals", "input_tokens_arriving", "output_tokens_requested"
         )
     })
+    if keep_power_gaps:
+        measured["power_valid"] = base["power_valid"]
     measured.update({
         "A_t": running + waiting,
         "delta_A_t": np.r_[0.0, np.diff(running + waiting)],
@@ -186,10 +196,18 @@ def bins_from_engine_csv(record, *, lambda_prefill, dt=1.0, trim_s=5.0):
             "A_t": "engine.num_requests_running+num_requests_waiting",
             "running_requests": "engine.num_requests_running",
             "waiting_requests": "engine.num_requests_waiting",
-            "batch": "requests.itls reconstruction",
+            "batch": (
+                "requests.scalar_mean_itl reconstruction"
+                if scalar_mean_itl
+                else "requests.itls reconstruction"
+            ),
             "pre_active": "requests.ttft reconstruction",
             "pre_iter": "requests.ttft+lambda_prefill reconstruction",
-            "kv_read": "requests.itls+architecture reconstruction",
+            "kv_read": (
+                "requests.scalar_mean_itl+architecture reconstruction"
+                if scalar_mean_itl
+                else "requests.itls+architecture reconstruction"
+            ),
             "engine_iteration_tokens_rate": "engine.iteration_tokens_total_sum",
             "engine_iterations_rate": "engine.iteration_tokens_total_count",
             "engine_gpu_cache_usage": "engine.gpu_cache_usage_perc",
@@ -232,7 +250,8 @@ def build_bundle(
         )
     elif state_source == "measured_engine":
         bins = bins_from_engine_csv(
-            record, lambda_prefill=lambda_prefill, dt=dt
+            record, lambda_prefill=lambda_prefill, dt=dt,
+            keep_power_gaps=True,
         )
     else:
         raise ValueError(f"Unknown bundle state source: {state_source!r}")

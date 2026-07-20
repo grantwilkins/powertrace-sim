@@ -41,6 +41,14 @@ def test_campaign_checks_data_before_live_orchestration():
     assert "HF_DATASETS_OFFLINE=1" in sbatch
 
 
+def test_server_lifecycle_exports_launch_and_ready_epochs():
+    lifecycle = (JOBS / "server_lifecycle.sh").read_text()
+    assert 'POWERTRACE_SERVER_LAUNCH_EPOCH_S="$(date +%s)"' in lifecycle
+    assert 'export POWERTRACE_SERVER_LAUNCH_EPOCH_S' in lifecycle
+    assert 'POWERTRACE_SERVER_READY_EPOCH_S="$(date +%s)"' in lifecycle
+    assert 'export POWERTRACE_SERVER_READY_EPOCH_S' in lifecycle
+
+
 def test_parallel_suite_preflights_every_shared_input_before_first_submit():
     script = (JOBS / "submit_expansion_jobs.sh").read_text()
     first_submit = script.index(

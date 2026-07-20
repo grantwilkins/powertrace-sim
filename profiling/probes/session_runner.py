@@ -71,6 +71,7 @@ def build_session_window(session, t_start_epoch, t_end_epoch, n_records) -> dict
 
 def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
+        embedding_bytes_per_param=None, fp8_flop_frac=None,
         dtype_hint=None, n_active_override=None, run_id=None, max_concurrency=None,
         evidence_profile="core", power_profile="core"):
     """Execute an AgenticPlan and write the bundle. Returns the run directory.
@@ -93,6 +94,8 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     arch = arch_extract.extract_arch(
         arch_extract.load_config(model), dtype_hint=dtype_hint,
         weight_footprint_bytes=weight_footprint_bytes,
+        embedding_bytes_per_param=embedding_bytes_per_param,
+        fp8_flop_frac=fp8_flop_frac,
         n_active_override=n_active_override)
     tokenizer = transformers.AutoTokenizer.from_pretrained(model)
 

@@ -137,26 +137,62 @@ def test_trace_replay_command_binds_plan_cache_and_power_profile():
     off_command = cc.run_command(off_campaign, 1, off)
     on_command = cc.run_command(on_campaign, 1, on)
     assert "--trace-plan data/trace_plans/tracelab_code.json" in off_command
-    assert "--power-profile core" in off_command
+    assert "--power-profile tp8_state" in off_command
+    assert "--pre-idle-s 60.0" in off_command
+    assert "--scheduling-policy sync" in off_command
     assert "--prefix-cache" not in off_command
     assert "--prefix-cache" in on_command
 
 
-def test_tp8_state_pair_is_two_jobs_with_identical_marks():
+def test_async_scheduling_is_launched_and_recorded(tmp_path):
+    path = tmp_path / "async.json"
+    path.write_text(json.dumps({
+        "hardware": "A100", "model": "x", "campaign_type": "tier1",
+        "server": {"tp": 1, "scheduling_policy": "async"},
+        "probes": ["idle_hold"],
+    }))
+    campaign = cc.load_campaign(path)
+    assert "--async-scheduling" in cc.serve_command(campaign, 1)
+    assert "--scheduling-policy async" in cc.probe_commands(campaign, 1)[0]
+
+
+def test_tp8_state_replay_uses_tp4_length_marks_without_repeating_tp4():
     tp8 = cc.load_campaign(
         CAMPAIGNS_DIR / "h100_tp8_state_diagnostic.json"
     )
     tp4 = cc.load_campaign(CAMPAIGNS_DIR / "h100_tp4_state_control.json")
-    assert tp8["workload"] == tp4["workload"]
     assert tp8["power_profile"] == tp4["power_profile"] == "tp8_state"
     assert cc.tp_degrees(tp8) == [8]
     assert cc.tp_degrees(tp4) == [4]
-    for campaign in (tp8, tp4):
-        command = cc.run_command(
-            campaign, campaign["server"]["tp"], cc.regimes(campaign)[0]
-        )
-        assert "--pre-idle-s 180.0" in command
-        assert "--power-profile tp8_state" in command
+    assert tp8["trace"]["plan"].endswith("h100_tp4_state_marks.json")
+    tp8_command = cc.run_command(tp8, 8, cc.regimes(tp8)[0])
+    assert "--pre-idle-s 180.0" in tp8_command
+    assert "--power-profile tp8_state" in tp8_command
+    assert "--trace-plan data/trace_plans/h100_tp4_state_marks.json" in tp8_command
+    assert "Do not rerun" in tp4["_note"]
+
+
+@pytest.mark.parametrize(
+    ("campaign_name", "plan_name", "idle_s"),
+    [
+        ("h100_405b_rate4_exact_replay.json", "h100_405b_rate4_200.json", 90.0),
+        (
+            "h100_qwen3_8b_idle_decomposition.json",
+            "h100_qwen3_8b_rate4_200.json",
+            60.0,
+        ),
+    ],
+)
+def test_conditional_exact_replays_bind_frozen_plans(
+    campaign_name, plan_name, idle_s
+):
+    campaign = cc.load_campaign(CAMPAIGNS_DIR / campaign_name)
+    command = cc.run_command(
+        campaign, campaign["server"]["tp"], cc.regimes(campaign)[0]
+    )
+    assert f"--trace-plan data/trace_plans/{plan_name}" in command
+    assert f"--pre-idle-s {idle_s}" in command
+    assert "--scheduling-policy sync" in command
 
 
 def test_validate_single_rate_becomes_one_explicit_regime():

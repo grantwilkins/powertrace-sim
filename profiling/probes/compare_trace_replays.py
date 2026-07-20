@@ -8,10 +8,39 @@ from pathlib import Path
 
 
 IDENTITY_FIELDS = (
-    "session_ids", "turn_idx", "input_lens", "output_lens",
+    "input_lens", "output_lens",
     "prefix_tokens", "new_input_tokens", "planned_output_tokens",
-    "prompt_sha256", "output_sha256",
+    "source_ids", "prompt_sha256", "output_sha256",
+    "forced_output_token_id", "request_seed", "decode_constraint",
 )
+PROTOCOL = "singleton_allowed_token_v1"
+
+
+def _keyed_rows(requests: dict) -> dict[tuple[str, int], dict]:
+    sessions = requests.get("session_ids") or []
+    turns = requests.get("turn_idx") or []
+    if len(sessions) != len(turns):
+        raise ValueError("session_ids and turn_idx lengths differ")
+    rows = {}
+    for index, key in enumerate(zip(sessions, turns)):
+        normalized = (str(key[0]), int(key[1]))
+        if normalized in rows:
+            raise ValueError(f"duplicate replay key: {normalized}")
+        row = {}
+        for field in IDENTITY_FIELDS:
+            values = requests.get(field)
+            if values is None or len(values) != len(sessions):
+                raise ValueError(f"missing or ragged replay identity field: {field}")
+            row[field] = values[index]
+        rows[normalized] = row
+    return rows
+
+
+def _server_control(manifest: dict) -> dict:
+    server = dict(manifest.get("server") or {})
+    server.pop("active_gpu_uuids", None)
+    server.pop("enable_prefix_caching", None)
+    return server
 
 
 def compare_bundle_data(
@@ -25,13 +54,35 @@ def compare_bundle_data(
         raise ValueError("first bundle is not cache-off")
     if on_probe.get("prefix_cache") is not True:
         raise ValueError("second bundle is not cache-on")
-    mismatched = [
-        field for field in IDENTITY_FIELDS
-        if off_requests.get(field) != on_requests.get(field)
-    ]
+    if (
+        off_probe.get("decode_constraint") != PROTOCOL
+        or on_probe.get("decode_constraint") != PROTOCOL
+    ):
+        raise ValueError("paired replay lacks deterministic decode protocol")
+    for field in ("model", "hardware", "tp", "arch"):
+        if off_manifest.get(field) != on_manifest.get(field):
+            raise ValueError(f"paired replay control mismatch: {field}")
+    if (off_manifest.get("versions") or {}).get("vllm") != (
+        on_manifest.get("versions") or {}
+    ).get("vllm"):
+        raise ValueError("paired replay control mismatch: vllm version")
+    if _server_control(off_manifest) != _server_control(on_manifest):
+        raise ValueError("paired replay control mismatch: server")
+    off_rows = _keyed_rows(off_requests)
+    on_rows = _keyed_rows(on_requests)
+    if set(off_rows) != set(on_rows):
+        raise ValueError("paired replay has missing or extra request keys")
+    mismatched = {
+        field
+        for key in off_rows
+        for field in IDENTITY_FIELDS
+        if off_rows[key][field] != on_rows[key][field]
+    }
     if mismatched:
-        raise ValueError(f"paired replay identity mismatch: {mismatched}")
-    count = len(off_requests["session_ids"])
+        raise ValueError(
+            f"paired replay identity mismatch: {sorted(mismatched)}"
+        )
+    count = len(off_rows)
     if count == 0:
         raise ValueError("paired replay contains no requests")
     return {

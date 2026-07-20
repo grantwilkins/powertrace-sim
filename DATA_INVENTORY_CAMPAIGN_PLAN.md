@@ -1,61 +1,50 @@
-# Data inventory and minimal replay campaign
+# Data inventory and evidence-gated campaign plan
 
-Status: evidence-backed campaign plan, 2026-07-18.
+Status: current development plan, 2026-07-19.
 
-Implementation status: the bounded canonical-plan builder, TraceLab adapter,
-exact-arrival/direct-token replay runner, controlled Gamma arrivals,
-cache/reasoning accounting, TP8 telemetry profile and paired campaign, and
-direct MoE router capture now live under `profiling/`. Submission rejects
-missing local datasets, trace plans, containers, and incomplete model snapshots
-before requesting GPUs.
+This plan serves one mission: build high-fidelity power curves that transfer to
+arbitrary marked arrival schedules and unseen model architectures. Arrival
+rate, model identity, and elapsed-time steps are not acceptable explanatory
+features. A model term must describe observable work, engine state, or hardware
+state available before the target power trace is opened.
 
-This document answers one question: what is the smallest additional campaign
-that can support claims about non-ShareGPT workloads, long contexts, coding
-agents, reasoning, Qwen transfer, and mixture-of-experts inference without
-wasting Sherlock time?
-
-The decision is to reuse the existing controlled measurements, repair the
-software/data handoff first, and collect only measurements that identify a
-currently missing mechanism. Broad model, rate, context, or dataset sweeps are
-not justified.
+No broad crossed design is authorized. Each proposed run below resolves one
+named ambiguity and has a stopping rule.
 
 ## 1. Executive decision
 
-Do not submit the existing Qwen-235B Tier-1 campaigns or another dense/MoE
-staircase sweep.
+The apparent “rate-4 degradation” is not one mechanism:
 
-Before interpreting or fitting any new workload bundle:
+- `T4`, a large-checkpoint timing failure, is associated with mixed
+  prefill/decode intervals and the timing/concurrency feedback they create;
+  the exact operator mechanism is not yet identified.
+- `P4`, a 70B TP8 power-shape failure, is a long-horizon operating-state or
+  request-composition transition near 305 seconds.
+- H100 Qwen rate-4 has a short-run power miss whose idle versus active-state
+  cause is not yet separated.
+- Existing cache-on/cache-off agent traces are individually useful but are not
+  a valid treatment pair because their prompt and output identities differ.
 
-1. Reconcile architecture metadata between the legacy registry and canonical
-   manifests.
-2. Project and merge the 26 complete canonical bundles into the timing/power
-   path.
-3. Regenerate the checked-in power artifacts after the exact weight-traffic
-   correction.
-4. Bind the timing twin to the recorded engine configuration, especially the
-   token budget, KV dtype, preemption, and prefix-cache behavior.
-5. Resolve or explicitly exclude the high-load 70B TP8 hardware-state regime.
-6. Replace the MoE uniform-routing assumption with directly observed router
-   choices.
+Do not add:
 
-The independent collection jobs may run in parallel after offline preflight.
-Predictions must be frozen before their corresponding power bundles are opened
-for grading. The default live campaign is:
+- a rate-4 scalar;
+- a model-name correction;
+- an unconditional preemption penalty;
+- a retrospective 305-second step;
+- a checkpoint-size idle law from the present sparse and state-confounded
+  anchors.
 
-- two telemetry-rich Llama-70B runs to identify the TP8 state transition;
-- one offline router pass for each existing gpt-oss model;
-- one same-marks Qwen3-8B transfer run on A100 and one on H100;
-- three A100 jobs that compare an off-grid rate and bursty/Poisson/smooth
-  arrivals while holding prompts and mean rate fixed;
-- two parallel cache-off/cache-on TraceLab jobs on Qwen3-8B/A100;
-- one exact BurstGPT arrival replay;
-- one Gemma-4-26B-A4B routing pass and A100 transfer validation.
+The immediate order is:
 
-No separate reasoning, LMSYS, Azure, or LongBench GPU run is in the default
-campaign. Reasoning remains ordinary decode; the data sources otherwise produce
-deterministic CPU-side schedules before submission.
+1. use existing controlled data to test a phase-resolved mixed-iteration model;
+2. collect one controlled 405B mixed-prefill diagnostic only if the existing
+   data leave its FP8 mechanism ambiguous;
+3. validate the chosen timing mechanism on one current-stack 405B rate-4 run;
+4. collect only the missing TP8 leg of the existing 70B state experiment;
+5. resolve loaded-idle and deterministic cache replay with one-factor,
+   identity-checked measurements, not a crossed campaign.
 
-## 2. What already exists
+## 2. Current inventory
 
 ### 2.1 Legacy serving corpus
 
@@ -68,442 +57,557 @@ deterministic CPU-side schedules before submission.
 | hardware | A100 and H100 |
 | model identities | 7 |
 | configurations | 25 |
-| tensor parallelism | TP1, TP2, TP4, TP8 where applicable |
-| rates | 0.125, 0.25, 0.5, 1, 2, 4 requests/s |
+| rates | 0.125, 0.25, 0.5, 1, 2, and 4 requests/s |
 | repeats | 3 per cell |
-| roles | 160 train, 80 in-domain, 108 twin, 54 model, 48 rate |
+| split roles | 160 train, 80 in-domain, 108 twin, 54 model, 48 rate |
 
-Models include dense Llama/DeepSeek 8B and 70B, FP8 Llama-405B, and MoE
-gpt-oss-20B/120B. The request scheduler is a deterministic function of
-`(arrival_s, input_tokens, output_tokens)`; arbitrary marked schedules can be
-replayed without new model calls.
-
-The serving corpus is not long-context evidence. Its prompt
-minimum/P50/P90/P99/maximum is 4/95/621/802/1,020 tokens. Output
-minimum/P50/P90/P99/maximum is 1/134/485/768/1,838 tokens. All empirically
-graded arrivals are stationary Poisson traffic at the six rates above.
+It covers dense 8B/70B, FP8 405B, and gpt-oss MoE models across TP1-TP8.
+Arrivals are stationary Poisson and prompts are short: prompt
+minimum/P50/P90/P99/maximum is 4/95/621/802/1,020 tokens.
 
 ### 2.2 Canonical bundles
 
-There are 26 complete bundles under `data/runs/`. Every complete bundle has
-validated `manifest.json`, `requests.json`, `power.csv`, and `engine.csv`.
+There are 38 complete bundles under `data/runs/`, not the 26 described by the
+previous revision of this plan:
 
-| group | complete bundles | useful coverage |
+| group | bundles | status |
 |---|---:|---|
-| A100 Llama-70B TP4 | 6 | idle, decode staircase, 2k/8k/32k context grid, prefill to 65k, context holds to about 123k, transients |
-| H100 Llama-70B | 10 | full TP8 probe suite including mixed grid; matched TP4 decode, context, and prefill probes |
-| A100 gpt-oss-20B | 4 | TP2/TP4 decode staircases and 2k/8k/32k context grids |
-| A100 gpt-oss-120B | 4 | TP4 decode/context probes plus ShareGPT rates 1 and 2 |
-| H100 Llama-405B | 2 | ShareGPT rates 1 and 2 |
-
-The expensive operator surface is therefore already broad: batch 1-256,
-controlled prompts/contexts 8-122,888 tokens, and outputs 1-2,048 tokens.
-What is absent is end-to-end serving validation on realistic long contexts,
-non-Poisson arrivals, agent sessions, and Qwen models.
-
-Nine of the original 35 development bundles are absent: the A100 Llama-70B
-mixed grid, two gpt-oss-20B realistic controls, and six matched H100
-Llama-70B TP4/TP8 realistic controls. They are not all prerequisites for the
-new workload campaign.
-
-### 2.3 Current timing and power evidence
-
-- The timing model passes 128/150 frozen cells and transfers zero-shot to
-  gpt-oss-120B at 9.4% median end-to-end error.
-- Dense arrival-only energy transfer is already strong. The unresolved result
-  is temporal fidelity for rate-4 70B TP8.
-- All twelve affected legacy runs change power regime at 304.2-306.5 seconds,
-  by 12.35-19.04 W/GPU. Timing and occupancy align well, so another timing
-  sweep is not the next measurement.
-- The power surface was fit on dense bins only. Existing MoE cells have not
-  identified or graded the routing-dependent weight traffic.
-- The checked-in fitted surface and arrival-only report predate the exact
-  weight-traffic correction and must be regenerated before their numbers are
-  cited.
-
-### 2.4 Existing replay scaffolding
-
-The repository already has:
-
-- seeded synthetic multi-turn sessions;
-- real-text SWE-smith trajectory ingestion;
-- monotonically growing prompts;
-- per-turn tool classes and pauses;
-- paired prefix-cache regimes;
-- deterministic temperature-zero, fixed-length generation;
-- canonical bundle emission with session/turn metadata.
-
-This path reproduces request work, context growth, and pauses. It does not run
-the recorded tools. That is the correct abstraction for power replay: a tool
-call is an idle interval followed by new prefill text.
-
-The checked-in `gap_params.json` is not empirical. It has zero fitted samples
-and contains literature priors. Also, no agentic bundle has been collected.
-
-## 3. Software and data blockers before GPU submission
-
-These are gates, not optional cleanup.
-
-### G0. Architecture identity
-
-Reconcile and hash one descriptor per served checkpoint.
-
-- Legacy gpt-oss active parameters, weight bytes, and routed fraction disagree
-  with the canonical manifests.
-- Legacy and canonical Llama-405B weight bytes disagree, the canonical
-  manifest omits the FP8 FLOP fraction, and the checkpoint identities differ.
-- The campaign path does not currently pass the measured checkpoint footprint
-  through every metadata layer.
-
-No cache merge, transfer fit, or MoE result is admissible until one descriptor
-identity is used end to end.
-
-### G1. Canonical bundle to timing/power handoff
-
-Implement the post-collection path already required by
-`profiling/MODEL_READINESS_RUNBOOK.md`:
-
-1. one prefill calibration per model/hardware/TP;
-2. one 250 ms projection per configuration;
-3. cache merge with conserved work and provenance;
-4. roles derived from manifest metadata;
-5. immutable candidate/artifact freeze;
-6. score-only validation.
-
-The current timing dataset builder is legacy-only and cannot directly grade
-the new bundles.
-
-### G2. Engine configuration in the twin
-
-The replay must use manifest values rather than timing defaults.
-
-- Current twin token budget: 2,048; current campaigns commonly use 8,192.
-- Current KV sizing assumes BF16 rather than the recorded KV dtype.
-- Prefix-cache hits do not reduce executed prefill in the twin.
-- Preemption is absent.
-- A request larger than KV capacity can be omitted instead of failing the run.
-
-Every replay must fail explicitly on an unsupported request or configuration.
-
-### G3. Telemetry and token accounting
-
-Before the TP8 diagnostic, add P-state, power limit, and clock-event/throttle
-reasons to the existing temperature/clock logger.
-
-Before a reasoning replay, count every generated reasoning token. The current
-agent streamer counts normal content deltas but does not establish complete
-reasoning-content accounting.
-
-### G4. Current artifact regeneration
-
-On CPU, rebuild the simulated ledger, joined power cache, dense surface, and
-arrival-only report after the exact weight-traffic correction. This is the
-baseline against which every later decision is made.
-
-Also reconcile the timing README with `fitted_efficiencies.json`; its reported
-sampling costs and fitting-point counts currently describe an older artifact.
-
-## 4. Online data source decisions
-
-### Use
-
-| source | use in this project | why |
-|---|---|---|
-| [TraceLab v0.0.1](https://github.com/uw-syfi/TraceLab) | primary coding-agent schedule and cache replay | 357,161 real Claude/Codex rounds, ordered timing events, prompt/cache splits, input/output lengths, exact tool waits, session structure, a released replay client, and CC BY 4.0 data |
-| [OpenHands evaluation outputs](https://huggingface.co/datasets/OpenHands/openhands-evaluation-outputs) | real tool text and an independent tool-gap/routing sample | timestamps, actions, observations, raw response usage, cached-token counts, and tool-call metadata; MIT, but heterogeneous and poorly documented |
-| [SWE-smith trajectories](https://huggingface.co/datasets/SWE-bench/SWE-smith-trajectories) | real coding/tool text when OpenHands ingestion is inconvenient | 24.1k structured tool trajectories and an existing local adapter; MIT; no timestamps |
-| [Azure LLM Inference 2024](https://github.com/Azure/AzurePublicDataset/blob/master/AzureLLMInferenceDataset2024.md) | CPU-only code versus conversation arrival/length schedules | invocation timestamps and input/output token counts with separate code/conversation traces |
-| [BurstGPT](https://github.com/HPMLL/BurstGPT) | CPU-only burst and conversation-session schedule | timestamps, session IDs, request/response lengths, and conversation/API labels; CC BY 4.0 |
-| [LMSYS-Chat-1M](https://huggingface.co/datasets/lmsys/lmsys-chat-1m) | optional alternative chat text/length distribution | one million multilingual conversations; no timestamps or tools; gated and non-redistributable |
-| [LongBench v2](https://github.com/THUDM/LongBench) | a few real long-context content anchors | real document/dialogue/code contexts; select only examples inside the served native window |
-| [OpenR1-Math-220k](https://huggingface.co/datasets/open-r1/OpenR1-Math-220k) | reasoning output-length strata, offline first | recorded reasoning completions up to 16k tokens; no timestamps |
-
-TraceLab supersedes fabricated gap distributions for the primary agentic
-claim. Its sanitized release omits raw private tool inputs, but raw text is not
-needed to reproduce dense work or cache shape. Use OpenHands or SWE-smith text
-for content-sensitive MoE routing measurements.
-
-### Do not use as primary replay sources
-
-- SWE-bench task rows are task/environment definitions, not serving traces.
-- LMSYS-Chat-1M has neither arrivals nor session timing.
-- Live SWE-bench/OpenHands repository execution adds package, network, and
-  environment variance unrelated to GPU inference power.
-- ToolBench live RapidAPI replay is externally unstable.
-- A full public MoE routing corpus is unnecessary and may be extremely large;
-  measure the target checkpoints directly.
-
-## 5. Replay contract
-
-Every workload is normalized to an ordered table:
-
-```text
-session_id
-round_idx
-arrival_or_ready_s
-prefix_tokens
-new_input_tokens
-output_tokens
-post_tool_wait_s
-cached_prefix_tokens
-source_id
-source_revision
-```
-
-Rules:
-
-1. Open-loop chat/arrival traces use `arrival_or_ready_s` directly.
-2. Agent turns are closed loop: the next turn starts only after the prior
-   generation completes and `post_tool_wait_s` elapses.
-3. Tool execution is never performed live. The recorded observation or an
-   exact-length deterministic token sequence becomes the next turn's added
-   prefill.
-4. Cache-off executes the full prompt. Cache-on executes only the uncached
-   suffix reported/planned by the trace.
-5. Live generated output is recorded, but a load-replay run carries the
-   recorded or deterministic token sequence forward so the next prompt shape
-   does not drift.
-6. A pinned source revision, tokenizer, model checkpoint, server image, seed,
-   sampler, and normalized-plan SHA-256 are stored in the bundle.
-7. Context overflow, KV infeasibility, missing reasoning tokens, or a mismatch
-   between planned and measured cached tokens fails the bundle.
-
-TraceLab's released replay client already demonstrates the desired direct
-token-ID, closed-loop, exact-prefix approach. Reuse its data contract; the
-repository does not need to rerun private tools or synthesize semantic answers.
-
-## 6. Exact minimal campaign
-
-### Phase 0: CPU-only readiness
-
-Run G0-G4. Then build three offline replay families:
-
-1. Azure Code and Conversation: one contiguous 10-minute window each.
-2. BurstGPT: one 10-minute exact-timestamp window of independent requests.
-3. TraceLab: eight sessions, two from each maximum-context band
-   `[4k,8k)`, `[8k,16k)`, `[16k,24k)`, and `[24k,31k]`, selected by a
-   fixed seed and preserving all included rounds and exact waits.
-
-Simulate every normalized schedule through the timing/ledger path.
-
-Default decision: no live Azure, BurstGPT, or LMSYS run. Add one only when more
-than 5% of its busy 250 ms bins fall outside the min/max support of the
-candidate live workloads on at least one of:
-
-- compute utilization;
-- memory utilization;
-- iterations/s;
-- tokens/iteration;
-- running requests;
-- waiting requests;
-- effective context.
-
-This test concerns workload support, not semantic content.
-
-### Phase 1: identify the dense TP8 state
-
-Collect exactly two new H100 runs using the same Llama-70B rate-4 marks and
-seed as an affected legacy cell:
-
-| run | TP | schedule | required telemetry |
-|---|---:|---|---|
-| D1 | 8 | 180 s idle, then 420 s rate-4 workload | per-GPU power, temperature, SM/memory clocks, P-state, power limit, clock-event/throttle reasons |
-| D2 | 4 | identical idle and request marks | same |
-
-The existing no-delay 600-second affected traces are the comparison. The
-180-second shift distinguishes a roughly 305-second server/runtime phase from
-a roughly 305-second workload/temperature/dose threshold without another
-duration sweep.
-
-Workload-only cost: `8*10/60 + 4*10/60 = 2.0` H100 GPU-hours.
-
-Decision:
-
-- If a request-visible or telemetry-visible trigger transfers between the
-  existing and new TP8 run without harming the TP4 control, implement it and
-  rerun the frozen evaluator.
-- Otherwise document the support boundary as dense 70B, TP8, sustained
-  high-load operation beyond the observed transition. Do not fit another
-  retrospective step.
-
-No later power validation is interpreted until this decision is recorded;
-independent collection may already be queued or complete.
-
-### Phase 2: identify MoE routing
-
-For `openai/gpt-oss-20b` and `openai/gpt-oss-120b`, run one offline,
-temperature-zero forward/generation pass per model and log selected expert IDs
-per token and layer.
-
-Use two fixed content strata per model:
-
-- 64 reconstructed ShareGPT sequences;
-- 64 real coding/tool sequences from OpenHands or SWE-smith.
-
-Evaluate co-scheduled token group sizes `B = 1, 4, 16, 64, 256`. Double each
-stratum to 128 only if either:
-
-- the bootstrap 95% interval for expected distinct experts is wider than 2%
-  of the expert count at any `B`; or
-- the 64-to-128 estimate changes by more than 1%.
-
-Hard cap: 128 sequences per stratum per model and 1 A100 GPU-hour per model.
-The output is a versioned routing-law artifact plus expert-load, entropy, and
-cross-distribution comparisons.
-
-Then replace the uniform-independent expectation and re-score all existing
-gpt-oss controlled and serving data. Do not recollect a staircase.
-
-Decision:
-
-- If the frozen gpt-oss timing and power gates pass, the existing measurements
-  support the initial MoE result.
-- If ShareGPT and coding routing laws differ materially, select the law by
-  workload class; do not hide the difference in a global scalar.
-- If the corrected model still fails, collect only the two missing
-  gpt-oss-20B ShareGPT controls at rates 1 and 2 to isolate model scale.
-
-### Phase 3: dense Qwen and arrival transfer
-
-Run five independent jobs with one common ShareGPT sample and seed:
-
-| run | hardware/TP | rate | Gamma shape | identifying comparison |
-|---|---|---:|---:|---|
-| QD-A | A100/TP1 | 4.0 | 1.0 | dense Qwen transfer |
-| QD-H | H100/TP1 | 4.0 | 1.0 | hardware transfer versus QD-A |
-| QR | A100/TP1 | 2.5 | 1.0 | off-grid rate versus QD-A |
-| QB | A100/TP1 | 2.5 | 0.25 | bursty pattern versus QR |
-| QS | A100/TP1 | 2.5 | 4.0 | smooth pattern versus QR |
-
-All use 200 prompts and seed `20260712`. Shape 1 is Poisson; shapes 0.25 and 4
-have interarrival coefficients of variation 2 and 0.5. Freeze predictions
-before submission. Grade prediction error inside each run; raw total energy
-across different rates is not itself a transfer metric.
-
-Decision:
-
-- Pass when median run energy error is at most 6%, timing median absolute
-  end-to-end error is at most 10%, and no unmodeled systematic residual exceeds
-  the existing dense gate.
-- On pass, do not run Qwen3-14B or Qwen3-32B.
-- On fail, add the smallest matched anchor that identifies the failed term;
-  do not launch the full Qwen-235B Tier-1 campaign.
-
-### Phase 4: one realistic agentic/long-context validation
-
-On Qwen3-8B/A100 TP1, replay the same eight TraceLab sessions from Phase 0
-twice:
-
-| run | prefix cache | purpose |
-|---|---|---|
-| QA-off | disabled | validates full repeated prefill, closed-loop pauses, and growing contexts |
-| QA-on | enabled | validates executed-suffix accounting and measured cache hits |
-
-The two runs use identical normalized rows and direct token IDs. They jointly
-cover coding-agent arrivals, tool pauses, closed-loop sessions, and contexts
-up to 31k; no separate live LongBench run is needed.
-
-Pass criteria:
-
-- exact session/round conservation;
-- output-token conservation;
-- measured cached prompt tokens within one server cache block per round of the
-  plan;
-- median timing error at most 10%;
-- median energy error at most 6%;
-- ACF-MAE at most the existing dense threshold;
-- no overflow, silent omission, or unexplained preemption.
-
-If the cache-off run fails, stop: the issue is not prefix caching. If cache-off
-passes and cache-on fails, fix executed-prefill/cache accounting and rerun only
-cache-on.
-
-### Phase 5: cross-family Gemma MoE transfer
-
-Use `google/gemma-4-26B-A4B-it`, the Gemma 4 MoE checkpoint: 128 experts,
-top-8 routing, and about 4B active parameters. Keep A100 hardware fixed.
-
-1. Measure the Gemma router law with the Phase-2 64+64 protocol.
-2. Freeze the prediction.
-3. Run one Gemma/A100 TP2 ShareGPT validation with the QD-A marks.
-
-Pass threshold: the same 6% energy and 10% timing limits used for Qwen3-8B.
-Do not use the existing Gemma calibration or roofline probes before scoring;
-otherwise this is no longer zero-shot cross-family transfer. Gemma requires the
-dedicated Gemma 4 container. Model facts are bound to the
-[official config](https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/config.json)
-and [vLLM recipe](https://docs.vllm.ai/projects/recipes/en/stable/Google/Gemma4.html).
-
-## 7. Reasoning decision
-
-Visible chain-of-thought or `<think>...</think>` tokens are autoregressive
-decode tokens. They do not justify a separate power phase. Existing
-DeepSeek-R1-distill/Llama architecture twins already test that semantic labels
-do not alter the architecture-derived work.
-
-The model input must count:
-
-```text
-output_tokens = reasoning_tokens + final_answer_tokens + tool_call_tokens
-```
-
-Report those components separately for workload interpretation, but sum them
-for timing and power. A dedicated reasoning run is added only if the serving
-stack uses a mechanically different path such as speculative decoding,
-separate hidden-token accounting, or a different model/engine mode.
-
-If that condition is met, select one OpenR1 example from each recorded output
-band `<1k`, `1-4k`, `4-8k`, and `8-16k`; run one example per band first and
-add a second only when within-band error exceeds the frozen model error.
-
-## 8. Resource ceiling and stopping rule
-
-Default new workload cost, excluding model load and scheduler wait:
-
-| phase | A100 GPU-hours | H100 GPU-hours |
+| original A100/H100 operator and serving bundles | 26 | retained |
+| Qwen hardware/rate/shape expansion | 5 | collected and scored |
+| TraceLab cache-off/cache-on | 2 | collected; invalid as a paired treatment |
+| TraceLab smoke pair | 2 | protocol development only |
+| BurstGPT | 1 | collected and scored |
+| Gemma-4-26B-A4B | 1 | collected; zero-shot MoE claim remains gated |
+| H100 Llama-70B TP4 state control | 1 | collected and scored |
+
+The H100 TP8 state diagnostic is configured in
+`profiling/campaigns/h100_tp8_state_diagnostic.json` but has not been
+collected. The matched TP4 control exists under
+`data/runs/h100_tp4_state_control/`.
+
+### 2.3 Current development scores
+
+The corrected v3 artifacts remain development candidates under `/tmp`; they do
+not replace the frozen checked-in surface.
+
+| evidence | timing | power/energy | interpretation |
+|---|---:|---:|---|
+| frozen non-training matrix | 3.57% median E2E | — | strong general baseline |
+| H100 405B, rate 1 | 2.88% E2E | — | pass |
+| H100 405B, rate 2 | 8.12% E2E, signed -8.10% | — | miss begins before rate 4 |
+| H100 405B, rate 4 | 12.50% E2E, signed -12.46% | 4.84% energy, 0.018 ACF-MAE | timing failure, not power failure |
+| Qwen A100/H100, rate 4 | 6.37%/4.97% E2E | 0.56%/14.22% energy | timing transfers; H100 power fails and L1 separates idle from active residuals |
+| Qwen A100 rate/shape trio | 5.69-5.95% E2E | 1.64-1.82% energy | no generic high-rate failure |
+| BurstGPT A100 | 2.06% E2E | 7.89% energy | timing pass, energy above target |
+| TraceLab cache-off | 3.45% E2E | 25.75% underprediction | full-prefill energy fails |
+| TraceLab cache-on | 15.55% E2E | 2.27% underprediction | timing fails |
+| H100 TP4 state control | 2.23% E2E | 5.70% energy, 0.0166 ACF-MAE | same rate-4 marks pass temporally at TP4 |
+
+The short 52-83 second Qwen arrival experiments cannot grade a 60-second ACF
+curve reliably. Their timing and energy summaries remain valid, but long-lag
+temporal claims do not.
+
+## 3. Why rate 4 degrades
+
+### 3.1 It is not a universal rate effect
+
+Rate-4 signed E2E error has opposite signs across model families:
+
+| representative cell | signed E2E error |
+|---|---:|
+| H100 405B TP8 | -12.46% |
+| A100 Llama-70B TP4 | -16.98% |
+| H100 Llama-70B TP8 | -6.79% |
+| H100 Llama-8B TP1 | +0.48% |
+| A100 gpt-oss-120B TP4 | +18.24% |
+
+A shared rate correction would improve some cells by worsening others. The
+high-load error is checkpoint-, operator-, and engine-path dependent.
+
+### 3.2 Mixed-prefill interference is the leading 405B hypothesis
+
+For 405B/H100/TP8, measured decode concurrency rises from a median near 7.5 at
+rate 1, to 14.2 at rate 2, and 29.3 at rate 4. The twin predicts approximately
+7.5, 13.3, and 26.1. Its faster service reduces predicted concurrency and
+amplifies the original service-time error.
+
+The strongest retrospective evidence is token latency conditioned on offered
+prompt arrivals in the 100 ms before each ITL starts:
+
+| arrivals in preceding 100 ms | measured mean ITL | predicted mean ITL |
 |---|---:|---:|
-| TP8 state diagnostic | 0 | 2.0 |
-| gpt-oss router logging | at most 2.0 | 0 |
-| Qwen3-8B same-marks transfer | less than 0.1 | less than 0.1 |
-| controlled arrival rate/pattern | less than 0.2 | 0 |
-| paired TraceLab replay | cap at 1.0 | 0 |
-| exact BurstGPT replay | cap at 0.5 | 0 |
-| Gemma routing and transfer | cap at 1.0 | 0 |
-| default total | cap at 4.8 | about 2.1 |
+| 0 | 36.47 ms | 35.92 ms |
+| 1 | 56.98 ms | 40.84 ms |
+| 2 or more | 80.83 ms | 48.31 ms |
 
-Slurm reservations should include model load and shutdown time, but a job must
-request only its TP degree; the current submit script already does this.
+Measured and predicted token clocks are classified independently, so this is
+association evidence rather than a paired residual or proof that a prompt was
+admitted in the same engine iteration.
 
-Stop the campaign as soon as the declared claim is supported or a support
-boundary is identified. In particular:
+At rate 4, median all-token ITL is close, 36.26 versus 35.92 ms, but the p95 is
+103.23 versus 43.84 ms and the p99 is 171.23 versus 89.32 ms. The request-level
+median-ITL fitting path discards exactly this mixed-iteration tail.
 
-- no new dense staircase;
-- no new gpt-oss staircase;
-- no full LMSYS replay;
-- no full SWE-bench environment execution;
-- no Qwen3-14B/32B ladder after an 8B pass;
-- no Qwen3-235B Tier-1 anchor for the cross-family MoE claim;
-- no second hardware for agentic distribution validation unless the first
-  hardware shows a hardware-specific residual.
+Preemption is not supported as the cause:
 
-## 9. Result matrix
+- legacy 405B rate-4 mean concurrency is about 31, below `max_num_seqs=64`;
+- canonical 405B rates 1 and 2 record zero waiting and zero preemptions;
+- cache use is only 2.2-3.1%;
+- the current TP4 rate-4 state control completes 1,680 requests with zero
+  waiting and zero preemptions.
 
-Each final claim has one identifying comparison:
+The leading alternatives are both physical and falsifiable:
 
-| claim | evidence |
+1. mixed decode and prefill execute as separate kernel/weight-sweep groups, but
+   `iteration_work` currently charges one transformer weight sweep for the
+   flattened mixed iteration; or
+2. mixed/FP8 prefill uses a lower operator efficiency than pure decode.
+
+For 405B, intervals preceded by one offered arrival average 20.51 ms above the
+no-arrival class in measurement versus 4.92 ms in the model. That increment is
+close to the scale of one calibrated FP8 transformer sweep, which motivates
+but does not prove the phase/group-sweep hypothesis. It also matters to power:
+the simulated ledger consumes the timing model's weight traffic, so a confirmed
+omitted sweep would undercount both latency and HBM work.
+
+The explicit BF16 vocabulary head and FP8 transformer accounting fixed earlier
+errors, but they do not explain this arrival-conditioned tail. Do not change
+the model from correlation alone; use the controlled probe in Section 6.
+
+### 3.3 The 305-second power transition is separate
+
+All twelve legacy 70B TP8 rate-4 traces change by roughly 12-19 W/GPU near
+304.2-306.5 seconds. Energy can still be close while ACF-MAE remains about
+0.30-0.37. The same rate-4 request marks on the modern H100 TP4 state control
+have ACF-MAE 0.0166 and no upward transition.
+
+The TP4 control records:
+
+- 180 seconds of loaded idle near 119 W/GPU;
+- P0 and a 700 W cap throughout;
+- fixed 2,619 MHz memory clocks;
+- no thermal or hardware slowdown;
+- intermittent software power-cap events throughout load, not a new event at
+  workload age 305 seconds;
+- zero waiting and zero preemptions.
+
+The seeded request marks also change composition near 305 seconds: output-token
+influx rises about 22-29% while input-token influx falls. Exact changepoint
+synchrony therefore does not uniquely imply temperature or server age. A
+static batch term already failed because matched decode-batch ranges consume
+12-15 W/GPU more after the transition.
+
+## 4. Model appropriateness
+
+### 4.1 Transferable skeleton to retain
+
+The following structure is appropriate:
+
+```text
+marked arrivals
+    -> manifest-bound discrete-event engine
+    -> phase-resolved architecture/operator work
+    -> equilibrium power surface conditioned on deployment idle/state
+    -> causal state response, only when identified
+    -> fixed meter response
+```
+
+It transfers arrival schedules through executed work rather than a rate label,
+and transfers models through architecture descriptors rather than names. The
+simulator accepts arbitrary marks, but empirical validation currently covers
+only observed Poisson/Gamma/BurstGPT mark, context, and engine support.
+
+### 4.2 Required timing change
+
+Replace the flattened mixed-iteration closure with a source-supported,
+phase-resolved form. The competing forms are:
+
+- one transformer sweep per execution phase/group; or
+- an operator-efficiency closure keyed by physical descriptors such as dtype
+  recipe, batch, context, prompt/decode composition, and operator intensity.
+
+Use profiler/counter evidence to choose. Do not let both forms absorb the same
+residual. Engine version, quantization recipe, chunking policy,
+`max_num_batched_tokens`, `max_num_seqs`, KV dtype, prefix-cache policy, and
+scheduling policy are part of the deployment contract.
+
+Validation must include held-out batch/context/composition levels and ITL
+p50/p95/p99, not only request-level median ITL and E2E.
+
+### 4.3 Required power boundary
+
+The static surface is an appropriate equilibrium conditional mean under a
+matched engine and power state. It is not sufficient for a hidden two-regime
+TP8 trace.
+
+Add a hardware-state response only when:
+
+- its driver is observable or causally reconstructable before target power is
+  read;
+- it is trained without the target trace;
+- it transfers across the TP8 diagnostic and TP4 negative control;
+- it improves energy, ACF, and range error without harming ordinary traces.
+
+Loaded idle remains a measured deployment boundary condition. Current data do
+not establish zero-shot idle transfer across checkpoint, engine policy,
+P-state, clocks, or caps.
+
+### 4.4 Current unseen-model claim
+
+The descriptor-based timing model is promising for unseen dense BF16
+checkpoints inside measured operator support, and the A100 Qwen development
+result passes. Unseen dense BF16 power is not generally passed: it still
+requires a matched deployment idle/state, and H100 Qwen energy misses by
+14.22%. Unseen FP8 transfer is also not established: 405B is the only FP8
+calibration checkpoint. A second FP8 checkpoint is a later sealed test, not
+part of the present rate-4 diagnosis.
+
+## 5. Offline work before any GPU submission
+
+### O1. Refit from existing controlled probes
+
+Merge and grade the existing canonical decode staircase, context grid, and
+mixed-grid bundles. The current calibration path excludes `mixed_grid` and the
+request fit collapses mixed token tails to medians. The H100 TP8 mixed grid
+reaches 114 cumulative preemptions; operator fitting may use only windows with
+zero preemption increments, zero waiting, and nonbinding KV/seat capacity.
+Confounded windows are scheduler diagnostics, not operator calibration.
+
+Compare exactly two preregistered phase-resolved timing candidates:
+
+1. explicit additional phase/group weight sweeps, with no fitted rate or model
+   coefficient;
+2. one operator slowdown
+   `t_mix = t_base * (1 + beta_dtype * I[prefill>0, decode>0] * r)`, where
+   `r = min(prefill_tokens / max(decode_tokens, 1), r_support)`,
+   `beta_dtype >= 0` is the sole new coefficient per measured dtype family,
+   and `r_support` is frozen to the source-training maximum.
+
+Candidate 2 is selected source-only with complete batch/context/composition
+levels held out. It may not extrapolate beyond `r_support`; unsupported points
+fail closed. Profiler traffic distinguishes a time-only slowdown from candidate
+1's additional timing and ledger weight work.
+
+Hold out complete batch, context, and mixed-composition levels. Reject either
+candidate if it:
+
+- uses arrival rate or model identity;
+- improves rate 4 by harming rates at or below 2;
+- worsens the existing Qwen timing cells;
+- fails to improve mixed-iteration ITL p95/p99;
+- changes timing work without making the identical change in ledger work.
+
+### O2. Re-score existing serving data
+
+Report separately:
+
+- dense 8B/70B;
+- FP8 405B;
+- MoE gpt-oss;
+- pure decode versus mixed prompt/decode intervals;
+- E2E, TTFT, decode duration, ITL p50/p95/p99, and concurrency error.
+
+`T4` passes only when the source-only candidate:
+
+- brings the 405B rate-4 median E2E error below 10% and improves signed bias;
+- holds mixed-composition iteration-duration error to 10% and ITL p95/p99
+  error to 20% on held-out levels;
+- holds paired request/token ITL-class mean error to 15%, using either the
+  controlled T4-A composition label or a measured-clock arrival class applied
+  to the corresponding predicted request/token index;
+- degrades pure-decode/low-rate median error by no more than one percentage
+  point; and
+- creates no wrong-sign correction for gpt-oss or 8B.
+
+### O3. Enforce future identity
+
+Future 405B bundles must fail validation unless they persist the corrected
+component architecture, checkpoint fingerprint, quantization recipe, engine
+version, chunking policy, and scheduler limits. Existing canonical 405B
+manifests contain stale aggregate weight metadata and must not silently
+override the corrected registry.
+
+## 6. Minimal new data, in decision order
+
+### T4-A. Controlled 405B mixed-prefill diagnostic
+
+Run this only if O1 cannot distinguish the two timing candidates.
+
+Use H100/TP8 and the corrected 405B checkpoint identity. Hold a fixed decode
+cohort and context, then inject:
+
+- no prompt;
+- one prompt;
+- two simultaneous prompts;
+- prompt sizes 128, 512, and at least 1,024 tokens.
+
+Before launch, persist one normalized schedule containing exact input token
+IDs, output budgets, decode-cohort releases, prompt-injection epochs, engine
+identity, and its SHA-256. Use five deterministic repeated injection cycles per
+condition in a balanced fixed order. Estimate the incremental iteration-time
+effect with cycle-block uncertainty. Permit one additional five-cycle block
+only when the preregistered 95% block interval is wider than 20% of the observed
+increment; otherwise do not repeat.
+
+Record per iteration or at the finest supported interval:
+
+- decode and prefill scheduled tokens;
+- decode cohort, prefill groups, and tokens per iteration;
+- iteration duration and kernel grouping;
+- HBM traffic or profiler evidence for weight rereads;
+- running/waiting requests, KV use, and preemptions;
+- exact engine, quantization, scheduler, clock, and cap identity.
+
+Mirror an existing BF16 Llama-70B mixed-grid schedule when possible. Do not
+collect a new BF16 sweep unless the existing bundle cannot supply the matched
+control.
+
+Decision:
+
+- an extra checkpoint sweep selects the phase/group work model;
+- unchanged traffic with longer kernels selects an operator-efficiency model;
+- waiting/admission divergence selects a manifest-bound scheduler change;
+- no discriminating signal leaves the current FP8 arbitrary-arrival claim
+  unsupported.
+
+### T4-B. One current-stack 405B rate-4 validation
+
+After freezing the T4 candidate, run
+`profiling/campaigns/h100_405b_rate4_exact_replay.json`. It replays exact
+input token IDs, release times, and planned output budgets from the normalized
+`data/trace_plans/h100_405b_rate4_200.json` schedule, with exact-length
+generation/ignore-EOS. Persist actual output tokens separately for scoring.
+Include 60-120 seconds of measured loaded idle and full engine/state telemetry.
+
+This run distinguishes a current-engine model failure from a legacy-engine
+support boundary. It is not another rate sweep. Stop after one run unless a
+five-block bootstrap interval for median E2E error is wider than two percentage
+points or required telemetry is incomplete. Permit at most one exact-plan
+repeat, and combine neither run until their manifest identities match.
+
+### P4-A. Missing H100 TP8 state leg
+
+Before launch:
+
+1. persist the server-launch epoch in the run manifest in addition to
+   instrumentation and workload epochs;
+2. materialize a normalized direct-token plan from the TP4 artifact's relative
+   release times, input lengths, and output budgets;
+3. generate and persist deterministic token IDs of those exact lengths plus
+   the normalized-plan hash.
+
+The collected TP4 artifact did not persist prompt IDs/token IDs or a dataset
+content hash. P4 can therefore match its recorded release/length marks but
+cannot claim prompt-content identity retrospectively.
+
+Collect the prepared
+`profiling/campaigns/h100_tp8_state_diagnostic.json` H100 Llama-70B TP8
+diagnostic. Its normalized input is
+`data/trace_plans/h100_tp4_state_marks.json`:
+
+| TP | pre-idle | workload | marks | telemetry |
+|---:|---:|---:|---|---|
+| 8 | 180 s | about 420 s at rate 4 | normalized TP4-derived release/input-length/output-budget plan | per-GPU power, temperature, SM/memory clocks, P-state, cap, throttle/clock-event reasons, full engine counters |
+
+Do not repeat TP4.
+
+Interpret the transition relative to telemetry start, persisted server-start
+epoch, and workload start:
+
+- telemetry age near 305 seconds, workload age near 125 seconds: an
+  instrumentation/idle-window phase; call it server/runtime age only if the
+  persisted server-start epoch supports that interpretation;
+- workload age near 305 seconds: accumulated work or request composition;
+- an observable clock/cap/temperature threshold: candidate hardware-state
+  driver;
+- no transition on the current stack: legacy engine/state support boundary.
+
+If the transition remains tied to the same request-mark boundary with no
+observable trigger, permit one later TP8 replay that keeps every arrival time
+and interarrival interval fixed but cyclically permutes the
+`(input_token_ids, output_budget)` mark tuples. Freeze a permutation
+that moves the high-output cohort while keeping cumulative predicted work
+within 2% of the original at the preregistered 240, 305, and 370 second test
+ages. If no such permutation exists, the experiment remains ambiguous and is
+not launched. Do not launch a rate/model cross.
+
+P4-A is a diagnostic, not validation of a state law. A driver or threshold
+selected from this sole telemetry-rich TP8 trace cannot transfer to the same
+trace. If it identifies a modelable mechanism, freeze the law and grade it on
+one later independently collected TP8 validation; otherwise record the support
+boundary.
+
+### L1. Deployment-calibrated idle and sensitivity boundaries
+
+After T4/P4, run
+`profiling/campaigns/h100_qwen3_8b_idle_decomposition.json` for H100 Qwen
+rate 4 with:
+
+- the same 200 request marks;
+- a measured 60-second loaded-idle window;
+- engine policy and full power-state telemetry persisted in the manifest.
+
+Apply the measured idle delta without changing dynamic coefficients. Report
+both total energy and idle-subtracted incremental active energy, plus
+active-window residual bias/shape. Pass only when total and incremental active
+energy errors are each at most 6% and active-window residuals meet the existing
+dense shape/bias gate. This prevents a target-idle offset from hiding an
+incorrect dynamic surface. On failure, retain a deployment-state support
+boundary.
+
+Only after that result, use cheap idle-only, one-factor contrasts if the
+deployment claim requires them:
+
+1. hold checkpoint and power state fixed, change engine policy once;
+2. hold checkpoint and engine policy fixed, change one verified clock/cap
+   state once.
+
+Run each permitted one-factor contrast as same-node A-B-A, with the two A
+segments providing a repeated baseline. Before opening B, freeze a
+repeatability tolerance from the A segments and existing same-state idle
+windows, using the larger of the meter tolerance and a 95% block-mean
+uncertainty interval. A material contrast makes measured calibration or
+explicit state conditioning mandatory. A null contrast only fails to reject
+invariance; it does not establish transfer. Do not spend a
+checkpoint-by-policy-by-state crossed design. True zero-shot checkpoint idle
+transfer remains deferred with that crossed design.
+
+### C1. Deterministic cache replay identity
+
+The collected TraceLab pair has all 136 keyed rows but differs in 10 prompt
+hashes and 34 output hashes. It cannot estimate a cache treatment effect.
+
+Before another GPU pair:
+
+1. pass the CPU plan/hash comparator;
+2. pass a short forced-token smoke replay with identical prompt and output
+   hashes across cache regimes;
+3. persist the normalized-plan hash, tokenizer/checkpoint identity, forced
+   output token IDs, and cache policy;
+4. require exact keyed identity before scoring power.
+
+Only then rerun cache-off/cache-on. Existing legs remain separate model-error
+reports. This paired rerun is deferred until T4/P4 and the identity smoke gate
+pass; it is not part of a broader crossed design.
+
+C1 establishes agentic cache/power transfer only if the identity-valid pair
+also meets all of:
+
+- median timing error at most 10%;
+- exact executed-prefill and cache-hit accounting within one cache block per
+  round;
+- total and idle-subtracted incremental energy error at most 6%;
+- the existing dense temporal gate when the active trace duration supports its
+  declared lag.
+
+### U1. Later unseen-FP8 sealed test
+
+After T4 passes on 405B, select one second FP8 checkpoint with a materially
+different vocabulary/head fraction or quantization recipe. Freeze the
+descriptor-based model before opening:
+
+- one pure-decode point;
+- one pure-prefill point;
+- one mixed prompt/decode point;
+- one serving validation.
+
+This phase alone can establish unseen-FP8 transfer. It is deferred and has no
+current budget authorization.
+
+## 7. Agentic trace status
+
+Current evidence supports these limited statements:
+
+- BurstGPT timing transfers well at 2.06% median E2E error; energy error is
+  7.89%, above the 6% target.
+- TraceLab cache-off timing passes at 3.45%, but energy is underpredicted by
+  25.75%.
+- TraceLab cache-on energy is close at 2.27% underprediction, but timing fails
+  at 15.55%.
+- The two TraceLab legs cannot be subtracted because request content diverged.
+
+Therefore agentic timing transfer is promising but not generally passed, and
+agentic power transfer has not passed. Prefix-cache causal accuracy remains
+ungraded until C1 produces an identity-valid pair.
+
+Agentic evaluation must continue to report:
+
+- exact row/session/turn conservation;
+- prompt/output/cache hash identity;
+- E2E and TTFT;
+- executed prefill and cache-hit accounting;
+- energy;
+- ACF only when trace duration supports the requested lag;
+- sparse-gap idle residuals separately from active-work residuals.
+
+## 8. Reproducing the rate-4 timing evidence
+
+Run:
+
+```bash
+uv run python timing-test/rate4_diagnostic.py \
+  --fitted /tmp/powertrace_fitted_efficiencies_v3.json
+```
+
+The command emits input SHA-256 hashes, per-run measured/predicted decode
+concurrency, E2E bias, ITL p50/p95/p99, and the explicitly labeled
+arrival-conditioned association diagnostic. It also emits hashes for the
+diagnostic, simulator, timing physics, evaluator, and architecture registry,
+plus the explicit engine configuration. The exact values in this plan use
+dataset hash
+`e5696d83d618eba472c9907d9c507120548f52af1970c568a0c2f312a3f617a2`
+and v3 fitted-candidate hash
+`47c0dd752f1787f59b0686fd0fda6001469fc8bfc019799af12532414f695c32`.
+The emitted code/config identity is also part of the evidence key. The `/tmp`
+candidate must be frozen to a versioned artifact before these development
+numbers are cited as a released result.
+
+## 9. Budget and stopping rules
+
+Approximate workload-only ceilings, excluding model load:
+
+| stage | maximum new cost | authorization |
+|---|---:|---|
+| O1-O3 | CPU only | now |
+| T4-A controlled 405B mixed probe | about 0.7 H100 GPU-hours | conditional on O1 ambiguity |
+| T4-B 405B rate-4 validation | about 0.3 H100 GPU-hours | after T4 candidate freeze |
+| P4-A missing TP8 state leg | about 1.33 H100 GPU-hours | pending diagnostic |
+| later frozen P4 validation | not yet budgeted | only if P4-A identifies a causal law |
+| L1 H100 Qwen idle-anchored rerun | less than 0.1 H100 GPU-hours | after T4/P4 |
+| C1 cache pair | capped separately | deferred behind identity gate |
+| U1 second FP8 checkpoint | not budgeted | deferred |
+
+No job has been launched by this plan update.
+
+Stop rules:
+
+- no generic rate sweep;
+- no checkpoint ladder;
+- no engine-policy-by-power-state cross;
+- no extra TP4 state run;
+- no fitted state term without a causal trigger;
+- no cache treatment claim without exact replay identity;
+- no unseen-FP8 claim from 405B alone;
+- no more data when an explicit support boundary is the honest result.
+
+## 10. Claim-to-evidence matrix
+
+| claim | required evidence |
 |---|---|
-| short-context dense timing/power | existing 450-run corpus |
-| controlled long-context operator physics | existing Llama-70B probes to about 123k |
-| realistic long-context/session execution | QA-off |
-| prefix-cache accounting | QA-on minus QA-off, identical rows |
-| arbitrary arrival rate | QD-A versus QR |
-| controlled non-Poisson pattern | QR versus QB/QS |
-| exact recorded arrival pattern | BurstGPT replay |
-| reasoning semantics | all generated tokens counted as decode; existing architecture twins |
-| dense Qwen transfer | QD-A and QD-H |
-| gpt-oss MoE result | direct router law plus existing gpt-oss bundles |
-| cross-family MoE transfer | Gemma router law plus frozen Gemma validation |
-| sustained TP8 support boundary | D1/D2 plus existing affected traces |
+| support-bounded arbitrary-arrival timing, dense BF16 | Poisson/Gamma/BurstGPT data inside observed mark/context/engine support plus T4 held-composition gate |
+| arbitrary/sparse-arrival power | L1 dynamic/idle-separated gate plus an identity-valid long sparse replay |
+| large-checkpoint high-load timing | O1/O2, then T4-A/T4-B only as triggered |
+| FP8 accounting for 405B | corrected component identity plus T4 mixed-phase evidence |
+| unseen FP8 model transfer | deferred U1 sealed checkpoint |
+| 70B TP8 state mechanism/support boundary | P4-A and TP4 negative control |
+| high-fidelity long-horizon 70B TP8 power | a frozen causal law on a later independent TP8 validation |
+| deployment-calibrated loaded idle | measured target idle plus L1 dynamic/idle-separated gate |
+| zero-shot loaded-idle transfer | deferred checkpoint-by-policy-by-state evidence |
+| deterministic prefix-cache effect | identity-valid C1 pair |
+| agentic arrival timing | separate BurstGPT and valid TraceLab leg scores |
+| agentic cache/power transfer | identity-valid C1 pair that also passes timing, cache-accounting, energy, and duration-eligible temporal gates |
+| Gemma cross-family MoE | router-law/freeze-order contract before the collected bundle is opened for the claim |
 
-This matrix is intentionally sparse. Every new run either resolves one named
-ambiguity or grades one frozen transfer claim.
+The model is currently useful inside stated support, but the general claim is
+conditional on `T4`, `P4`, and deterministic replay identity. The campaign
+adds data only where an existing model comparison cannot decide the mechanism.

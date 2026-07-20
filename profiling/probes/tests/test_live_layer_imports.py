@@ -29,17 +29,23 @@ def test_cli_server_cfg_shape(monkeypatch):
     import _cli
 
     monkeypatch.setenv("POWERTRACE_ACTIVE_GPU_UUIDS", "GPU-a,GPU-b")
+    monkeypatch.setenv("POWERTRACE_SERVER_LAUNCH_EPOCH_S", "100.25")
+    monkeypatch.setenv("POWERTRACE_SERVER_READY_EPOCH_S", "130.5")
 
     ns = argparse.Namespace(
         max_num_seqs=256, max_num_batched_tokens=8192,
         enable_chunked_prefill=True, enable_prefix_caching=False,
         kv_cache_dtype="auto", max_model_len=131072,
         quantization="fp8", active_gpu_uuids="GPU-a,GPU-b",
+        scheduling_policy="async",
     )
     cfg = _cli.server_cfg(ns)
     assert cfg["max_num_seqs"] == 256
     assert cfg["enable_chunked_prefill"] is True
     assert cfg["quantization"] == "fp8"
+    assert cfg["scheduling_policy"] == "async"
+    assert cfg["server_launch_epoch_s"] == 100.25
+    assert cfg["server_ready_epoch_s"] == 130.5
     assert cfg["active_gpu_uuids"] == ["GPU-a", "GPU-b"]
     for k in ("max_num_batched_tokens", "enable_prefix_caching",
               "kv_cache_dtype", "max_model_len"):

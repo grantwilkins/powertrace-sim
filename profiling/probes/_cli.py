@@ -25,6 +25,8 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--dtype-hint", default=None)
     p.add_argument("--quantization", default=None)
     p.add_argument("--weight-footprint-bytes", type=float, default=None)
+    p.add_argument("--embedding-bytes-per-param", type=float, default=None)
+    p.add_argument("--fp8-flop-frac", type=float, default=None)
     p.add_argument("--n-active-override", type=float, default=None,
                    help="vendor-stated active param count (MoE; overrides analytic)")
     # server knobs recorded into every manifest
@@ -34,6 +36,9 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--enable-prefix-caching", action="store_true", default=False)
     p.add_argument("--kv-cache-dtype", default="auto")
     p.add_argument("--max-model-len", type=int, default=131072)
+    p.add_argument(
+        "--scheduling-policy", choices=("sync", "async"), default="sync"
+    )
     p.add_argument(
         "--active-gpu-uuids",
         default=os.environ.get("POWERTRACE_ACTIVE_GPU_UUIDS", ""),
@@ -56,9 +61,17 @@ def server_cfg(args) -> dict:
         "enable_prefix_caching": args.enable_prefix_caching,
         "kv_cache_dtype": args.kv_cache_dtype,
         "max_model_len": args.max_model_len,
+        "scheduling_policy": args.scheduling_policy,
     }
     if args.quantization:
         config["quantization"] = args.quantization
+    for field, env_name in (
+        ("server_launch_epoch_s", "POWERTRACE_SERVER_LAUNCH_EPOCH_S"),
+        ("server_ready_epoch_s", "POWERTRACE_SERVER_READY_EPOCH_S"),
+    ):
+        value = os.environ.get(env_name)
+        if value:
+            config[field] = float(value)
     active = args.active_gpu_uuids.strip()
     if active:
         config["active_gpu_uuids"] = active.split(",")
@@ -79,6 +92,8 @@ def execute(schedule, args):
         out_root=args.out_root,
         base_url=args.base_url,
         weight_footprint_bytes=args.weight_footprint_bytes,
+        embedding_bytes_per_param=args.embedding_bytes_per_param,
+        fp8_flop_frac=args.fp8_flop_frac,
         dtype_hint=args.dtype_hint,
         n_active_override=args.n_active_override,
         evidence_profile=args.evidence_profile,

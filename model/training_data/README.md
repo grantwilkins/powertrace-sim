@@ -65,6 +65,10 @@ or pair manifest.
 - `RunRecord` keeps raw device, request-array, and engine tables plus hashes;
   model views are explicit narrow projections. Bundle power wall time is corrected
   with `manifest.clock.local_utc_offset_s`, without the legacy timestamp fold.
+- Research audits may request `keep_power_gaps=True` from the ledger view. It
+  returns the full feature grid, NaN at unobserved power targets, and a
+  `power_valid` mask. The default path still drops invalid targets, preserving
+  existing cache behavior exactly.
 - GRU preparation explicitly omits the architecture descriptor it does not
   consume, so unknown legacy model architectures can still be projected.
   Ledger/physics ingestion keeps architecture lookup mandatory.

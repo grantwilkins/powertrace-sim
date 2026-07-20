@@ -1,20 +1,25 @@
 {
   "hardware": "H100",
   "model": "meta-llama/Llama-3.1-70B-Instruct",
-  "campaign_type": "validate",
-  "_note": "TP8 causal state leg: 180 s measured idle, then approximately 420 s at rate 4. The TP4 control is an independent job with identical marks.",
+  "campaign_type": "trace_replay",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "development",
+  "_note": "Pending TP8 causal state leg. Replays the collected TP4 control's relative release times and input/output lengths using a hashed deterministic direct-token plan. The historical TP4 bundle did not preserve prompt token identity, so this is a matched length-mark control, not a prompt-content identity claim.",
   "power_profile": "tp8_state",
   "server": {
     "tp": 8,
     "max_num_seqs": 256,
     "max_num_batched_tokens": 8192,
-    "max_model_len": 8192
+    "max_model_len": 8192,
+    "scheduling_policy": "sync"
   },
-  "workload": {
-    "dataset": "sharegpt",
-    "num_prompts": 1680,
-    "request_rate": 4.0,
-    "seed": 0,
-    "pre_idle_s": 180.0
+  "trace": {
+    "plan": "data/trace_plans/h100_tp4_state_marks.json",
+    "concurrency": 256,
+    "cache_block_tokens": 16,
+    "pre_idle_s": 180.0,
+    "regimes": [
+      {"prefix_cache": false}
+    ]
   }
 }

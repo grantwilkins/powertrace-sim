@@ -97,7 +97,8 @@ def build_validate_window(workload, t_start_epoch, t_end_epoch, command,
 
 def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         dataset_path, base_url="http://localhost:8000/v1",
-        weight_footprint_bytes=None, dtype_hint=None, n_active_override=None,
+        weight_footprint_bytes=None, embedding_bytes_per_param=None,
+        fp8_flop_frac=None, dtype_hint=None, n_active_override=None,
         run_id=None, evidence_profile="core", power_profile="core"):
     """Drive ``benchmark_serving`` over a real dataset; write the §2 bundle."""
     run_manifest = probe_runner._client_mod("run_manifest")
@@ -118,6 +119,8 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     arch = arch_extract.extract_arch(
         arch_extract.load_config(model), dtype_hint=dtype_hint,
         weight_footprint_bytes=weight_footprint_bytes,
+        embedding_bytes_per_param=embedding_bytes_per_param,
+        fp8_flop_frac=fp8_flop_frac,
         n_active_override=n_active_override,
     )
 

@@ -70,6 +70,8 @@ def _validate(c: dict, path) -> None:
         raise CampaignError(f"{where}unknown power_profile {c.get('power_profile')!r}")
     if c.get("validation_role", "development") not in {"development", "sealed"}:
         raise CampaignError(f"{where}validation_role must be development or sealed")
+    if c["server"].get("scheduling_policy", "sync") not in {"sync", "async"}:
+        raise CampaignError(f"{where}server.scheduling_policy must be sync or async")
 
     if c["campaign_type"] == "validate":
         if "workload" not in c:
@@ -101,6 +103,8 @@ def _validate(c: dict, path) -> None:
             )
         if c["campaign_type"] == "trace_replay" and not ss.get("plan"):
             raise CampaignError(f"{where}trace_replay trace.plan is required")
+        if float(ss.get("pre_idle_s", 0.0)) < 0.0:
+            raise CampaignError(f"{where}{block}.pre_idle_s must be non-negative")
         regs = ss.get("regimes")
         if not (isinstance(regs, list) and regs
                 and all(isinstance(r, dict) and "prefix_cache" in r for r in regs)):
@@ -159,6 +163,10 @@ def _with_defaults(c: dict) -> dict:
         "enable_chunked_prefill": True, "enable_prefix_caching": False,
         "kv_cache_dtype": "auto", "max_model_len": 131072,
         "quantization": None, "dtype_hint": None, "extra_args": [], "extra_env": {},
+        "scheduling_policy": "sync",
+        "weight_footprint_bytes": None,
+        "embedding_bytes_per_param": None,
+        "fp8_flop_frac": None,
     })
     # submit_campaign.sh allocates exactly the largest TP degree.  The logger
     # must describe that visible set, not the physical node's installed GPUs.
@@ -184,6 +192,8 @@ def _with_defaults(c: dict) -> dict:
             "user_tokens_mean": 1024, "assistant_tokens_mean": 512,
             "gap_mean_s": 3.0, "gap_sigma": 0.8,
         })
+    if c["campaign_type"] == "trace_replay":
+        c["trace"].setdefault("pre_idle_s", 0.0)
     return c
 
 
@@ -216,6 +226,8 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
         parts.append("--enable-chunked-prefill")
     if pc:
         parts.append("--enable-prefix-caching")
+    if s["scheduling_policy"] == "async":
+        parts.append("--async-scheduling")
     if s.get("quantization"):
         parts.append(f"--quantization {s['quantization']}")
     parts.extend(s["extra_args"])
@@ -223,11 +235,19 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
 
 
 def _server_record_flags(s: dict) -> list[str]:
-    flags = []
+    flags = [f"--scheduling-policy {s['scheduling_policy']}"]
     if s.get("quantization"):
         flags.append(f"--quantization {s['quantization']}")
     if s.get("dtype_hint"):
         flags.append(f"--dtype-hint {s['dtype_hint']}")
+    if s.get("weight_footprint_bytes") is not None:
+        flags.append(f"--weight-footprint-bytes {s['weight_footprint_bytes']}")
+    if s.get("embedding_bytes_per_param") is not None:
+        flags.append(
+            f"--embedding-bytes-per-param {s['embedding_bytes_per_param']}"
+        )
+    if s.get("fp8_flop_frac") is not None:
+        flags.append(f"--fp8-flop-frac {s['fp8_flop_frac']}")
     return flags
 
 
@@ -463,7 +483,9 @@ def trace_replay_command(c: dict, tp: int, regime: dict) -> str:
         f"--trace-plan {trace['plan']}",
         f"--concurrency {int(trace.get('concurrency', 64))}",
         f"--cache-block-tokens {int(trace.get('cache_block_tokens', 16))}",
+        f"--pre-idle-s {float(trace.get('pre_idle_s', 0.0))}",
     ]
+    parts.extend(_server_record_flags(s))
     if c.get("n_active_override"):
         parts.append(f"--n-active-override {c['n_active_override']}")
     if regime.get("prefix_cache"):

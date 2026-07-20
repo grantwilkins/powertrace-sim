@@ -1,0 +1,27 @@
+{
+  "hardware": "H100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "trace_replay",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "development",
+  "power_profile": "tp8_state",
+  "_note": "Conditional L1 decomposition after T4/P4. Replays the collected H100 Qwen release/length marks with a measured 60-second idle window; total and idle-subtracted active energy are graded separately.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768,
+    "scheduling_policy": "sync"
+  },
+  "trace": {
+    "plan": "data/trace_plans/h100_qwen3_8b_rate4_200.json",
+    "concurrency": 256,
+    "cache_block_tokens": 16,
+    "pre_idle_s": 60.0,
+    "regimes": [
+      {"prefix_cache": false}
+    ]
+  }
+}

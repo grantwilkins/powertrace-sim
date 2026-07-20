@@ -1,0 +1,33 @@
+{
+  "hardware": "H100",
+  "model": "RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8",
+  "campaign_type": "trace_replay",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "development",
+  "power_profile": "tp8_state",
+  "_note": "Conditional T4-B validation only after the mixed-iteration candidate is frozen. The plan preserves one canonical 200-request mark set and compresses its rate-2 release intervals by 0.5 to form an exact rate-4 schedule.",
+  "server": {
+    "tp": 8,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 131072,
+    "quantization": "compressed-tensors",
+    "dtype_hint": "fp8",
+    "weight_footprint_bytes": 487230000000,
+    "embedding_bytes_per_param": 2.0,
+    "fp8_flop_frac": 0.7996,
+    "scheduling_policy": "sync",
+    "extra_env": {"VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1"}
+  },
+  "trace": {
+    "plan": "data/trace_plans/h100_405b_rate4_200.json",
+    "concurrency": 64,
+    "cache_block_tokens": 16,
+    "pre_idle_s": 90.0,
+    "regimes": [
+      {"prefix_cache": false}
+    ]
+  }
+}

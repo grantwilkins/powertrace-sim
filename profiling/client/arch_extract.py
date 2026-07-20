@@ -5,13 +5,23 @@ This replaces the hand-curated ``ARCH`` dict in
 already-characterized hardware is nearly free: point the manifest emitter at the
 served model's config and the physical scalars the power model needs fall out.
 
-The function returns exactly the fields the ledger consumes:
+The function returns the fields the ledger consumes:
 
     n_active, w_bytes, d_model, n_layers, n_kv, head_dim,
     moe_frac, n_experts, top_k, swa_window, fp8
 
-plus three **additive** fields that default to ``0`` so existing softmax/dense
-models are unchanged (they are only populated for the new architectures):
+and separates the token-level operator graph from resident memory:
+
+    transformer_active_params, input_embedding_params, output_head_params,
+    transformer_weight_bytes, input_embedding_weight_bytes,
+    output_head_weight_bytes, tied_embeddings
+
+Input embeddings are row gathers, while the output head is a dense projection.
+For tied embeddings the input and output byte descriptors name the same
+resident matrix; they must not be summed to recover ``w_bytes``.
+
+Three additional fields default to ``0`` so existing softmax/dense models are
+unchanged (they are only populated for the new architectures):
 
     swa_global_ratio   local:global attention-layer ratio (Gemma-3 style; 5 -> 5:1)
     linear_attention   1 if the model uses linear/lightning attention (MiniMax)
@@ -194,6 +204,8 @@ def extract_arch(
     *,
     dtype_hint: Optional[str] = None,
     weight_footprint_bytes: Optional[float] = None,
+    embedding_bytes_per_param: Optional[float] = None,
+    fp8_flop_frac: Optional[float] = None,
     n_active_override: Optional[float] = None,
     family: Optional[str] = None,
 ) -> dict:
@@ -216,9 +228,9 @@ def extract_arch(
     family : optional family label for fit grouping; if omitted a label is
         synthesized from size/sparsity.
 
-    Note: ``n_active`` includes embedding parameters, matching the curated
-    convention in ``build_ledger_cache.ARCH`` (the existing fit absorbs the
-    embedding-as-FLOPs into e_f); changing that would break ledger equivalence.
+    ``n_active`` remains the resident active-parameter convention used by
+    existing artifacts. The component fields state which of those parameters
+    participate in dense token-level operators.
     """
     cfg = _text_config(config)
 
@@ -296,11 +308,35 @@ def extract_arch(
 
     n_linear = _linear_attention_layers(cfg, n_layers)
     linear_attention = 1 if n_linear > 0 else 0
+    embedding_params = float(vocab * d_model)
+    resident_embedding_params = embedding_params if tied else 2.0 * embedding_params
+    transformer_active_params = max(float(n_active) - resident_embedding_params, 0.0)
+    if embedding_bytes_per_param is not None:
+        embedding_weight_bytes = (
+            float(embedding_bytes_per_param) * embedding_params
+        )
+    elif weight_footprint_bytes is not None:
+        embedding_weight_bytes = (
+            w_bytes * embedding_params / max(float(n_total), 1.0)
+        )
+    else:
+        embedding_weight_bytes = bpp * embedding_params
+    transformer_weight_bytes = max(
+        w_bytes - embedding_weight_bytes * (1.0 if tied else 2.0), 0.0
+    )
 
-    return dict(
+    result = dict(
         family=family or _synth_family(n_active, moe is not None),
         n_active=float(n_active),
         w_bytes=float(w_bytes),
+        transformer_active_params=transformer_active_params,
+        input_embedding_params=embedding_params,
+        output_head_params=embedding_params,
+        transformer_weight_bytes=float(transformer_weight_bytes),
+        input_embedding_weight_bytes=float(embedding_weight_bytes),
+        output_head_weight_bytes=float(embedding_weight_bytes),
+        tied_embeddings=int(tied),
+        vocab_size=int(vocab),
         d_model=int(d_model),
         n_layers=int(n_layers),
         n_kv=int(n_kv),
@@ -315,6 +351,11 @@ def extract_arch(
         linear_attention=int(linear_attention),
         n_linear_layers=int(n_linear),
     )
+    if fp8_flop_frac is not None:
+        if not 0.0 <= float(fp8_flop_frac) <= 1.0:
+            raise ValueError("fp8_flop_frac must be in [0, 1]")
+        result["fp8_flop_frac"] = float(fp8_flop_frac)
+    return result
 
 
 def _synth_family(n_active: float, is_moe: bool) -> str:

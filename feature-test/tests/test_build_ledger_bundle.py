@@ -257,6 +257,30 @@ def test_measured_cache_persists_only_available_stock_diagnostics():
     assert blb.ledger_bin_keys("reconstruction") == blb.BIN_KEYS
 
 
+def test_power_gaps_mask_targets_without_compressing_causal_time():
+    req = {
+        "request_timestamps": np.asarray([EPOCH + 1.0]),
+        "ttfts": np.asarray([1.0]),
+        "itls": np.asarray([[1.0] * 19], dtype=object),
+        "decode_times": np.asarray([19.0]),
+        "input_lens": np.asarray([4.0]),
+        "output_lens": np.asarray([20.0]),
+        "has_timestamps": True,
+    }
+    pw = {
+        "timestamps": EPOCH + np.asarray([0.0, 1.0, 2.0, 4.0, 5.0, 21.0]),
+        "power": np.asarray([100.0, 101.0, 102.0, 104.0, 105.0, 121.0]),
+    }
+    bins = blb.reconstruct_bins(
+        req, pw, ARCH["llama-3-70b"], 1, 4.0, dt=1.0, trim_s=0.0,
+        arrival_alignment="exact_epoch", include_time=True, keep_power_gaps=True,
+    )
+    np.testing.assert_allclose(np.diff(bins["time_epoch_s"]), 1.0)
+    assert np.isnan(bins["power"][4])
+    assert not bins["power_valid"][4]
+    assert bins["dec_tok"][4] > 0.0
+
+
 def test_measured_engine_projection_populates_maintained_ledger(monkeypatch):
     from types import SimpleNamespace
 

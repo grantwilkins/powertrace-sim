@@ -1,10 +1,14 @@
-"""Acceptance gate for ``arch_extract``: it must reproduce the curated arch
-descriptors before it is trusted on new models, and assign sane values + the
-additive flags for the new lineup.
+"""
+Claim:
+Architecture extraction preserves resident parameter/byte totals while
+separating transformer, input-embedding, and output-head operator roles.
 
-Fixtures are minimal inline config dicts holding only the fields the extractor
-reads. Expected values mirror ``feature-test/build_ledger_cache.py`` ARCH (kept
-inline here to keep the test self-contained across packages).
+Plausible wrong implementations:
+- Count a tied matrix twice in resident parameters.
+- Omit the output projection because embeddings are tied.
+- Treat the whole vocabulary matrix as an input-token GEMM.
+- Apply the wrong quantized byte width to resident weights.
+- Mistake an expert-group count for experts selected per token.
 """
 
 import sys
@@ -110,6 +114,23 @@ def test_mxfp4_not_treated_as_two_bytes_per_param():
     # If MXFP4 were mistaken for bf16, w_bytes would be ~2x the param count
     # (>>12.8 GiB). The footprint path guards this.
     assert a["w_bytes"] == pytest.approx(12.8 * GIB, rel=1e-6)
+
+
+def test_partial_fp8_components_keep_bf16_embeddings():
+    footprint = 487.23e9
+    a = extract_arch(
+        dict(LLAMA_70B, torch_dtype="float8_e4m3fn"),
+        weight_footprint_bytes=footprint,
+        embedding_bytes_per_param=2.0,
+        fp8_flop_frac=0.8,
+    )
+    embedding_params = a["vocab_size"] * a["d_model"]
+    assert a["input_embedding_weight_bytes"] == 2.0 * embedding_params
+    assert a["output_head_weight_bytes"] == 2.0 * embedding_params
+    assert a["transformer_weight_bytes"] == (
+        footprint - 4.0 * embedding_params
+    )
+    assert a["fp8_flop_frac"] == 0.8
 
 
 def test_dtype_to_bytes():
@@ -224,6 +245,35 @@ def test_qwen3_dense_ladder_in_range(cfg, lo, hi):
     a = extract_arch(cfg)
     assert lo <= a["n_active"] <= hi
     assert a["moe_frac"] == 0.0 and a["n_experts"] == 1
+
+
+def test_untied_qwen_components_reconcile_to_resident_totals():
+    a = extract_arch(QWEN3_8B)
+    embedding = 151936 * 4096
+    assert a["input_embedding_params"] == embedding
+    assert a["output_head_params"] == embedding
+    assert (
+        a["transformer_active_params"]
+        + a["input_embedding_params"]
+        + a["output_head_params"]
+    ) == pytest.approx(a["n_active"])
+    assert (
+        a["transformer_weight_bytes"]
+        + a["input_embedding_weight_bytes"]
+        + a["output_head_weight_bytes"]
+    ) == pytest.approx(a["w_bytes"])
+
+
+def test_tied_matrix_is_resident_once_but_still_has_output_head_work():
+    a = extract_arch(GEMMA3_12B)
+    assert a["tied_embeddings"] == 1
+    assert a["input_embedding_params"] == a["output_head_params"]
+    assert (
+        a["transformer_active_params"] + a["input_embedding_params"]
+    ) == pytest.approx(a["n_active"])
+    assert (
+        a["transformer_weight_bytes"] + a["input_embedding_weight_bytes"]
+    ) == pytest.approx(a["w_bytes"])
 
 
 def test_llama4_scout_nested_text_config():

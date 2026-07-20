@@ -593,7 +593,7 @@ def main(argv=None):
           "validation_fits": serial_fits,
           "failed_or_unsupported_gates": [g for g in gates if not g["passes"]] + failures})
     (out / "README.md").write_text(
-        "# Feature test v1\n\nDeterministic 250 ms conditional-timing evaluation. "
+        f"# Feature test ({out.name})\n\nDeterministic 250 ms conditional-timing evaluation. "
         f"Source-only hardware modes: {selected_by_hardware}. "
         f"All selected gates pass: {all(g['passes'] for g in chosen_gates)}. "
         "Exact failures and artifacts are in `selected_model.json`; "

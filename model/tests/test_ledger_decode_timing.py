@@ -13,7 +13,11 @@ Plausible wrong implementations:
 import numpy as np
 import pytest
 
-from model.training_data.ledger_view import schedule_work_rates
+from model.training_data.ledger_view import (
+    exact_itl_mask,
+    reconstruct_bins,
+    schedule_work_rates,
+)
 
 
 ARCH = {
@@ -65,3 +69,33 @@ def test_invalid_or_inconsistent_measured_intervals_fail(itls):
 def test_measured_interval_count_must_match_post_first_decode_steps():
     with pytest.raises(ValueError, match="output tokens minus one"):
         _ledger(decode_end=1.0, itls=[1.0], edges=[0.0, 0.5, 1.0])
+
+
+def test_scalar_mean_itl_is_not_misrepresented_as_an_exact_sequence():
+    mask = exact_itl_mask(
+        np.asarray([3.0, 3.0]),
+        np.asarray([0.5, [0.25, 0.75]], dtype=object),
+    )
+    np.testing.assert_array_equal(mask, [False, True])
+
+
+def test_scalar_mean_itl_uses_uniform_post_first_decode_work():
+    req = {
+        "request_timestamps": np.asarray([1.0]),
+        "ttfts": np.asarray([2.0]),
+        "decode_times": np.asarray([10.0]),
+        "input_lens": np.asarray([10.0]),
+        "output_lens": np.asarray([3.0]),
+        "itls": np.asarray([5.0], dtype=object),
+        "has_timestamps": True,
+    }
+    pw = {
+        "timestamps": np.arange(0.0, 21.0),
+        "power": np.full(21, 100.0),
+    }
+    bins = reconstruct_bins(
+        req, pw, ARCH, tp=1, lambda_prefill=10.0, dt=1.0, trim_s=0.0,
+        arrival_alignment="exact_epoch",
+    )
+    assert bins is not None
+    assert np.sum(bins["dec_tok"]) == pytest.approx(2.0)
