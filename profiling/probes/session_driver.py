@@ -14,13 +14,20 @@ unit-tested; ``send_session`` is the live layer.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
+
+import trace_replay_driver
 
 
 def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
                 request_timestamp, post_gap_s, prefix_cache,
                 tool_class="", observation_tokens=0, reasoning_tokens=0,
-                cached_prompt_tokens=0) -> dict:
+                cached_prompt_tokens=0, prefix_tokens=0, new_input_tokens=0,
+                planned_output_tokens=0, source_id="", prompt_sha256="",
+                output_sha256="", forced_output_token_id=0, request_seed=0,
+                decode_constraint="") -> dict:
     """One per-turn record (pure)."""
     return {
         "session_id": session_id,
@@ -36,6 +43,15 @@ def turn_record(*, session_id, turn_idx, input_len, output_len, ttft, tpot,
         "observation_tokens": int(observation_tokens),
         "reasoning_tokens": int(reasoning_tokens),
         "cached_prompt_tokens": int(cached_prompt_tokens),
+        "prefix_tokens": int(prefix_tokens),
+        "new_input_tokens": int(new_input_tokens),
+        "planned_output_tokens": int(planned_output_tokens),
+        "source_id": str(source_id),
+        "prompt_sha256": str(prompt_sha256),
+        "output_sha256": str(output_sha256),
+        "forced_output_token_id": int(forced_output_token_id),
+        "request_seed": int(request_seed),
+        "decode_constraint": str(decode_constraint),
     }
 
 
@@ -58,6 +74,15 @@ def build_requests_json(records: list[dict]) -> dict:
         "observation_tokens": [r.get("observation_tokens", 0) for r in records],
         "reasoning_tokens": [r.get("reasoning_tokens", 0) for r in records],
         "cached_prompt_tokens": [r.get("cached_prompt_tokens", 0) for r in records],
+        "prefix_tokens": [r.get("prefix_tokens", 0) for r in records],
+        "new_input_tokens": [r.get("new_input_tokens", 0) for r in records],
+        "planned_output_tokens": [r.get("planned_output_tokens", 0) for r in records],
+        "source_ids": [r.get("source_id", "") for r in records],
+        "prompt_sha256": [r.get("prompt_sha256", "") for r in records],
+        "output_sha256": [r.get("output_sha256", "") for r in records],
+        "forced_output_token_id": [r.get("forced_output_token_id", 0) for r in records],
+        "request_seed": [r.get("request_seed", 0) for r in records],
+        "decode_constraint": [r.get("decode_constraint", "") for r in records],
     }
 
 
@@ -70,7 +95,7 @@ def _filler(tokenizer, n_tokens: int) -> str:
 
 
 async def send_session(http, base_url, model, session, prefix_cache,
-                       tokenizer) -> list[dict]:
+                       tokenizer, replay_seed=0) -> list[dict]:
     """Live: drive one conversation turn-by-turn over /v1/chat/completions.
 
     Context grows because real assistant replies are appended to ``messages``; a
@@ -92,16 +117,29 @@ async def send_session(http, base_url, model, session, prefix_cache,
         replay = turn.assistant_text is not None
         user_content = turn.user_text or _filler(tokenizer, turn.new_input_tokens)
         messages.append({"role": "user", "content": user_content})
-        payload = {"model": model, "messages": messages,
+        payload = {"model": model, "messages": list(messages),
                    "max_tokens": turn.output_tokens, "stream": True,
                    "stream_options": {"include_usage": True}, "temperature": 0.0}
+        forced_output_token_id = 0
+        request_seed = 0
         if replay:
-            # Force exact decode length so the measured decode work matches the
-            # trace (the live content differs from the trace, but token count does
-            # not, and only counts/timing feed the power ledger).
+            label = f"{session.session_id}:{turn.turn_idx}"
+            forced_output_token_id = trace_replay_driver.deterministic_tokens(
+                f"{label}:output", 1, tokenizer.vocab_size, replay_seed
+            )[0]
+            request_seed = trace_replay_driver.deterministic_uint32(
+                f"{label}:request", replay_seed
+            )
             payload["ignore_eos"] = True
+            payload["seed"] = request_seed
+            payload["allowed_token_ids"] = [forced_output_token_id]
+            payload["return_token_ids"] = True
+        prompt_sha256 = hashlib.sha256(json.dumps(
+            payload["messages"], sort_keys=True, separators=(",", ":")
+        ).encode()).hexdigest()
         t_send = time.time()
         ttft, last, reply, reasoning = None, t_send, [], []
+        output_token_ids = []
         usage = None
         async with http.post(url, json=payload) as resp:
             if resp.status >= 400:
@@ -122,9 +160,13 @@ async def send_session(http, base_url, model, session, prefix_cache,
                         usage = chunk["usage"]
                     choices = chunk.get("choices") or [{}]
                     delta = choices[0].get("delta") or {}
+                    token_ids = choices[0].get("token_ids") or delta.get("token_ids") or ()
+                    if isinstance(token_ids, int):
+                        token_ids = (token_ids,)
+                    output_token_ids.extend(int(token) for token in token_ids)
                     content = delta.get("content") or ""
                     thought = delta.get("reasoning_content") or ""
-                    if not content and not thought:
+                    if not content and not thought and not token_ids:
                         continue
                     now = time.time()
                     if ttft is None:
@@ -142,6 +184,15 @@ async def send_session(http, base_url, model, session, prefix_cache,
             raise ValueError(
                 f"session {session.session_id} turn {turn.turn_idx} returned "
                 f"{n_out} tokens, planned {turn.output_tokens}"
+            )
+        if replay:
+            if len(output_token_ids) != n_out:
+                raise ValueError(
+                    f"server returned {len(output_token_ids)} output token IDs "
+                    f"for {n_out} completion tokens"
+                )
+            trace_replay_driver.validate_forced_output(
+                output_token_ids, forced_output_token_id
             )
         prompt_details = usage.get("prompt_tokens_details") or {}
         completion_details = usage.get("completion_tokens_details") or {}
@@ -172,7 +223,20 @@ async def send_session(http, base_url, model, session, prefix_cache,
             prefix_cache=prefix_cache, tool_class=turn.tool_class,
             observation_tokens=turn.observation_tokens,
             reasoning_tokens=reasoning_tokens,
-            cached_prompt_tokens=cached_tokens))
+            cached_prompt_tokens=cached_tokens,
+            prefix_tokens=session.prefix_tokens,
+            new_input_tokens=turn.new_input_tokens,
+            planned_output_tokens=turn.output_tokens,
+            source_id=f"{session.session_id}:{turn.turn_idx}",
+            prompt_sha256=prompt_sha256,
+            output_sha256=hashlib.sha256(json.dumps(
+                output_token_ids, separators=(",", ":")
+            ).encode()).hexdigest(),
+            forced_output_token_id=forced_output_token_id,
+            request_seed=request_seed,
+            decode_constraint=(
+                trace_replay_driver.DETERMINISTIC_DECODE_PROTOCOL if replay else ""
+            )))
         if turn.post_gap_s > 0:
             await asyncio.sleep(turn.post_gap_s)   # tool-execution gap (idle)
     return records

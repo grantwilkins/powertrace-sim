@@ -99,7 +99,8 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         dataset_path, base_url="http://localhost:8000/v1",
         weight_footprint_bytes=None, embedding_bytes_per_param=None,
         fp8_flop_frac=None, dtype_hint=None, n_active_override=None,
-        run_id=None, evidence_profile="core", power_profile="core"):
+        run_id=None, evidence_profile="core", power_profile="core",
+        validation_role=None):
     """Drive ``benchmark_serving`` over a real dataset; write the §2 bundle."""
     run_manifest = probe_runner._client_mod("run_manifest")
     arch_extract = probe_runner._client_mod("arch_extract")
@@ -143,6 +144,9 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     (run_dir / "requests.json").write_text(
         json.dumps(bench_driver.merge_request_arrays([level])))
 
+    validation_role = validation_role or workload.get(
+        "validation_role", "development"
+    )
     manifest = run_manifest.build_manifest(
         run_id=run_id,
         probe={"type": "validate",
@@ -158,6 +162,7 @@ def run(workload, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         gpus_per_node=gpus_per_node, server=dict(server_cfg),
         versions=run_manifest.collect_versions(), clock=capture["clock"],
         instrumentation=capture["instrumentation"],
+        evidence_profile=evidence_profile, validation_role=validation_role,
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

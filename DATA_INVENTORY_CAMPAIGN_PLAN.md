@@ -1,6 +1,133 @@
 # Data inventory and evidence-gated campaign plan
 
-Status: current development plan, 2026-07-19.
+Status: executable final-stage campaign authority, 2026-07-20.
+
+## Final-stage campaign
+
+This section supersedes the diagnostic ordering in the remainder of this
+document for paper-final data collection. The later sections remain the
+evidence audit explaining why this campaign is small.
+
+The paper's primary claim is descriptor-based transfer: a simple timing and
+power model should generalize to unseen request schedules and unseen
+checkpoints without an arrival-rate coefficient, model-name correction, or
+target-trace refit. We minimize E2E timing error, energy error, ACF-MAE, and
+range-normalized RMSE. ACF R² is the exception: higher is better, so its gate is
+a minimum rather than a minimization objective.
+
+Freeze the timing fit, power fit, feature set, architecture registry, metric
+code, gates, and all trace-plan hashes before collecting any bundle marked
+`validation_role=sealed`. A sealed failure creates a stated support boundary;
+it never authorizes a post-hoc coefficient.
+
+### Minimal expressive matrix
+
+| question | frozen campaign | launches | why it is sufficient |
+|---|---|---:|---|
+| irregular real arrivals and long temporal shape | `sealed_burstgpt_qwen3-8b_a100.json` | 3 | disjoint 15-minute low/median/high Fano strata on a known dense deployment |
+| real agent/tool timing and prefix-cache treatment | `sealed_openhands_qwen3-8b_a100.json` | 6 | three disjoint OpenHands packs, each cache-off/on with exact prompt and output-token identity |
+| unseen dense checkpoint | `sealed_qwen3-14b_a100.json` | 1 | one new dense scale on a calibrated hardware family |
+| unseen MoE checkpoint and hardware | `sealed_qwen3-30b-a3b_h100.json` | 1 | one new sparse architecture on H100; this is a support test, not a router-law fit |
+
+This is 11 workload launches and four scientific contrasts. Do not add a rate
+sweep, context sweep, checkpoint ladder, TP cross, synthetic-agent control, or
+another arrival family. Those additions either duplicate existing development
+support or confound the paper's final transfer claim.
+
+The three BurstGPT windows are full fixed horizons, not capped request prefixes.
+The three OpenHands packs are disjoint by a seeded stable hash of
+`instance_id`. Every cache pair uses the same real system/user/tool text,
+trace reply as subsequent context, singleton-allowed output token, request
+seed, and normalized plan hash. The CPU comparator must report `identical`
+before a cache effect is scored.
+
+### Freeze and materialize inputs
+
+Pin the BurstGPT CSV revision by its immutable content hash. Generate the three
+plans from the same source:
+
+```bash
+uv run python profiling/agentic_traces/build_trace_plan.py \
+  <burstgpt.csv> data/trace_plans/burstgpt_15min_fano0.json \
+  --format burstgpt --revision <sha256> \
+  --window-duration-s 900 --window-index 0 --window-count 3
+uv run python profiling/agentic_traces/build_trace_plan.py \
+  <burstgpt.csv> data/trace_plans/burstgpt_15min_fano1.json \
+  --format burstgpt --revision <sha256> \
+  --window-duration-s 900 --window-index 1 --window-count 3
+uv run python profiling/agentic_traces/build_trace_plan.py \
+  <burstgpt.csv> data/trace_plans/burstgpt_15min_fano2.json \
+  --format burstgpt --revision <sha256> \
+  --window-duration-s 900 --window-index 2 --window-count 3
+```
+
+The OpenHands input is pinned to dataset commit
+`aa8977805b4cefd317001d80ddf1ad52790e9d23` and the CodeActAgent
+Claude-3.5-Sonnet v2.2 output JSONL named in `openhands_adapter.py`. Dataset
+text and observed action-to-observation timestamps are preserved. There is no
+fitted or sampled tool-gap model on this path.
+
+Dry-run all four configs and inspect their exact commands before submission:
+
+```bash
+bash profiling/jobs/run_campaign.sh profiling/campaigns/sealed_burstgpt_qwen3-8b_a100.json
+bash profiling/jobs/run_campaign.sh profiling/campaigns/sealed_openhands_qwen3-8b_a100.json
+bash profiling/jobs/run_campaign.sh profiling/campaigns/sealed_qwen3-14b_a100.json
+bash profiling/jobs/run_campaign.sh profiling/campaigns/sealed_qwen3-30b-a3b_h100.json
+```
+
+Live sealed jobs must set a physically separate `SEALED_RUNS` root and use
+`submit_campaign.sh` or `run_campaign.sh --execute`. The campaign layer refuses
+to write sealed bundles to the development output root.
+
+### Pre-registered scoring
+
+Each bundle must have validated `measured_ledger` instrumentation and at least
+120 seconds of power overlap. The primary per-bundle gates are:
+
+| metric | gate |
+|---|---:|
+| median absolute E2E timing error | ≤ 10% |
+| total energy error | ≤ 6% |
+| ACF-MAE | ≤ 0.05 |
+| ACF R² | ≥ 0.90 |
+| range-normalized RMSE | ≤ 0.20 |
+
+Report every run, the median and worst run within each question, and every
+failure. The campaign-level claim passes only if every primary run passes and
+all three OpenHands cache pairs pass exact keyed identity. Session-level timing
+is secondary diagnostic evidence and cannot rescue a failed run-level gate.
+
+Open all sealed results in one score-only invocation. The scorer refuses
+development-role bundles, incomplete telemetry, duplicate run IDs, and an
+existing output path; it writes hashes rather than fit paths:
+
+```bash
+uv run python power-test/score_sealed_campaign.py \
+  --timing-fit <frozen-timing-fit.json> \
+  --power-fit <frozen-power-fit.json> \
+  --bundle-dir <sealed-run-1> \
+  --bundle-dir <sealed-run-2> \
+  --out <new-sealed-report.json>
+```
+
+Repeat `--bundle-dir` for all 11 bundles. Run
+`profiling/probes/compare_trace_replays.py <off> <on>` on each OpenHands pair
+before scoring. A missing/corrupt bundle may be recollected with the identical
+frozen plan. A scientifically valid failure may not be rerun selectively.
+
+### Stop rules
+
+- Stop after these 11 launches if all bundles are valid.
+- Recollect only an invalid instrumentation or incomplete-request run.
+- Do not fit to, tune on, or choose among models using sealed results.
+- Do not average away a failing stratum or checkpoint.
+- Do not claim zero-shot loaded-idle transfer; every campaign records a
+  60-second deployment idle anchor.
+- Do not claim general MoE routing transfer from the single Qwen MoE cell. A
+  failure bounds support; a pass is one held-out architecture result.
+- Defer additional FP8, TP, router, long-context, and engine-policy axes to
+  future work unless the paper changes its primary claim.
 
 This plan serves one mission: build high-fidelity power curves that transfer to
 arbitrary marked arrival schedules and unseen model architectures. Arrival

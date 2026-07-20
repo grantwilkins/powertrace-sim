@@ -77,11 +77,19 @@ def build_manifest(
     versions: dict,
     clock: dict,
     instrumentation: Optional[dict] = None,
+    evidence_profile: str = "core",
+    validation_role: str = "development",
 ) -> dict:
     """Assemble the §2 manifest dict. Pure: all inputs are passed in."""
+    if evidence_profile not in {"core", "measured_ledger"}:
+        raise ValueError(f"unknown evidence_profile {evidence_profile!r}")
+    if validation_role not in {"development", "sealed"}:
+        raise ValueError(f"unknown validation_role {validation_role!r}")
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "run_id": run_id,
+        "evidence_profile": evidence_profile,
+        "validation_role": validation_role,
         "probe": probe,            # {"type": ..., "window": {...}, "levels": [...]}
         "model": model,
         "arch": arch,              # from arch_extract.extract_arch

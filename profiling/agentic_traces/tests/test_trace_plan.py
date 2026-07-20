@@ -15,10 +15,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trace_plan import (  # noqa: E402
+    TracePlan, TraceRound,
     assign_poisson_session_arrivals, load_bundle_requests_json,
     load_burstgpt_csv, load_plan,
     load_tracelab_csv, load_tracelab_jsonl, select_context_bands,
     select_densest_arrival_window, select_sessions, write_plan,
+    select_stratified_arrival_window,
 )
 
 
@@ -134,6 +136,35 @@ def test_burstgpt_preserves_exact_irregular_arrivals(tmp_path):
     )
     assert [row.ready_s for row in selected.rounds] == [0.0, 1.0, 2.0]
     assert [row.input_tokens for row in selected.rounds] == [30, 40, 50]
+
+
+def test_burstgpt_strata_are_disjoint_and_preserve_full_horizon():
+    rounds = []
+    for window in range(9):
+        count = window + 1
+        for offset in range(count):
+            rounds.append(TraceRound(
+                session_id=f"{window}-{offset}", round_idx=0,
+                ready_s=window * 10 + offset / count,
+                prefix_tokens=0, input_tokens=8, output_tokens=2,
+            ))
+    rounds.append(TraceRound(
+        session_id="sentinel", round_idx=0, ready_s=90.0,
+        prefix_tokens=0, input_tokens=8, output_tokens=2,
+    ))
+    plan = TracePlan("burst", "commit", tuple(rounds))
+    selected = [
+        select_stratified_arrival_window(
+            plan, duration_s=10.0, window_index=index, window_count=3
+        )
+        for index in range(3)
+    ]
+    ids = [{row.session_id for row in item.rounds} for item in selected]
+    assert not (ids[0] & ids[1] or ids[0] & ids[2] or ids[1] & ids[2])
+    assert all(item.horizon_s == 10.0 for item in selected)
+    assert [len(item.rounds) for item in selected] == sorted(
+        len(item.rounds) for item in selected
+    )
 
 
 def test_bundle_requests_plan_preserves_marks_and_scales_release_time(tmp_path):

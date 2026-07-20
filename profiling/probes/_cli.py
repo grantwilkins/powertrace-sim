@@ -50,6 +50,10 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument(
         "--power-profile", default="core", choices=("core", "tp8_state"),
     )
+    p.add_argument(
+        "--validation-role", choices=("development", "sealed"),
+        default="development",
+    )
     return p
 
 
@@ -98,4 +102,5 @@ def execute(schedule, args):
         n_active_override=args.n_active_override,
         evidence_profile=args.evidence_profile,
         power_profile=args.power_profile,
+        validation_role=args.validation_role,
     )

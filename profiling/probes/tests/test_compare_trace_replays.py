@@ -87,3 +87,12 @@ def test_duplicate_key_and_server_drift_fail():
     on["server"]["max_num_seqs"] = 9
     with pytest.raises(ValueError, match="server"):
         compare_bundle_data(off, off_requests, on, on_requests)
+
+
+def test_agentic_pair_uses_replay_plan_hash():
+    off, off_requests, on, on_requests = _pair()
+    for manifest in (off, on):
+        manifest["probe"]["replay_plan_sha256"] = \
+            manifest["probe"].pop("trace_plan_sha256")
+    result = compare_bundle_data(off, off_requests, on, on_requests)
+    assert result["replay_plan_sha256"] == "abc"

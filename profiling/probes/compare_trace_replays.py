@@ -48,7 +48,12 @@ def compare_bundle_data(
     on_manifest: dict, on_requests: dict,
 ) -> dict:
     off_probe, on_probe = off_manifest["probe"], on_manifest["probe"]
-    if off_probe["trace_plan_sha256"] != on_probe["trace_plan_sha256"]:
+    plan_field = (
+        "trace_plan_sha256"
+        if "trace_plan_sha256" in off_probe
+        else "replay_plan_sha256"
+    )
+    if off_probe.get(plan_field) != on_probe.get(plan_field):
         raise ValueError("paired bundles use different trace plans")
     if off_probe.get("prefix_cache") is not False:
         raise ValueError("first bundle is not cache-off")
@@ -87,7 +92,7 @@ def compare_bundle_data(
         raise ValueError("paired replay contains no requests")
     return {
         "status": "identical",
-        "trace_plan_sha256": off_probe["trace_plan_sha256"],
+        plan_field: off_probe[plan_field],
         "requests": count,
         "cache_off_bundle": off_manifest["run_id"],
         "cache_on_bundle": on_manifest["run_id"],

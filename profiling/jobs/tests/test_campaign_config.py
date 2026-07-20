@@ -459,6 +459,40 @@ def test_sealed_campaign_role_is_emitted_and_commands_keep_fresh_seed():
     assert "--seed 2026071201" in command
 
 
+def test_final_sealed_campaigns_are_minimal_and_explicit():
+    burst = cc.load_campaign(
+        CAMPAIGNS_DIR / "sealed_burstgpt_qwen3-8b_a100.json"
+    )
+    burst_regimes = cc.regimes(burst)
+    assert len(burst_regimes) == 3
+    assert len({
+        regime["plan"] for regime in burst_regimes
+    }) == 3
+    assert all(
+        "--validation-role sealed" in cc.run_command(burst, 1, regime)
+        for regime in burst_regimes
+    )
+
+    agentic = cc.load_campaign(
+        CAMPAIGNS_DIR / "sealed_openhands_qwen3-8b_a100.json"
+    )
+    commands = [
+        cc.run_command(agentic, 1, regime)
+        for regime in cc.regimes(agentic)
+    ]
+    assert len(commands) == 6
+    assert "--dataset-revision aa8977805b4cefd317001d80ddf1ad52790e9d23" \
+        in commands[0]
+    assert "--pack-index 0 --pack-count 3" in commands[0]
+    assert "--pack-index 2 --pack-count 3" in commands[-1]
+
+    for name in (
+        "sealed_qwen3-14b_a100.json",
+        "sealed_qwen3-30b-a3b_h100.json",
+    ):
+        campaign = cc.load_campaign(CAMPAIGNS_DIR / name)
+        assert campaign["validation_role"] == "sealed"
+        assert len(cc.regimes(campaign)) == 1
 def test_tp_pair_probes_rejects_unknown(tmp_path):
     bad = tmp_path / "b.json"
     bad.write_text(json.dumps({

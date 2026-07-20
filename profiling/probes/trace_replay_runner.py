@@ -84,7 +84,7 @@ def run(
     embedding_bytes_per_param=None, fp8_flop_frac=None,
     dtype_hint=None, n_active_override=None, run_id=None, concurrency=64,
     prefix_cache=False, evidence_profile="core", power_profile="core",
-    cache_block_tokens=16, pre_idle_s=0.0,
+    cache_block_tokens=16, pre_idle_s=0.0, validation_role="development",
 ):
     import aiohttp
     import transformers
@@ -126,7 +126,10 @@ def run(
         idle_start = time.time()
         time.sleep(float(pre_idle_s))
         idle_end = time.time()
-        session_windows, records = asyncio.run(drive(time.time()))
+        replay_start = time.time()
+        session_windows, records = asyncio.run(drive(replay_start))
+        if plan.horizon_s is not None:
+            time.sleep(max(0.0, replay_start + plan.horizon_s - time.time()))
     window_end = time.time()
     (run_dir / "requests.json").write_text(
         json.dumps(trace_replay_driver.build_requests_json(records))
@@ -139,6 +142,7 @@ def run(
             "source_revision": plan.revision,
             "trace_plan_sha256": plan.sha256,
             "seed": plan.seed,
+            "planned_horizon_s": plan.horizon_s,
             "prefix_cache": bool(prefix_cache),
             "concurrency": concurrency,
             "cache_block_tokens": int(cache_block_tokens),
@@ -159,6 +163,7 @@ def run(
         server=dict(server_cfg, enable_prefix_caching=bool(prefix_cache)),
         versions=run_manifest.collect_versions(), clock=capture["clock"],
         instrumentation=capture["instrumentation"],
+        evidence_profile=evidence_profile, validation_role=validation_role,
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

@@ -1,0 +1,25 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-14B",
+  "campaign_type": "validate",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "_note": "Single dense unseen-checkpoint transfer cell; no model-specific fitting is authorized after opening.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768
+  },
+  "workload": {
+    "dataset": "sharegpt",
+    "num_prompts": 600,
+    "request_rate": 2.5,
+    "burstiness": 1.0,
+    "seed": 20260720,
+    "pre_idle_s": 60
+  }
+}

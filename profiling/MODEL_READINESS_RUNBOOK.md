@@ -1,5 +1,10 @@
 # Model-readiness profiling runbook
 
+This runbook retains the development calibration campaign. The paper-final
+sealed BurstGPT/OpenHands/unseen-model campaign is now authoritative in
+`DATA_INVENTORY_CAMPAIGN_PLAN.md`; do not merge its sealed bundles into the
+development workflow below.
+
 This is the only execution checklist for closing the failures in
 `FEATURE_TEST_LEARNINGS.md`. `CAMPAIGN.md` is background and design rationale.
 Do not add agentic, prefix-cache, long-context replay, generic Tier-2 models, or

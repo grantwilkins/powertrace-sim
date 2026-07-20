@@ -82,6 +82,8 @@ concatenated). This is the reconstruction-ledger contract (`parse_request_json`)
 ```jsonc
 {
   "run_id": "...", "model": "...", "hardware": "H100", "tp": 8, "gpus_per_node": 8,
+  "evidence_profile": "measured_ledger",
+  "validation_role": "development | sealed",
   "arch": { /* extract_arch: n_active, w_bytes, n_layers, n_kv, head_dim,
               moe_frac, n_experts, top_k, swa_window, swa_global_ratio,
               linear_attention, n_linear_layers, fp8 */ },
@@ -174,13 +176,17 @@ private trace text. `requests.json` gains:
 | `expected_cached_tokens` | plan expectation; measured value must be within one declared cache block |
 | `reasoning_tokens` | server-reported reasoning subset of completion tokens |
 | `source_ids` | source-local row/session provenance |
-| `prompt_sha256`, `output_sha256` | direct-token identity checks across paired regimes |
+| `prompt_sha256`, `output_sha256` | canonical prompt/output-token identity checks across paired regimes |
+| `forced_output_token_id`, `request_seed`, `decode_constraint` | deterministic singleton-token replay protocol |
 
 `input_lens` already grows per turn (full prior context + new message), so KV/prefill
 scaling falls out. Reasoning is charged once as ordinary decode through
 `output_lens`; `reasoning_tokens` is a slice label, not additional work. The
-manifest records `probe.type`, the trace source/revision/hash/seed, and
-`server.enable_prefix_caching`.
+manifest records `probe.type`, the trace source/revision/hash/seed,
+`server.enable_prefix_caching`, and the top-level evidence/validation roles.
+Real agentic replay uses `probe.replay_plan_sha256`; direct-token replay uses
+`probe.trace_plan_sha256`. Both hashes exclude the cache treatment so the
+off/on pair can be compared.
 
 Synthetic real-text validation records both `request_rate` and `burstiness` in
 the level parameters and benchmark command. Interarrival times use a Gamma

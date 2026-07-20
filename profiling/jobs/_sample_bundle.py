@@ -66,6 +66,8 @@ def write_sample_bundle(campaign_path) -> Path:
         instrumentation=evidence_contract.expected_instrumentation(
             c.get("evidence_profile", "core"), power_profile
         ),
+        evidence_profile=c["evidence_profile"],
+        validation_role=c["validation_role"],
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

@@ -131,7 +131,8 @@ def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
         out_root, base_url="http://localhost:8000/v1",
         weight_footprint_bytes=None, embedding_bytes_per_param=None,
         fp8_flop_frac=None, dtype_hint=None, n_active_override=None,
-        run_id=None, evidence_profile="core", power_profile="core"):
+        run_id=None, evidence_profile="core", power_profile="core",
+        validation_role="development"):
     """Execute ``schedule`` and write the bundle. Returns the run directory."""
     run_manifest = _client_mod("run_manifest")
     arch_extract = _client_mod("arch_extract")
@@ -183,6 +184,7 @@ def run(schedule, *, model, hardware, tp, gpus_per_node, server_cfg,
         server=dict(server_cfg, **schedule.server_overrides),
         versions=run_manifest.collect_versions(),
         clock=capture["clock"], instrumentation=capture["instrumentation"],
+        evidence_profile=evidence_profile, validation_role=validation_role,
     )
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

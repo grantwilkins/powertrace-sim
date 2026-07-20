@@ -1,0 +1,31 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "agentic",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "_note": "Three disjoint OpenHands session packs, each replayed cache-off/on with identical prompts and forced output token IDs.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 128,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 32768
+  },
+  "sessions": {
+    "corpus": "openhands",
+    "dataset_revision": "aa8977805b4cefd317001d80ddf1ad52790e9d23",
+    "n_sessions": 24,
+    "concurrency": "auto",
+    "seed": 20260720,
+    "pack_count": 3,
+    "pre_idle_s": 60,
+    "regimes": [
+      {"prefix_cache": false, "pack_index": 0},
+      {"prefix_cache": true, "pack_index": 0},
+      {"prefix_cache": false, "pack_index": 1},
+      {"prefix_cache": true, "pack_index": 1},
+      {"prefix_cache": false, "pack_index": 2},
+      {"prefix_cache": true, "pack_index": 2}
+    ]
+  }
+}

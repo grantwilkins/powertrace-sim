@@ -73,7 +73,8 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
         embedding_bytes_per_param=None, fp8_flop_frac=None,
         dtype_hint=None, n_active_override=None, run_id=None, max_concurrency=None,
-        evidence_profile="core", power_profile="core"):
+        evidence_profile="core", power_profile="core",
+        validation_role="development", pre_idle_s=0.0):
     """Execute an AgenticPlan and write the bundle. Returns the run directory.
 
     Sessions run concurrently — turns *within* a session stay ordered because its
@@ -121,16 +122,22 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
             async with sem:
                 t0 = time.time()
                 recs = await session_driver.send_session(
-                    http, base_url, model, sess, plan.prefix_cache, tokenizer)
+                    http, base_url, model, sess, plan.prefix_cache, tokenizer,
+                    replay_seed=plan.seed)
                 return build_session_window(sess, t0, time.time(), len(recs)), recs
 
         async with aiohttp.ClientSession() as http:
             return await asyncio.gather(*(_one(http, s) for s in plan.sessions))
 
+    if pre_idle_s < 0:
+        raise ValueError("pre_idle_s must be non-negative")
     with probe_runner.logging_session(
         run_dir, base_url, evidence_profile=evidence_profile,
         gpus_per_node=gpus_per_node, power_profile=power_profile,
     ) as capture:
+        idle_start = time.time()
+        time.sleep(float(pre_idle_s))
+        idle_end = time.time()
         results = asyncio.run(_drive())
     window_end = time.time()
 
@@ -144,13 +151,26 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
     manifest = run_manifest.build_manifest(
         run_id=run_id,
         probe={"type": "agentic", "label": plan.label,
+               "source": plan.source, "source_revision": plan.revision,
+               "replay_plan_sha256": plan.sha256,
+               "seed": plan.seed, "pack_index": plan.pack_index,
+               "pack_count": plan.pack_count,
                "prefix_cache": bool(plan.prefix_cache),
+               "decode_constraint": (
+                   session_driver.trace_replay_driver.DETERMINISTIC_DECODE_PROTOCOL
+                   if plan.source != "synthetic" else ""
+               ),
                "concurrency": concurrency,
+               "idle_window": {
+                   "start_epoch": idle_start, "end_epoch": idle_end,
+                   "requested_s": float(pre_idle_s),
+               },
                "window": {"start_epoch": window_start, "end_epoch": window_end},
                "sessions": session_windows},
         model=model, arch=arch, hardware=hardware, tp=tp,
         gpus_per_node=gpus_per_node, server=server,
         versions=run_manifest.collect_versions(), clock=capture["clock"],
-        instrumentation=capture["instrumentation"])
+        instrumentation=capture["instrumentation"],
+        evidence_profile=evidence_profile, validation_role=validation_role)
     run_manifest.write_manifest(str(run_dir / "manifest.json"), manifest)
     return run_dir

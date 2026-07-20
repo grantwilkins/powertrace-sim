@@ -44,6 +44,26 @@ def test_from_transcript_replay():
     assert plan.prefix_cache is False
 
 
+def test_agentic_plan_hash_excludes_cache_treatment():
+    items = [(
+        "s", "system", 2,
+        [(1, 2, 0.0, "user", "assistant", "bash", 3)],
+    )]
+    off = agentic.from_text_transcript(
+        items, prefix_cache=False, source="openhands", revision="commit",
+        seed=7, pack_index=1, pack_count=3,
+    )
+    on = agentic.from_text_transcript(
+        items, prefix_cache=True, source="openhands", revision="commit",
+        seed=7, pack_index=1, pack_count=3,
+    )
+    assert off.sha256 == on.sha256
+    assert off.sha256 != agentic.from_text_transcript(
+        items, prefix_cache=False, source="openhands", revision="other",
+        seed=7, pack_index=1, pack_count=3,
+    ).sha256
+
+
 def test_requests_json_is_reconstruction_compatible_superset():
     recs = [
         session_driver.turn_record(

@@ -1,0 +1,34 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "trace_replay",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "_note": "Three disjoint 15-minute BurstGPT Fano strata. Generate the frozen plans with the commands in DATA_INVENTORY_CAMPAIGN_PLAN.md before submission.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 32768
+  },
+  "trace": {
+    "plan": "data/trace_plans/burstgpt_15min_fano0.json",
+    "concurrency": 256,
+    "cache_block_tokens": 16,
+    "pre_idle_s": 60,
+    "regimes": [
+      {
+        "prefix_cache": false,
+        "plan": "data/trace_plans/burstgpt_15min_fano0.json"
+      },
+      {
+        "prefix_cache": false,
+        "plan": "data/trace_plans/burstgpt_15min_fano1.json"
+      },
+      {
+        "prefix_cache": false,
+        "plan": "data/trace_plans/burstgpt_15min_fano2.json"
+      }
+    ]
+  }
+}

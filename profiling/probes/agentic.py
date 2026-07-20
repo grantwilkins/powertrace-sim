@@ -13,6 +13,8 @@ per-turn output schema is documented in ``profiling/BUNDLE_SCHEMA.md``.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -61,10 +63,54 @@ class AgenticPlan:
     sessions: list[SessionPlan]
     prefix_cache: bool        # whether the server has prefix caching on
     label: str = "agentic"
+    source: str = "synthetic"
+    revision: str = ""
+    seed: int = 0
+    pack_index: int = 0
+    pack_count: int = 1
 
     @property
     def total_turns(self) -> int:
         return sum(len(s.turns) for s in self.sessions)
+
+    def canonical_dict(self) -> dict:
+        """Cache-independent identity of the exact multi-turn replay."""
+        return {
+            "schema": "agentic-plan-v1",
+            "source": self.source,
+            "revision": self.revision,
+            "seed": self.seed,
+            "pack_index": self.pack_index,
+            "pack_count": self.pack_count,
+            "sessions": [
+                {
+                    "session_id": session.session_id,
+                    "system_text": session.system_text,
+                    "prefix_tokens": session.prefix_tokens,
+                    "turns": [
+                        {
+                            "turn_idx": turn.turn_idx,
+                            "new_input_tokens": turn.new_input_tokens,
+                            "output_tokens": turn.output_tokens,
+                            "post_gap_s": turn.post_gap_s,
+                            "user_text": turn.user_text,
+                            "assistant_text": turn.assistant_text,
+                            "tool_class": turn.tool_class,
+                            "observation_tokens": turn.observation_tokens,
+                        }
+                        for turn in session.turns
+                    ],
+                }
+                for session in self.sessions
+            ],
+        }
+
+    @property
+    def sha256(self) -> str:
+        payload = json.dumps(
+            self.canonical_dict(), sort_keys=True, separators=(",", ":")
+        ).encode()
+        return hashlib.sha256(payload).hexdigest()
 
 
 def _lognormal(rng, mean, sigma, size=None):
@@ -102,7 +148,9 @@ def build_synthetic_sessions(
             ))
         sessions.append(SessionPlan(
             session_id=f"sess_{seed}_{s}", prefix_tokens=prefix_tokens, turns=turns))
-    return AgenticPlan(sessions=sessions, prefix_cache=prefix_cache)
+    return AgenticPlan(
+        sessions=sessions, prefix_cache=prefix_cache, seed=seed
+    )
 
 
 def from_transcript(transcripts, prefix_cache: bool = False) -> AgenticPlan:
@@ -124,7 +172,8 @@ def from_transcript(transcripts, prefix_cache: bool = False) -> AgenticPlan:
 
 
 def from_text_transcript(text_sessions, *, prefix_cache=False,
-                         label="agentic_replay") -> AgenticPlan:
+                         label="agentic_replay", source="replay", revision="",
+                         seed=0, pack_index=0, pack_count=1) -> AgenticPlan:
     """Replay real agent transcripts WITH text (Gap 1).
 
     Each item is ``(session_id, system_text, system_prefix_tokens, turns)`` where
@@ -145,4 +194,8 @@ def from_text_transcript(text_sessions, *, prefix_cache=False,
         sessions.append(SessionPlan(
             session_id=session_id, prefix_tokens=int(sys_tokens),
             turns=turns, system_text=system_text))
-    return AgenticPlan(sessions=sessions, prefix_cache=prefix_cache, label=label)
+    return AgenticPlan(
+        sessions=sessions, prefix_cache=prefix_cache, label=label,
+        source=source, revision=revision, seed=int(seed),
+        pack_index=int(pack_index), pack_count=int(pack_count),
+    )

@@ -6,6 +6,7 @@ import csv
 import gzip
 import hashlib
 import json
+import math
 import random
 from collections import OrderedDict
 from dataclasses import asdict, dataclass
@@ -31,6 +32,7 @@ class TracePlan:
     revision: str
     rounds: tuple[TraceRound, ...]
     seed: int = 0
+    horizon_s: float | None = None
 
     def validate(
         self, max_model_len: int | None = None, *,
@@ -40,6 +42,11 @@ class TracePlan:
             raise ValueError("trace source and immutable revision are required")
         if not self.rounds:
             raise ValueError("trace plan has no rounds")
+        if self.horizon_s is not None and (
+            self.horizon_s <= 0
+            or self.horizon_s < max(row.ready_s for row in self.rounds)
+        ):
+            raise ValueError("trace horizon must cover every request release")
         sessions: dict[str, list[TraceRound]] = {}
         for row in self.rounds:
             if not row.session_id:
@@ -94,13 +101,16 @@ class TracePlan:
         }
 
     def canonical_dict(self) -> dict:
-        return {
+        payload = {
             "schema_version": 1,
             "source": self.source,
             "revision": self.revision,
             "seed": self.seed,
             "rounds": [asdict(row) for row in self.rounds],
         }
+        if self.horizon_s is not None:
+            payload["horizon_s"] = self.horizon_s
+        return payload
 
     @property
     def sha256(self) -> str:
@@ -127,6 +137,10 @@ def load_plan(path: str | Path, max_model_len: int | None = None) -> TracePlan:
         source=str(payload["source"]),
         revision=str(payload["revision"]),
         seed=int(payload.get("seed", 0)),
+        horizon_s=(
+            float(payload["horizon_s"])
+            if payload.get("horizon_s") is not None else None
+        ),
         rounds=tuple(TraceRound(**row) for row in payload["rounds"]),
     )
     plan.validate(max_model_len)
@@ -328,6 +342,62 @@ def select_densest_arrival_window(
     )
     result = TracePlan(
         source=plan.source, revision=plan.revision, rounds=rebased, seed=plan.seed
+    )
+    result.validate()
+    return result
+
+
+def select_stratified_arrival_window(
+    plan: TracePlan, *, duration_s: float, window_index: int, window_count: int
+) -> TracePlan:
+    """Select one disjoint fixed window at a quantile of one-second Fano factor."""
+    if (
+        duration_s <= 0 or window_count <= 0
+        or not 0 <= window_index < window_count
+    ):
+        raise ValueError("invalid stratified arrival-window selection")
+    rows = sorted(plan.rounds, key=lambda row: row.ready_s)
+    if any(row.round_idx != 0 for row in rows):
+        raise ValueError("arrival-window selection requires independent requests")
+    origin = rows[0].ready_s
+    n_full = int((rows[-1].ready_s - origin) // duration_s)
+    candidates = []
+    for index in range(n_full):
+        start = origin + index * duration_s
+        end = start + duration_s
+        chosen = [row for row in rows if start <= row.ready_s < end]
+        if not chosen:
+            continue
+        per_second = [0] * max(1, int(math.ceil(duration_s)))
+        for row in chosen:
+            second = min(int(row.ready_s - start), len(per_second) - 1)
+            per_second[second] += 1
+        mean = sum(per_second) / len(per_second)
+        variance = sum((value - mean) ** 2 for value in per_second) \
+            / len(per_second)
+        candidates.append((variance / mean if mean else 0.0, len(chosen), start, chosen))
+    if len(candidates) < window_count:
+        raise ValueError(
+            f"trace has {len(candidates)} full nonempty windows, "
+            f"fewer than requested {window_count}"
+        )
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+    rank = min(
+        len(candidates) - 1,
+        ((2 * window_index + 1) * len(candidates)) // (2 * window_count),
+    )
+    _, _, start, chosen = candidates[rank]
+    rebased = tuple(
+        TraceRound(**{**asdict(row), "ready_s": row.ready_s - start})
+        for row in chosen
+    )
+    result = TracePlan(
+        source=plan.source,
+        revision=(
+            f"{plan.revision};window:{start:.6f}-{start + duration_s:.6f};"
+            f"fano-stratum:{window_index}/{window_count}"
+        ),
+        rounds=rebased, seed=plan.seed, horizon_s=float(duration_s),
     )
     result.validate()
     return result

@@ -389,6 +389,7 @@ def probe_commands(c: dict, tp: int) -> list[str]:
         f"--kv-cache-dtype {s['kv_cache_dtype']} "
         f"--out-root {out_root()} --evidence-profile {c['evidence_profile']}"
         f" --power-profile {c['power_profile']}"
+        f" --validation-role {c['validation_role']}"
     )
     flags = _server_record_flags(s)
     if flags:
@@ -453,6 +454,7 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
         f"--out-root {out_root()}",
         f"--evidence-profile {c['evidence_profile']}",
         f"--power-profile {c['power_profile']}",
+        f"--validation-role {c['validation_role']}",
         f"--n-sessions {ss.get('n_sessions', 8)} --seed {ss.get('seed', 0)}",
     ]
     parts.extend(_server_record_flags(s))
@@ -461,9 +463,19 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
     if ss.get("concurrency") is not None:
         parts.append(f"--concurrency {ss['concurrency']}")
     if ss.get("corpus"):
-        parts.append(f"--replay --corpus {ss['corpus']} --gap-params {ss['gap_params']}")
+        parts.append(f"--replay --corpus {ss['corpus']}")
+        if ss.get("gap_params"):
+            parts.append(f"--gap-params {ss['gap_params']}")
+        if ss.get("dataset_revision"):
+            parts.append(f"--dataset-revision {ss['dataset_revision']}")
+        parts.append(
+            f"--pack-index {int(regime.get('pack_index', ss.get('pack_index', 0)))} "
+            f"--pack-count {int(ss.get('pack_count', 1))}"
+        )
     else:
         parts.append(f"--gap-mean-s {ss.get('gap_mean_s', 3.0)}")
+    if float(ss.get("pre_idle_s", 0.0)):
+        parts.append(f"--pre-idle-s {float(ss['pre_idle_s'])}")
     if regime.get("prefix_cache"):
         parts.append("--prefix-cache")
     return " ".join(parts)
@@ -480,7 +492,8 @@ def trace_replay_command(c: dict, tp: int, regime: dict) -> str:
         f"--kv-cache-dtype {s['kv_cache_dtype']} --out-root {out_root()}",
         f"--evidence-profile {c['evidence_profile']}",
         f"--power-profile {c['power_profile']}",
-        f"--trace-plan {trace['plan']}",
+        f"--validation-role {c['validation_role']}",
+        f"--trace-plan {regime.get('plan', trace['plan'])}",
         f"--concurrency {int(trace.get('concurrency', 64))}",
         f"--cache-block-tokens {int(trace.get('cache_block_tokens', 16))}",
         f"--pre-idle-s {float(trace.get('pre_idle_s', 0.0))}",

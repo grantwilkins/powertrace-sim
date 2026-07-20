@@ -4,9 +4,9 @@ PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU
 
 ## Planning Docs
 
-- `DATA_INVENTORY_CAMPAIGN_PLAN.md`: current evidence inventory, rate-4
-  diagnosis, model support boundaries, and staged data decisions for
-  arbitrary-arrival and unseen-model transfer.
+- `DATA_INVENTORY_CAMPAIGN_PLAN.md`: executable final sealed campaign plus the
+  evidence inventory and YAGNI rationale for arbitrary-arrival, real-agent, and
+  unseen-model transfer.
 - `FEATURE_TEST_PLAN.md`: exact baseline, feature-ablation, transfer-split,
   metric, and pass/fail specification for selecting the smallest
   architecture-aware node-power model.
@@ -279,6 +279,34 @@ persists server launch/ready epochs. Prompt-content identity is unavailable for
 the historical TP4 bundle and is not claimed. MoE expert IDs are captured with
 `profiling/moe_routing/router_capture.py`. See
 `profiling/jobs/README.md` and `profiling/BUNDLE_SCHEMA.md` for the exact inputs.
+
+The paper-final sealed path is defined by four configs:
+`sealed_burstgpt_qwen3-8b_a100.json`,
+`sealed_openhands_qwen3-8b_a100.json`,
+`sealed_qwen3-14b_a100.json`, and
+`sealed_qwen3-30b-a3b_h100.json`. The BurstGPT builder can select three
+disjoint fixed 900-second Fano strata with `--window-index 0/1/2
+--window-count 3`. The OpenHands adapter reads the pinned evaluation JSONL,
+preserves real event text and observed action-to-observation gaps, and uses
+three disjoint hash packs. Its cache pairs apply the same deterministic
+singleton-token protocol as direct trace replay.
+
+After freezing fits and collecting into a separate sealed root, score all
+bundles exactly once:
+
+```bash
+uv run python power-test/score_sealed_campaign.py \
+  --timing-fit <frozen-timing-fit.json> \
+  --power-fit <frozen-power-fit.json> \
+  --bundle-dir <sealed-run> \
+  --out <new-sealed-report.json>
+```
+
+Repeat `--bundle-dir` for every run. The scorer requires top-level
+`validation_role=sealed`, validated `measured_ledger` telemetry, unique run
+IDs, an unused output path, and exact cache-pair identity when both legs are
+present. See `DATA_INVENTORY_CAMPAIGN_PLAN.md` for the fixed gates and complete
+launch order.
 
 The minimal expansion also contains independent same-marks jobs for Qwen
 A100/H100 transfer, an off-grid rate of 2.5 requests/s, controlled Gamma arrival

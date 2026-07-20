@@ -34,6 +34,7 @@ def main() -> None:
         power_profile=args.power_profile,
         cache_block_tokens=args.cache_block_tokens,
         pre_idle_s=args.pre_idle_s,
+        validation_role=args.validation_role,
     ))
 
 

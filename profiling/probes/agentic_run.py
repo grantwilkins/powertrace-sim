@@ -28,7 +28,9 @@ def _build_plan(args):
         return build_replay_plan(
             corpus=args.corpus, n_sessions=args.n_sessions, seed=args.seed,
             tokenizer=tokenizer, prefix_cache=args.prefix_cache,
-            gap_params=args.gap_params, max_model_len=args.max_model_len)
+            gap_params=args.gap_params, max_model_len=args.max_model_len,
+            pack_index=args.pack_index, pack_count=args.pack_count,
+            dataset_revision=args.dataset_revision)
 
     from agentic import build_synthetic_sessions
     return build_synthetic_sessions(
@@ -51,6 +53,10 @@ def main():
     p.add_argument("--corpus", default="swe_smith")
     p.add_argument("--gap-params",
                    default=str(_HERE.parents[0] / "agentic_traces" / "gap_params.json"))
+    p.add_argument("--dataset-revision")
+    p.add_argument("--pack-index", type=int, default=0)
+    p.add_argument("--pack-count", type=int, default=1)
+    p.add_argument("--pre-idle-s", type=float, default=0.0)
     # synthetic mode
     p.add_argument("--min-turns", type=int, default=3)
     p.add_argument("--max-turns", type=int, default=10)
@@ -71,7 +77,9 @@ def main():
         dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
         max_concurrency=_concurrency(args.concurrency),
         evidence_profile=args.evidence_profile,
-        power_profile=args.power_profile))
+        power_profile=args.power_profile,
+        validation_role=args.validation_role,
+        pre_idle_s=args.pre_idle_s))
 
 
 def _concurrency(value):

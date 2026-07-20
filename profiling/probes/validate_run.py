@@ -27,10 +27,6 @@ def main():
     p.add_argument("--burstiness", type=float, default=1.0)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--pre-idle-s", type=float, default=0.0)
-    p.add_argument(
-        "--validation-role", choices=("development", "sealed"),
-        default="development",
-    )
     args = p.parse_args()
     if not math.isfinite(args.request_rate) or args.request_rate <= 0:
         raise SystemExit("validate_run: --request-rate must be positive")
@@ -54,7 +50,8 @@ def main():
         fp8_flop_frac=args.fp8_flop_frac,
         dtype_hint=args.dtype_hint, n_active_override=args.n_active_override,
         evidence_profile=args.evidence_profile,
-        power_profile=args.power_profile))
+        power_profile=args.power_profile,
+        validation_role=args.validation_role))
 
 
 if __name__ == "__main__":

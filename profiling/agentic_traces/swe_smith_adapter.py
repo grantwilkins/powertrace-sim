@@ -27,6 +27,7 @@ class TextTurn:
     assistant_text: str      # the real assistant reply (reasoning + tool call)
     tool_class: str          # class of the tool this turn calls ("" if none / final answer)
     observation_tokens: int  # token length of that tool's result (conditions the post-gap)
+    post_gap_s: float | None = None
 
 
 @dataclass(frozen=True)

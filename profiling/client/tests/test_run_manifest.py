@@ -25,6 +25,8 @@ def _sample_manifest():
         versions={"vllm": "0.x.y", "git_sha": "deadbeef", "gpu_driver": "560.0"},
         clock=capture_clock(),
         instrumentation={"profile": "core", "status": "validated"},
+        evidence_profile="core",
+        validation_role="development",
     )
 
 
@@ -32,8 +34,10 @@ def test_manifest_schema():
     m = _sample_manifest()
     for key in ("manifest_version", "run_id", "probe", "model", "arch", "hardware",
                 "tp", "gpus_per_node", "server", "versions", "clock",
-                "instrumentation"):
+                "instrumentation", "evidence_profile", "validation_role"):
         assert key in m
+    assert m["evidence_profile"] == "core"
+    assert m["validation_role"] == "development"
     assert m["probe"]["type"] == "decode_staircase"
     assert m["probe"]["level"] == 16
     for k in ("max_num_seqs", "enable_chunked_prefill", "enable_prefix_caching",

@@ -23,8 +23,25 @@ _SSE = [
 
 
 class _Content:
+    def __init__(self, payload):
+        token = payload.get("allowed_token_ids", [17])[0]
+        active = [
+            index for index, raw in enumerate(_SSE)
+            if b'"choices"' in raw
+        ]
+        remaining = int(payload.get("max_tokens", len(active)))
+        self.lines = []
+        for index, raw in enumerate(_SSE):
+            if index in active:
+                chunk = json.loads(raw.decode().split("data: ", 1)[1])
+                take = 1 if index != active[-1] else remaining
+                remaining -= take
+                chunk["choices"][0]["token_ids"] = [token] * take
+                raw = f"data: {json.dumps(chunk)}".encode()
+            self.lines.append(raw)
+
     def __aiter__(self):
-        self._it = iter(_SSE)
+        self._it = iter(self.lines)
         return self
 
     async def __anext__(self):
@@ -35,8 +52,10 @@ class _Content:
 
 
 class _Post:
-    content = _Content()
     status = 200
+
+    def __init__(self, payload):
+        self.content = _Content(payload)
 
     async def __aenter__(self):
         return self
@@ -51,7 +70,7 @@ class FakeHttp:
 
     def post(self, url, json):
         self.payloads.append(json)
-        return _Post()
+        return _Post(json)
 
 
 class BoomTok:
@@ -109,7 +128,7 @@ class FailSecondHttp:
 
     def post(self, url, json):
         self.n += 1
-        return _Post() if self.n == 1 else _FailPost()
+        return _Post(json) if self.n == 1 else _FailPost(json)
 
 
 def test_failed_turn_fails_the_session():
