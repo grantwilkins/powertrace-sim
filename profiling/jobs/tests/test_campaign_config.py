@@ -511,6 +511,9 @@ def test_final_sealed_campaigns_are_minimal_and_explicit():
         in commands[0]
     assert "--pack-index 0 --pack-count 3" in commands[0]
     assert "--pack-index 2 --pack-count 3" in commands[-1]
+    assert len(agentic["sessions"]["expected_plan_sha256"]) == 3
+    assert agentic["sessions"]["max_turn_wait_s"] == 60
+    assert agentic["sessions"]["max_session_wait_s"] == 120
 
     for name in (
         "sealed_qwen3-14b_a100.json",

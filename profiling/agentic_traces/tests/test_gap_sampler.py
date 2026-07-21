@@ -55,3 +55,17 @@ def test_sparse_class_keeps_literature_prior():
     assert params["classes"]["bash"]["source"] == "literature_prior"
     assert params["classes"]["local_io"]["source"] == "literature_prior"
     assert set(params["classes"]) == set(tc.CLASSES)
+
+
+def test_observed_gaps_use_cause_linked_agent_observations():
+    events = [
+        {"id": 1, "source": "agent", "timestamp": 10.0, "action": "run"},
+        {
+            "id": 2, "source": "agent", "timestamp": 10.25,
+            "cause": 1, "observation": "run", "content": "one two",
+        },
+        {"id": 3, "source": "user", "timestamp": 999.0, "message": "later"},
+    ]
+    assert fit.observed_gaps(events, lambda text: {"input_ids": text.split()}) == [
+        ("bash", 2, 0.25)
+    ]

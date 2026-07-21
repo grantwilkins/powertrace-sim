@@ -290,9 +290,18 @@ disjoint fixed 900-second Fano strata with `--window-index 0/1/2
 preserves real event text and observed action-to-observation gaps, and uses
 three disjoint hash packs. Its cache pairs apply the same deterministic
 singleton-token protocol as direct trace replay. The pinned vLLM 0.10.1.1
-image returns exact IDs through its logprob token-ID transport. Preserved
-OpenHands waits make the six-regime job approximately 34 hours, so its config
-binds a 48-hour Slurm limit.
+image returns exact IDs through its logprob token-ID transport. OpenHands tool
+actions and observations are paired by the observation's explicit `cause`
+event ID; both records use `source=agent` in the pinned evaluation output.
+Observation records are never replayed as assistant turns, and user follow-up
+latency is not counted as tool execution. Before `sbatch`, the submit wrapper
+builds all three packs offline and rejects any plan-hash drift or declared wait
+limit violation. The sealed hashes bind the selected sessions, text, tokens,
+turns, and waits. The corrected packs contain 89/119/102 turns,
+1,171,553/1,398,210/1,139,574 cumulative prompt-context tokens, and maximum
+per-session tool waits of 15.635/10.054/11.493 seconds. Their maximum individual
+tool waits are 12.667/4.887/1.905 seconds. The campaign retains a 48-hour Slurm
+limit as an allocation ceiling, not an expected replay horizon.
 Cache-on servers also enable vLLM prompt-token details. That vLLM release omits
 the per-request field when the cached count is zero, so replay records the
 omission as zero and rejects a completed cache-on run unless it contains

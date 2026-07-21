@@ -20,6 +20,13 @@
     "seed": 20260720,
     "pack_count": 3,
     "pre_idle_s": 60,
+    "max_turn_wait_s": 60,
+    "max_session_wait_s": 120,
+    "expected_plan_sha256": [
+      "0c8896b7212ba2a38019508a51d3370f1ca05d49f6b3d687cada8e7072908340",
+      "f654b51b34c8784b887973e05f4cab4427f48a7b9df7605bf5c202b6200aeb56",
+      "feda89dfbeb519a60529ce5e13eb9c78179074df892a7ef629eeffae0ab8b33c"
+    ],
     "regimes": [
       {"prefix_cache": false, "pack_index": 0},
       {"prefix_cache": true, "pack_index": 0},

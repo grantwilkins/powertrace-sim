@@ -198,5 +198,7 @@ def test_offline_openhands_data_is_staged_and_exported():
     submit = SUBMIT_CAMPAIGN.read_text()
     sbatch = CAMPAIGN_SBATCH.read_text()
     assert "profiling/jobs/stage_openhands.sh" in submit
+    assert "profiling/agentic_traces/openhands_preflight.py" in submit
+    assert "APPTAINERENV_OPENHANDS_DATASET_PATH" in submit
     assert "APPTAINERENV_OPENHANDS_DATASET_PATH" in sbatch
     assert 'TIME="$DEFAULT_TIME"' in submit

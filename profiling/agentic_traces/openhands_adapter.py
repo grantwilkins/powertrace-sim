@@ -62,9 +62,34 @@ def _session_id(row: dict) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
+def tool_observation_pairs(history: list[dict]) -> dict[object, dict]:
+    """Return cause-linked tool observations keyed by their action event ID."""
+    pairs = {}
+    for event in history:
+        if "observation" not in event or event.get("cause") is None:
+            continue
+        cause = event["cause"]
+        if cause in pairs:
+            raise ValueError(f"duplicate OpenHands observation cause {cause!r}")
+        pairs[cause] = event
+    return pairs
+
+
 def session_from_row(row: dict, tokenizer) -> TextSession:
     """Preserve original text and action->observation wall-clock gaps."""
     history = row.get("history") or row.get("events") or []
+    observations = tool_observation_pairs(history)
+    action_ids = {
+        event.get("id") for event in history
+        if str(event.get("source") or "").lower() == "agent"
+        and (event.get("tool_name") or event.get("action"))
+    }
+    missing_causes = set(observations) - action_ids
+    if missing_causes:
+        raise ValueError(
+            f"OpenHands observations reference missing causes: "
+            f"{sorted(missing_causes, key=str)}"
+        )
     system = str(row.get("system_prompt") or "")
     pending_input = str(
         row.get("instruction")
@@ -72,28 +97,30 @@ def session_from_row(row: dict, tokenizer) -> TextSession:
         or ""
     )
     turns = []
-    for index, event in enumerate(history):
+    for event in history:
         source = str(event.get("source") or "").lower()
+        if "observation" in event:
+            continue
         if source in {"environment", "user"}:
             pending_input = _text(event)
             continue
         if source != "agent" or not pending_input:
             continue
-        next_environment = next(
-            (
-                candidate for candidate in history[index + 1:]
-                if str(candidate.get("source") or "").lower()
-                in {"environment", "user"}
-            ),
-            None,
-        )
-        observation = _text(next_environment or {})
+        action = event.get("tool_name") or event.get("action") or ""
+        if not action:
+            continue
+        observation_event = observations.get(event.get("id"))
+        if action not in {"message", "finish"} and observation_event is None:
+            raise ValueError(
+                f"OpenHands tool action {event.get('id')!r} has no "
+                "cause-linked observation"
+            )
+        observation = _text(observation_event or {})
         gap = 0.0
-        if next_environment is not None:
-            gap = _epoch(next_environment["timestamp"]) - _epoch(event["timestamp"])
+        if observation_event is not None:
+            gap = _epoch(observation_event["timestamp"]) - _epoch(event["timestamp"])
             if gap < 0:
                 raise ValueError("OpenHands event timestamps are not monotonic")
-        action = event.get("tool_name") or event.get("action") or ""
         turns.append(TextTurn(
             user_text=pending_input,
             assistant_text=_assistant_text(event),
@@ -103,7 +130,7 @@ def session_from_row(row: dict, tokenizer) -> TextSession:
             ),
             post_gap_s=gap,
         ))
-        pending_input = observation
+        pending_input = observation if observation_event is not None else ""
     return TextSession(_session_id(row), system, turns)
 
 

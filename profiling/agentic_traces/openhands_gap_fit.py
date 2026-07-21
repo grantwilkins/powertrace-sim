@@ -23,6 +23,7 @@ from datetime import datetime
 
 import numpy as np
 
+import openhands_adapter
 import tool_classes
 from gap_sampler import DEFAULT_PARAMS
 
@@ -49,22 +50,21 @@ def _epoch(ts) -> float:
 def observed_gaps(events, tokenizer) -> list[tuple[str, int, float]]:
     """Walk one trajectory's events -> (tool_class, observation_tokens, gap_s).
 
-    An ``agent`` event naming a tool opens a gap; the next ``environment`` event
-    closes it (its content is the observation). Mixed LLM time is excluded because
-    the gap is measured from the *action* event, not the LLM request.
+    A cause-linked observation closes its action event. OpenHands stores both
+    records with ``source=agent`` in the pinned evaluation output.
     """
-    out, pending = [], None
-    for ev in events:
-        source, name = ev.get("source"), ev.get("tool_name") or ev.get("action")
-        if source == "agent" and name:
-            pending = (tool_classes.classify(name), _epoch(ev["timestamp"]))
-        elif source == "environment" and pending is not None:
-            cls, t0 = pending
-            gap = _epoch(ev["timestamp"]) - t0
-            obs = len(tokenizer(ev.get("content") or "")["input_ids"])
-            if gap > 0:
-                out.append((cls, obs, gap))
-            pending = None
+    observations = openhands_adapter.tool_observation_pairs(events)
+    out = []
+    for event in events:
+        observation = observations.get(event.get("id"))
+        if observation is None:
+            continue
+        name = event.get("tool_name") or event.get("action")
+        gap = _epoch(observation["timestamp"]) - _epoch(event["timestamp"])
+        if gap < 0:
+            raise ValueError("OpenHands event timestamps are not monotonic")
+        obs = len(tokenizer(openhands_adapter._text(observation))["input_ids"])
+        out.append((tool_classes.classify(name), obs, gap))
     return out
 
 

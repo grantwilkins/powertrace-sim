@@ -12,20 +12,20 @@ def _row(instance_id, offset=0):
         "instruction": "fix the bug",
         "history": [
             {
-                "source": "agent", "timestamp": 10 + offset,
+                "id": 1, "source": "agent", "timestamp": 10 + offset,
                 "action": "run", "args": {"command": "pytest"},
             },
             {
-                "source": "environment", "timestamp": 12.5 + offset,
-                "observation": "one two three",
+                "id": 2, "source": "agent", "timestamp": 12.5 + offset,
+                "cause": 1, "observation": "run", "content": "one two three",
             },
             {
-                "source": "agent", "timestamp": 15 + offset,
+                "id": 3, "source": "agent", "timestamp": 15 + offset,
                 "action": "edit", "args": {"path": "a.py"},
             },
             {
-                "source": "environment", "timestamp": 19 + offset,
-                "observation": "done",
+                "id": 4, "source": "agent", "timestamp": 19 + offset,
+                "cause": 3, "observation": "edit", "content": "done",
             },
         ],
     }
@@ -39,6 +39,38 @@ def test_preserves_real_text_and_observed_gaps():
     assert session.turns[0].user_text == "fix the bug"
     assert session.turns[1].user_text == "one two three"
     assert session.turns[0].observation_tokens == 3
+
+
+def test_does_not_replay_observations_as_turns_or_reuse_future_user_gap():
+    row = _row("x")
+    row["history"].extend([
+        {
+            "id": 5, "source": "agent", "timestamp": 20,
+            "action": "message", "args": {"content": "finished"},
+        },
+        {
+            "id": 6, "source": "user", "timestamp": 700,
+            "action": "message", "args": {"content": "continue"},
+            "message": "continue",
+        },
+        {
+            "id": 7, "source": "agent", "timestamp": 701,
+            "action": "finish", "args": {}, "message": "done",
+        },
+    ])
+    session = openhands_adapter.session_from_row(row, Tokenizer())
+    assert len(session.turns) == 4
+    assert [turn.post_gap_s for turn in session.turns] == [2.5, 4.0, 0.0, 0.0]
+    assert session.turns[-1].user_text == "continue"
+
+
+def test_rejects_tool_action_without_cause_linked_observation():
+    import pytest
+
+    row = _row("x")
+    row["history"] = row["history"][:1]
+    with pytest.raises(ValueError, match="cause-linked observation"):
+        openhands_adapter.session_from_row(row, Tokenizer())
 
 
 def test_hash_packs_are_disjoint_and_deterministic():

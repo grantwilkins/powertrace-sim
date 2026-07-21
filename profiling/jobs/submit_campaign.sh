@@ -37,7 +37,7 @@ test -f "$CAMPAIGN_ABS" || { echo "no such campaign: $CAMPAIGN" >&2; exit 1; }
 # also imports the scientific NumPy stack, which is not guaranteed on a login node.
 source /etc/profile.d/modules.sh 2>/dev/null || true
 ml devel python/3.12.1 2>/dev/null || true
-read -r N HARDWARE MODEL SANDBOX_NAME CTYPE TRACE_PLAN DATASET CORPUS DATASET_REVISION DEFAULT_TIME ROLE < <(
+read -r N HARDWARE MODEL SANDBOX_NAME CTYPE TRACE_PLAN DATASET CORPUS DATASET_REVISION PACK_COUNT DEFAULT_TIME ROLE < <(
     python3 -c '
 import json, sys
 c = json.load(open(sys.argv[1]))
@@ -49,6 +49,7 @@ print(
     c.get("workload", {}).get("dataset", "-"),
     c.get("sessions", {}).get("corpus", "-"),
     c.get("sessions", {}).get("dataset_revision", "-"),
+    c.get("sessions", {}).get("pack_count", 1),
     c.get("slurm_time", "-"),
     c.get("validation_role", "development"),
 )
@@ -141,6 +142,16 @@ elif [ "$CTYPE" = "agentic" ] && [ "$CORPUS" = "openhands" ]; then
         echo "  run: bash profiling/jobs/stage_openhands.sh $DATASET_REVISION" >&2
         exit 1
     }
+    for PACK_INDEX in $(seq 0 $((PACK_COUNT - 1))); do
+        APPTAINERENV_OPENHANDS_DATASET_PATH="$OPENHANDS_DIR/output.jsonl" \
+        APPTAINERENV_HF_HOME="$ROOT/hf" \
+        APPTAINERENV_HF_HUB_OFFLINE=1 \
+            apptainer exec \
+            --bind "$SCRATCH" --bind "$GROUP_HOME" --pwd "$REPO_ROOT" \
+            "$ROOT/$SANDBOX_NAME" \
+            python3 profiling/agentic_traces/openhands_preflight.py \
+            "$CAMPAIGN_ABS" --pack-index "$PACK_INDEX"
+    done
 fi
 
 echo "Submitting $(basename "$CAMPAIGN_ABS") on -p $PART --gres=gpu:$N${CONS:+ -C $CONS}${REQUEUE:+ --requeue}${TIME:+ --time $TIME}"

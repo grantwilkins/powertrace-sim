@@ -127,6 +127,27 @@ def _validate(c: dict, path) -> None:
             raise CampaignError(
                 f"{where}{c['campaign_type']} prefix-caching is derived per regime; "
                 f"drop server.enable_prefix_caching and {block}.prefix_cache")
+        if c["campaign_type"] == "agentic" and ss.get("corpus") == "openhands":
+            pack_count = int(ss.get("pack_count", 1))
+            expected = ss.get("expected_plan_sha256")
+            if not (
+                isinstance(expected, list) and len(expected) == pack_count
+                and all(
+                    isinstance(value, str) and len(value) == 64
+                    for value in expected
+                )
+            ):
+                raise CampaignError(
+                    f"{where}sessions.expected_plan_sha256 must contain one "
+                    "SHA-256 per OpenHands pack"
+                )
+            for key in ("max_turn_wait_s", "max_session_wait_s"):
+                value = ss.get(key)
+                if value is None or not math.isfinite(float(value)) \
+                        or float(value) <= 0:
+                    raise CampaignError(
+                        f"{where}sessions.{key} must be positive for OpenHands"
+                    )
     elif c["campaign_type"] == "roofline":
         probes = c.get("probes", [])
         if not probes:
