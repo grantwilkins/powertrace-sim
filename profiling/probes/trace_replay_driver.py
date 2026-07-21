@@ -261,9 +261,6 @@ async def send_round(
                         last_activity = now
     if usage is None:
         raise ValueError("completion stream ended without usage accounting")
-    prompt_details = usage.get("prompt_tokens_details") or {}
-    if prefix_cache and "cached_tokens" not in prompt_details:
-        raise ValueError("cache-on replay requires usage.prompt_tokens_details.cached_tokens")
     prompt_count, output_count, cached_count, reasoning_count = _usage_details(usage)
     validate_exact_accounting(
         row, planned_prompt_tokens=len(prompt), prompt_tokens=prompt_count,

@@ -293,6 +293,10 @@ singleton-token protocol as direct trace replay. The pinned vLLM 0.10.1.1
 image returns exact IDs through its logprob token-ID transport. Preserved
 OpenHands waits make the six-regime job approximately 34 hours, so its config
 binds a 48-hour Slurm limit.
+Cache-on servers also enable vLLM prompt-token details. That vLLM release omits
+the per-request field when the cached count is zero, so replay records the
+omission as zero and rejects a completed cache-on run unless it contains
+positive server-reported cache evidence.
 
 Stage the two unseen checkpoints and the pinned OpenHands JSONL before
 submission. GPU jobs are offline and the submit wrapper rejects any missing

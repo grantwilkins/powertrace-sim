@@ -117,6 +117,7 @@ def test_agentic_regime_flags_agree_per_index():
         serve = cc.serve_command(c, 1, reg.get("prefix_cache"))
         run = cc.run_command(c, 1, reg)
         assert ("--enable-prefix-caching" in serve) is want
+        assert ("--enable-prompt-tokens-details" in serve) is want
         assert ("--prefix-cache" in run) is want
     # replay campaign threads the corpus + gap params into the run command
     run0 = cc.run_command(c, 1, cc.regimes(c)[0])

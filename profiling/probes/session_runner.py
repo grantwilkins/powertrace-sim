@@ -69,6 +69,13 @@ def build_session_window(session, t_start_epoch, t_end_epoch, n_records) -> dict
     }
 
 
+def validate_cache_evidence(records: list[dict], prefix_cache: bool) -> None:
+    if prefix_cache and not any(
+        record["cached_prompt_tokens"] > 0 for record in records
+    ):
+        raise ValueError("cache-on session run reported no cached prompt tokens")
+
+
 def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         base_url="http://localhost:8000/v1", weight_footprint_bytes=None,
         embedding_bytes_per_param=None, fp8_flop_frac=None,
@@ -143,6 +150,7 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
 
     session_windows = [w for w, _ in results]
     all_records = [r for _, recs in results for r in recs]
+    validate_cache_evidence(all_records, plan.prefix_cache)
 
     (run_dir / "requests.json").write_text(
         json.dumps(session_driver.build_requests_json(all_records)))

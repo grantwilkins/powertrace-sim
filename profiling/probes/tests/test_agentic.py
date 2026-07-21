@@ -129,3 +129,16 @@ def test_session_window_records_epoch_and_context():
     assert w["t_start_epoch"] == 1000.0 and w["t_end_epoch"] == 1050.0
     assert w["n_turns"] == 3 and w["completed_turns"] == 3
     assert w["context_lengths"] == plan.sessions[0].context_lengths()
+
+
+def test_cache_on_run_requires_positive_cache_evidence():
+    import pytest
+
+    session_runner.validate_cache_evidence(
+        [{"cached_prompt_tokens": 0}, {"cached_prompt_tokens": 16}], True
+    )
+    session_runner.validate_cache_evidence([], False)
+    with pytest.raises(ValueError, match="no cached prompt tokens"):
+        session_runner.validate_cache_evidence(
+            [{"cached_prompt_tokens": 0}], True
+        )

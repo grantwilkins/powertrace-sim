@@ -156,6 +156,22 @@ def test_requests_json_includes_provenance_arrays():
     assert len(rj["input_lens"]) == 2  # still a reconstruction-compatible superset
 
 
+def test_missing_zero_cached_tokens_is_recorded_as_zero(monkeypatch):
+    usage_without_details = [
+        b'data: {"choices":[{"delta":{"content":"LIVE"}}]}',
+        b'data: {"choices":[{"delta":{"content":"GEN"}}]}',
+        b'data: {"usage":{"prompt_tokens":42,"completion_tokens":2}}',
+        b'data: [DONE]',
+    ]
+    monkeypatch.setattr(__import__(__name__), "_SSE", usage_without_details)
+    session = _replay_session()
+    session.turns[:] = session.turns[:1]
+    records = asyncio.run(session_driver.send_session(
+        FakeHttp(), "http://x/v1", "m", session, prefix_cache=True,
+        tokenizer=BoomTok()))
+    assert records[0]["cached_prompt_tokens"] == 0
+
+
 def test_reasoning_is_a_completion_subset_not_extra_decode(monkeypatch):
     reasoning_sse = [
         b'data: {"choices":[{"delta":{"reasoning_content":"THINK"}}]}',

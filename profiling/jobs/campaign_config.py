@@ -239,6 +239,7 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
         parts.append("--enable-chunked-prefill")
     if pc:
         parts.append("--enable-prefix-caching")
+        parts.append("--enable-prompt-tokens-details")
     if s["scheduling_policy"] == "async":
         parts.append("--async-scheduling")
     if s.get("quantization"):

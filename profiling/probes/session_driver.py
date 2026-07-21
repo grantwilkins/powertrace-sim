@@ -196,10 +196,6 @@ async def send_session(http, base_url, model, session, prefix_cache,
             )
         prompt_details = usage.get("prompt_tokens_details") or {}
         completion_details = usage.get("completion_tokens_details") or {}
-        if prefix_cache and "cached_tokens" not in prompt_details:
-            raise ValueError(
-                "cache-on session requires usage.prompt_tokens_details.cached_tokens"
-            )
         cached_tokens = int(prompt_details.get("cached_tokens") or 0)
         reasoning_tokens = completion_details.get("reasoning_tokens")
         if reasoning_tokens is None:
