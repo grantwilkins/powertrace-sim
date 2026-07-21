@@ -240,6 +240,8 @@ def serve_command(c: dict, tp: int, prefix_cache=None) -> str:
     if pc:
         parts.append("--enable-prefix-caching")
         parts.append("--enable-prompt-tokens-details")
+    else:
+        parts.append("--no-enable-prefix-caching")
     if s["scheduling_policy"] == "async":
         parts.append("--async-scheduling")
     if s.get("quantization"):

@@ -19,6 +19,7 @@ _CLIENT = _HERE.parents[0] / "client"
 sys.path.insert(0, str(_CLIENT))
 
 import probe_runner  # noqa: E402  (logging_session, _client_mod)
+import prefix_cache_contract  # noqa: E402
 import session_driver  # noqa: E402
 
 
@@ -147,6 +148,10 @@ def run(plan, *, model, hardware, tp, gpus_per_node, server_cfg, out_root,
         idle_end = time.time()
         results = asyncio.run(_drive())
     window_end = time.time()
+    cache_counters = prefix_cache_contract.validate_prefix_cache_mode(
+        run_dir / "engine.csv", plan.prefix_cache
+    )
+    capture["instrumentation"]["prefix_cache"] = cache_counters
 
     session_windows = [w for w, _ in results]
     all_records = [r for _, recs in results for r in recs]

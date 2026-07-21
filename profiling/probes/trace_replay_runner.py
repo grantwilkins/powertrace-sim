@@ -13,6 +13,7 @@ _CLIENT = _HERE.parents[0] / "client"
 sys.path.insert(0, str(_CLIENT))
 
 import probe_runner  # noqa: E402
+import prefix_cache_contract  # noqa: E402
 import trace_replay_driver  # noqa: E402
 
 
@@ -131,6 +132,10 @@ def run(
         if plan.horizon_s is not None:
             time.sleep(max(0.0, replay_start + plan.horizon_s - time.time()))
     window_end = time.time()
+    cache_counters = prefix_cache_contract.validate_prefix_cache_mode(
+        run_dir / "engine.csv", prefix_cache
+    )
+    capture["instrumentation"]["prefix_cache"] = cache_counters
     (run_dir / "requests.json").write_text(
         json.dumps(trace_replay_driver.build_requests_json(records))
     )

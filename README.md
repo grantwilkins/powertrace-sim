@@ -297,6 +297,12 @@ Cache-on servers also enable vLLM prompt-token details. That vLLM release omits
 the per-request field when the cached count is zero, so replay records the
 omission as zero and rejects a completed cache-on run unless it contains
 positive server-reported cache evidence.
+Every server launch now sets prefix caching explicitly: cache-on uses
+`--enable-prefix-caching`, while cache-off uses
+`--no-enable-prefix-caching` because vLLM V1 enables it by default. Agentic and
+direct-replay bundles validate the raw engine cache-hit counter against that
+declared treatment before writing a manifest, and sealed scoring repeats the
+same check.
 
 Stage the two unseen checkpoints and the pinned OpenHands JSONL before
 submission. GPU jobs are offline and the submit wrapper rejects any missing

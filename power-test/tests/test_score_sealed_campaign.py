@@ -24,6 +24,9 @@ def _bundle(tmp_path, *, role="sealed", evidence="measured_ledger",
     (root / "manifest.json").write_text(json.dumps(manifest))
     for name in ("requests.json", "power.csv", "engine.csv"):
         (root / name).write_text("{}")
+    (root / "engine.csv").write_text(
+        "timestamp,prefix_cache_hits_total\n1000,0\n1001,0\n"
+    )
     return root
 
 
@@ -46,6 +49,18 @@ def test_sealed_input_contract_fails_closed(tmp_path, kwargs, message):
     with pytest.raises(ValueError, match=message):
         score.validate_sealed_bundles([root])
 
+
+def test_sealed_cache_off_bundle_rejects_observed_cache_hits(tmp_path):
+    root = _bundle(tmp_path)
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["probe"] = {"type": "agentic", "prefix_cache": False}
+    manifest_path.write_text(json.dumps(manifest))
+    (root / "engine.csv").write_text(
+        "timestamp,prefix_cache_hits_total\n1000,0\n1001,16\n"
+    )
+    with pytest.raises(ValueError, match="cache-off run observed 16"):
+        score.validate_sealed_bundles([root])
 
 def test_grade_requires_timing_energy_and_shape():
     run = {

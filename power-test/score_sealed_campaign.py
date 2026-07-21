@@ -10,6 +10,10 @@ from collections import defaultdict
 from pathlib import Path
 from statistics import median
 
+_CLIENT = Path(__file__).resolve().parents[1] / "profiling" / "client"
+sys.path.insert(0, str(_CLIENT))
+from prefix_cache_contract import validate_prefix_cache_mode  # noqa: E402
+
 
 GATES = {
     "timing_e2e_medabs_pct_max": 10.0,
@@ -58,6 +62,11 @@ def validate_sealed_bundles(bundle_dirs) -> list[tuple[Path, dict]]:
             or instrumentation.get("status") != "validated"
         ):
             raise ValueError(f"{root}: measured instrumentation is not validated")
+        probe = manifest.get("probe") or {}
+        if probe.get("type") in {"agentic", "trace_replay"}:
+            validate_prefix_cache_mode(
+                root / "engine.csv", bool(probe.get("prefix_cache"))
+            )
         run_id = manifest.get("run_id")
         if not run_id or run_id in run_ids:
             raise ValueError(f"{root}: missing or duplicate run_id")
