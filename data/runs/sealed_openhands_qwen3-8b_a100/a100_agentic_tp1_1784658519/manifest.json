@@ -1,0 +1,488 @@
+{
+  "arch": {
+    "d_model": 4096,
+    "family": "dense-8b",
+    "fp8": 0,
+    "head_dim": 128,
+    "input_embedding_params": 622329856.0,
+    "input_embedding_weight_bytes": 1244659712.0,
+    "linear_attention": 0,
+    "moe_frac": 0.0,
+    "n_active": 8190427136.0,
+    "n_experts": 1,
+    "n_kv": 8,
+    "n_layers": 36,
+    "n_linear_layers": 0,
+    "output_head_params": 622329856.0,
+    "output_head_weight_bytes": 1244659712.0,
+    "swa_global_ratio": 0.0,
+    "swa_window": 0.0,
+    "tied_embeddings": 0,
+    "top_k": 1,
+    "transformer_active_params": 6945767424.0,
+    "transformer_weight_bytes": 13891534848.0,
+    "vocab_size": 151936,
+    "w_bytes": 16380854272.0
+  },
+  "clock": {
+    "engine_epoch_offset_s": 0.0,
+    "engine_first_epoch_s": 1784658519.6742682,
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "monotonic_start": 6043789.316280789,
+    "power_epoch_offset_s": 0.0,
+    "power_first_timestamp": "2026/07/21 11:28:39.711",
+    "power_timestamp_basis": "local_wall_time",
+    "reference_epoch_s": 1784658519.6712608,
+    "reference_local_iso8601": "2026-07-21T11:28:39.671265-07:00",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "evidence_profile": "measured_ledger",
+  "gpus_per_node": 1,
+  "hardware": "A100",
+  "instrumentation": {
+    "engine": {
+      "coverage": {
+        "generation_tokens_total": 1.0,
+        "gpu_cache_usage_perc": 1.0,
+        "iteration_tokens_total_count": 1.0,
+        "iteration_tokens_total_sum": 1.0,
+        "num_requests_running": 1.0,
+        "num_requests_waiting": 1.0,
+        "prompt_tokens_total": 1.0
+      },
+      "median_cadence_s": 0.25750255584716797,
+      "samples": 1236
+    },
+    "first_sample_skew_s": -0.036731719970703125,
+    "power": {
+      "device_ids": [
+        "GPU-03a84180-d660-dbdc-17f4-0e0655717066"
+      ],
+      "median_cadence_s": 0.25,
+      "profile": "core",
+      "required_columns": [
+        "timestamp",
+        "index",
+        "uuid",
+        "power.draw",
+        "clocks.sm",
+        "clocks.mem",
+        "utilization.gpu",
+        "utilization.memory",
+        "memory.used",
+        "temperature.gpu"
+      ],
+      "samples": 1266
+    },
+    "prefix_cache": {
+      "declared_enabled": true,
+      "first_hits": 0.0,
+      "hit_token_increase": 1030736.0,
+      "last_hits": 1030736.0,
+      "status": "validated"
+    },
+    "profile": "measured_ledger",
+    "purpose": "stock counters replace token rates and total A_t in the hybrid ledger",
+    "required_engine_columns": [
+      "num_requests_running",
+      "num_requests_waiting",
+      "gpu_cache_usage_perc",
+      "prompt_tokens_total",
+      "generation_tokens_total",
+      "iteration_tokens_total_sum",
+      "iteration_tokens_total_count"
+    ],
+    "status": "validated"
+  },
+  "manifest_version": 2,
+  "model": "Qwen/Qwen3-8B",
+  "probe": {
+    "concurrency": 24,
+    "decode_constraint": "singleton_allowed_token_v1",
+    "idle_window": {
+      "end_epoch": 1784658579.6720307,
+      "requested_s": 60.0,
+      "start_epoch": 1784658519.6719317
+    },
+    "label": "agentic_replay",
+    "pack_count": 3,
+    "pack_index": 2,
+    "prefix_cache": true,
+    "replay_plan_sha256": "feda89dfbeb519a60529ce5e13eb9c78179074df892a7ef629eeffae0ab8b33c",
+    "seed": 20260720,
+    "sessions": [
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          347
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13230",
+        "t_end_epoch": 1784658583.1973784,
+        "t_start_epoch": 1784658579.6726942
+      },
+      {
+        "completed_turns": 12,
+        "context_lengths": [
+          912,
+          1097,
+          2005,
+          2137,
+          3523,
+          3818,
+          4134,
+          5184,
+          5270,
+          6059,
+          6190,
+          6716
+        ],
+        "n_turns": 12,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13660",
+        "t_end_epoch": 1784658658.4034069,
+        "t_start_epoch": 1784658579.6737604
+      },
+      {
+        "completed_turns": 12,
+        "context_lengths": [
+          1675,
+          1865,
+          2799,
+          8659,
+          8885,
+          9395,
+          9718,
+          10756,
+          11597,
+          12959,
+          13146,
+          13751
+        ],
+        "n_turns": 12,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11583",
+        "t_end_epoch": 1784658672.876479,
+        "t_start_epoch": 1784658579.6738865
+      },
+      {
+        "completed_turns": 14,
+        "context_lengths": [
+          406,
+          19856,
+          25784,
+          25948,
+          26369,
+          26839,
+          27113,
+          28073,
+          28220,
+          28797,
+          29233,
+          29499,
+          30146,
+          31271
+        ],
+        "n_turns": 14,
+        "prefix_tokens": 0,
+        "session_id": "astropy__astropy-6938",
+        "t_end_epoch": 1784658672.1052744,
+        "t_start_epoch": 1784658579.6740077
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          469
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11133",
+        "t_end_epoch": 1784658583.193258,
+        "t_start_epoch": 1784658579.6740856
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          476
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13590",
+        "t_end_epoch": 1784658584.8404822,
+        "t_start_epoch": 1784658579.6741614
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          449
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11099",
+        "t_end_epoch": 1784658583.2757432,
+        "t_start_epoch": 1784658579.6742315
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          678
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11019",
+        "t_end_epoch": 1784658583.0776312,
+        "t_start_epoch": 1784658579.6742995
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          377
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11905",
+        "t_end_epoch": 1784658583.1610126,
+        "t_start_epoch": 1784658579.6743705
+      },
+      {
+        "completed_turns": 35,
+        "context_lengths": [
+          560,
+          749,
+          1659,
+          2256,
+          2993,
+          4067,
+          4190,
+          4750,
+          5129,
+          5891,
+          6300,
+          6601,
+          6900,
+          7792,
+          8544,
+          8963,
+          9047,
+          11563,
+          11794,
+          12640,
+          13356,
+          13592,
+          14478,
+          14615,
+          15566,
+          15703,
+          17933,
+          18154,
+          19343,
+          19564,
+          22064,
+          22291,
+          24741,
+          24968,
+          25689
+        ],
+        "n_turns": 35,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11283",
+        "t_end_epoch": 1784658837.580522,
+        "t_start_epoch": 1784658579.6744368
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          404
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13220",
+        "t_end_epoch": 1784658583.0489445,
+        "t_start_epoch": 1784658579.6745117
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          455
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-10924",
+        "t_end_epoch": 1784658583.1165764,
+        "t_start_epoch": 1784658579.6745772
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          453
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11049",
+        "t_end_epoch": 1784658583.0634682,
+        "t_start_epoch": 1784658579.6746469
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          408
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13551",
+        "t_end_epoch": 1784658583.072798,
+        "t_start_epoch": 1784658579.6747787
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          462
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-11848",
+        "t_end_epoch": 1784658583.146793,
+        "t_start_epoch": 1784658579.6748497
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          510
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13757",
+        "t_end_epoch": 1784658583.4562516,
+        "t_start_epoch": 1784658579.6749194
+      },
+      {
+        "completed_turns": 10,
+        "context_lengths": [
+          1039,
+          15687,
+          16764,
+          17053,
+          22509,
+          23475,
+          29200,
+          29435,
+          30091,
+          30712
+        ],
+        "n_turns": 10,
+        "prefix_tokens": 0,
+        "session_id": "astropy__astropy-14995",
+        "t_end_epoch": 1784658654.03547,
+        "t_start_epoch": 1784658579.674999
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          448
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-14016",
+        "t_end_epoch": 1784658583.1588957,
+        "t_start_epoch": 1784658579.675078
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          1022
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-12589",
+        "t_end_epoch": 1784658583.7732277,
+        "t_start_epoch": 1784658579.6751432
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          393
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-14155",
+        "t_end_epoch": 1784658583.16513,
+        "t_start_epoch": 1784658579.675221
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          394
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-15789",
+        "t_end_epoch": 1784658583.1306896,
+        "t_start_epoch": 1784658579.675288
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          753
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-13265",
+        "t_end_epoch": 1784658583.233625,
+        "t_start_epoch": 1784658579.6753497
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          395
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-15790",
+        "t_end_epoch": 1784658583.3830245,
+        "t_start_epoch": 1784658579.6754196
+      },
+      {
+        "completed_turns": 1,
+        "context_lengths": [
+          467
+        ],
+        "n_turns": 1,
+        "prefix_tokens": 0,
+        "session_id": "django__django-15213",
+        "t_end_epoch": 1784658583.2145028,
+        "t_start_epoch": 1784658579.6754804
+      }
+    ],
+    "source": "openhands",
+    "source_revision": "aa8977805b4cefd317001d80ddf1ad52790e9d23",
+    "type": "agentic",
+    "window": {
+      "end_epoch": 1784658837.7950902,
+      "start_epoch": 1784658519.6109161
+    }
+  },
+  "run_id": "a100_agentic_tp1_1784658519",
+  "server": {
+    "active_gpu_uuids": [
+      "GPU-03a84180-d660-dbdc-17f4-0e0655717066"
+    ],
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": true,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 128,
+    "scheduling_policy": "sync",
+    "server_launch_epoch_s": 1784658438.0,
+    "server_ready_epoch_s": 1784658498.0
+  },
+  "tp": 1,
+  "validation_role": "sealed",
+  "versions": {
+    "git_sha": "a99f42a422ee39a4619f00b43f74754065c1dba6",
+    "gpu_driver": "550.163.01",
+    "vllm": "0.10.1.1"
+  }
+}
