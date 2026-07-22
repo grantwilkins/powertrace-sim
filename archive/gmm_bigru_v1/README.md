@@ -15,6 +15,7 @@ Run the archived code from this directory so it is the Python import root:
 cd archive/gmm_bigru_v1
 uv run --project ../.. --extra archive-bigru python -m model.scripts.train_gmm_bigru --help
 uv run --project ../.. --extra archive-bigru python -m model.scripts.infer_gmm_bigru --help
+uv run --project ../.. --extra archive-bigru python -m scripts.eval.run_baselines_node --help
 uv run --project ../.. --extra archive-bigru python -m pytest -x tests
 ```
 
@@ -33,3 +34,9 @@ identical. Regenerable evaluation overlays and AR-parameter plots were removed
 after the intact archive was checkpointed; training curves remain preserved.
 No code in this snapshot imports the new selected-model timing or power
 implementation.
+
+The archive also contains the model-specific node/facility comparisons,
+feature-sufficiency and power-CDF figures, trace-fidelity table, request-rate
+sweep, and their tests. The copied Splitwise helper is part of the frozen
+comparison environment; the maintained facility pipeline uses its own root
+copy.

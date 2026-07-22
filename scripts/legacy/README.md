@@ -9,7 +9,6 @@ path.
 - `saturating_fit.py` - Saturating-curve fits on the two-price windows
 - `operator_table.py` - Descriptive operator table from the two-price windows
 - `ledger_fit_lomo.py` - Leave-one-model-out ledger fit
-- `rps_power_sweep.py` - Request-rate vs power sweep
 - `run_training.sh` - Old training wrapper
 - `run_ablation_study.sh` - Old ablation study wrapper
 - `collect_random_weights.sh` - Old random-weights collection wrapper
@@ -20,3 +19,6 @@ Full provenance (original paths and history) is preserved in git history via
 
 `collect_random_weights.sh` resolves its input and output paths relative to the
 repository root, so it can be launched from any working directory.
+
+The GMM-BiGRU-dependent `rps_power_sweep.py` is preserved with the rest of that
+model under `archive/gmm_bigru_v1/scripts/legacy/`.

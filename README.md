@@ -164,7 +164,8 @@ Add a repeatable `--bundle-dir data/runs/<campaign_id>/<run_id>` only when a
 canonical bundle exists; it is not required for the legacy-data quick start.
 
 The archive README documents its remaining preparation, inference, evaluation,
-comparison, and figure entry points.
+comparison, figure, trace-fidelity, and request-rate-sweep entry points. The
+maintained `scripts/eval/` package no longer imports the archived learned model.
 
 Profile same-node disaggregated GPT-OSS-20B serving on two Sherlock A100-80GB
 GPUs with the pinned vLLM 0.22 Queue-Haul image using one TP1 prefiller and one
@@ -1235,23 +1236,6 @@ Returned LUT params are explicitly namespaced by layer:
 `scripts/eval/split_azure_week_to_days.py` defaults to
 `data/azure_trace/raw/AzureLLMInferenceTrace_code_1week.csv` and writes
 `day_manifest.csv` with source week CSV and emitted day CSV provenance columns.
-
-## Evaluation Metadata Semantics
-
-Main GMM-BiGRU evaluation and inference use IID GMM sampling and record
-`generation_mode=iid`. Evaluation uses recorded arrivals with modeled request
-durations and records `request_alignment_mode=none`; a measured-power-derived
-offset is retained only as the diagnostic `oracle_alignment_offset_s` and is
-never applied. Evaluation features begin at `t=dt`, matching training features
-and measured targets at `power[1:]`; standalone inference uses the same
-next-step alignment and labels its first prediction at `t=dt`. Recorded
-checkpoint, normalization, GMM, dataset, split, and lineage hashes are enforced.
-Standalone request rows must contain finite, nonnegative
-`arrival_time`, `input_tokens`, and `output_tokens`; zero- and one-token
-completions remain valid. The retrospective CDF analysis still contains an explicit AR(1)
-ablation, but it is not the main evaluation path. Trace accounting
-separates `num_skipped_traces`, `num_failed_traces`, and the compatibility total
-`num_skipped_or_failed_traces`.
 
 ## Testing
 

@@ -38,8 +38,13 @@ import seaborn as sns
 from model.pipeline.request_builder import (
     _build_requests_from_stage0_json as _build_requests_core,
 )
-from model.utils.io import ensure_dir, load_json, safe_slug, write_json
-from scripts.eval.pipeline_utils import _resolve_existing_path
+from model.utils.io import (
+    ensure_dir,
+    load_json,
+    resolve_existing_path as _resolve_existing_path,
+    safe_slug,
+    write_json,
+)
 
 CONFIG_70B_TP4_RE = re.compile(r"^.+-70b_(A100|H100)_tp4$")
 CONFIG_70B_ALL_TP_RE = re.compile(r"^.+-70b_(A100|H100)_tp\d+$")

@@ -27,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model import metrics as shared_metrics
+from model.classifiers import metrics as shared_metrics
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,

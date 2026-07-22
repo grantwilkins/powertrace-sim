@@ -1,28 +1,24 @@
 # Scripts
 
-This directory contains the evaluation entrypoints. The current command-line
-surface lives in `scripts/eval/`; training entrypoints live under
-`model/scripts/`. Archived scripts live in `scripts/legacy/`.
+This directory contains maintained evaluation entrypoints. The current
+command-line surface lives in `scripts/eval/`; training entrypoints live under
+`model/scripts/`. GMM-BiGRU evaluation scripts live in
+`archive/gmm_bigru_v1/scripts/`.
 
 ## Layout
 
 ```text
 scripts/
-├── eval/                 # Evaluation, Azure pipeline, tables, figures
-└── legacy/               # Archived scripts cut from the e-Energy paper path
+├── eval/                 # Selected-model and Azure evaluations
+└── legacy/               # Non-BiGRU scripts cut from the paper path
 ```
 
 ## Common Entry Points
 
 ```bash
 uv run -m scripts.eval.run_azure_pipeline
-uv run -m scripts.eval.run_baselines_node
-uv run -m scripts.eval.run_baselines_node_groundtruth
-uv run -m scripts.eval.run_baselines_facility
-uv run -m scripts.eval.generate_power_cdf_comparison
-uv run -m scripts.eval.generate_baselines_node_table
-uv run -m scripts.eval.generate_trace_fidelity_table
 uv run -m scripts.eval.generate_azure_facility_sizing_table
+uv run -m scripts.eval.appendix_surrogate_validity --dry-run
 ```
 
 ## See Also

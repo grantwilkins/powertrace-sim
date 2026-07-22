@@ -41,6 +41,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Remove regenerable evaluation plot copies while retaining training curves.
 - [x] Give the archive its own README, dependency extra, and focused tests.
 - [x] Remove BiGRU commands from the default package without compatibility shims.
+- [x] Move the BiGRU-specific node/facility comparisons, retrospective figures,
+  trace-fidelity table, request-rate sweep, and their tests into the archive.
 
 ### 2. Promote the selected implementation
 

@@ -54,7 +54,7 @@ from model.classifiers.trace_generation import (  # noqa: E402
     estimate_ar1_params,
     generate_gmm_bigru_trace_ar1_thresholded,
 )
-from model.metrics import compute_power_metrics, ks_statistic  # noqa: E402
+from model.classifiers.metrics import compute_power_metrics, ks_statistic  # noqa: E402
 from model.classifiers.model_loading import load_gru_classifier  # noqa: E402
 from model.pipeline.request_builder import _build_requests_from_stage0_json  # noqa: E402
 from model.utils.io import load_json, safe_slug, write_json  # noqa: E402

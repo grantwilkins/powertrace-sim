@@ -45,7 +45,7 @@ def test_resolve_experimental_paths_valid(tmp_path: Path):
 def test_resolve_input_path_finds_repo_relative_file_from_other_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    repo = Path(__file__).resolve().parents[2]
+    repo = Path(__file__).resolve().parents[1]
     expected = repo / "model" / "throughput_database.json"
     assert expected.exists()
     shadow = tmp_path / "model" / "throughput_database.json"
@@ -59,14 +59,14 @@ def test_resolve_input_path_finds_repo_relative_file_from_other_cwd(
 
 
 def test_repo_relative_or_absolute_formats_repo_paths():
-    repo = Path(__file__).resolve().parents[2]
+    repo = Path(__file__).resolve().parents[1]
     path = repo / "model" / "throughput_database.json"
 
     assert repo_relative_or_absolute(path) == "model/throughput_database.json"
 
 
 def test_model_and_eval_sources_do_not_use_removed_throughput_db_path():
-    repo = Path(__file__).resolve().parents[2]
+    repo = Path(__file__).resolve().parents[1]
     offenders = []
     for base in (repo / "model", repo / "scripts" / "eval"):
         for path in base.rglob("*.py"):

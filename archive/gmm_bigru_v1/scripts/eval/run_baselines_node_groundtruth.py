@@ -26,7 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import seaborn as sns
 
-from model.metrics import compute_power_metrics
+from model.classifiers.metrics import compute_power_metrics
 from model.utils.io import load_json
 from scripts.eval.baselines import (
     SPLITWISE_REMOVED_MESSAGE,
