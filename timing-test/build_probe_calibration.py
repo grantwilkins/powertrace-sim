@@ -48,6 +48,7 @@ def load_engine(run_dir: Path):
                     float(r["num_requests_running"]),
                     float(r["iteration_tokens_total_sum"]),
                     float(r["iteration_tokens_total_count"]),
+                    float(r["num_preemptions_total"]),
                 )
             )
     return rows
@@ -66,6 +67,7 @@ def engine_window_stats(engine, t0, t1):
     dt = win[-1][0] - win[0][0]
     d_count = win[-1][3] - win[0][3]
     d_sum = win[-1][2] - win[0][2]
+    d_preemptions = win[-1][4] - win[0][4]
     if dt <= 0 or d_count <= 0:
         return None
     running = [e[1] for e in win if e[1] > 0]
@@ -76,6 +78,7 @@ def engine_window_stats(engine, t0, t1):
         "tokens_per_iteration": d_sum / d_count,
         "iteration_time_ms": 1000.0 * dt / d_count,
         "engine_tokens_per_s": d_sum / dt,
+        "preemptions": d_preemptions,
         "num_running_mean": statistics.fmean(running) if running else 0.0,
     }
     # Steady-state sub-window: the benchmark client runs a single-request

@@ -32,7 +32,10 @@ from model.training_data.arch import get_arch  # noqa: E402
 from model.training_data.moe_routing import load_routing_laws  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
-EVAL_ROLES = ("test_indomain", "holdout_model", "holdout_twin", "holdout_rate")
+EVAL_ROLES = (
+    "test_indomain", "holdout_model", "holdout_twin", "holdout_rate",
+    "heldout_model", "heldout_tp", "heldout_rate",
+)
 # Recorded serving flags (profiling/server/serve-*.sh), not fitted values.
 MAX_NUM_SEQS = {"llama-3-405b": 64}
 

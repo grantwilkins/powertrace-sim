@@ -16,12 +16,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "feature-test"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "power-test"))
 
 from evaluation_core import trace_metrics  # noqa: E402
+from clean_dense_surface import filter_design, raw_design  # noqa: E402
+from fit_clean_power_pipelines import (  # noqa: E402
+    DENSE_FEATURES,
+    moe_compute_coordinate,
+    moe_feature_basis,
+    per_gpu,
+)
 from fit_power_surface import interpolate_nan  # noqa: E402
 from iteration_time import launch_overhead_s, transformer_bw_scale  # noqa: E402
+from moe_surface_core import surface_design as moe_design  # noqa: E402
 from power_surface import predict, surface_design  # noqa: E402
 from response_chain import apply_chain  # noqa: E402
 from scheduler_sim import EngineConfig, simulate_requests  # noqa: E402
 from simulated_ledger import emit_bins  # noqa: E402
+
+MAX_TEMPORAL_MISSING_1S_FRACTION = 0.05
+MAX_TEMPORAL_POWER_GAP_S = 2.0
 from model.training_data.run_record import load_bundle_run  # noqa: E402
 
 
@@ -65,12 +76,27 @@ def request_schedule(record) -> tuple[list[tuple], np.ndarray, np.ndarray]:
     return requests, order, np.asarray([origin])
 
 
+def measured_horizon_s(record, origin: float) -> float:
+    completion = (
+        np.asarray(record.request_timestamps, float) - origin
+        + np.asarray(record.ttfts, float)
+        + np.asarray(record.decode_times, float)
+    )
+    return float(np.max(completion))
+
+
 def _timing_summary(rows: list[dict]) -> dict:
     out = {"requests": len(rows)}
     for phase in ("ttft_s", "decode_s", "e2e_s"):
         measured = np.asarray([row[f"measured_{phase}"] for row in rows])
         predicted = np.asarray([row[f"predicted_{phase}"] for row in rows])
-        pct = 100.0 * (predicted - measured) / measured
+        valid = np.isfinite(measured) & np.isfinite(predicted) & (measured > 0.0)
+        pct = 100.0 * (predicted[valid] - measured[valid]) / measured[valid]
+        if pct.size == 0:
+            out[f"{phase}_medabs_pct"] = float("nan")
+            out[f"{phase}_p90abs_pct"] = float("nan")
+            out[f"{phase}_median_signed_pct"] = float("nan")
+            continue
         out[f"{phase}_medabs_pct"] = float(np.median(np.abs(pct)))
         out[f"{phase}_p90abs_pct"] = float(np.percentile(np.abs(pct), 90))
         out[f"{phase}_median_signed_pct"] = float(np.median(pct))
@@ -101,16 +127,46 @@ def _measured_power_on_grid(record, origin: float, n: int, dt: float) -> np.ndar
     )
 
 
-def _power_summary(
-    record, bins: dict, origin: float, power_fit: dict, dt: float
-) -> dict:
-    hardware_fit = power_fit["per_hardware"][record.hardware]
+def power_coverage(measured: np.ndarray, dt: float) -> dict:
+    """Coverage diagnostics before any interpolation of power telemetry."""
+    measured = np.asarray(measured, float).reshape(-1)
+    factor = int(round(1.0 / dt))
+    if factor < 1 or not np.isclose(factor * dt, 1.0):
+        raise ValueError("Power timestep must divide one second")
+    n = measured.size // factor * factor
+    observed_1s = (
+        np.isfinite(measured[:n]).reshape(-1, factor).any(1)
+        if n else np.asarray([], bool)
+    )
+    missing = ~np.isfinite(measured)
+    edges = np.r_[0, np.flatnonzero(missing[1:] != missing[:-1]) + 1,
+                  missing.size]
+    maximum_gap_bins = max(
+        (hi - lo for lo, hi in zip(edges[:-1], edges[1:]) if missing[lo]),
+        default=0,
+    )
+    missing_fraction = (
+        float(np.mean(~observed_1s)) if observed_1s.size else 1.0
+    )
+    return {
+        "observed_native_fraction": float(np.mean(~missing)),
+        "missing_one_second_fraction": missing_fraction,
+        "maximum_power_gap_s": float(maximum_gap_bins * dt),
+        "temporal_supported": bool(
+            observed_1s.size >= 62
+            and missing_fraction <= MAX_TEMPORAL_MISSING_1S_FRACTION
+            and maximum_gap_bins * dt <= MAX_TEMPORAL_POWER_GAP_S
+        ),
+    }
+
+
+def _ledger_design(record, bins: dict) -> dict:
+    n = bins["n"]
     d = {
         key: np.asarray(value)
         for key, value in bins.items()
         if isinstance(value, np.ndarray)
     }
-    n = bins["n"]
     d.update({
         "tp": np.full(n, record.tp, dtype=float),
         "n_active": np.full(n, float(record.arch["n_active"])),
@@ -121,33 +177,127 @@ def _power_summary(
                 "fp8_flop_frac", 1.0 if record.arch.get("fp8", 0) else 0.0
             )),
         ),
+        "run_id": np.zeros(n, dtype=np.int32),
     })
-    design, names = surface_design(d, record.hardware)
-    coefficients = np.asarray([
-        hardware_fit["coefficients"][name] for name in names
-    ])
-    raw = predict(design, coefficients, d["tp"], record.hardware)
-    predicted = apply_chain(
-        raw, dt, record.hardware, float(hardware_fit["delay_s"])
+    return d
+
+
+def _clean_prediction(record, d: dict, power_fit: dict, dt: float):
+    family = str(record.arch["family"])
+    if family.startswith("dense"):
+        fit = power_fit["dense"][record.hardware]
+        if fit["feature_names"] != list(DENSE_FEATURES):
+            raise ValueError("Clean dense artifact feature contract mismatch")
+        design = filter_design(
+            raw_design(d, record.hardware), d["run_id"], dt,
+            record.hardware, float(fit["delay_s"]),
+        )
+        prediction = design @ np.asarray(fit["coefficients"], float)
+        return prediction * record.tp, "dense", True, None
+
+    model_key = next(
+        (key for key in power_fit["moe"]["per_model"]
+         if key in record.model.lower()),
+        None,
     )
-    measured = _measured_power_on_grid(record, origin, n, dt)
-    valid = np.flatnonzero(np.isfinite(measured))
+    if model_key is None:
+        reason = "No architecture-specific MoE coefficients for this checkpoint"
+        return None, "moe", False, reason
+    fit = power_fit["moe"]["per_model"][model_key]
+    design_pg, _ = per_gpu(moe_design(d), np.zeros(d["run_id"].size), d["tp"])
+    design_pg = np.insert(
+        design_pg, 3, moe_compute_coordinate(d), axis=1
+    )
+    design_pg, names = moe_feature_basis(design_pg, d["tp"])
+    if fit["feature_names"] != names:
+        raise ValueError("Clean MoE artifact feature contract mismatch")
+    prediction = design_pg @ np.asarray(fit["coefficients"], float)
+    return prediction * record.tp, f"moe:{model_key}", True, None
+
+
+def _power_summary(
+    record, bins: dict, origin: float, power_fit: dict, dt: float
+) -> dict:
+    d = _ledger_design(record, bins)
+    clean = power_fit.get("schema_version") == "clean-separated-power-surfaces-v4"
+    if clean:
+        predicted, surface, supported, reason = _clean_prediction(
+            record, d, power_fit, dt
+        )
+    else:
+        supported, reason, surface = True, None, "legacy-dense"
+        hardware_fit = power_fit["per_hardware"][record.hardware]
+        design, names = surface_design(d, record.hardware)
+        coefficients = np.asarray([
+            hardware_fit["coefficients"][name] for name in names
+        ])
+        raw = predict(design, coefficients, d["tp"], record.hardware)
+        predicted = apply_chain(
+            raw, dt, record.hardware, float(hardware_fit["delay_s"])
+        )
+    n = bins["n"]
+    measured_raw = _measured_power_on_grid(record, origin, n, dt)
+    valid = np.flatnonzero(np.isfinite(measured_raw))
     if valid.size == 0:
         raise ValueError("Bundle power does not overlap the simulated schedule")
     lo, hi = int(valid[0]), int(valid[-1] + 1)
-    measured, gaps = interpolate_nan(measured[lo:hi])
-    predicted = predicted[lo:hi]
+    coverage = power_coverage(measured_raw[lo:hi], dt)
+    measured, gaps = interpolate_nan(measured_raw[lo:hi])
+    if not supported:
+        return {
+            "surface": surface,
+            "surface_supported": False,
+            "support_reason": reason,
+            "duration_s": float((hi - lo) * dt),
+            "power_bins": int(hi - lo),
+            "interpolated_bins": int(gaps),
+        }
+    predicted = np.asarray(predicted)[lo:hi]
+    busy = np.asarray(d["busy"], float)[lo:hi] > 0.0
+    active = np.flatnonzero(busy)
+    predicted_busy_end_s = (
+        float((active[-1] + 1) * dt) if active.size else 0.0
+    )
     signed = 100.0 * (float(np.mean(predicted)) - float(np.mean(measured))) \
         / float(np.mean(measured))
-    temporal = trace_metrics(measured, predicted, native_dt=dt)
+    temporal = (
+        trace_metrics(measured, predicted, native_dt=dt)
+        if coverage["temporal_supported"] else {}
+    )
     return {
+        "surface": surface,
+        "surface_supported": True,
+        "support_reason": None,
         "duration_s": float((hi - lo) * dt),
         "power_bins": int(hi - lo),
         "interpolated_bins": int(gaps),
+        **coverage,
+        "temporal_support_reason": (
+            None if coverage["temporal_supported"] else
+            "Power telemetry lacks 62 seconds with at least 95% one-second "
+            "coverage and no gap longer than 2 seconds"
+        ),
         "energy_error_pct": abs(signed),
         "mean_bias_pct": signed,
+        "measured_mean_w": float(np.mean(measured)),
+        "predicted_mean_w": float(np.mean(predicted)),
+        "predicted_busy_fraction": float(np.mean(busy)),
+        "predicted_busy_end_s": predicted_busy_end_s,
+        "predicted_idle_tail_s": float((busy.size * dt) - predicted_busy_end_s),
         "acf_mae": float(temporal.get("acf_mae", float("nan"))),
         "acf_r2": float(temporal.get("acf_r2", float("nan"))),
+        "soft_dtw_divergence": float(
+            temporal.get("soft_dtw_divergence", float("nan"))
+        ),
+        "soft_dtw_diagonal_divergence": float(
+            temporal.get("soft_dtw_diagonal_divergence", float("nan"))
+        ),
+        "soft_dtw_band_effect": float(
+            temporal.get("soft_dtw_band_effect", float("nan"))
+        ),
+        "soft_dtw_band_effect_fraction": float(
+            temporal.get("soft_dtw_band_effect_fraction", float("nan"))
+        ),
         "nrmse_range": float(temporal.get("nrmse_range", float("nan"))),
     }
 
@@ -196,7 +346,11 @@ def evaluate_bundle(
             "measured_e2e_s": measured_ttft + measured_decode,
             "predicted_e2e_s": sim["e2e_s"] + first_token,
         })
-    bins = emit_bins(trace, simulated, arch=record.arch, tp=record.tp, dt=dt)
+    origin = float(origin_array[0])
+    bins = emit_bins(
+        trace, simulated, arch=record.arch, tp=record.tp, dt=dt,
+        horizon_s=measured_horizon_s(record, origin),
+    )
     campaign = run_dir.parent.name
     return {
         "campaign": campaign,
@@ -214,9 +368,23 @@ def evaluate_bundle(
         "timing": _timing_summary(rows),
         "session_timing": _session_summaries(rows),
         "power": _power_summary(
-            record, bins, float(origin_array[0]), power_fit, dt
+            record, bins, origin, power_fit, dt
         ),
     }
+
+
+def development_run_dirs(root: Path) -> list[Path]:
+    output = []
+    for path in sorted(root.glob("*/*/manifest.json")):
+        manifest = json.loads(path.read_text())
+        probe = manifest.get("probe") or {}
+        role = manifest.get("validation_role") or probe.get("validation_role")
+        campaign = path.parents[1].name
+        if role == "sealed" or "smoke" in campaign:
+            continue
+        if role == "development" or probe.get("type") == "trace_replay":
+            output.append(path.parent)
+    return output
 
 
 def replay_pair_identity(off_dir: Path, on_dir: Path) -> dict:
@@ -263,11 +431,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     timing_fit = json.loads(Path(args.timing_fit).read_text())
     power_fit = json.loads(Path(args.power_fit).read_text())
-    run_dirs = sorted(
-        path.parent
-        for path in Path("data/runs").glob("*qwen3-8b*/*/manifest.json")
-        if "smoke" not in str(path)
-    )
+    run_dirs = development_run_dirs(Path("data/runs"))
     runs = [
         evaluate_bundle(run_dir, timing_fit, power_fit, dt=args.dt)
         for run_dir in run_dirs
@@ -275,7 +439,7 @@ def main(argv=None):
     off = next(path for path in run_dirs if "cache_off" in str(path))
     on = next(path for path in run_dirs if "cache_on" in str(path))
     report = {
-        "schema_version": "expansion-development-score-v1",
+        "schema_version": "expansion-development-score-v2",
         "evidence_role": "retrospective development",
         "timing_fit": args.timing_fit,
         "power_fit": args.power_fit,
@@ -283,7 +447,7 @@ def main(argv=None):
         "agentic_cache_pair_identity": replay_pair_identity(off, on),
     }
     Path(args.out).write_text(json.dumps(report, indent=2) + "\n")
-    print(f"scored {len(runs)} Qwen bundles -> {args.out}")
+    print(f"scored {len(runs)} development bundles -> {args.out}")
 
 
 if __name__ == "__main__":

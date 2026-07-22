@@ -1,0 +1,5594 @@
+{
+ "description": "Measured iteration-timing calibration points from probe bundles (Tier-1 llama-3-70b, iteration gpt-oss-20b). No fitting. gpt-oss-120b probes are quarantined (holdout model).",
+ "n_rows": 113,
+ "skipped": [
+  "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1783987574: no manifest.json",
+  "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784015494: no manifest.json",
+  "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784033293: no manifest.json",
+  "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783932066: no manifest.json"
+ ],
+ "rows": [
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "a100_context_holds_tp4_1784145773",
+   "label": "context_2048",
+   "level": 0,
+   "batch": 8,
+   "num_prompts": 96,
+   "prompt_tokens": 2056,
+   "output_len": 256,
+   "context_tokens_mean": 2184.5,
+   "level_duration_s": 102.34201303170994,
+   "output_throughput_tok_s": 240.13598396178998,
+   "measured": {
+    "mean_tpot_ms": 33.10554994713801,
+    "median_tpot_ms": 33.09825451076762,
+    "mean_itl_ms": 33.249980921089545,
+    "median_itl_ms": 33.102352975630296,
+    "mean_ttft_ms": 83.79680174887956,
+    "median_ttft_ms": 79.03721649199724,
+    "p99_ttft_ms": 122.87579684052616
+   },
+   "engine_counters": {
+    "window_s": 110.19535994529724,
+    "iterations": 3341.0,
+    "iterations_per_s": 30.318880955228302,
+    "tokens_per_iteration": 69.19215803651602,
+    "iteration_time_ms": 32.98274766396206,
+    "engine_tokens_per_s": 2097.828802544472,
+    "preemptions": 0.0,
+    "num_running_mean": 7.425882352941176,
+    "steady": {
+     "window_s": 101.98918533325195,
+     "iteration_time_ms": 33.156432162955774,
+     "tokens_per_iteration": 68.82704811443433,
+     "engine_tokens_per_s": 2075.8279351700503,
+     "num_running_mean": 7.997429305912596
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784145773",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 30.206415588829405,
+   "effective_decode_batch": 7.997429305912596
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "a100_context_holds_tp4_1784145773",
+   "label": "context_8192",
+   "level": 1,
+   "batch": 8,
+   "num_prompts": 72,
+   "prompt_tokens": 8200,
+   "output_len": 256,
+   "context_tokens_mean": 8328.5,
+   "level_duration_s": 81.28900320688263,
+   "output_throughput_tok_s": 226.7465373279345,
+   "measured": {
+    "mean_tpot_ms": 34.84676639939514,
+    "median_tpot_ms": 34.82206390494956,
+    "mean_itl_ms": 35.72063388907974,
+    "median_itl_ms": 34.85767562033645,
+    "mean_ttft_ms": 143.94962750116568,
+    "median_ttft_ms": 142.8978454787284,
+    "p99_ttft_ms": 204.913060083054
+   },
+   "engine_counters": {
+    "window_s": 89.51364850997925,
+    "iterations": 2572.0,
+    "iterations_per_s": 28.733048454764592,
+    "tokens_per_iteration": 249.4891135303266,
+    "iteration_time_ms": 34.80312928070733,
+    "engine_tokens_per_s": 7168.582788003138,
+    "preemptions": 0.0,
+    "num_running_mean": 7.252199413489736,
+    "steady": {
+     "window_s": 80.79588794708252,
+     "iteration_time_ms": 35.037245423713145,
+     "tokens_per_iteration": 244.8191673894189,
+     "engine_tokens_per_s": 6987.397680062078,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784145773",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 28.69706728419305,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "a100_context_holds_tp4_1784145773",
+   "label": "context_32768",
+   "level": 2,
+   "batch": 8,
+   "num_prompts": 32,
+   "prompt_tokens": 32776,
+   "output_len": 256,
+   "context_tokens_mean": 32904.5,
+   "level_duration_s": 44.44098839210346,
+   "output_throughput_tok_s": 184.33433405490152,
+   "measured": {
+    "mean_tpot_ms": 42.04882259318587,
+    "median_tpot_ms": 41.951068496222,
+    "mean_itl_ms": 42.04882361364606,
+    "median_itl_ms": 41.95106904497188,
+    "mean_ttft_ms": 378.6821016983595,
+    "median_ttft_ms": 364.99461857602,
+    "p99_ttft_ms": 476.43047493416816
+   },
+   "engine_counters": {
+    "window_s": 53.15653371810913,
+    "iterations": 1288.0,
+    "iterations_per_s": 24.2303233470848,
+    "tokens_per_iteration": 881.9107142857143,
+    "iteration_time_ms": 41.27060071281765,
+    "engine_tokens_per_s": 21368.981770401373,
+    "preemptions": 0.0,
+    "num_running_mean": 6.748768472906404,
+    "steady": {
+     "window_s": 43.65170335769653,
+     "iteration_time_ms": 42.71203851046627,
+     "tokens_per_iteration": 810.2622309197652,
+     "engine_tokens_per_s": 18970.34792008853,
+     "num_running_mean": 7.993975903614458
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784145773",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 23.78187873831342,
+   "effective_decode_batch": 7.993975903614458
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "a100_context_holds_tp4_1784145773",
+   "label": "context_122880",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 122888,
+   "output_len": 256,
+   "context_tokens_mean": 123016.5,
+   "level_duration_s": 38.44337326521054,
+   "output_throughput_tok_s": 106.54632130595806,
+   "measured": {
+    "mean_tpot_ms": 68.69115912077,
+    "median_tpot_ms": 68.72598092692593,
+    "mean_itl_ms": 68.81040893890008,
+    "median_itl_ms": 68.99655624622787,
+    "mean_ttft_ms": 1569.1640264703892,
+    "median_ttft_ms": 1636.9159014429897,
+    "p99_ttft_ms": 2128.243082226254
+   },
+   "engine_counters": {
+    "window_s": 48.50659990310669,
+    "iterations": 800.0,
+    "iterations_per_s": 16.492601039817732,
+    "tokens_per_iteration": 2732.54875,
+    "iteration_time_ms": 60.63324987888336,
+    "engine_tokens_per_s": 45066.83635560264,
+    "preemptions": 0.0,
+    "num_running_mean": 6.091397849462366,
+    "steady": {
+     "window_s": 35.68329977989197,
+     "iteration_time_ms": 69.01992220482005,
+     "tokens_per_iteration": 1993.5802707930368,
+     "engine_tokens_per_s": 28884.128047507616,
+     "num_running_mean": 7.947368421052632
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_context_holds_tp4_1784145773",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 14.557914188663505,
+   "effective_decode_batch": 7.947368421052632
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch1_context2048",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 7,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 105.78749890904874,
+   "output_throughput_tok_s": 33.87923938991468,
+   "measured": {
+    "mean_tpot_ms": 29.47213074495989,
+    "median_tpot_ms": 29.47166901621275,
+    "mean_itl_ms": 30.310708977891796,
+    "median_itl_ms": 29.586844378624892,
+    "mean_ttft_ms": 51.644192742449896,
+    "median_ttft_ms": 50.76386034488678,
+    "p99_ttft_ms": 56.416933350265026
+   },
+   "engine_counters": {
+    "window_s": 121.11477375030518,
+    "iterations": 4096.0,
+    "iterations_per_s": 33.81916072802538,
+    "tokens_per_iteration": 5.140380859375,
+    "iteration_time_ms": 29.5690365601331,
+    "engine_tokens_per_s": 173.84336648646834,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 120.60470604896545,
+     "iteration_time_ms": 29.51657025182708,
+     "tokens_per_iteration": 4.63191385217817,
+     "engine_tokens_per_s": 156.92588307719976,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 33.93035979154689,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch1_context8192",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 6,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 94.77265409752727,
+   "output_throughput_tok_s": 32.414413516779966,
+   "measured": {
+    "mean_tpot_ms": 30.757480045502298,
+    "median_tpot_ms": 30.759951100664654,
+    "mean_itl_ms": 31.80464123823918,
+    "median_itl_ms": 31.328701829895763,
+    "mean_ttft_ms": 77.77446166922648,
+    "median_ttft_ms": 77.10370142012835,
+    "p99_ttft_ms": 80.55103151127696
+   },
+   "engine_counters": {
+    "window_s": 110.51597714424133,
+    "iterations": 3584.0,
+    "iterations_per_s": 32.42970014482428,
+    "tokens_per_iteration": 17.652622767857142,
+    "iteration_time_ms": 30.835931122835195,
+    "engine_tokens_per_s": 572.4692631313052,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 110.0059723854065,
+     "iteration_time_ms": 30.83991376097743,
+     "tokens_per_iteration": 15.341743762265208,
+     "engine_tokens_per_s": 497.463899580599,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 32.512416443759705,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch1_context32768",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 50.467399168759584,
+   "output_throughput_tok_s": 30.43548954967383,
+   "measured": {
+    "mean_tpot_ms": 32.548609511065315,
+    "median_tpot_ms": 32.55201528967885,
+    "mean_itl_ms": 33.57216675153667,
+    "median_itl_ms": 33.860771459680954,
+    "mean_ttft_ms": 189.51197185864052,
+    "median_ttft_ms": 189.19556587934494,
+    "p99_ttft_ms": 192.2093222476542
+   },
+   "engine_counters": {
+    "window_s": 65.61813116073608,
+    "iterations": 1997.0,
+    "iterations_per_s": 30.433661621788836,
+    "tokens_per_iteration": 69.41862794191287,
+    "iteration_time_ms": 32.85835311003309,
+    "engine_tokens_per_s": 2112.6630330330318,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 65.36312532424927,
+     "iteration_time_ms": 32.77990236923233,
+     "tokens_per_iteration": 52.39067201604814,
+     "engine_tokens_per_s": 1598.2558894142026,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 30.723278659877536,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch4_context2048",
+   "level": 3,
+   "batch": 4,
+   "num_prompts": 28,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 114.02420853078365,
+   "output_throughput_tok_s": 125.72768699490373,
+   "measured": {
+    "mean_tpot_ms": 31.72484292611761,
+    "median_tpot_ms": 31.726223278112727,
+    "mean_itl_ms": 32.73983804274766,
+    "median_itl_ms": 32.02260459088554,
+    "mean_ttft_ms": 75.82608304385629,
+    "median_ttft_ms": 80.47704165801406,
+    "p99_ttft_ms": 89.8082673177123
+   },
+   "engine_counters": {
+    "window_s": 129.33582758903503,
+    "iterations": 4101.0,
+    "iterations_per_s": 31.708151379607973,
+    "tokens_per_iteration": 18.608632040965617,
+    "iteration_time_ms": 31.53763169691174,
+    "engine_tokens_per_s": 590.0453217223611,
+    "preemptions": 0.0,
+    "num_running_mean": 3.609375,
+    "steady": {
+     "window_s": 113.51391625404358,
+     "iteration_time_ms": 31.752144406725478,
+     "tokens_per_iteration": 18.223496503496502,
+     "engine_tokens_per_s": 573.9296303917209,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 31.521038648760207,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch4_context8192",
+   "level": 4,
+   "batch": 4,
+   "num_prompts": 24,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 100.80843577068299,
+   "output_throughput_tok_s": 121.8945607682327,
+   "measured": {
+    "mean_tpot_ms": 32.672941394633845,
+    "median_tpot_ms": 32.67784520105227,
+    "mean_itl_ms": 32.81350492175011,
+    "median_itl_ms": 32.685551097080726,
+    "mean_ttft_ms": 103.18651523751517,
+    "median_ttft_ms": 102.04639984294772,
+    "p99_ttft_ms": 142.85410404205322
+   },
+   "engine_counters": {
+    "window_s": 116.86597275733948,
+    "iterations": 3590.0,
+    "iterations_per_s": 30.71895022389688,
+    "tokens_per_iteration": 62.93983286908078,
+    "iteration_time_ms": 32.55319575413356,
+    "engine_tokens_per_s": 1933.445593005681,
+    "preemptions": 0.0,
+    "num_running_mean": 3.797590361445783,
+    "steady": {
+     "window_s": 100.53424382209778,
+     "iteration_time_ms": 32.72599082750579,
+     "tokens_per_iteration": 59.501953125,
+     "engine_tokens_per_s": 1818.1864512101906,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 30.60636591978947,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch4_context32768",
+   "level": 5,
+   "batch": 4,
+   "num_prompts": 12,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 56.224164077080786,
+   "output_throughput_tok_s": 109.27685810636248,
+   "measured": {
+    "mean_tpot_ms": 36.11080081746424,
+    "median_tpot_ms": 36.08538904327557,
+    "mean_itl_ms": 36.72217660361321,
+    "median_itl_ms": 36.33588562027002,
+    "mean_ttft_ms": 283.8381555241843,
+    "median_ttft_ms": 295.68780632689595,
+    "p99_ttft_ms": 327.18986911699176
+   },
+   "engine_counters": {
+    "window_s": 73.00484204292297,
+    "iterations": 2051.0,
+    "iterations_per_s": 28.094026952268738,
+    "tokens_per_iteration": 219.7493905411994,
+    "iteration_time_ms": 35.59475477470647,
+    "engine_tokens_per_s": 6173.645300609085,
+    "preemptions": 0.0,
+    "num_running_mean": 3.2773722627737225,
+    "steady": {
+     "window_s": 55.58818602561951,
+     "iteration_time_ms": 36.379702896347844,
+     "tokens_per_iteration": 182.82853403141362,
+     "engine_tokens_per_s": 5025.564242575707,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 27.69254564735022,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch16_context2048",
+   "level": 6,
+   "batch": 16,
+   "num_prompts": 112,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 127.26673691999167,
+   "output_throughput_tok_s": 450.5812075314719,
+   "measured": {
+    "mean_tpot_ms": 35.23566715673733,
+    "median_tpot_ms": 35.2465025843677,
+    "mean_itl_ms": 44.74450681156566,
+    "median_itl_ms": 35.54636537220469,
+    "mean_ttft_ms": 153.73683963636202,
+    "median_ttft_ms": 131.4541893079877,
+    "p99_ttft_ms": 390.7687852717936
+   },
+   "engine_counters": {
+    "window_s": 142.6058168411255,
+    "iterations": 4112.0,
+    "iterations_per_s": 28.83472842192057,
+    "tokens_per_iteration": 72.31274319066148,
+    "iteration_time_ms": 34.680402928289276,
+    "engine_tokens_per_s": 2085.1183113468096,
+    "preemptions": 0.0,
+    "num_running_mean": 13.955223880597014,
+    "steady": {
+     "window_s": 126.52480673789978,
+     "iteration_time_ms": 35.34212478712284,
+     "tokens_per_iteration": 72.78184357541899,
+     "engine_tokens_per_s": 2059.351100529688,
+     "num_running_mean": 15.997518610421837
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 28.38033392561413,
+   "effective_decode_batch": 15.997518610421837
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch16_context8192",
+   "level": 7,
+   "batch": 16,
+   "num_prompts": 96,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 117.99746220372617,
+   "output_throughput_tok_s": 416.55133154590726,
+   "measured": {
+    "mean_tpot_ms": 38.11749367069803,
+    "median_tpot_ms": 38.08771361963215,
+    "mean_itl_ms": 38.63480445396769,
+    "median_itl_ms": 38.18088904030489,
+    "mean_ttft_ms": 180.8128975389991,
+    "median_ttft_ms": 170.41094042360783,
+    "p99_ttft_ms": 242.0716022606939
+   },
+   "engine_counters": {
+    "window_s": 134.00079131126404,
+    "iterations": 3596.0,
+    "iterations_per_s": 26.835662422671994,
+    "tokens_per_iteration": 243.8036707452725,
+    "iteration_time_ms": 37.26384630457843,
+    "engine_tokens_per_s": 6542.633005528405,
+    "preemptions": 0.0,
+    "num_running_mean": 14.135826771653543,
+    "steady": {
+     "window_s": 117.32347774505615,
+     "iteration_time_ms": 38.2036723363908,
+     "tokens_per_iteration": 238.06056659068707,
+     "engine_tokens_per_s": 6231.352957237128,
+     "num_running_mean": 15.997747747747749
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 26.23467347142836,
+   "effective_decode_batch": 15.997747747747749
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783985957",
+   "label": "decode_batch16_context32768",
+   "level": 8,
+   "batch": 16,
+   "num_prompts": 48,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 81.1410032613203,
+   "output_throughput_tok_s": 302.88015937948495,
+   "measured": {
+    "mean_tpot_ms": 51.87096711147465,
+    "median_tpot_ms": 51.853304207616596,
+    "mean_itl_ms": 52.07621552328784,
+    "median_itl_ms": 52.03185132349278,
+    "mean_ttft_ms": 511.0181560351824,
+    "median_ttft_ms": 400.76065342873335,
+    "p99_ttft_ms": 963.5287477076054
+   },
+   "engine_counters": {
+    "window_s": 98.13452887535095,
+    "iterations": 2058.0,
+    "iterations_per_s": 20.971211902530673,
+    "tokens_per_iteration": 825.4655004859087,
+    "iteration_time_ms": 47.684416363144294,
+    "engine_tokens_per_s": 17311.011928918528,
+    "preemptions": 0.0,
+    "num_running_mean": 13.243315508021391,
+    "steady": {
+     "window_s": 79.86678910255432,
+     "iteration_time_ms": 52.0643996757199,
+     "tokens_per_iteration": 728.4960886571056,
+     "engine_tokens_per_s": 13992.211438036382,
+     "num_running_mean": 15.986842105263158
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_context_grid_tp4_1783985957",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 19.27860719949416,
+   "effective_decode_batch": 15.986842105263158
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N1",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 2,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 119.8016867088154,
+   "output_throughput_tok_s": 34.18983582389415,
+   "measured": {
+    "mean_tpot_ms": 29.242945802463996,
+    "median_tpot_ms": 29.242945802463996,
+    "mean_itl_ms": 29.350931449184447,
+    "median_itl_ms": 29.350931449184447,
+    "mean_ttft_ms": 39.78667268529534,
+    "median_ttft_ms": 39.78667268529534,
+    "p99_ttft_ms": 40.182968536391854
+   },
+   "engine_counters": {
+    "window_s": 179.82845282554626,
+    "iterations": 6144.0,
+    "iterations_per_s": 34.16589479285777,
+    "tokens_per_iteration": 1.0045572916666667,
+    "iteration_time_ms": 29.26895391040792,
+    "engine_tokens_per_s": 34.32159874048147,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 179.31765484809875,
+     "iteration_time_ms": 29.238163190624288,
+     "tokens_per_iteration": 1.0030979944562204,
+     "engine_tokens_per_s": 34.307832127357464,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 34.19628127600402,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N2",
+   "level": 1,
+   "batch": 2,
+   "num_prompts": 4,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 126.61853112652898,
+   "output_throughput_tok_s": 64.69827068056723,
+   "measured": {
+    "mean_tpot_ms": 30.905335413521357,
+    "median_tpot_ms": 30.905337884346988,
+    "mean_itl_ms": 31.232453608020155,
+    "median_itl_ms": 31.232456202962965,
+    "mean_ttft_ms": 45.16785987652838,
+    "median_ttft_ms": 45.16528686508536,
+    "p99_ttft_ms": 46.75650085322559
+   },
+   "engine_counters": {
+    "window_s": 186.57140827178955,
+    "iterations": 6143.0,
+    "iterations_per_s": 32.92573099438222,
+    "tokens_per_iteration": 1.674100602311574,
+    "iteration_time_ms": 30.371383407421384,
+    "engine_tokens_per_s": 55.120986089244134,
+    "preemptions": 0.0,
+    "num_running_mean": 1.6825174825174825,
+    "steady": {
+     "window_s": 126.48587584495544,
+     "iteration_time_ms": 30.90297479720387,
+     "tokens_per_iteration": 2.004397752259956,
+     "engine_tokens_per_s": 64.86099689151337,
+     "num_running_mean": 2.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 32.35687257943466,
+   "effective_decode_batch": 2.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N4",
+   "level": 2,
+   "batch": 4,
+   "num_prompts": 8,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 128.32308379281312,
+   "output_throughput_tok_s": 127.67772964724843,
+   "measured": {
+    "mean_tpot_ms": 31.309143365469986,
+    "median_tpot_ms": 31.309128427968105,
+    "mean_itl_ms": 31.853856603427136,
+    "median_itl_ms": 31.853760550396363,
+    "mean_ttft_ms": 63.16198117565364,
+    "median_ttft_ms": 65.84609765559435,
+    "p99_ttft_ms": 78.01265460439026
+   },
+   "engine_counters": {
+    "window_s": 188.53373742103577,
+    "iterations": 6146.0,
+    "iterations_per_s": 32.59894003095415,
+    "tokens_per_iteration": 3.0130165961601043,
+    "iteration_time_ms": 30.67584403205919,
+    "engine_tokens_per_s": 98.22114733049281,
+    "preemptions": 0.0,
+    "num_running_mean": 3.0466101694915255,
+    "steady": {
+     "window_s": 127.85522651672363,
+     "iteration_time_ms": 31.306372800373072,
+     "tokens_per_iteration": 4.008814887365328,
+     "engine_tokens_per_s": 128.05108125836782,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 31.939551597661186,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N8",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 131.5682604657486,
+   "output_throughput_tok_s": 249.05702852650052,
+   "measured": {
+    "mean_tpot_ms": 32.10031563379384,
+    "median_tpot_ms": 32.100342271661155,
+    "mean_itl_ms": 33.827627330851975,
+    "median_itl_ms": 33.82764675979294,
+    "mean_ttft_ms": 69.17114520911127,
+    "median_ttft_ms": 66.71839579939842,
+    "p99_ttft_ms": 81.24989317730069
+   },
+   "engine_counters": {
+    "window_s": 191.6100378036499,
+    "iterations": 6146.0,
+    "iterations_per_s": 32.07556384023075,
+    "tokens_per_iteration": 5.690855841197527,
+    "iteration_time_ms": 31.176381028904963,
+    "engine_tokens_per_s": 182.53740983988135,
+    "preemptions": 0.0,
+    "num_running_mean": 5.756410256410256,
+    "steady": {
+     "window_s": 131.22125387191772,
+     "iteration_time_ms": 32.09913255183898,
+     "tokens_per_iteration": 8.016144814090019,
+     "engine_tokens_per_s": 249.73088606504325,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 31.152341659445952,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N16",
+   "level": 4,
+   "batch": 16,
+   "num_prompts": 32,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 141.025062546134,
+   "output_throughput_tok_s": 464.7117244040292,
+   "measured": {
+    "mean_tpot_ms": 34.39950495637291,
+    "median_tpot_ms": 34.40253068677058,
+    "mean_itl_ms": 34.81636297938674,
+    "median_itl_ms": 34.819429901178964,
+    "mean_ttft_ms": 91.05293903849088,
+    "median_ttft_ms": 84.94480792433023,
+    "p99_ttft_ms": 109.60535579361022
+   },
+   "engine_counters": {
+    "window_s": 201.04087209701538,
+    "iterations": 6146.0,
+    "iterations_per_s": 30.570898026318513,
+    "tokens_per_iteration": 11.04620891636837,
+    "iteration_time_ms": 32.71084804702495,
+    "engine_tokens_per_s": 337.69252635970776,
+    "preemptions": 0.0,
+    "num_running_mean": 11.498694516971279,
+    "steady": {
+     "window_s": 140.5591597557068,
+     "iteration_time_ms": 34.40018594119109,
+     "tokens_per_iteration": 16.03181595692609,
+     "engine_tokens_per_s": 466.038642475169,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 29.070185785180563,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N32",
+   "level": 5,
+   "batch": 32,
+   "num_prompts": 64,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 157.44089214969426,
+   "output_throughput_tok_s": 832.5156076693036,
+   "measured": {
+    "mean_tpot_ms": 38.38371929230496,
+    "median_tpot_ms": 38.38804257809789,
+    "mean_itl_ms": 39.63098877052356,
+    "median_itl_ms": 39.63748352696006,
+    "mean_ttft_ms": 139.48043884010985,
+    "median_ttft_ms": 134.65829426422715,
+    "p99_ttft_ms": 161.03459452278912
+   },
+   "engine_counters": {
+    "window_s": 218.31601881980896,
+    "iterations": 6147.0,
+    "iterations_per_s": 28.156431366007716,
+    "tokens_per_iteration": 21.75451439726696,
+    "iteration_time_ms": 35.515864457427845,
+    "engine_tokens_per_s": 612.5294915274739,
+    "preemptions": 0.0,
+    "num_running_mean": 23.60174781523096,
+    "steady": {
+     "window_s": 157.03057193756104,
+     "iteration_time_ms": 38.393782869819326,
+     "tokens_per_iteration": 32.057457212713935,
+     "engine_tokens_per_s": 834.9647994158382,
+     "num_running_mean": 31.996575342465754
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 26.052712411339375,
+   "effective_decode_batch": 31.996575342465754
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N64",
+   "level": 6,
+   "batch": 64,
+   "num_prompts": 128,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 165.23094869684428,
+   "output_throughput_tok_s": 1586.5308652373951,
+   "measured": {
+    "mean_tpot_ms": 40.243765915808325,
+    "median_tpot_ms": 40.239501340950795,
+    "mean_itl_ms": 40.48108741574187,
+    "median_itl_ms": 40.49226899989382,
+    "mean_ttft_ms": 213.88982277858304,
+    "median_ttft_ms": 224.94285879656672,
+    "p99_ttft_ms": 249.48038293980062
+   },
+   "engine_counters": {
+    "window_s": 225.1635663509369,
+    "iterations": 6149.0,
+    "iterations_per_s": 27.309036269288132,
+    "tokens_per_iteration": 43.16018864856074,
+    "iteration_time_ms": 36.61791614098827,
+    "engine_tokens_per_s": 1178.663157192863,
+    "preemptions": 0.0,
+    "num_running_mean": 47.85389221556886,
+    "steady": {
+     "window_s": 164.51121973991394,
+     "iteration_time_ms": 40.252317039372144,
+     "tokens_per_iteration": 64.09517983851235,
+     "engine_tokens_per_s": 1592.3351636085622,
+     "num_running_mean": 64.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 24.84856914464821,
+   "effective_decode_batch": 64.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N128",
+   "level": 7,
+   "batch": 128,
+   "num_prompts": 256,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 215.6082912189886,
+   "output_throughput_tok_s": 2431.6690097390187,
+   "measured": {
+    "mean_tpot_ms": 52.47302309644612,
+    "median_tpot_ms": 52.49658451881033,
+    "mean_itl_ms": 53.55972418743364,
+    "median_itl_ms": 53.57918613203511,
+    "mean_ttft_ms": 358.8277132912481,
+    "median_ttft_ms": 379.2915171943605,
+    "p99_ttft_ms": 444.63694184087217
+   },
+   "engine_counters": {
+    "window_s": 279.35281801223755,
+    "iterations": 6150.0,
+    "iterations_per_s": 22.015170792837996,
+    "tokens_per_iteration": 85.97268292682926,
+    "iteration_time_ms": 45.42322244101423,
+    "engine_tokens_per_s": 1892.7032981526536,
+    "preemptions": 0.0,
+    "num_running_mean": 100.9990328820116,
+    "steady": {
+     "window_s": 214.97196578979492,
+     "iteration_time_ms": 52.48339008539915,
+     "tokens_per_iteration": 128.151611328125,
+     "engine_tokens_per_s": 2441.755593905065,
+     "num_running_mean": 127.98525798525799
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 19.05741161819449,
+   "effective_decode_batch": 127.98525798525799
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783983639",
+   "label": "decode_N256",
+   "level": 8,
+   "batch": 256,
+   "num_prompts": 512,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 375.5549009544775,
+   "output_throughput_tok_s": 2792.0711388269224,
+   "measured": {
+    "mean_tpot_ms": 84.68840851744585,
+    "median_tpot_ms": 84.54189694959271,
+    "mean_itl_ms": 84.69148801103803,
+    "median_itl_ms": 84.5418969887201,
+    "mean_ttft_ms": 2922.1011326935695,
+    "median_ttft_ms": 774.0470324642956,
+    "p99_ttft_ms": 10249.280575923622
+   },
+   "engine_counters": {
+    "window_s": 435.64753699302673,
+    "iterations": 6609.0,
+    "iterations_per_s": 15.17052075082841,
+    "tokens_per_iteration": 159.69011953396884,
+    "iteration_time_ms": 65.91731532652848,
+    "engine_tokens_per_s": 2422.5822720923434,
+    "preemptions": 58.0,
+    "num_running_mean": 202.85474860335196,
+    "steady": {
+     "window_s": 349.3466889858246,
+     "iteration_time_ms": 85.35223283308687,
+     "tokens_per_iteration": 254.6818959198632,
+     "engine_tokens_per_s": 2983.8925997157453,
+     "num_running_mean": 253.6150234741784
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_decode_staircase_tp4_1783983639",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 11.807991406450855,
+   "effective_decode_batch": 253.6150234741784
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "a100_prefill_staircase_tp4_1783987189",
+   "label": "prefill_256",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 704,
+   "prompt_tokens": 256,
+   "output_len": 1,
+   "context_tokens_mean": 257.0,
+   "level_duration_s": 56.53649644739926,
+   "output_throughput_tok_s": 12.452133475497398,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 79.53804961950729,
+    "median_ttft_ms": 79.48958780616522,
+    "p99_ttft_ms": 82.84284873865545
+   },
+   "engine_counters": {
+    "window_s": 65.62860822677612,
+    "iterations": 705.0,
+    "iterations_per_s": 10.742266506154,
+    "tokens_per_iteration": 269.5049645390071,
+    "iteration_time_ms": 93.09022443514344,
+    "engine_tokens_per_s": 2895.094153809597,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 65.62860822677612,
+     "iteration_time_ms": 93.09022443514344,
+     "tokens_per_iteration": 269.5049645390071,
+     "engine_tokens_per_s": 2895.094153809597,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_prefill_staircase_tp4_1783987189",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 79.53804961950729,
+   "prefill_time_ms_median": 79.48958780616522,
+   "prefill_time_ms_mean_excl_cache_hits": 79.71209146284343,
+   "n_prefill_samples": 704,
+   "n_cache_hit_samples_excluded": 3
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "a100_prefill_staircase_tp4_1783987189",
+   "label": "prefill_1024",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 176,
+   "prompt_tokens": 1024,
+   "output_len": 1,
+   "context_tokens_mean": 1025.0,
+   "level_duration_s": 33.108845161274076,
+   "output_throughput_tok_s": 5.315800026932358,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 187.5629519715651,
+    "median_ttft_ms": 188.44917742535472,
+    "p99_ttft_ms": 192.46647134423256
+   },
+   "engine_counters": {
+    "window_s": 38.20092797279358,
+    "iterations": 177.0,
+    "iterations_per_s": 4.633395296733579,
+    "tokens_per_iteration": 1073.6666666666667,
+    "iteration_time_ms": 215.82445182369253,
+    "engine_tokens_per_s": 4974.722083592953,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 38.20092797279358,
+     "iteration_time_ms": 215.82445182369253,
+     "tokens_per_iteration": 1073.6666666666667,
+     "engine_tokens_per_s": 4974.722083592953,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_prefill_staircase_tp4_1783987189",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 187.5629519715651,
+   "prefill_time_ms_median": 188.44917742535472,
+   "prefill_time_ms_mean_excl_cache_hits": 188.39796531945467,
+   "n_prefill_samples": 176,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "a100_prefill_staircase_tp4_1783987189",
+   "label": "prefill_4096",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 44,
+   "prompt_tokens": 4096,
+   "output_len": 1,
+   "context_tokens_mean": 4097.0,
+   "level_duration_s": 28.268416944891214,
+   "output_throughput_tok_s": 1.5565073943042949,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 602.3673817557707,
+    "median_ttft_ms": 616.4280492812395,
+    "p99_ttft_ms": 677.6922043226659
+   },
+   "engine_counters": {
+    "window_s": 33.613627195358276,
+    "iterations": 45.0,
+    "iterations_per_s": 1.3387427586575387,
+    "tokens_per_iteration": 4292.2,
+    "iteration_time_ms": 746.969493230184,
+    "engine_tokens_per_s": 5746.151668709887,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 33.613627195358276,
+     "iteration_time_ms": 746.969493230184,
+     "tokens_per_iteration": 4292.2,
+     "engine_tokens_per_s": 5746.151668709887,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_prefill_staircase_tp4_1783987189",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 602.3673817557707,
+   "prefill_time_ms_median": 616.4280492812395,
+   "prefill_time_ms_mean_excl_cache_hits": 614.9265744051961,
+   "n_prefill_samples": 44,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "a100_prefill_staircase_tp4_1783987189",
+   "label": "prefill_16384",
+   "level": 3,
+   "batch": 1,
+   "num_prompts": 11,
+   "prompt_tokens": 16384,
+   "output_len": 1,
+   "context_tokens_mean": 16385.0,
+   "level_duration_s": 27.228040321730077,
+   "output_throughput_tok_s": 0.40399528831390596,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 2474.754434332929,
+    "median_ttft_ms": 2718.526678159833,
+    "p99_ttft_ms": 2744.074083119631
+   },
+   "engine_counters": {
+    "window_s": 34.705010414123535,
+    "iterations": 12.0,
+    "iterations_per_s": 0.34577139890776365,
+    "tokens_per_iteration": 17140.25,
+    "iteration_time_ms": 2892.0842011769614,
+    "engine_tokens_per_s": 5926.608220128795,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 34.705010414123535,
+     "iteration_time_ms": 2892.0842011769614,
+     "tokens_per_iteration": 17140.25,
+     "engine_tokens_per_s": 5926.608220128795,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_prefill_staircase_tp4_1783987189",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 2474.754434332929,
+   "prefill_time_ms_median": 2718.526678159833,
+   "prefill_time_ms_mean_excl_cache_hits": 2709.843883756548,
+   "n_prefill_samples": 11,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "a100_prefill_staircase_tp4_1783987189",
+   "label": "prefill_65536",
+   "level": 4,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 65536,
+   "output_len": 1,
+   "context_tokens_mean": 65537.0,
+   "level_duration_s": 34.48798373248428,
+   "output_throughput_tok_s": 0.08698681904022983,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 11495.342052852115,
+    "median_ttft_ms": 16986.444239504635,
+    "p99_ttft_ms": 17249.45449400693
+   },
+   "engine_counters": {
+    "window_s": 56.223710775375366,
+    "iterations": 3.0,
+    "iterations_per_s": 0.05335827106797668,
+    "tokens_per_iteration": 68698.0,
+    "iteration_time_ms": 18741.236925125122,
+    "engine_tokens_per_s": 3665.606505827862,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 56.223710775375366,
+     "iteration_time_ms": 18741.236925125122,
+     "tokens_per_iteration": 68698.0,
+     "engine_tokens_per_s": 3665.606505827862,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_tier1_llama70b/a100_prefill_staircase_tp4_1783987189",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 11495.342052852115,
+   "prefill_time_ms_median": 16986.444239504635,
+   "prefill_time_ms_mean_excl_cache_hits": 17120.63314486295,
+   "n_prefill_samples": 3,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "h100_context_holds_tp8_1784141813",
+   "label": "context_2048",
+   "level": 0,
+   "batch": 8,
+   "num_prompts": 96,
+   "prompt_tokens": 2056,
+   "output_len": 256,
+   "context_tokens_mean": 2184.5,
+   "level_duration_s": 44.6260616350919,
+   "output_throughput_tok_s": 550.7095876162765,
+   "measured": {
+    "mean_tpot_ms": 14.333431744868898,
+    "median_tpot_ms": 13.931510086153068,
+    "mean_itl_ms": 14.334645037771184,
+    "median_itl_ms": 13.93151052807476,
+    "mean_ttft_ms": 59.601027945367,
+    "median_ttft_ms": 55.459576193243265,
+    "p99_ttft_ms": 112.8208347596228
+   },
+   "engine_counters": {
+    "window_s": 48.232972145080566,
+    "iterations": 3361.0,
+    "iterations_per_s": 69.68262270652544,
+    "tokens_per_iteration": 68.78042249330557,
+    "iteration_time_ms": 14.350780168128702,
+    "engine_tokens_per_s": 4792.800230196427,
+    "preemptions": 0.0,
+    "num_running_mean": 7.453551912568306,
+    "steady": {
+     "window_s": 44.42695760726929,
+     "iteration_time_ms": 14.345159059499286,
+     "tokens_per_iteration": 68.36196319018404,
+     "engine_tokens_per_s": 4765.5075072113,
+     "num_running_mean": 7.988165680473373
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_context_holds_tp8_1784141813",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 69.7669628460038,
+   "effective_decode_batch": 7.988165680473373
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "h100_context_holds_tp8_1784141813",
+   "label": "context_8192",
+   "level": 1,
+   "batch": 8,
+   "num_prompts": 72,
+   "prompt_tokens": 8200,
+   "output_len": 256,
+   "context_tokens_mean": 8328.5,
+   "level_duration_s": 33.06735480111092,
+   "output_throughput_tok_s": 557.40775489489,
+   "measured": {
+    "mean_tpot_ms": 14.113094592172741,
+    "median_tpot_ms": 13.918746235396933,
+    "mean_itl_ms": 14.11309513341522,
+    "median_itl_ms": 13.918746679144746,
+    "mean_ttft_ms": 69.5263235959121,
+    "median_ttft_ms": 68.79196967929602,
+    "p99_ttft_ms": 113.30313765443861
+   },
+   "engine_counters": {
+    "window_s": 36.414923429489136,
+    "iterations": 2586.0,
+    "iterations_per_s": 71.01484107215872,
+    "tokens_per_iteration": 248.138437741686,
+    "iteration_time_ms": 14.081563584489224,
+    "engine_tokens_per_s": 17621.511720119583,
+    "preemptions": 0.0,
+    "num_running_mean": 7.285714285714286,
+    "steady": {
+     "window_s": 32.597986459732056,
+     "iteration_time_ms": 14.166878078979598,
+     "tokens_per_iteration": 245.30030421555844,
+     "engine_tokens_per_s": 17315.057195242465,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_context_holds_tp8_1784141813",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 70.85618207041634,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "h100_context_holds_tp8_1784141813",
+   "label": "context_32768",
+   "level": 2,
+   "batch": 8,
+   "num_prompts": 32,
+   "prompt_tokens": 32776,
+   "output_len": 256,
+   "context_tokens_mean": 32904.5,
+   "level_duration_s": 17.804085766896605,
+   "output_throughput_tok_s": 460.11910452776544,
+   "measured": {
+    "mean_tpot_ms": 16.40093726204142,
+    "median_tpot_ms": 15.44851146127079,
+    "mean_itl_ms": 16.40474740378561,
+    "median_itl_ms": 15.448512213633341,
+    "mean_ttft_ms": 245.67842786200345,
+    "median_ttft_ms": 248.5555987805128,
+    "p99_ttft_ms": 394.5530147571117
+   },
+   "engine_counters": {
+    "window_s": 21.39603567123413,
+    "iterations": 1320.0,
+    "iterations_per_s": 61.69367168211783,
+    "tokens_per_iteration": 860.5310606060606,
+    "iteration_time_ms": 16.20911793275313,
+    "engine_tokens_per_s": 53089.32072529494,
+    "preemptions": 0.0,
+    "num_running_mean": 6.666666666666667,
+    "steady": {
+     "window_s": 17.075679779052734,
+     "iteration_time_ms": 16.594440990333077,
+     "tokens_per_iteration": 804.6287657920311,
+     "engine_tokens_per_s": 48487.85001319174,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_context_holds_tp8_1784141813",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 60.972125191553246,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "context_holds",
+   "run_id": "h100_context_holds_tp8_1784141813",
+   "label": "context_122880",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 122888,
+   "output_len": 256,
+   "context_tokens_mean": 123016.5,
+   "level_duration_s": 12.388559303246439,
+   "output_throughput_tok_s": 330.62762987514117,
+   "measured": {
+    "mean_tpot_ms": 20.583608912477523,
+    "median_tpot_ms": 20.555445904313935,
+    "mean_itl_ms": 20.65483306874989,
+    "median_itl_ms": 20.61789469211822,
+    "mean_ttft_ms": 837.7510342397727,
+    "median_ttft_ms": 904.6220611780882,
+    "p99_ttft_ms": 1019.2479818128048
+   },
+   "engine_counters": {
+    "window_s": 16.44402813911438,
+    "iterations": 837.0,
+    "iterations_per_s": 50.89993722457094,
+    "tokens_per_iteration": 2611.7550776583034,
+    "iteration_time_ms": 19.646389652466404,
+    "engine_tokens_per_s": 132938.16949876203,
+    "preemptions": 0.0,
+    "num_running_mean": 5.8545454545454545,
+    "steady": {
+     "window_s": 10.569237470626831,
+     "iteration_time_ms": 20.562718814449088,
+     "tokens_per_iteration": 2004.7879377431907,
+     "engine_tokens_per_s": 97496.24822639985,
+     "num_running_mean": 7.942857142857143
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_context_holds_tp8_1784141813",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 48.58234550860577,
+   "effective_decode_batch": 7.942857142857143
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch1_context2048",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 7,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 63.30183202493936,
+   "output_throughput_tok_s": 56.61763467742912,
+   "measured": {
+    "mean_tpot_ms": 17.634851337031158,
+    "median_tpot_ms": 17.64302275921792,
+    "mean_itl_ms": 17.634851870777673,
+    "median_itl_ms": 17.643022987036556,
+    "mean_ttft_ms": 31.212833843060903,
+    "median_ttft_ms": 31.778311356902122,
+    "p99_ttft_ms": 33.35001230239868
+   },
+   "engine_counters": {
+    "window_s": 72.73142957687378,
+    "iterations": 4096.0,
+    "iterations_per_s": 56.31678111964946,
+    "tokens_per_iteration": 5.140380859375,
+    "iteration_time_ms": 17.75669667404145,
+    "engine_tokens_per_s": 289.4897037290575,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 72.22399830818176,
+     "iteration_time_ms": 17.65004846241001,
+     "tokens_per_iteration": 4.626588465298143,
+     "engine_tokens_per_s": 262.12893835116466,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 56.70589339758794,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch1_context8192",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 6,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 55.3745730612427,
+   "output_throughput_tok_s": 55.476725691455094,
+   "measured": {
+    "mean_tpot_ms": 17.9754983665955,
+    "median_tpot_ms": 17.97093153218584,
+    "mean_itl_ms": 17.97549892186545,
+    "median_itl_ms": 17.970931806479477,
+    "mean_ttft_ms": 43.13219493875901,
+    "median_ttft_ms": 42.8507006727159,
+    "p99_ttft_ms": 45.96145893447101
+   },
+   "engine_counters": {
+    "window_s": 64.72158622741699,
+    "iterations": 3580.0,
+    "iterations_per_s": 55.31384826417404,
+    "tokens_per_iteration": 17.67122905027933,
+    "iteration_time_ms": 18.07865537078687,
+    "engine_tokens_per_s": 977.4636823286152,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 64.46810460090637,
+     "iteration_time_ms": 18.0229534808237,
+     "tokens_per_iteration": 15.301649426894045,
+     "engine_tokens_per_s": 849.0089841920136,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 55.631280958437024,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch1_context32768",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 29.31867389846593,
+   "output_throughput_tok_s": 52.38981835670165,
+   "measured": {
+    "mean_tpot_ms": 18.924767920590657,
+    "median_tpot_ms": 18.9229879079937,
+    "mean_itl_ms": 18.92476869578153,
+    "median_itl_ms": 18.92298827614861,
+    "mean_ttft_ms": 101.75594749550025,
+    "median_ttft_ms": 99.66726042330265,
+    "p99_ttft_ms": 108.56853745877743
+   },
+   "engine_counters": {
+    "window_s": 39.10069417953491,
+    "iterations": 2048.0,
+    "iterations_per_s": 52.37758671486482,
+    "tokens_per_iteration": 67.71484375,
+    "iteration_time_ms": 19.09213582985103,
+    "engine_tokens_per_s": 3546.740100399147,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 38.59324908256531,
+     "iteration_time_ms": 19.048987701167476,
+     "tokens_per_iteration": 51.57897334649556,
+     "engine_tokens_per_s": 2707.701540661627,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 52.84080651324517,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch4_context2048",
+   "level": 3,
+   "batch": 4,
+   "num_prompts": 28,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 65.02615335769951,
+   "output_throughput_tok_s": 220.46513994361203,
+   "measured": {
+    "mean_tpot_ms": 18.095007657443418,
+    "median_tpot_ms": 18.091006693840317,
+    "mean_itl_ms": 18.095007969034214,
+    "median_itl_ms": 18.09100759053446,
+    "mean_ttft_ms": 41.70686069742909,
+    "median_ttft_ms": 40.792073123157024,
+    "p99_ttft_ms": 55.46355675905943
+   },
+   "engine_counters": {
+    "window_s": 74.38794541358948,
+    "iterations": 4103.0,
+    "iterations_per_s": 55.156786186091495,
+    "tokens_per_iteration": 18.600292468925176,
+    "iteration_time_ms": 18.130135367679618,
+    "engine_tokens_per_s": 1025.9323547072738,
+    "preemptions": 0.0,
+    "num_running_mean": 3.625429553264605,
+    "steady": {
+     "window_s": 64.74140310287476,
+     "iteration_time_ms": 18.104419212213298,
+     "tokens_per_iteration": 18.21923937360179,
+     "engine_tokens_per_s": 1006.3421068658769,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 55.26386166455409,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch4_context8192",
+   "level": 4,
+   "batch": 4,
+   "num_prompts": 24,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 56.91384924110025,
+   "output_throughput_tok_s": 215.90527022597232,
+   "measured": {
+    "mean_tpot_ms": 18.432197140135475,
+    "median_tpot_ms": 18.424527624844337,
+    "mean_itl_ms": 18.544262609698784,
+    "median_itl_ms": 18.43860445711798,
+    "mean_ttft_ms": 63.77255450934172,
+    "median_ttft_ms": 61.7626435123384,
+    "p99_ttft_ms": 80.66379487514496
+   },
+   "engine_counters": {
+    "window_s": 66.18480706214905,
+    "iterations": 3592.0,
+    "iterations_per_s": 54.272274249089065,
+    "tokens_per_iteration": 62.90423162583519,
+    "iteration_time_ms": 18.425614438237485,
+    "engine_tokens_per_s": 3413.9557102255494,
+    "preemptions": 0.0,
+    "num_running_mean": 3.558139534883721,
+    "steady": {
+     "window_s": 56.5366632938385,
+     "iteration_time_ms": 18.457937738765427,
+     "tokens_per_iteration": 59.66144302970944,
+     "engine_tokens_per_s": 3232.291920912067,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 54.252891958416306,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch4_context32768",
+   "level": 5,
+   "batch": 4,
+   "num_prompts": 12,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 31.107345080003142,
+   "output_throughput_tok_s": 197.5096230230709,
+   "measured": {
+    "mean_tpot_ms": 19.95866161887154,
+    "median_tpot_ms": 19.949524512117158,
+    "mean_itl_ms": 19.958662170344514,
+    "median_itl_ms": 19.949526486849074,
+    "mean_ttft_ms": 149.61651673850915,
+    "median_ttft_ms": 149.2640203796327,
+    "p99_ttft_ms": 188.78715766593814
+   },
+   "engine_counters": {
+    "window_s": 40.84366774559021,
+    "iterations": 2059.0,
+    "iterations_per_s": 50.41173120947996,
+    "tokens_per_iteration": 218.89558037882466,
+    "iteration_time_ms": 19.836652620490632,
+    "engine_tokens_per_s": 11034.905161000424,
+    "preemptions": 0.0,
+    "num_running_mean": 3.259493670886076,
+    "steady": {
+     "window_s": 30.68968367576599,
+     "iteration_time_ms": 20.04551513766557,
+     "tokens_per_iteration": 182.46440235140432,
+     "engine_tokens_per_s": 9102.505029095173,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 50.103560002964755,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch16_context2048",
+   "level": 6,
+   "batch": 16,
+   "num_prompts": 112,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 68.8082026494667,
+   "output_throughput_tok_s": 833.3890116579647,
+   "measured": {
+    "mean_tpot_ms": 19.083562861326232,
+    "median_tpot_ms": 19.0949840489374,
+    "mean_itl_ms": 19.11052147831334,
+    "median_itl_ms": 19.09773830240574,
+    "mean_ttft_ms": 73.31761553151799,
+    "median_ttft_ms": 73.43124877661467,
+    "p99_ttft_ms": 94.19315928593278
+   },
+   "engine_counters": {
+    "window_s": 77.941490650177,
+    "iterations": 4110.0,
+    "iterations_per_s": 52.73186291043391,
+    "tokens_per_iteration": 72.34793187347933,
+    "iteration_time_ms": 18.96386633824258,
+    "engine_tokens_per_s": 3815.0412254057233,
+    "preemptions": 0.0,
+    "num_running_mean": 14.306930693069306,
+    "steady": {
+     "window_s": 68.27037453651428,
+     "iteration_time_ms": 19.107297659253927,
+     "tokens_per_iteration": 72.8886090120347,
+     "engine_tokens_per_s": 3814.70003303862,
+     "num_running_mean": 15.988847583643123
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 52.40111646167229,
+   "effective_decode_batch": 15.988847583643123
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch16_context8192",
+   "level": 7,
+   "batch": 16,
+   "num_prompts": 96,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 62.40719068329781,
+   "output_throughput_tok_s": 787.6015481843292,
+   "measured": {
+    "mean_tpot_ms": 20.128809006476747,
+    "median_tpot_ms": 20.15501383870636,
+    "mean_itl_ms": 20.128809352476296,
+    "median_itl_ms": 20.15501410753235,
+    "mean_ttft_ms": 106.09803835783775,
+    "median_ttft_ms": 101.58882569521666,
+    "p99_ttft_ms": 175.68970141001046
+   },
+   "engine_counters": {
+    "window_s": 71.85686111450195,
+    "iterations": 3602.0,
+    "iterations_per_s": 50.127433123752944,
+    "tokens_per_iteration": 243.39755691282622,
+    "iteration_time_ms": 19.94915633384285,
+    "engine_tokens_per_s": 12200.894756632546,
+    "preemptions": 0.0,
+    "num_running_mean": 14.02482269503546,
+    "steady": {
+     "window_s": 61.95301342010498,
+     "iteration_time_ms": 20.160433914775457,
+     "tokens_per_iteration": 237.89456557110316,
+     "engine_tokens_per_s": 11800.07169373233,
+     "num_running_mean": 15.991836734693878
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 49.68003818200247,
+   "effective_decode_batch": 15.991836734693878
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp4_1784147779",
+   "label": "decode_batch16_context32768",
+   "level": 8,
+   "batch": 16,
+   "num_prompts": 48,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 38.824563595466316,
+   "output_throughput_tok_s": 633.0013198878513,
+   "measured": {
+    "mean_tpot_ms": 24.658716436604916,
+    "median_tpot_ms": 24.625676750604594,
+    "mean_itl_ms": 24.66590113615704,
+    "median_itl_ms": 24.625676917367834,
+    "mean_ttft_ms": 293.1690890303192,
+    "median_ttft_ms": 222.41471614688635,
+    "p99_ttft_ms": 695.1119549386203
+   },
+   "engine_counters": {
+    "window_s": 48.68885850906372,
+    "iterations": 2070.0,
+    "iterations_per_s": 42.51485993689207,
+    "tokens_per_iteration": 820.680193236715,
+    "iteration_time_ms": 23.52118768553803,
+    "engine_tokens_per_s": 34891.10346844046,
+    "preemptions": 0.0,
+    "num_running_mean": 12.715789473684211,
+    "steady": {
+     "window_s": 37.53207850456238,
+     "iteration_time_ms": 24.611199019385165,
+     "tokens_per_iteration": 732.6190163934426,
+     "engine_tokens_per_s": 29767.70923742442,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp4_1784147779",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 40.553611238074765,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch1_context2048",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 7,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 43.2214032150805,
+   "output_throughput_tok_s": 82.92187974937141,
+   "measured": {
+    "mean_tpot_ms": 12.032928519879919,
+    "median_tpot_ms": 12.035767205147012,
+    "mean_itl_ms": 12.359764356015619,
+    "median_itl_ms": 12.035933713230019,
+    "mean_ttft_ms": 25.212419485407217,
+    "median_ttft_ms": 24.215969257056713,
+    "p99_ttft_ms": 26.986083798110485
+   },
+   "engine_counters": {
+    "window_s": 49.667572259902954,
+    "iterations": 4096.0,
+    "iterations_per_s": 82.46829497858776,
+    "tokens_per_iteration": 5.140380859375,
+    "iteration_time_ms": 12.12587213376537,
+    "engine_tokens_per_s": 423.918445013224,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 49.160622119903564,
+     "iteration_time_ms": 12.052126040672608,
+     "tokens_per_iteration": 4.6381466045599415,
+     "engine_tokens_per_s": 384.84053260872594,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 83.10528882041255,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch1_context8192",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 6,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 37.95712502207607,
+   "output_throughput_tok_s": 80.93342154373673,
+   "measured": {
+    "mean_tpot_ms": 12.307471728750636,
+    "median_tpot_ms": 12.308699861642724,
+    "mean_itl_ms": 12.71667195338535,
+    "median_itl_ms": 12.312012264384741,
+    "mean_ttft_ms": 36.60787160818776,
+    "median_ttft_ms": 36.29283374175429,
+    "p99_ttft_ms": 38.65941376425326
+   },
+   "engine_counters": {
+    "window_s": 44.40970182418823,
+    "iterations": 3584.0,
+    "iterations_per_s": 80.70308632533838,
+    "tokens_per_iteration": 17.652622767857142,
+    "iteration_time_ms": 12.391099839338235,
+    "engine_tokens_per_s": 1424.6211391030085,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 43.90255522727966,
+     "iteration_time_ms": 12.34952327068345,
+     "tokens_per_iteration": 15.390154711673699,
+     "engine_tokens_per_s": 1246.2144792429688,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 81.25145619176756,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch1_context32768",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 20.200421132147312,
+   "output_throughput_tok_s": 76.03801871019323,
+   "measured": {
+    "mean_tpot_ms": 13.001267990827639,
+    "median_tpot_ms": 13.004137560316963,
+    "mean_itl_ms": 13.001268779991385,
+    "median_itl_ms": 13.004137820941478,
+    "mean_ttft_ms": 89.34013762821753,
+    "median_ttft_ms": 89.22017272561789,
+    "p99_ttft_ms": 90.28588874265552
+   },
+   "engine_counters": {
+    "window_s": 27.09014320373535,
+    "iterations": 2048.0,
+    "iterations_per_s": 75.59945270860028,
+    "tokens_per_iteration": 67.71484375,
+    "iteration_time_ms": 13.227608986198902,
+    "engine_tokens_per_s": 5119.205127748382,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 26.583338022232056,
+     "iteration_time_ms": 13.12109477898917,
+     "tokens_per_iteration": 51.57897334649556,
+     "engine_tokens_per_s": 3930.9961718353757,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 76.91557475051644,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch4_context2048",
+   "level": 3,
+   "batch": 4,
+   "num_prompts": 28,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 45.25863505899906,
+   "output_throughput_tok_s": 316.75723276478885,
+   "measured": {
+    "mean_tpot_ms": 12.584027847515195,
+    "median_tpot_ms": 12.468089735948293,
+    "mean_itl_ms": 12.912191076315427,
+    "median_itl_ms": 12.472646921479422,
+    "mean_ttft_ms": 34.068977194172994,
+    "median_ttft_ms": 30.50837153568864,
+    "p99_ttft_ms": 43.95985472947359
+   },
+   "engine_counters": {
+    "window_s": 51.72536039352417,
+    "iterations": 4104.0,
+    "iterations_per_s": 79.34212480641906,
+    "tokens_per_iteration": 18.595760233918128,
+    "iteration_time_ms": 12.603645320059496,
+    "engine_tokens_per_s": 1475.4271293497766,
+    "preemptions": 0.0,
+    "num_running_mean": 3.5888324873096447,
+    "steady": {
+     "window_s": 44.87354779243469,
+     "iteration_time_ms": 12.597851710397162,
+     "tokens_per_iteration": 18.27400336889388,
+     "engine_tokens_per_s": 1450.565047833681,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 79.465812704591,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch4_context8192",
+   "level": 4,
+   "batch": 4,
+   "num_prompts": 24,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 39.49901196733117,
+   "output_throughput_tok_s": 311.0963891998907,
+   "measured": {
+    "mean_tpot_ms": 12.76756665632627,
+    "median_tpot_ms": 12.739132158458233,
+    "mean_itl_ms": 13.508084456355803,
+    "median_itl_ms": 13.484565086749775,
+    "mean_ttft_ms": 57.132428511977196,
+    "median_ttft_ms": 59.28759230300784,
+    "p99_ttft_ms": 101.19175854139029
+   },
+   "engine_counters": {
+    "window_s": 46.10131907463074,
+    "iterations": 3595.0,
+    "iterations_per_s": 77.98041514127316,
+    "tokens_per_iteration": 62.85229485396384,
+    "iteration_time_ms": 12.823732705043321,
+    "engine_tokens_per_s": 4901.248045293807,
+    "preemptions": 0.0,
+    "num_running_mean": 3.5588235294117645,
+    "steady": {
+     "window_s": 39.254172563552856,
+     "iteration_time_ms": 12.803056935274904,
+     "tokens_per_iteration": 59.60502283105023,
+     "engine_tokens_per_s": 4655.530560582515,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 78.32346028947534,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch4_context32768",
+   "level": 5,
+   "batch": 4,
+   "num_prompts": 12,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 21.154611085541546,
+   "output_throughput_tok_s": 290.43313418317643,
+   "measured": {
+    "mean_tpot_ms": 13.480627629085792,
+    "median_tpot_ms": 13.480040444327253,
+    "mean_itl_ms": 13.480628040374365,
+    "median_itl_ms": 13.48004077967628,
+    "mean_ttft_ms": 146.22483891434968,
+    "median_ttft_ms": 143.12425954267383,
+    "p99_ttft_ms": 200.26787413284183
+   },
+   "engine_counters": {
+    "window_s": 28.012101888656616,
+    "iterations": 2063.0,
+    "iterations_per_s": 73.64674054807016,
+    "tokens_per_iteration": 218.4711585070286,
+    "iteration_time_ms": 13.578333440938739,
+    "engine_tokens_per_s": 16089.688727803446,
+    "preemptions": 0.0,
+    "num_running_mean": 3.2523364485981308,
+    "steady": {
+     "window_s": 20.483203411102295,
+     "iteration_time_ms": 13.574024791982966,
+     "tokens_per_iteration": 185.0569913850232,
+     "engine_tokens_per_s": 13633.17028080874,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 74.18052241443127,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch16_context2048",
+   "level": 6,
+   "batch": 16,
+   "num_prompts": 112,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 50.48419287241995,
+   "output_throughput_tok_s": 1135.880297124204,
+   "measured": {
+    "mean_tpot_ms": 13.982957798255615,
+    "median_tpot_ms": 13.983818761632575,
+    "mean_itl_ms": 14.682335489397724,
+    "median_itl_ms": 14.540897218540795,
+    "mean_ttft_ms": 61.99756610606398,
+    "median_ttft_ms": 64.55257115885615,
+    "p99_ttft_ms": 81.47840663790703
+   },
+   "engine_counters": {
+    "window_s": 56.80902051925659,
+    "iterations": 4113.0,
+    "iterations_per_s": 72.4004737699326,
+    "tokens_per_iteration": 72.28932652565038,
+    "iteration_time_ms": 13.81206431297267,
+    "engine_tokens_per_s": 5233.781488966443,
+    "preemptions": 0.0,
+    "num_running_mean": 14.102325581395348,
+    "steady": {
+     "window_s": 49.96204900741577,
+     "iteration_time_ms": 13.998892969295538,
+     "tokens_per_iteration": 72.9319137013169,
+     "engine_tokens_per_s": 5209.83436770908,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 71.51562741072928,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch16_context8192",
+   "level": 7,
+   "batch": 16,
+   "num_prompts": 96,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 45.66926507279277,
+   "output_throughput_tok_s": 1076.2599293344454,
+   "measured": {
+    "mean_tpot_ms": 14.69050235720154,
+    "median_tpot_ms": 14.6199975403321,
+    "mean_itl_ms": 14.976545459505196,
+    "median_itl_ms": 14.839429858966527,
+    "mean_ttft_ms": 92.28658453988221,
+    "median_ttft_ms": 83.4236266091466,
+    "p99_ttft_ms": 168.38293811306306
+   },
+   "engine_counters": {
+    "window_s": 51.962547302246094,
+    "iterations": 3604.0,
+    "iterations_per_s": 69.35764674962762,
+    "tokens_per_iteration": 243.25499445061044,
+    "iteration_time_ms": 14.418020894074942,
+    "engine_tokens_per_s": 16871.593975188065,
+    "preemptions": 0.0,
+    "num_running_mean": 13.910994764397905,
+    "steady": {
+     "window_s": 45.108744382858276,
+     "iteration_time_ms": 14.717371739921134,
+     "tokens_per_iteration": 238.4567699836868,
+     "engine_tokens_per_s": 16202.40177373984,
+     "num_running_mean": 15.987730061349692
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 68.07119155525561,
+   "effective_decode_batch": 15.987730061349692
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_context_grid",
+   "run_id": "h100_decode_context_grid_tp8_1783964391",
+   "label": "decode_batch16_context32768",
+   "level": 8,
+   "batch": 16,
+   "num_prompts": 48,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 26.78682994004339,
+   "output_throughput_tok_s": 917.4657865454083,
+   "measured": {
+    "mean_tpot_ms": 16.865446670392476,
+    "median_tpot_ms": 16.86023454201898,
+    "mean_itl_ms": 16.875790935866405,
+    "median_itl_ms": 16.885045397223212,
+    "mean_ttft_ms": 291.35619804340723,
+    "median_ttft_ms": 306.2475663609803,
+    "p99_ttft_ms": 388.9008340705186
+   },
+   "engine_counters": {
+    "window_s": 33.727505683898926,
+    "iterations": 2071.0,
+    "iterations_per_s": 61.40388854752069,
+    "tokens_per_iteration": 820.2839208112023,
+    "iteration_time_ms": 16.28561356054994,
+    "engine_tokens_per_s": 50368.62245081435,
+    "preemptions": 0.0,
+    "num_running_mean": 12.6171875,
+    "steady": {
+     "window_s": 26.053058862686157,
+     "iteration_time_ms": 16.961626863727968,
+     "tokens_per_iteration": 727.4192708333334,
+     "engine_tokens_per_s": 42886.17340055405,
+     "num_running_mean": 15.97979797979798
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_context_grid_tp8_1783964391",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 59.29282630595926,
+   "effective_decode_batch": 15.97979797979798
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N1",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 2,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 72.06587384175509,
+   "output_throughput_tok_s": 56.836887997697055,
+   "measured": {
+    "mean_tpot_ms": 17.58932306248791,
+    "median_tpot_ms": 17.58932306248791,
+    "mean_itl_ms": 17.589323199206245,
+    "median_itl_ms": 17.589323199206245,
+    "mean_ttft_ms": 26.94545965641737,
+    "median_ttft_ms": 26.94545965641737,
+    "p99_ttft_ms": 26.99568897485733
+   },
+   "engine_counters": {
+    "window_s": 108.60239243507385,
+    "iterations": 6144.0,
+    "iterations_per_s": 56.57333933663652,
+    "tokens_per_iteration": 1.0045572916666667,
+    "iteration_time_ms": 17.676170643729467,
+    "engine_tokens_per_s": 56.831160544550876,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 108.09500503540039,
+     "iteration_time_ms": 17.605049680032636,
+     "tokens_per_iteration": 1.0030944625407165,
+     "engine_tokens_per_s": 56.97765588690216,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 56.852671160077925,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N2",
+   "level": 1,
+   "batch": 2,
+   "num_prompts": 4,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 72.48683973774314,
+   "output_throughput_tok_s": 113.01361777722131,
+   "measured": {
+    "mean_tpot_ms": 17.68676144274295,
+    "median_tpot_ms": 17.68685008285901,
+    "mean_itl_ms": 17.699731077941355,
+    "median_itl_ms": 17.699819929754963,
+    "mean_ttft_ms": 32.97564317472279,
+    "median_ttft_ms": 30.173336155712605,
+    "p99_ttft_ms": 44.67635022476315
+   },
+   "engine_counters": {
+    "window_s": 108.6391179561615,
+    "iterations": 6145.0,
+    "iterations_per_s": 56.56341947179335,
+    "tokens_per_iteration": 1.6738812042310822,
+    "iteration_time_ms": 17.67927061939162,
+    "engine_tokens_per_s": 94.6804447008733,
+    "preemptions": 0.0,
+    "num_running_mean": 1.668235294117647,
+    "steady": {
+     "window_s": 72.08890581130981,
+     "iteration_time_ms": 17.69052903345026,
+     "tokens_per_iteration": 2.0041717791411044,
+     "engine_tokens_per_s": 113.29066391126585,
+     "num_running_mean": 2.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 56.539463328958384,
+   "effective_decode_batch": 2.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N4",
+   "level": 2,
+   "batch": 4,
+   "num_prompts": 8,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 73.54270822182298,
+   "output_throughput_tok_s": 222.78211390559358,
+   "measured": {
+    "mean_tpot_ms": 17.942553985287027,
+    "median_tpot_ms": 17.942714886389524,
+    "mean_itl_ms": 18.120916137840844,
+    "median_itl_ms": 18.121075376966335,
+    "mean_ttft_ms": 39.88112497609109,
+    "median_ttft_ms": 37.966766860336065,
+    "p99_ttft_ms": 47.60220774449408
+   },
+   "engine_counters": {
+    "window_s": 109.75805044174194,
+    "iterations": 6146.0,
+    "iterations_per_s": 55.9958925588079,
+    "tokens_per_iteration": 3.0130165961601043,
+    "iteration_time_ms": 17.858452724006174,
+    "engine_tokens_per_s": 168.71655359648628,
+    "preemptions": 0.0,
+    "num_running_mean": 3.009501187648456,
+    "steady": {
+     "window_s": 73.1512017250061,
+     "iteration_time_ms": 17.942409056906083,
+     "tokens_per_iteration": 4.008830022075055,
+     "engine_tokens_per_s": 223.4276350160485,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 55.73342573303691,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N8",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 74.83040142059326,
+   "output_throughput_tok_s": 437.8968892044761,
+   "measured": {
+    "mean_tpot_ms": 18.25209366235337,
+    "median_tpot_ms": 18.252086804285245,
+    "mean_itl_ms": 18.278923382743198,
+    "median_itl_ms": 18.27891642346658,
+    "mean_ttft_ms": 50.75886845588684,
+    "median_ttft_ms": 42.29716584086418,
+    "p99_ttft_ms": 67.15168487280607
+   },
+   "engine_counters": {
+    "window_s": 110.98203444480896,
+    "iterations": 6146.0,
+    "iterations_per_s": 55.37833245484779,
+    "tokens_per_iteration": 5.690855841197527,
+    "iteration_time_ms": 18.05760404243556,
+    "engine_tokens_per_s": 315.15010672644917,
+    "preemptions": 0.0,
+    "num_running_mean": 5.720554272517321,
+    "steady": {
+     "window_s": 74.43564462661743,
+     "iteration_time_ms": 18.252978084016046,
+     "tokens_per_iteration": 8.016184404119667,
+     "engine_tokens_per_s": 439.17131589279455,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 54.78823517449904,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N16",
+   "level": 4,
+   "batch": 16,
+   "num_prompts": 32,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 77.73390835151076,
+   "output_throughput_tok_s": 843.0812420192211,
+   "measured": {
+    "mean_tpot_ms": 18.95548672381819,
+    "median_tpot_ms": 18.955735424437943,
+    "mean_itl_ms": 19.02546118217309,
+    "median_itl_ms": 19.02570834658396,
+    "mean_ttft_ms": 59.757586364867166,
+    "median_ttft_ms": 57.14066606014967,
+    "p99_ttft_ms": 70.27888751588762
+   },
+   "engine_counters": {
+    "window_s": 114.11329889297485,
+    "iterations": 6147.0,
+    "iterations_per_s": 53.86751640372064,
+    "tokens_per_iteration": 11.044411908247925,
+    "iteration_time_ms": 18.564063590853237,
+    "engine_tokens_per_s": 594.9350396369928,
+    "preemptions": 0.0,
+    "num_running_mean": 11.127272727272727,
+    "steady": {
+     "window_s": 77.56721329689026,
+     "iteration_time_ms": 18.955819476268392,
+     "tokens_per_iteration": 16.02834799608993,
+     "engine_tokens_per_s": 845.5634437833992,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 52.755173980495435,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N32",
+   "level": 5,
+   "batch": 32,
+   "num_prompts": 64,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 84.06976996082813,
+   "output_throughput_tok_s": 1559.0859837141497,
+   "measured": {
+    "mean_tpot_ms": 20.500669856974046,
+    "median_tpot_ms": 20.500518663676708,
+    "mean_itl_ms": 20.50066990696382,
+    "median_itl_ms": 20.500518711221016,
+    "mean_ttft_ms": 63.628887801314704,
+    "median_ttft_ms": 62.189177609980106,
+    "p99_ttft_ms": 73.81307171657681
+   },
+   "engine_counters": {
+    "window_s": 120.62139630317688,
+    "iterations": 6147.0,
+    "iterations_per_s": 50.96110796586843,
+    "tokens_per_iteration": 21.75451439726696,
+    "iteration_time_ms": 19.62280727235674,
+    "engine_tokens_per_s": 1108.6341569441606,
+    "preemptions": 0.0,
+    "num_running_mean": 22.214128035320087,
+    "steady": {
+     "window_s": 83.57343316078186,
+     "iteration_time_ms": 20.49875721382925,
+     "tokens_per_iteration": 32.05813097866078,
+     "engine_tokens_per_s": 1563.9060770490578,
+     "num_running_mean": 32.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 48.77889390818192,
+   "effective_decode_batch": 32.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N64",
+   "level": 6,
+   "batch": 64,
+   "num_prompts": 128,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 90.91138980444521,
+   "output_throughput_tok_s": 2883.5110822074594,
+   "measured": {
+    "mean_tpot_ms": 22.138126333239224,
+    "median_tpot_ms": 22.142653712710707,
+    "mean_itl_ms": 22.214384976395696,
+    "median_itl_ms": 22.21889761310769,
+    "mean_ttft_ms": 130.41734252328752,
+    "median_ttft_ms": 120.85196329280734,
+    "p99_ttft_ms": 151.0627975128591
+   },
+   "engine_counters": {
+    "window_s": 127.0748701095581,
+    "iterations": 6149.0,
+    "iterations_per_s": 48.38879626395538,
+    "tokens_per_iteration": 43.16018864856074,
+    "iteration_time_ms": 20.665940821199886,
+    "engine_tokens_per_s": 2088.4695752290854,
+    "preemptions": 0.0,
+    "num_running_mean": 45.66803278688525,
+    "steady": {
+     "window_s": 90.39137268066406,
+     "iteration_time_ms": 22.138469919339716,
+     "tokens_per_iteration": 64.08376193975019,
+     "engine_tokens_per_s": 2894.6789083995327,
+     "num_running_mean": 64.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 45.17094107004679,
+   "effective_decode_batch": 64.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N128",
+   "level": 7,
+   "batch": 128,
+   "num_prompts": 256,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 109.40623466577381,
+   "output_throughput_tok_s": 4792.121779911836,
+   "measured": {
+    "mean_tpot_ms": 26.6154935172681,
+    "median_tpot_ms": 26.616997559817392,
+    "mean_itl_ms": 26.6154935559725,
+    "median_itl_ms": 26.616997601674587,
+    "mean_ttft_ms": 195.9177519311197,
+    "median_ttft_ms": 196.07129599899054,
+    "p99_ttft_ms": 264.48570508509874
+   },
+   "engine_counters": {
+    "window_s": 145.5199329853058,
+    "iterations": 6153.0,
+    "iterations_per_s": 42.28286719058147,
+    "tokens_per_iteration": 85.93076548025354,
+    "iteration_time_ms": 23.6502410182522,
+    "engine_tokens_per_s": 3633.399144386563,
+    "preemptions": 0.0,
+    "num_running_mean": 96.2399299474606,
+    "steady": {
+     "window_s": 108.7059154510498,
+     "iteration_time_ms": 26.610995214455276,
+     "tokens_per_iteration": 128.12558139534883,
+     "engine_tokens_per_s": 4814.7609799181855,
+     "num_running_mean": 127.99531615925059
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 37.572100601899464,
+   "effective_decode_batch": 127.99531615925059
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp4_1784146428",
+   "label": "decode_N256",
+   "level": 8,
+   "batch": 256,
+   "num_prompts": 512,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 165.50047188531607,
+   "output_throughput_tok_s": 6335.788581476753,
+   "measured": {
+    "mean_tpot_ms": 36.839448805007876,
+    "median_tpot_ms": 36.91057629021577,
+    "mean_itl_ms": 36.83972239149088,
+    "median_itl_ms": 36.91057632069873,
+    "mean_ttft_ms": 998.2780400205229,
+    "median_ttft_ms": 548.3714547008276,
+    "p99_ttft_ms": 4420.239359978586
+   },
+   "engine_counters": {
+    "window_s": 201.87961149215698,
+    "iterations": 6682.0,
+    "iterations_per_s": 33.09893431343163,
+    "tokens_per_iteration": 157.9455252918288,
+    "iteration_time_ms": 30.212453081735557,
+    "engine_tokens_per_s": 5227.8285667346945,
+    "preemptions": 66.0,
+    "num_running_mean": 189.7592356687898,
+    "steady": {
+     "window_s": 150.84225869178772,
+     "iteration_time_ms": 36.88074784640286,
+     "tokens_per_iteration": 254.32273838630806,
+     "engine_tokens_per_s": 6895.81294407275,
+     "num_running_mean": 252.99484536082474
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp4_1784146428",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 27.144814388864095,
+   "effective_decode_batch": 252.99484536082474
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N1",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 2,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 49.2991554196924,
+   "output_throughput_tok_s": 83.08458765936314,
+   "measured": {
+    "mean_tpot_ms": 12.031658261179064,
+    "median_tpot_ms": 12.031658261179064,
+    "mean_itl_ms": 12.079044153737062,
+    "median_itl_ms": 12.079044153737062,
+    "mean_ttft_ms": 20.143055822700262,
+    "median_ttft_ms": 20.143055822700262,
+    "p99_ttft_ms": 20.400830870494246
+   },
+   "engine_counters": {
+    "window_s": 74.07699799537659,
+    "iterations": 6144.0,
+    "iterations_per_s": 82.94072608589605,
+    "tokens_per_iteration": 1.0045572916666667,
+    "iteration_time_ms": 12.056803059143325,
+    "engine_tokens_per_s": 83.31871116571459,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 73.57021617889404,
+     "iteration_time_ms": 12.03110648878071,
+     "tokens_per_iteration": 1.0031071136549468,
+     "engine_tokens_per_s": 83.3761312469778,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 83.11406277441952,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N2",
+   "level": 1,
+   "batch": 2,
+   "num_prompts": 4,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 49.704057292081416,
+   "output_throughput_tok_s": 164.8155190201164,
+   "measured": {
+    "mean_tpot_ms": 12.129928711842714,
+    "median_tpot_ms": 12.129912635609033,
+    "mean_itl_ms": 12.129928943877163,
+    "median_itl_ms": 12.129913036892138,
+    "mean_ttft_ms": 21.371853537857533,
+    "median_ttft_ms": 21.40497835353017,
+    "p99_ttft_ms": 21.930385595187545
+   },
+   "engine_counters": {
+    "window_s": 74.61270833015442,
+    "iterations": 6144.0,
+    "iterations_per_s": 82.34522157825127,
+    "tokens_per_iteration": 1.6741536458333333,
+    "iteration_time_ms": 12.143995496444404,
+    "engine_tokens_per_s": 137.85855292218304,
+    "preemptions": 0.0,
+    "num_running_mean": 1.6794425087108014,
+    "steady": {
+     "window_s": 49.497045278549194,
+     "iteration_time_ms": 12.13162874474245,
+     "tokens_per_iteration": 2.0044117647058823,
+     "engine_tokens_per_s": 165.22198353411906,
+     "num_running_mean": 2.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 82.44071533773139,
+   "effective_decode_batch": 2.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N4",
+   "level": 2,
+   "batch": 4,
+   "num_prompts": 8,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 50.79748298972845,
+   "output_throughput_tok_s": 322.5356658579509,
+   "measured": {
+    "mean_tpot_ms": 12.392335067185584,
+    "median_tpot_ms": 12.392505881675481,
+    "mean_itl_ms": 12.493855706173829,
+    "median_itl_ms": 12.493969019144847,
+    "mean_ttft_ms": 29.27163615822792,
+    "median_ttft_ms": 27.431702241301537,
+    "p99_ttft_ms": 35.565025778487325
+   },
+   "engine_counters": {
+    "window_s": 75.60583114624023,
+    "iterations": 6146.0,
+    "iterations_per_s": 81.29002626943056,
+    "tokens_per_iteration": 3.0130165961601043,
+    "iteration_time_ms": 12.301632142245401,
+    "engine_tokens_per_s": 244.9281982520851,
+    "preemptions": 0.0,
+    "num_running_mean": 3.006825938566553,
+    "steady": {
+     "window_s": 50.498865365982056,
+     "iteration_time_ms": 12.392359599014002,
+     "tokens_per_iteration": 4.0088343558282205,
+     "engine_tokens_per_s": 323.4924167425858,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 80.69504210291737,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N8",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 52.77412889152765,
+   "output_throughput_tok_s": 620.9102961671163,
+   "measured": {
+    "mean_tpot_ms": 12.869747487919584,
+    "median_tpot_ms": 12.869893570722212,
+    "mean_itl_ms": 13.281020069677584,
+    "median_itl_ms": 13.28122906115742,
+    "mean_ttft_ms": 40.68084334721789,
+    "median_ttft_ms": 34.612264949828386,
+    "p99_ttft_ms": 56.52141124010086
+   },
+   "engine_counters": {
+    "window_s": 77.62946152687073,
+    "iterations": 6146.0,
+    "iterations_per_s": 79.17097296717199,
+    "tokens_per_iteration": 5.690855841197527,
+    "iteration_time_ms": 12.630891885270213,
+    "engine_tokens_per_s": 450.5505939635222,
+    "preemptions": 0.0,
+    "num_running_mean": 5.713804713804714,
+    "steady": {
+     "window_s": 52.50914716720581,
+     "iteration_time_ms": 12.869889011570052,
+     "tokens_per_iteration": 8.016176470588235,
+     "engine_tokens_per_s": 622.8629060733685,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 77.70160222169609,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N16",
+   "level": 4,
+   "batch": 16,
+   "num_prompts": 32,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 57.171696312725544,
+   "output_throughput_tok_s": 1146.3014782965727,
+   "measured": {
+    "mean_tpot_ms": 13.942211653012306,
+    "median_tpot_ms": 13.942412660572302,
+    "mean_itl_ms": 14.145420793050148,
+    "median_itl_ms": 14.145523699192417,
+    "mean_ttft_ms": 42.0980617927853,
+    "median_ttft_ms": 43.14816789701581,
+    "p99_ttft_ms": 47.572263684123755
+   },
+   "engine_counters": {
+    "window_s": 82.18054986000061,
+    "iterations": 6147.0,
+    "iterations_per_s": 74.79872074927431,
+    "tokens_per_iteration": 11.044411908247925,
+    "iteration_time_ms": 13.36921260126901,
+    "engine_tokens_per_s": 826.1078821649965,
+    "preemptions": 0.0,
+    "num_running_mean": 11.519480519480519,
+    "steady": {
+     "window_s": 56.879676818847656,
+     "iteration_time_ms": 13.941097259521484,
+     "tokens_per_iteration": 16.028676470588234,
+     "engine_tokens_per_s": 1149.7428195360287,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 71.7246319943754,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N32",
+   "level": 5,
+   "batch": 32,
+   "num_prompts": 64,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 59.90305174700916,
+   "output_throughput_tok_s": 2188.068824165443,
+   "measured": {
+    "mean_tpot_ms": 14.60140458009359,
+    "median_tpot_ms": 14.60189675151552,
+    "mean_itl_ms": 14.604971337510188,
+    "median_itl_ms": 14.605464237467078,
+    "mean_ttft_ms": 57.19919883995317,
+    "median_ttft_ms": 57.53068160265684,
+    "p99_ttft_ms": 63.99824981577694
+   },
+   "engine_counters": {
+    "window_s": 85.3409595489502,
+    "iterations": 6148.0,
+    "iterations_per_s": 72.04043676675099,
+    "tokens_per_iteration": 21.750975927130774,
+    "iteration_time_ms": 13.881092965021177,
+    "engine_tokens_per_s": 1566.9498058935874,
+    "preemptions": 0.0,
+    "num_running_mean": 22.96996996996997,
+    "steady": {
+     "window_s": 59.66982841491699,
+     "iteration_time_ms": 14.599909081212868,
+     "tokens_per_iteration": 32.05015904086127,
+     "engine_tokens_per_s": 2195.2300430489217,
+     "num_running_mean": 32.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 68.48656199577687,
+   "effective_decode_batch": 32.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N64",
+   "level": 6,
+   "batch": 64,
+   "num_prompts": 128,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 66.27849852573127,
+   "output_throughput_tok_s": 3955.1891764450274,
+   "measured": {
+    "mean_tpot_ms": 16.136189312590503,
+    "median_tpot_ms": 16.137849213305223,
+    "mean_itl_ms": 16.136189352631376,
+    "median_itl_ms": 16.137849443974762,
+    "mean_ttft_ms": 96.29845446761465,
+    "median_ttft_ms": 89.50519282370806,
+    "p99_ttft_ms": 122.18533532693984
+   },
+   "engine_counters": {
+    "window_s": 91.14523553848267,
+    "iterations": 6150.0,
+    "iterations_per_s": 67.47472825832341,
+    "tokens_per_iteration": 43.15317073170732,
+    "iteration_time_ms": 14.820363502192304,
+    "engine_tokens_per_s": 2911.7484686069865,
+    "preemptions": 0.0,
+    "num_running_mean": 46.861189801699716,
+    "steady": {
+     "window_s": 65.91662001609802,
+     "iteration_time_ms": 16.136259489864877,
+     "tokens_per_iteration": 64.07441860465116,
+     "engine_tokens_per_s": 3970.834668647716,
+     "num_running_mean": 63.992217898832685
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 61.972500484964876,
+   "effective_decode_batch": 63.992217898832685
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N128",
+   "level": 7,
+   "batch": 128,
+   "num_prompts": 256,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 77.9516530148685,
+   "output_throughput_tok_s": 6725.809905532052,
+   "measured": {
+    "mean_tpot_ms": 18.95762879072403,
+    "median_tpot_ms": 18.959222107799928,
+    "mean_itl_ms": 18.957628829742994,
+    "median_itl_ms": 18.95922213896534,
+    "mean_ttft_ms": 150.42240800903528,
+    "median_ttft_ms": 149.03479209169745,
+    "p99_ttft_ms": 200.993465911597
+   },
+   "engine_counters": {
+    "window_s": 102.52846693992615,
+    "iterations": 6152.0,
+    "iterations_per_s": 60.00284782961401,
+    "tokens_per_iteration": 85.94473342002601,
+    "iteration_time_ms": 16.665875640430126,
+    "engine_tokens_per_s": 5156.928761158562,
+    "preemptions": 0.0,
+    "num_running_mean": 97.2793017456359,
+    "steady": {
+     "window_s": 77.40453839302063,
+     "iteration_time_ms": 18.95311909721367,
+     "tokens_per_iteration": 128.11532810969638,
+     "engine_tokens_per_s": 6759.59072765658,
+     "num_running_mean": 128.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 52.74921304975125,
+   "effective_decode_batch": 128.0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "decode_staircase",
+   "run_id": "h100_decode_staircase_tp8_1783963433",
+   "label": "decode_N256",
+   "level": 8,
+   "batch": 256,
+   "num_prompts": 512,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 108.25159738957882,
+   "output_throughput_tok_s": 9686.471380430128,
+   "measured": {
+    "mean_tpot_ms": 26.285552424739183,
+    "median_tpot_ms": 26.270964002290413,
+    "mean_itl_ms": 26.285552462028022,
+    "median_itl_ms": 26.270964043010178,
+    "mean_ttft_ms": 265.54334468346497,
+    "median_ttft_ms": 270.4609106294811,
+    "p99_ttft_ms": 380.75864620506763
+   },
+   "engine_counters": {
+    "window_s": 133.19207215309143,
+    "iterations": 6157.0,
+    "iterations_per_s": 46.22647504817797,
+    "tokens_per_iteration": 171.41335065778787,
+    "iteration_time_ms": 21.63262500456252,
+    "engine_tokens_per_s": 7923.8349771068115,
+    "preemptions": 0.0,
+    "num_running_mean": 207.29013539651837,
+    "steady": {
+     "window_s": 107.30158042907715,
+     "iteration_time_ms": 26.260788161790785,
+     "tokens_per_iteration": 256.0083210964268,
+     "engine_tokens_per_s": 9748.691452791834,
+     "num_running_mean": 255.99759615384616
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_decode_staircase_tp8_1783963433",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 38.04371252471109,
+   "effective_decode_batch": 255.99759615384616
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp4_1784148529",
+   "label": "prefill_256",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 704,
+   "prompt_tokens": 256,
+   "output_len": 1,
+   "context_tokens_mean": 257.0,
+   "level_duration_s": 23.848167933523655,
+   "output_throughput_tok_s": 29.520087327562752,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 33.59984775438947,
+    "median_ttft_ms": 32.81613439321518,
+    "p99_ttft_ms": 35.95417698845268
+   },
+   "engine_counters": {
+    "window_s": 30.457235097885132,
+    "iterations": 705.0,
+    "iterations_per_s": 23.14720944741807,
+    "tokens_per_iteration": 269.5049645390071,
+    "iteration_time_ms": 43.2017519118938,
+    "engine_tokens_per_s": 6238.287861303377,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 30.457235097885132,
+     "iteration_time_ms": 43.2017519118938,
+     "tokens_per_iteration": 269.5049645390071,
+     "engine_tokens_per_s": 6238.287861303377,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp4_1784148529",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 33.59984775438947,
+   "prefill_time_ms_median": 32.81613439321518,
+   "prefill_time_ms_mean_excl_cache_hits": 33.59984775438947,
+   "n_prefill_samples": 704,
+   "n_cache_hit_samples_excluded": 0
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp4_1784148529",
+   "label": "prefill_1024",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 176,
+   "prompt_tokens": 1024,
+   "output_len": 1,
+   "context_tokens_mean": 1025.0,
+   "level_duration_s": 13.829697761684656,
+   "output_throughput_tok_s": 12.726236179044355,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 77.02448743459006,
+    "median_ttft_ms": 77.4016329087317,
+    "p99_ttft_ms": 81.50386577472091
+   },
+   "engine_counters": {
+    "window_s": 17.851715564727783,
+    "iterations": 176.0,
+    "iterations_per_s": 9.858996428766133,
+    "tokens_per_iteration": 1073.6420454545455,
+    "iteration_time_ms": 101.43020207231694,
+    "engine_tokens_per_s": 10585.03309190953,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 17.851715564727783,
+     "iteration_time_ms": 101.43020207231694,
+     "tokens_per_iteration": 1073.6420454545455,
+     "engine_tokens_per_s": 10585.03309190953,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp4_1784148529",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 77.02448743459006,
+   "prefill_time_ms_median": 77.4016329087317,
+   "prefill_time_ms_mean_excl_cache_hits": 77.30886207627398,
+   "n_prefill_samples": 176,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp4_1784148529",
+   "label": "prefill_4096",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 44,
+   "prompt_tokens": 4096,
+   "output_len": 1,
+   "context_tokens_mean": 4097.0,
+   "level_duration_s": 10.635024791583419,
+   "output_throughput_tok_s": 4.137272913065675,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 241.27239640802145,
+    "median_ttft_ms": 244.90445386618376,
+    "p99_ttft_ms": 289.0818402823061
+   },
+   "engine_counters": {
+    "window_s": 15.092450141906738,
+    "iterations": 45.0,
+    "iterations_per_s": 2.981623233927399,
+    "tokens_per_iteration": 4292.2,
+    "iteration_time_ms": 335.38778093126086,
+    "engine_tokens_per_s": 12797.723244663182,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 15.092450141906738,
+     "iteration_time_ms": 335.38778093126086,
+     "tokens_per_iteration": 4292.2,
+     "engine_tokens_per_s": 12797.723244663182,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp4_1784148529",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 241.27239640802145,
+   "prefill_time_ms_median": 244.90445386618376,
+   "prefill_time_ms_mean_excl_cache_hits": 246.07775936466317,
+   "n_prefill_samples": 44,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp4_1784148529",
+   "label": "prefill_16384",
+   "level": 3,
+   "batch": 1,
+   "num_prompts": 11,
+   "prompt_tokens": 16384,
+   "output_len": 1,
+   "context_tokens_mean": 16385.0,
+   "level_duration_s": 10.647962885908782,
+   "output_throughput_tok_s": 1.03306145202263,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 967.554884031415,
+    "median_ttft_ms": 1064.245093613863,
+    "p99_ttft_ms": 1069.5998664014041
+   },
+   "engine_counters": {
+    "window_s": 15.695688247680664,
+    "iterations": 12.0,
+    "iterations_per_s": 0.7645411791211658,
+    "tokens_per_iteration": 17140.25,
+    "iteration_time_ms": 1307.9740206400554,
+    "engine_tokens_per_s": 13104.426945431562,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 15.695688247680664,
+     "iteration_time_ms": 1307.9740206400554,
+     "tokens_per_iteration": 17140.25,
+     "engine_tokens_per_s": 13104.426945431562,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp4_1784148529",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 967.554884031415,
+   "prefill_time_ms_median": 1064.245093613863,
+   "prefill_time_ms_mean_excl_cache_hits": 1057.31844259426,
+   "n_prefill_samples": 11,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 4,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp4_1784148529",
+   "label": "prefill_65536",
+   "level": 4,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 65536,
+   "output_len": 1,
+   "context_tokens_mean": 65537.0,
+   "level_duration_s": 12.746979049406946,
+   "output_throughput_tok_s": 0.23534988081270716,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 4248.478069591026,
+    "median_ttft_ms": 6128.907299600542,
+    "p99_ttft_ms": 6375.377089008689
+   },
+   "engine_counters": {
+    "window_s": 22.83510446548462,
+    "iterations": 4.0,
+    "iterations_per_s": 0.17516889428055918,
+    "tokens_per_iteration": 68764.75,
+    "iteration_time_ms": 5708.776116371155,
+    "engine_tokens_per_s": 12045.445222979082,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 22.83510446548462,
+     "iteration_time_ms": 5708.776116371155,
+     "tokens_per_iteration": 68764.75,
+     "engine_tokens_per_s": 12045.445222979082,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp4_1784148529",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 4248.478069591026,
+   "prefill_time_ms_median": 6128.907299600542,
+   "prefill_time_ms_mean_excl_cache_hits": 6254.657192155719,
+   "n_prefill_samples": 3,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp8_1783964961",
+   "label": "prefill_256",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 704,
+   "prompt_tokens": 256,
+   "output_len": 1,
+   "context_tokens_mean": 257.0,
+   "level_duration_s": 18.677474427968264,
+   "output_throughput_tok_s": 37.69246226062595,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 25.491788021595728,
+    "median_ttft_ms": 25.362974032759666,
+    "p99_ttft_ms": 29.325960483402014
+   },
+   "engine_counters": {
+    "window_s": 25.08876085281372,
+    "iterations": 705.0,
+    "iterations_per_s": 28.10023197781543,
+    "tokens_per_iteration": 269.5049645390071,
+    "iteration_time_ms": 35.58689482668613,
+    "engine_tokens_per_s": 7573.15202271902,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 25.08876085281372,
+     "iteration_time_ms": 35.58689482668613,
+     "tokens_per_iteration": 269.5049645390071,
+     "engine_tokens_per_s": 7573.15202271902,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp8_1783964961",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 25.491788021595728,
+   "prefill_time_ms_median": 25.362974032759666,
+   "prefill_time_ms_mean_excl_cache_hits": 25.491788021595724,
+   "n_prefill_samples": 704,
+   "n_cache_hit_samples_excluded": 0
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp8_1783964961",
+   "label": "prefill_1024",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 176,
+   "prompt_tokens": 1024,
+   "output_len": 1,
+   "context_tokens_mean": 1025.0,
+   "level_duration_s": 10.119580903090537,
+   "output_throughput_tok_s": 17.392024599185657,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 57.222784645008765,
+    "median_ttft_ms": 56.66814558207989,
+    "p99_ttft_ms": 65.31834532506764
+   },
+   "engine_counters": {
+    "window_s": 13.950271129608154,
+    "iterations": 177.0,
+    "iterations_per_s": 12.687925442849204,
+    "tokens_per_iteration": 1073.6666666666667,
+    "iteration_time_ms": 78.81509112772969,
+    "engine_tokens_per_s": 13622.602617139095,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 13.950271129608154,
+     "iteration_time_ms": 78.81509112772969,
+     "tokens_per_iteration": 1073.6666666666667,
+     "engine_tokens_per_s": 13622.602617139095,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp8_1783964961",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 57.222784645008765,
+   "prefill_time_ms_median": 56.66814558207989,
+   "prefill_time_ms_mean_excl_cache_hits": 57.431810673858436,
+   "n_prefill_samples": 176,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp8_1783964961",
+   "label": "prefill_4096",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 44,
+   "prompt_tokens": 4096,
+   "output_len": 1,
+   "context_tokens_mean": 4097.0,
+   "level_duration_s": 7.244106027297676,
+   "output_throughput_tok_s": 6.073903368365476,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 164.27146797915074,
+    "median_ttft_ms": 161.40578733757138,
+    "p99_ttft_ms": 305.831188550219
+   },
+   "engine_counters": {
+    "window_s": 11.17797064781189,
+    "iterations": 45.0,
+    "iterations_per_s": 4.0257754665699395,
+    "tokens_per_iteration": 4292.2,
+    "iteration_time_ms": 248.3993477291531,
+    "engine_tokens_per_s": 17279.433457611496,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 11.17797064781189,
+     "iteration_time_ms": 248.3993477291531,
+     "tokens_per_iteration": 4292.2,
+     "engine_tokens_per_s": 17279.433457611496,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp8_1783964961",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 164.27146797915074,
+   "prefill_time_ms_median": 161.40578733757138,
+   "prefill_time_ms_mean_excl_cache_hits": 167.42091842515524,
+   "n_prefill_samples": 44,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp8_1783964961",
+   "label": "prefill_16384",
+   "level": 3,
+   "batch": 1,
+   "num_prompts": 11,
+   "prompt_tokens": 16384,
+   "output_len": 1,
+   "context_tokens_mean": 16385.0,
+   "level_duration_s": 6.48689229786396,
+   "output_throughput_tok_s": 1.6957272442494753,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 589.3117648295381,
+    "median_ttft_ms": 642.2060281038284,
+    "p99_ttft_ms": 656.800998467952
+   },
+   "engine_counters": {
+    "window_s": 10.922058582305908,
+    "iterations": 12.0,
+    "iterations_per_s": 1.0986939787560188,
+    "tokens_per_iteration": 17140.25,
+    "iteration_time_ms": 910.1715485254923,
+    "engine_tokens_per_s": 18831.88946937285,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 10.922058582305908,
+     "iteration_time_ms": 910.1715485254923,
+     "tokens_per_iteration": 17140.25,
+     "engine_tokens_per_s": 18831.88946937285,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp8_1783964961",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 589.3117648295381,
+   "prefill_time_ms_median": 642.2060281038284,
+   "prefill_time_ms_mean_excl_cache_hits": 642.4965553916991,
+   "n_prefill_samples": 11,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "H100",
+   "tp": 8,
+   "model": "llama-3-70b",
+   "probe": "prefill_staircase",
+   "run_id": "h100_prefill_staircase_tp8_1783964961",
+   "label": "prefill_65536",
+   "level": 4,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 65536,
+   "output_len": 1,
+   "context_tokens_mean": 65537.0,
+   "level_duration_s": 7.343843901529908,
+   "output_throughput_tok_s": 0.4085054149060854,
+   "measured": {
+    "mean_tpot_ms": 0.0,
+    "median_tpot_ms": 0.0,
+    "mean_itl_ms": 0.0,
+    "median_itl_ms": 0.0,
+    "mean_ttft_ms": 2427.4050844833255,
+    "median_ttft_ms": 3553.506698459387,
+    "p99_ttft_ms": 3554.5519983768463
+   },
+   "engine_counters": {
+    "window_s": 14.655758142471313,
+    "iterations": 4.0,
+    "iterations_per_s": 0.27293026816594995,
+    "tokens_per_iteration": 68764.75,
+    "iteration_time_ms": 3663.9395356178284,
+    "engine_tokens_per_s": 18767.981657864508,
+    "preemptions": 0.0,
+    "num_running_mean": 0.0,
+    "steady": {
+     "window_s": 14.655758142471313,
+     "iteration_time_ms": 3663.9395356178284,
+     "tokens_per_iteration": 68764.75,
+     "engine_tokens_per_s": 18767.981657864508,
+     "num_running_mean": 0.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/h100_tier1_llama70b/h100_prefill_staircase_tp8_1783964961",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "prefill_time_ms_mean": 2427.4050844833255,
+   "prefill_time_ms_median": 3553.506698459387,
+   "prefill_time_ms_mean_excl_cache_hits": 3554.040014743805,
+   "n_prefill_samples": 3,
+   "n_cache_hit_samples_excluded": 1
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch1_context2048",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 7,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 24.790833685081452,
+   "output_throughput_tok_s": 144.56956331229668,
+   "measured": {
+    "mean_tpot_ms": 6.8834510369282045,
+    "median_tpot_ms": 6.901086868723734,
+    "mean_itl_ms": 6.8834515625383395,
+    "median_itl_ms": 6.901087164432321,
+    "mean_ttft_ms": 23.502689586686238,
+    "median_ttft_ms": 23.674221010878682,
+    "p99_ttft_ms": 24.152791243977845
+   },
+   "engine_counters": {
+    "window_s": 28.573238372802734,
+    "iterations": 4096.0,
+    "iterations_per_s": 143.3509197157979,
+    "tokens_per_iteration": 5.103515625,
+    "iteration_time_ms": 6.975888274610043,
+    "engine_tokens_per_s": 731.593658627695,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 28.0631365776062,
+     "iteration_time_ms": 6.891732951278537,
+     "tokens_per_iteration": 4.611738703339882,
+     "engine_tokens_per_s": 669.1696756015951,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 145.27596617383045,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch1_context8192",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 6,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 21.18758364196401,
+   "output_throughput_tok_s": 144.99057806269204,
+   "measured": {
+    "mean_tpot_ms": 6.808049051160635,
+    "median_tpot_ms": 6.808661611421752,
+    "mean_itl_ms": 7.821606166803555,
+    "median_itl_ms": 6.876584362974955,
+    "mean_ttft_ms": 51.77241701555128,
+    "median_ttft_ms": 50.21710705477744,
+    "p99_ttft_ms": 64.0902940183878
+   },
+   "engine_counters": {
+    "window_s": 24.663835525512695,
+    "iterations": 3583.0,
+    "iterations_per_s": 145.27343065897773,
+    "tokens_per_iteration": 17.485905665643315,
+    "iteration_time_ms": 6.883571176531592,
+    "engine_tokens_per_s": 2540.23750422726,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 24.408530950546265,
+     "iteration_time_ms": 6.869837025203002,
+     "tokens_per_iteration": 15.250211089220377,
+     "engine_tokens_per_s": 2219.8796031511006,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 146.88495815545278,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch1_context32768",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 12.076212984044105,
+   "output_throughput_tok_s": 127.19219195864343,
+   "measured": {
+    "mean_tpot_ms": 7.601073709108781,
+    "median_tpot_ms": 7.602601432389126,
+    "mean_itl_ms": 7.601075216660619,
+    "median_itl_ms": 7.602601688912907,
+    "mean_ttft_ms": 140.6897330113376,
+    "median_ttft_ms": 141.23759604990482,
+    "p99_ttft_ms": 141.47540278965607
+   },
+   "engine_counters": {
+    "window_s": 16.08907961845398,
+    "iterations": 2048.0,
+    "iterations_per_s": 127.29130867442342,
+    "tokens_per_iteration": 67.103515625,
+    "iteration_time_ms": 7.855995907448232,
+    "engine_tokens_per_s": 8541.69432056087,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 15.579673767089844,
+     "iteration_time_ms": 7.805447779103128,
+     "tokens_per_iteration": 51.86923847695391,
+     "engine_tokens_per_s": 6645.261097744972,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 131.56036084765833,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch4_context2048",
+   "level": 3,
+   "batch": 4,
+   "num_prompts": 28,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 24.87877076503355,
+   "output_throughput_tok_s": 576.2342575280635,
+   "measured": {
+    "mean_tpot_ms": 6.887182265042718,
+    "median_tpot_ms": 6.889443500095035,
+    "mean_itl_ms": 6.887182661821414,
+    "median_itl_ms": 6.889443861073659,
+    "mean_ttft_ms": 33.52975046228884,
+    "median_ttft_ms": 31.094600970391184,
+    "p99_ttft_ms": 59.147819206118584
+   },
+   "engine_counters": {
+    "window_s": 28.513569593429565,
+    "iterations": 4106.0,
+    "iterations_per_s": 144.00161251456055,
+    "tokens_per_iteration": 18.456405260594252,
+    "iteration_time_ms": 6.944366681302865,
+    "engine_tokens_per_s": 2657.7521187477905,
+    "preemptions": 0.0,
+    "num_running_mean": 3.5714285714285716,
+    "steady": {
+     "window_s": 24.174669981002808,
+     "iteration_time_ms": 6.897195429672698,
+     "tokens_per_iteration": 18.37774607703281,
+     "engine_tokens_per_s": 2664.524481642086,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 145.19726087048716,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch4_context8192",
+   "level": 4,
+   "batch": 4,
+   "num_prompts": 24,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 22.66303166805301,
+   "output_throughput_tok_s": 542.2045991014435,
+   "measured": {
+    "mean_tpot_ms": 7.245548182570047,
+    "median_tpot_ms": 7.085614768107496,
+    "mean_itl_ms": 8.359695682011681,
+    "median_itl_ms": 7.085615042059403,
+    "mean_ttft_ms": 72.02840646884094,
+    "median_ttft_ms": 73.58530152123421,
+    "p99_ttft_ms": 89.59692790405825
+   },
+   "engine_counters": {
+    "window_s": 26.35127902030945,
+    "iterations": 3595.0,
+    "iterations_per_s": 136.42601549736023,
+    "tokens_per_iteration": 62.24033379694019,
+    "iteration_time_ms": 7.329980255997065,
+    "engine_tokens_per_s": 8491.200743142235,
+    "preemptions": 0.0,
+    "num_running_mean": 3.566666666666667,
+    "steady": {
+     "window_s": 22.203447580337524,
+     "iteration_time_ms": 7.335132996477544,
+     "tokens_per_iteration": 59.74000660720185,
+     "engine_tokens_per_s": 8144.365839840944,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 138.01578221584512,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch4_context32768",
+   "level": 5,
+   "batch": 4,
+   "num_prompts": 12,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 15.722462250036187,
+   "output_throughput_tok_s": 390.7784863650004,
+   "measured": {
+    "mean_tpot_ms": 9.814337547295146,
+    "median_tpot_ms": 9.811996746468385,
+    "mean_itl_ms": 10.443726862289697,
+    "median_itl_ms": 9.922246500980036,
+    "mean_ttft_ms": 219.80353509813236,
+    "median_ttft_ms": 221.41264250967652,
+    "p99_ttft_ms": 282.0101170579437
+   },
+   "engine_counters": {
+    "window_s": 19.699569702148438,
+    "iterations": 2060.0,
+    "iterations_per_s": 104.57081200993625,
+    "tokens_per_iteration": 216.8126213592233,
+    "iteration_time_ms": 9.56289791366429,
+    "engine_tokens_per_s": 22672.271869536828,
+    "preemptions": 0.0,
+    "num_running_mean": 3.323943661971831,
+    "steady": {
+     "window_s": 15.104864597320557,
+     "iteration_time_ms": 10.016488459761643,
+     "tokens_per_iteration": 183.52453580901857,
+     "engine_tokens_per_s": 18322.243024217074,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 101.89174716897752,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch16_context2048",
+   "level": 6,
+   "batch": 16,
+   "num_prompts": 112,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 30.88655377610121,
+   "output_throughput_tok_s": 1856.6007854320903,
+   "measured": {
+    "mean_tpot_ms": 8.517673048462283,
+    "median_tpot_ms": 8.522117376594519,
+    "mean_itl_ms": 8.785258698634824,
+    "median_itl_ms": 8.547512596835785,
+    "mean_ttft_ms": 55.834011636242,
+    "median_ttft_ms": 56.464153982233256,
+    "p99_ttft_ms": 83.24050427647308
+   },
+   "engine_counters": {
+    "window_s": 34.64719748497009,
+    "iterations": 4117.0,
+    "iterations_per_s": 118.8263495708693,
+    "tokens_per_iteration": 71.72747145980082,
+    "iteration_time_ms": 8.415641847211583,
+    "engine_tokens_per_s": 8523.113597516844,
+    "preemptions": 0.0,
+    "num_running_mean": 14.396946564885496,
+    "steady": {
+     "window_s": 30.564542531967163,
+     "iteration_time_ms": 8.53758171283999,
+     "tokens_per_iteration": 72.26675977653632,
+     "engine_tokens_per_s": 8464.546777672607,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 117.40295668903757,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch16_context8192",
+   "level": 7,
+   "batch": 16,
+   "num_prompts": 96,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 31.966619597980753,
+   "output_throughput_tok_s": 1537.603932419079,
+   "measured": {
+    "mean_tpot_ms": 10.195061333828965,
+    "median_tpot_ms": 10.204827061666581,
+    "mean_itl_ms": 10.28178042594971,
+    "median_itl_ms": 10.242142759326393,
+    "mean_ttft_ms": 113.6998504892593,
+    "median_ttft_ms": 112.87045350763947,
+    "p99_ttft_ms": 155.16187842004
+   },
+   "engine_counters": {
+    "window_s": 35.5319242477417,
+    "iterations": 3605.0,
+    "iterations_per_s": 101.45805712250788,
+    "tokens_per_iteration": 240.82163661581137,
+    "iteration_time_ms": 9.856289666502551,
+    "engine_tokens_per_s": 24433.295364102825,
+    "preemptions": 0.0,
+    "num_running_mean": 14.35036496350365,
+    "steady": {
+     "window_s": 31.44582962989807,
+     "iteration_time_ms": 10.303351779127809,
+     "tokens_per_iteration": 237.08715596330276,
+     "engine_tokens_per_s": 23010.682450305747,
+     "num_running_mean": 15.991735537190083
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 98.0867075984946,
+   "effective_decode_batch": 15.991735537190083
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp2_1783972886",
+   "label": "decode_batch16_context32768",
+   "level": 8,
+   "batch": 16,
+   "num_prompts": 48,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 27.81858129799366,
+   "output_throughput_tok_s": 883.4382938777858,
+   "measured": {
+    "mean_tpot_ms": 17.25200210632907,
+    "median_tpot_ms": 16.913025662505273,
+    "mean_itl_ms": 17.879884409748893,
+    "median_itl_ms": 17.715827409059678,
+    "mean_ttft_ms": 443.2889518866432,
+    "median_ttft_ms": 472.6351579884067,
+    "p99_ttft_ms": 530.7474543072749
+   },
+   "engine_counters": {
+    "window_s": 28.16455340385437,
+    "iterations": 1851.0,
+    "iterations_per_s": 65.72090717925913,
+    "tokens_per_iteration": 907.5732036736899,
+    "iteration_time_ms": 15.215858132822458,
+    "engine_tokens_per_s": 59646.53427702142,
+    "preemptions": 0.0,
+    "num_running_mean": 13.314285714285715,
+    "steady": {
+     "window_s": 23.539073705673218,
+     "iteration_time_ms": 17.738563455669343,
+     "tokens_per_iteration": 831.9570459683497,
+     "engine_tokens_per_s": 46901.03840976207,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp2_1783972886",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 57.96428691793053,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch1_context2048",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 7,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 24.84716546605341,
+   "output_throughput_tok_s": 144.24180516270627,
+   "measured": {
+    "mean_tpot_ms": 6.902444620036382,
+    "median_tpot_ms": 6.8999962681182705,
+    "mean_itl_ms": 6.902445067569816,
+    "median_itl_ms": 6.8999966203258785,
+    "mean_ttft_ms": 21.855413581111602,
+    "median_ttft_ms": 21.416161092929542,
+    "p99_ttft_ms": 23.850769561249763
+   },
+   "engine_counters": {
+    "window_s": 28.652127742767334,
+    "iterations": 4096.0,
+    "iterations_per_s": 142.95622429067086,
+    "tokens_per_iteration": 5.103515625,
+    "iteration_time_ms": 6.995148374699056,
+    "engine_tokens_per_s": 729.5793243584433,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 28.14136052131653,
+     "iteration_time_ms": 6.933077241024027,
+     "tokens_per_iteration": 4.623306233062331,
+     "engine_tokens_per_s": 666.8476453291987,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 144.8762076405807,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch1_context8192",
+   "level": 1,
+   "batch": 1,
+   "num_prompts": 6,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 21.445806383970194,
+   "output_throughput_tok_s": 143.244788514746,
+   "measured": {
+    "mean_tpot_ms": 6.876625942267703,
+    "median_tpot_ms": 6.8802874344638,
+    "mean_itl_ms": 7.083038818187113,
+    "median_itl_ms": 6.891509005891018,
+    "mean_ttft_ms": 59.749990507649876,
+    "median_ttft_ms": 49.096170521806926,
+    "p99_ttft_ms": 105.24010682129303
+   },
+   "engine_counters": {
+    "window_s": 25.29996132850647,
+    "iterations": 3584.0,
+    "iterations_per_s": 141.66029558162862,
+    "tokens_per_iteration": 17.481305803571427,
+    "iteration_time_ms": 7.059140995677028,
+    "engine_tokens_per_s": 2476.406947286768,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 24.789660215377808,
+     "iteration_time_ms": 6.971220533008382,
+     "tokens_per_iteration": 15.238188976377952,
+     "engine_tokens_per_s": 2185.8710256297136,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 145.42015348739912,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch1_context32768",
+   "level": 2,
+   "batch": 1,
+   "num_prompts": 3,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 21.714534689905122,
+   "output_throughput_tok_s": 70.73603104717098,
+   "measured": {
+    "mean_tpot_ms": 7.252448562238626,
+    "median_tpot_ms": 7.25555199985766,
+    "mean_itl_ms": 7.252449397269858,
+    "median_itl_ms": 7.255553878677932,
+    "mean_ttft_ms": 142.092136045297,
+    "median_ttft_ms": 142.4941640580073,
+    "p99_ttft_ms": 143.5214471258223
+   },
+   "engine_counters": {
+    "window_s": 25.514629364013672,
+    "iterations": 2048.0,
+    "iterations_per_s": 80.26767588043191,
+    "tokens_per_iteration": 67.103515625,
+    "iteration_time_ms": 12.4583151191473,
+    "engine_tokens_per_s": 5386.243242624998,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 25.00515604019165,
+     "iteration_time_ms": 12.578046297883123,
+     "tokens_per_iteration": 52.07394366197183,
+     "engine_tokens_per_s": 4140.066146102185,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 137.88446638652593,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch4_context2048",
+   "level": 3,
+   "batch": 4,
+   "num_prompts": 28,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 25.81785858096555,
+   "output_throughput_tok_s": 555.2745575331854,
+   "measured": {
+    "mean_tpot_ms": 7.153572500829498,
+    "median_tpot_ms": 7.029005131090092,
+    "mean_itl_ms": 7.948377304917185,
+    "median_itl_ms": 7.0290054540230065,
+    "mean_ttft_ms": 31.14035153495414,
+    "median_ttft_ms": 27.33839803840965,
+    "p99_ttft_ms": 52.10308842826635
+   },
+   "engine_counters": {
+    "window_s": 29.373950242996216,
+    "iterations": 4104.0,
+    "iterations_per_s": 139.7156312327634,
+    "tokens_per_iteration": 18.46150097465887,
+    "iteration_time_ms": 7.1573952833811445,
+    "engine_tokens_per_s": 2579.3602621787404,
+    "preemptions": 0.0,
+    "num_running_mean": 3.607476635514019,
+    "steady": {
+     "window_s": 25.655207633972168,
+     "iteration_time_ms": 7.160258898680483,
+     "tokens_per_iteration": 18.061959252023446,
+     "engine_tokens_per_s": 2522.5287950624197,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 139.79029357485985,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch4_context8192",
+   "level": 4,
+   "batch": 4,
+   "num_prompts": 24,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 22.01737272099126,
+   "output_throughput_tok_s": 558.1047364604351,
+   "measured": {
+    "mean_tpot_ms": 7.048812856257086,
+    "median_tpot_ms": 7.0446705645672,
+    "mean_itl_ms": 7.543165525205314,
+    "median_itl_ms": 7.051504943260118,
+    "mean_ttft_ms": 65.54013852534506,
+    "median_ttft_ms": 68.10387206496671,
+    "p99_ttft_ms": 77.82822035136633
+   },
+   "engine_counters": {
+    "window_s": 25.890213012695312,
+    "iterations": 3597.0,
+    "iterations_per_s": 138.93280824828304,
+    "tokens_per_iteration": 62.20572699471782,
+    "iteration_time_ms": 7.197723940143262,
+    "engine_tokens_per_s": 8642.416340502174,
+    "preemptions": 0.0,
+    "num_running_mean": 3.5106382978723403,
+    "steady": {
+     "window_s": 21.802613019943237,
+     "iteration_time_ms": 7.118058445949473,
+     "tokens_per_iteration": 59.08194580476657,
+     "engine_tokens_per_s": 8300.289503577638,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 141.86786064440915,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch4_context32768",
+   "level": 5,
+   "batch": 4,
+   "num_prompts": 12,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 12.962552363052964,
+   "output_throughput_tok_s": 473.9807275542572,
+   "measured": {
+    "mean_tpot_ms": 8.032597864506279,
+    "median_tpot_ms": 8.00911896773696,
+    "mean_itl_ms": 8.032598374914944,
+    "median_itl_ms": 8.009119252510251,
+    "mean_ttft_ms": 211.41279025080925,
+    "median_ttft_ms": 224.74338696338236,
+    "p99_ttft_ms": 239.25784155377187
+   },
+   "engine_counters": {
+    "window_s": 16.87226629257202,
+    "iterations": 2057.0,
+    "iterations_per_s": 121.91604638824305,
+    "tokens_per_iteration": 217.12882839086046,
+    "iteration_time_ms": 8.20236572317551,
+    "engine_tokens_per_s": 26471.488314325008,
+    "preemptions": 0.0,
+    "num_running_mean": 3.3035714285714284,
+    "steady": {
+     "window_s": 12.505029439926147,
+     "iteration_time_ms": 8.248700158262631,
+     "tokens_per_iteration": 182.57849604221636,
+     "engine_tokens_per_s": 22134.214183955944,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 124.49272537577289,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch16_context2048",
+   "level": 6,
+   "batch": 16,
+   "num_prompts": 112,
+   "prompt_tokens": 2048,
+   "output_len": 512,
+   "context_tokens_mean": 2304.5,
+   "level_duration_s": 32.4536092170747,
+   "output_throughput_tok_s": 1766.9529332296825,
+   "measured": {
+    "mean_tpot_ms": 8.959281319751325,
+    "median_tpot_ms": 7.375320021442179,
+    "mean_itl_ms": 10.557737298084556,
+    "median_itl_ms": 9.192167429066059,
+    "mean_ttft_ms": 54.33261917122373,
+    "median_ttft_ms": 51.80960352299735,
+    "p99_ttft_ms": 139.69616607646458
+   },
+   "engine_counters": {
+    "window_s": 38.10131359100342,
+    "iterations": 4120.0,
+    "iterations_per_s": 108.13275479753604,
+    "tokens_per_iteration": 71.6752427184466,
+    "iteration_time_ms": 9.2478916483018,
+    "engine_tokens_per_s": 7750.441445927667,
+    "preemptions": 0.0,
+    "num_running_mean": 13.702970297029703,
+    "steady": {
+     "window_s": 32.276142835617065,
+     "iteration_time_ms": 8.963105480593464,
+     "tokens_per_iteration": 71.9250208275479,
+     "engine_tokens_per_s": 8024.564809962006,
+     "num_running_mean": 15.988095238095237
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 111.61609556733465,
+   "effective_decode_batch": 15.988095238095237
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch16_context8192",
+   "level": 7,
+   "batch": 16,
+   "num_prompts": 96,
+   "prompt_tokens": 8192,
+   "output_len": 512,
+   "context_tokens_mean": 8448.5,
+   "level_duration_s": 24.68037738208659,
+   "output_throughput_tok_s": 1991.541670496307,
+   "measured": {
+    "mean_tpot_ms": 7.665011518185977,
+    "median_tpot_ms": 7.740841209323468,
+    "mean_itl_ms": 7.989848711951292,
+    "median_itl_ms": 7.803919280701287,
+    "mean_ttft_ms": 148.3417479127335,
+    "median_ttft_ms": 89.92569398833439,
+    "p99_ttft_ms": 492.214025883004
+   },
+   "engine_counters": {
+    "window_s": 28.413605451583862,
+    "iterations": 3658.0,
+    "iterations_per_s": 128.74114150114278,
+    "tokens_per_iteration": 237.332422088573,
+    "iteration_time_ms": 7.767524727059557,
+    "engine_tokens_per_s": 30554.44693491392,
+    "preemptions": 0.0,
+    "num_running_mean": 14.009708737864077,
+    "steady": {
+     "window_s": 23.782597064971924,
+     "iteration_time_ms": 7.8155100443548875,
+     "tokens_per_iteration": 237.6585606309563,
+     "engine_tokens_per_s": 30408.579770505974,
+     "num_running_mean": 15.954545454545455
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 130.46294811526425,
+   "effective_decode_batch": 15.954545454545455
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_context_grid",
+   "run_id": "a100_decode_context_grid_tp4_1783973917",
+   "label": "decode_batch16_context32768",
+   "level": 8,
+   "batch": 16,
+   "num_prompts": 48,
+   "prompt_tokens": 32768,
+   "output_len": 512,
+   "context_tokens_mean": 33024.5,
+   "level_duration_s": 20.796211982960813,
+   "output_throughput_tok_s": 1181.7536780321398,
+   "measured": {
+    "mean_tpot_ms": 12.558342244822592,
+    "median_tpot_ms": 12.474075606645954,
+    "mean_itl_ms": 12.576756198695596,
+    "median_itl_ms": 12.516369208317148,
+    "mean_ttft_ms": 490.44411945942556,
+    "median_ttft_ms": 436.3166730036028,
+    "p99_ttft_ms": 857.2406737226993
+   },
+   "engine_counters": {
+    "window_s": 24.77423334121704,
+    "iterations": 2090.0,
+    "iterations_per_s": 84.36184366290175,
+    "tokens_per_iteration": 805.4818181818182,
+    "iteration_time_ms": 11.853700163261742,
+    "engine_tokens_per_s": 67951.9312187644,
+    "preemptions": 0.0,
+    "num_running_mean": 12.835164835164836,
+    "steady": {
+     "window_s": 20.163761377334595,
+     "iteration_time_ms": 12.933778946333929,
+     "tokens_per_iteration": 710.3425272610648,
+     "engine_tokens_per_s": 54921.49898405453,
+     "num_running_mean": 15.95774647887324
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_context_grid_tp4_1783973917",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 79.62834429140267,
+   "effective_decode_batch": 15.95774647887324
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N1",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 2,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.135281415074132,
+   "output_throughput_tok_s": 145.5823362692748,
+   "measured": {
+    "mean_tpot_ms": 6.8654015774142065,
+    "median_tpot_ms": 6.8654015774142065,
+    "mean_itl_ms": 6.9167780720326935,
+    "median_itl_ms": 6.9167780720326935,
+    "mean_ttft_ms": 13.50635354174301,
+    "median_ttft_ms": 13.50635354174301,
+    "p99_ttft_ms": 14.33871706132777
+   },
+   "engine_counters": {
+    "window_s": 42.23486614227295,
+    "iterations": 6116.0,
+    "iterations_per_s": 144.80926681281665,
+    "tokens_per_iteration": 1.0039241334205362,
+    "iteration_time_ms": 6.905635405865427,
+    "engine_tokens_per_s": 145.37751769632018,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 41.97990870475769,
+     "iteration_time_ms": 6.865070924735518,
+     "tokens_per_iteration": 1.0026165167620604,
+     "engine_tokens_per_s": 146.04605367579464,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 145.6579034341996,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N2",
+   "level": 1,
+   "batch": 2,
+   "num_prompts": 4,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.635455184965394,
+   "output_throughput_tok_s": 286.07891675146425,
+   "measured": {
+    "mean_tpot_ms": 6.977538448830309,
+    "median_tpot_ms": 6.9716426871014505,
+    "mean_itl_ms": 6.977538616145344,
+    "median_itl_ms": 6.971642819014171,
+    "mean_ttft_ms": 30.410566978389397,
+    "median_ttft_ms": 18.257427494972944,
+    "p99_ttft_ms": 69.78666923358104
+   },
+   "engine_counters": {
+    "window_s": 42.98448038101196,
+    "iterations": 6137.0,
+    "iterations_per_s": 142.77245986462987,
+    "tokens_per_iteration": 1.672152517516702,
+    "iteration_time_ms": 7.004151927816842,
+    "engine_tokens_per_s": 238.7373281946931,
+    "preemptions": 0.0,
+    "num_running_mean": 1.6875,
+    "steady": {
+     "window_s": 28.427411317825317,
+     "iteration_time_ms": 6.955569199370031,
+     "tokens_per_iteration": 2.0031808172253487,
+     "engine_tokens_per_s": 287.9966771672371,
+     "num_running_mean": 2.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 143.3170175031621,
+   "effective_decode_batch": 2.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N4",
+   "level": 2,
+   "batch": 4,
+   "num_prompts": 8,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.349952546064742,
+   "output_throughput_tok_s": 577.9198386091924,
+   "measured": {
+    "mean_tpot_ms": 6.9130908003844445,
+    "median_tpot_ms": 6.913225185153364,
+    "mean_itl_ms": 6.914791191964114,
+    "median_itl_ms": 6.914925513082553,
+    "mean_ttft_ms": 21.189165752730332,
+    "median_ttft_ms": 20.65395104000345,
+    "p99_ttft_ms": 26.479686851380393
+   },
+   "engine_counters": {
+    "window_s": 42.61436867713928,
+    "iterations": 6147.0,
+    "iterations_per_s": 144.24712111944515,
+    "tokens_per_iteration": 3.0105742638685538,
+    "iteration_time_ms": 6.932547368983127,
+    "engine_tokens_per_s": 434.2666704793317,
+    "preemptions": 0.0,
+    "num_running_mean": 3.018181818181818,
+    "steady": {
+     "window_s": 28.096245288848877,
+     "iteration_time_ms": 6.913446183279743,
+     "tokens_per_iteration": 4.006643700787402,
+     "engine_tokens_per_s": 579.5436305669841,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 144.65309785087575,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N8",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 29.096476751030423,
+   "output_throughput_tok_s": 1126.184461451662,
+   "measured": {
+    "mean_tpot_ms": 7.09276699846658,
+    "median_tpot_ms": 7.09308071739191,
+    "mean_itl_ms": 7.19283725467409,
+    "median_itl_ms": 7.193159659503119,
+    "mean_ttft_ms": 26.04986975347856,
+    "median_ttft_ms": 23.127094958908856,
+    "p99_ttft_ms": 33.90643250895664
+   },
+   "engine_counters": {
+    "window_s": 43.29102277755737,
+    "iterations": 6148.0,
+    "iterations_per_s": 142.01558673238839,
+    "tokens_per_iteration": 5.685751463890696,
+    "iteration_time_ms": 7.041480607930607,
+    "engine_tokens_per_s": 807.4653301589733,
+    "preemptions": 0.0,
+    "num_running_mean": 5.751515151515152,
+    "steady": {
+     "window_s": 28.768859386444092,
+     "iteration_time_ms": 7.094663227236521,
+     "tokens_per_iteration": 8.012577065351419,
+     "engine_tokens_per_s": 1129.380889369211,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 140.9887002091278,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N16",
+   "level": 4,
+   "batch": 16,
+   "num_prompts": 32,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 32.94563140103128,
+   "output_throughput_tok_s": 1989.2166946889524,
+   "measured": {
+    "mean_tpot_ms": 8.026913677550427,
+    "median_tpot_ms": 8.027580644845285,
+    "mean_itl_ms": 8.282315141119593,
+    "median_itl_ms": 8.27181818619515,
+    "mean_ttft_ms": 37.451352192874765,
+    "median_ttft_ms": 36.8075295118615,
+    "p99_ttft_ms": 73.10973414219922
+   },
+   "engine_counters": {
+    "window_s": 47.13339591026306,
+    "iterations": 6149.0,
+    "iterations_per_s": 130.45951562045386,
+    "tokens_per_iteration": 11.035290291104245,
+    "iteration_time_ms": 7.665213190805507,
+    "engine_tokens_per_s": 1439.658626108557,
+    "preemptions": 0.0,
+    "num_running_mean": 11.397727272727273,
+    "steady": {
+     "window_s": 32.69372057914734,
+     "iteration_time_ms": 8.013166808614544,
+     "tokens_per_iteration": 16.017401960784312,
+     "engine_tokens_per_s": 1998.8853774471322,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 124.58088378311426,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N32",
+   "level": 5,
+   "batch": 32,
+   "num_prompts": 64,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 41.0889059699839,
+   "output_throughput_tok_s": 3189.960815597042,
+   "measured": {
+    "mean_tpot_ms": 10.001405518943765,
+    "median_tpot_ms": 10.001633277492308,
+    "mean_itl_ms": 10.085605153118028,
+    "median_itl_ms": 10.079888142287668,
+    "mean_ttft_ms": 62.60776057388284,
+    "median_ttft_ms": 60.52533205365762,
+    "p99_ttft_ms": 79.31158520746976
+   },
+   "engine_counters": {
+    "window_s": 55.10771894454956,
+    "iterations": 6152.0,
+    "iterations_per_s": 111.63590360526916,
+    "tokens_per_iteration": 21.725292587776334,
+    "iteration_time_ms": 8.957691635980098,
+    "engine_tokens_per_s": 2425.322669125267,
+    "preemptions": 0.0,
+    "num_running_mean": 24.093896713615024,
+    "steady": {
+     "window_s": 40.50158762931824,
+     "iteration_time_ms": 10.002861849671088,
+     "tokens_per_iteration": 32.01852309212151,
+     "engine_tokens_per_s": 3200.936249376906,
+     "num_running_mean": 32.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 99.98594678576823,
+   "effective_decode_batch": 32.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N64",
+   "level": 6,
+   "batch": 64,
+   "num_prompts": 128,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 49.40546380204614,
+   "output_throughput_tok_s": 5305.9718465621045,
+   "measured": {
+    "mean_tpot_ms": 12.01073180066722,
+    "median_tpot_ms": 11.998531482654247,
+    "mean_itl_ms": 12.244759582302326,
+    "median_itl_ms": 12.232250417118207,
+    "mean_ttft_ms": 93.92318937443633,
+    "median_ttft_ms": 98.26772997621447,
+    "p99_ttft_ms": 122.97579133883119
+   },
+   "engine_counters": {
+    "window_s": 63.74137043952942,
+    "iterations": 6156.0,
+    "iterations_per_s": 96.5777791966383,
+    "tokens_per_iteration": 43.08804418453541,
+    "iteration_time_ms": 10.354348674387495,
+    "engine_tokens_per_s": 4161.347617269056,
+    "preemptions": 0.0,
+    "num_running_mean": 49.94871794871795,
+    "steady": {
+     "window_s": 49.09909772872925,
+     "iteration_time_ms": 12.010542497242966,
+     "tokens_per_iteration": 63.98997064579256,
+     "engine_tokens_per_s": 5327.816845948593,
+     "num_running_mean": 63.934065934065934
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 83.25887353045782,
+   "effective_decode_batch": 63.934065934065934
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N128",
+   "level": 7,
+   "batch": 128,
+   "num_prompts": 256,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 68.54058757401071,
+   "output_throughput_tok_s": 7649.307053778453,
+   "measured": {
+    "mean_tpot_ms": 16.645097884067983,
+    "median_tpot_ms": 16.626218831207343,
+    "mean_itl_ms": 16.669382177500598,
+    "median_itl_ms": 16.650506899167127,
+    "mean_ttft_ms": 156.44866119237122,
+    "median_ttft_ms": 158.75740098999813,
+    "p99_ttft_ms": 216.6037714749109
+   },
+   "engine_counters": {
+    "window_s": 82.61691093444824,
+    "iterations": 6160.0,
+    "iterations_per_s": 74.56100609822613,
+    "tokens_per_iteration": 85.78733766233766,
+    "iteration_time_ms": 13.411836190657182,
+    "engine_tokens_per_s": 6396.390206592142,
+    "preemptions": 0.0,
+    "num_running_mean": 105.81672025723472,
+    "steady": {
+     "window_s": 67.80023694038391,
+     "iteration_time_ms": 16.629933024376726,
+     "tokens_per_iteration": 127.93941623742948,
+     "engine_tokens_per_s": 7693.3211967776115,
+     "num_running_mean": 127.99609375
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 60.077748233439934,
+   "effective_decode_batch": 127.99609375
+  },
+  {
+   "hardware": "A100",
+   "tp": 2,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp2_1783972216",
+   "label": "decode_N256",
+   "level": 8,
+   "batch": 256,
+   "num_prompts": 512,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 105.08641041000374,
+   "output_throughput_tok_s": 9978.22645105956,
+   "measured": {
+    "mean_tpot_ms": 25.49365260546463,
+    "median_tpot_ms": 25.493606394231886,
+    "mean_itl_ms": 25.495761561456277,
+    "median_itl_ms": 25.493606435776286,
+    "mean_ttft_ms": 254.96150585036048,
+    "median_ttft_ms": 241.58817704301327,
+    "p99_ttft_ms": 397.89627921418287
+   },
+   "engine_counters": {
+    "window_s": 119.01122641563416,
+    "iterations": 6173.0,
+    "iterations_per_s": 51.86905627240113,
+    "tokens_per_iteration": 170.8773691884011,
+    "iteration_time_ms": 19.279317417079888,
+    "engine_tokens_per_s": 8863.24787811304,
+    "preemptions": 0.0,
+    "num_running_mean": 225.09070796460176,
+    "steady": {
+     "window_s": 104.23067355155945,
+     "iteration_time_ms": 25.484272261994974,
+     "tokens_per_iteration": 255.86943765281174,
+     "engine_tokens_per_s": 10040.28818332761,
+     "num_running_mean": 255.83123425692696
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp2_1783972216",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 39.22545017286568,
+   "effective_decode_batch": 255.83123425692696
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N1",
+   "level": 0,
+   "batch": 1,
+   "num_prompts": 2,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.039483161992393,
+   "output_throughput_tok_s": 146.07972537639856,
+   "measured": {
+    "mean_tpot_ms": 6.842238171251093,
+    "median_tpot_ms": 6.842238171251093,
+    "mean_itl_ms": 6.997654195702868,
+    "median_itl_ms": 6.997654195702868,
+    "mean_ttft_ms": 12.988759495783597,
+    "median_ttft_ms": 12.988759495783597,
+    "p99_ttft_ms": 13.164639632450417
+   },
+   "engine_counters": {
+    "window_s": 42.28469753265381,
+    "iterations": 6144.0,
+    "iterations_per_s": 145.30079103097228,
+    "tokens_per_iteration": 1.00390625,
+    "iteration_time_ms": 6.882274989038706,
+    "engine_tokens_per_s": 145.86837224593702,
+    "preemptions": 0.0,
+    "num_running_mean": 1.0,
+    "steady": {
+     "window_s": 41.77402710914612,
+     "iteration_time_ms": 6.845956589502805,
+     "tokens_per_iteration": 1.0026220911176664,
+     "engine_tokens_per_s": 146.45463756738235,
+     "num_running_mean": 1.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 146.1510071662927,
+   "effective_decode_batch": 1.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N2",
+   "level": 1,
+   "batch": 2,
+   "num_prompts": 4,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.330601905006915,
+   "output_throughput_tok_s": 289.1572874966774,
+   "measured": {
+    "mean_tpot_ms": 6.909529560572696,
+    "median_tpot_ms": 6.907582471917671,
+    "mean_itl_ms": 7.044227877783746,
+    "median_itl_ms": 7.046167612451614,
+    "mean_ttft_ms": 19.23014724161476,
+    "median_ttft_ms": 13.443467498291284,
+    "p99_ttft_ms": 37.71415577037259
+   },
+   "engine_counters": {
+    "window_s": 42.419655561447144,
+    "iterations": 6146.0,
+    "iterations_per_s": 144.88566487997974,
+    "tokens_per_iteration": 1.672632606573381,
+    "iteration_time_ms": 6.90199407117591,
+    "engine_tokens_per_s": 242.3404873033179,
+    "preemptions": 0.0,
+    "num_running_mean": 1.6602564102564104,
+    "steady": {
+     "window_s": 28.036804914474487,
+     "iteration_time_ms": 6.898820106908093,
+     "tokens_per_iteration": 2.003444881889764,
+     "engine_tokens_per_s": 290.4039895001214,
+     "num_running_mean": 2.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 144.72765348689168,
+   "effective_decode_batch": 2.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N4",
+   "level": 2,
+   "batch": 4,
+   "num_prompts": 8,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.480727470014244,
+   "output_throughput_tok_s": 575.2662047431826,
+   "measured": {
+    "mean_tpot_ms": 6.946463516364149,
+    "median_tpot_ms": 6.946410169263298,
+    "mean_itl_ms": 6.978850447788013,
+    "median_itl_ms": 6.978796970932038,
+    "mean_ttft_ms": 18.309766237507574,
+    "median_ttft_ms": 18.589613551739603,
+    "p99_ttft_ms": 21.61929424619302
+   },
+   "engine_counters": {
+    "window_s": 42.716917276382446,
+    "iterations": 6147.0,
+    "iterations_per_s": 143.9008334854394,
+    "tokens_per_iteration": 3.0105742638685538,
+    "iteration_time_ms": 6.949230075871554,
+    "engine_tokens_per_s": 433.22414584049807,
+    "preemptions": 0.0,
+    "num_running_mean": 2.8297872340425534,
+    "steady": {
+     "window_s": 28.155165433883667,
+     "iteration_time_ms": 6.946746961234559,
+     "tokens_per_iteration": 4.0066617320503335,
+     "engine_tokens_per_s": 576.7680548045007,
+     "num_running_mean": 4.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 143.95814469395074,
+   "effective_decode_batch": 4.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N8",
+   "level": 3,
+   "batch": 8,
+   "num_prompts": 16,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 28.924951391061768,
+   "output_throughput_tok_s": 1132.8627508126353,
+   "measured": {
+    "mean_tpot_ms": 7.051411282664297,
+    "median_tpot_ms": 7.051078164621298,
+    "mean_itl_ms": 7.229791143926837,
+    "median_itl_ms": 7.22981323488486,
+    "mean_ttft_ms": 24.237748883024324,
+    "median_ttft_ms": 25.72728256927803,
+    "p99_ttft_ms": 28.650466998806223
+   },
+   "engine_counters": {
+    "window_s": 43.35907816886902,
+    "iterations": 6148.0,
+    "iterations_per_s": 141.7926824010328,
+    "tokens_per_iteration": 5.685751463890696,
+    "iteration_time_ms": 7.052550125060023,
+    "engine_tokens_per_s": 806.1979515306608,
+    "preemptions": 0.0,
+    "num_running_mean": 6.202702702702703,
+    "steady": {
+     "window_s": 28.552489042282104,
+     "iteration_time_ms": 7.049997294390643,
+     "tokens_per_iteration": 8.011358024691358,
+     "engine_tokens_per_s": 1136.3632764888612,
+     "num_running_mean": 8.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 141.81558271299147,
+   "effective_decode_batch": 8.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N16",
+   "level": 4,
+   "batch": 16,
+   "num_prompts": 32,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 31.50542596098967,
+   "output_throughput_tok_s": 2080.149625056564,
+   "measured": {
+    "mean_tpot_ms": 7.517132409173141,
+    "median_tpot_ms": 7.50652121759416,
+    "mean_itl_ms": 7.591571563233557,
+    "median_itl_ms": 7.580963601065916,
+    "mean_ttft_ms": 360.6110676882963,
+    "median_ttft_ms": 38.67230599280447,
+    "p99_ttft_ms": 732.1475584816653
+   },
+   "engine_counters": {
+    "window_s": 45.76893997192383,
+    "iterations": 6149.0,
+    "iterations_per_s": 134.34875275180065,
+    "tokens_per_iteration": 11.035290291104245,
+    "iteration_time_ms": 7.443314355492572,
+    "engine_tokens_per_s": 1482.5774868639103,
+    "preemptions": 0.0,
+    "num_running_mean": 11.142045454545455,
+    "steady": {
+     "window_s": 30.45446014404297,
+     "iteration_time_ms": 7.471653617282377,
+     "tokens_per_iteration": 16.017419038272816,
+     "engine_tokens_per_s": 2143.7582439881285,
+     "num_running_mean": 16.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 133.02945133435486,
+   "effective_decode_batch": 16.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N32",
+   "level": 5,
+   "batch": 32,
+   "num_prompts": 64,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 31.27086752897594,
+   "output_throughput_tok_s": 4191.505076683504,
+   "measured": {
+    "mean_tpot_ms": 7.605538249852199,
+    "median_tpot_ms": 7.6054196907585,
+    "mean_itl_ms": 7.650607066963405,
+    "median_itl_ms": 7.650050831553511,
+    "mean_ttft_ms": 58.975046340492554,
+    "median_ttft_ms": 59.59419603459537,
+    "p99_ttft_ms": 74.564968602499
+   },
+   "engine_counters": {
+    "window_s": 45.3500120639801,
+    "iterations": 6152.0,
+    "iterations_per_s": 135.65597273316524,
+    "tokens_per_iteration": 21.725292587776334,
+    "iteration_time_ms": 7.371588436927845,
+    "engine_tokens_per_s": 2947.1656989074236,
+    "preemptions": 0.0,
+    "num_running_mean": 22.267441860465116,
+    "steady": {
+     "window_s": 30.795366525650024,
+     "iteration_time_ms": 7.6037942038642035,
+     "tokens_per_iteration": 32.0162962962963,
+     "engine_tokens_per_s": 4210.568492243754,
+     "num_running_mean": 32.0
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 131.48313336264312,
+   "effective_decode_batch": 32.0
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N64",
+   "level": 6,
+   "batch": 64,
+   "num_prompts": 128,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 40.84849304903764,
+   "output_throughput_tok_s": 6417.470521747336,
+   "measured": {
+    "mean_tpot_ms": 9.928132559574967,
+    "median_tpot_ms": 9.919122080355027,
+    "mean_itl_ms": 9.947559642028308,
+    "median_itl_ms": 9.942568471337122,
+    "mean_ttft_ms": 84.47116003753763,
+    "median_ttft_ms": 85.21759702125564,
+    "p99_ttft_ms": 100.59945531771518
+   },
+   "engine_counters": {
+    "window_s": 55.25977277755737,
+    "iterations": 6157.0,
+    "iterations_per_s": 111.41920588027716,
+    "tokens_per_iteration": 43.08104596394348,
+    "iteration_time_ms": 8.975113330771054,
+    "engine_tokens_per_s": 4800.055929794302,
+    "preemptions": 0.0,
+    "num_running_mean": 48.65714285714286,
+    "steady": {
+     "window_s": 40.552046060562134,
+     "iteration_time_ms": 9.931924090267483,
+     "tokens_per_iteration": 63.970120009796716,
+     "engine_tokens_per_s": 6440.858732748721,
+     "num_running_mean": 63.943396226415096
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 100.72387672096221,
+   "effective_decode_batch": 63.943396226415096
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N128",
+   "level": 7,
+   "batch": 128,
+   "num_prompts": 256,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 57.48448836791795,
+   "output_throughput_tok_s": 9120.512591925664,
+   "measured": {
+    "mean_tpot_ms": 13.949069496351285,
+    "median_tpot_ms": 13.939824322884393,
+    "mean_itl_ms": 14.04315247687235,
+    "median_itl_ms": 14.043974679276896,
+    "mean_ttft_ms": 135.49985113695584,
+    "median_ttft_ms": 133.97921697469428,
+    "p99_ttft_ms": 188.96834749029946
+   },
+   "engine_counters": {
+    "window_s": 71.5106291770935,
+    "iterations": 6168.0,
+    "iterations_per_s": 86.25291192341727,
+    "tokens_per_iteration": 85.67607003891051,
+    "iteration_time_ms": 11.593811474885458,
+    "engine_tokens_per_s": 7389.810523010678,
+    "preemptions": 0.0,
+    "num_running_mean": 99.82790697674419,
+    "steady": {
+     "window_s": 44.30725932121277,
+     "iteration_time_ms": 14.283449168669494,
+     "tokens_per_iteration": 127.90780141843972,
+     "engine_tokens_per_s": 8954.965982516558,
+     "num_running_mean": 127.96407185628742
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 71.68936969319525,
+   "effective_decode_batch": 127.96407185628742
+  },
+  {
+   "hardware": "A100",
+   "tp": 4,
+   "model": "gpt-oss-20b",
+   "probe": "decode_staircase",
+   "run_id": "a100_decode_staircase_tp4_1783973280",
+   "label": "decode_N256",
+   "level": 8,
+   "batch": 256,
+   "num_prompts": 512,
+   "prompt_tokens": 8,
+   "output_len": 2048,
+   "context_tokens_mean": 1032.5,
+   "level_duration_s": 89.3833613700699,
+   "output_throughput_tok_s": 11731.221380885734,
+   "measured": {
+    "mean_tpot_ms": 21.660257381471503,
+    "median_tpot_ms": 21.658497963606372,
+    "mean_itl_ms": 21.660257445687407,
+    "median_itl_ms": 21.65849833244446,
+    "mean_ttft_ms": 249.6724597122011,
+    "median_ttft_ms": 255.25631103664637,
+    "p99_ttft_ms": 373.73985750600696
+   },
+   "engine_counters": {
+    "window_s": 103.49419689178467,
+    "iterations": 6171.0,
+    "iterations_per_s": 59.626531586621276,
+    "tokens_per_iteration": 170.93274995948792,
+    "iteration_time_ms": 16.77105767165527,
+    "engine_tokens_per_s": 10192.127014647444,
+    "preemptions": 0.0,
+    "num_running_mean": 219.5841836734694,
+    "steady": {
+     "window_s": 88.34845805168152,
+     "iteration_time_ms": 21.64342431447367,
+     "tokens_per_iteration": 255.7405683488486,
+     "engine_tokens_per_s": 11816.086245549715,
+     "num_running_mean": 255.98208955223882
+    }
+   },
+   "provenance": {
+    "bundle_path": "data/runs/a100_iteration_gpt-oss-20b/a100_decode_staircase_tp4_1783973280",
+    "manifest_git_sha": "7a4f5f65885426bd7f54942bcb465bc1b1ad1eba",
+    "extraction_method": "level_detail(a)+engine_counters(b)"
+   },
+   "decode_tokens_per_s_per_request": 46.167503108961874,
+   "effective_decode_batch": 255.98208955223882
+  }
+ ]
+}

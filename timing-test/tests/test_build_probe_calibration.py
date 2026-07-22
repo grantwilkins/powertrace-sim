@@ -18,6 +18,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "timing-test"))
 
 import build_probe_calibration as bpc  # noqa: E402
+import fit_efficiencies as fit  # noqa: E402
 
 OUTPUT = REPO / "timing-test/probe_calibration.json"
 
@@ -90,15 +91,29 @@ def test_engine_window_stats_synthetic():
     """Counter math on a hand-built engine trace: 4 samples at 1 s cadence,
     100 iterations/s and 3 tokens/iteration during the active span."""
     engine = [
-        (0.0, 0.0, 0.0, 0.0),      # idle (client setup)
-        (1.0, 3.0, 0.0, 0.0),
-        (2.0, 3.0, 300.0, 100.0),
-        (3.0, 3.0, 600.0, 200.0),
-        (4.0, 0.0, 600.0, 200.0),  # idle (client teardown)
+        (0.0, 0.0, 0.0, 0.0, 2.0),      # idle (client setup)
+        (1.0, 3.0, 0.0, 0.0, 2.0),
+        (2.0, 3.0, 300.0, 100.0, 2.0),
+        (3.0, 3.0, 600.0, 200.0, 3.0),
+        (4.0, 0.0, 600.0, 200.0, 3.0),  # idle (client teardown)
     ]
     s = bpc.engine_window_stats(engine, 0.0, 4.0)
     assert s["iterations"] == 200.0
     assert s["tokens_per_iteration"] == pytest.approx(3.0)
+    assert s["preemptions"] == 1.0
     assert s["steady"]["iteration_time_ms"] == pytest.approx(10.0)
     assert s["steady"]["num_running_mean"] == pytest.approx(3.0)
     assert bpc.engine_window_stats(engine, 0.0, 0.5) is None
+
+
+def test_preempted_probe_level_cannot_fit_nonpreemptive_simulator():
+    row = {
+        "hardware": "A100", "tp": 4, "model": "llama-3-70b",
+        "run_id": "probe", "probe": "decode_staircase", "label": "N256",
+        "batch": 256, "effective_decode_batch": 200.0,
+        "context_tokens_mean": 1024.0,
+        "measured": {"median_itl_ms": 50.0},
+        "engine_counters": {"preemptions": 58.0},
+    }
+
+    assert fit.probe_points({"rows": [row]}) == []

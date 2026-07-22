@@ -43,7 +43,7 @@ def calibration_run_ids(data, manifest):
     roles = {int(k): v for k, v in manifest["roles"].items()}
     out = []
     for rid, role in roles.items():
-        if (role == "holdout_model"
+        if (role in {"holdout_model", "train"}
                 and str(data["run_model"][rid]) == CALIBRATION_MODEL
                 and int(data["run_repeat"][rid]) in CALIBRATION_REPEATS
                 and float(data["run_rate"][rid]) <= CALIBRATION_MAX_RATE):

@@ -83,8 +83,11 @@ def simulate_requests(
 
     If `iteration_trace` is a list, one record per engine iteration is
     appended: (t_start_s, t_end_s, decode_batch, context_mean,
-    chunk_tokens, chunk_context, n_chunks, prefill_logits, weight_bytes) —
-    the phase-resolved executed work on wall time that the power stage consumes.
+    chunk_tokens, chunk_context, n_chunks, prefill_logits, weight_bytes,
+    gemm_flops, attention_flops, attention_bytes, prefill_gemm_flops,
+    decode_gemm_flops, prefill_attention_flops, decode_attention_flops,
+    prefill_attention_bytes, decode_attention_bytes) — the executed work on
+    wall time that the power stage consumes.
     """
     default_timing = iteration_seconds is None
     if engine.max_num_seqs < 1 or engine.chunk_budget_tokens < 1:
@@ -174,7 +177,14 @@ def simulate_requests(
             iteration_trace.append((iteration_started, clock, decode_batch,
                                     context_mean, chunk_tokens, chunk_context,
                                     len(chunks), prefill_logits,
-                                    work["gemm_bytes"]))
+                                    work["gemm_bytes"], work["gemm_flops"],
+                                    work["attn_flops"], work["attn_bytes"],
+                                    work["prefill_gemm_flops"],
+                                    work["decode_gemm_flops"],
+                                    work["prefill_attn_flops"],
+                                    work["decode_attn_flops"],
+                                    work["prefill_attn_bytes"],
+                                    work["decode_attn_bytes"]))
 
         for seq, tokens, _ in chunks:
             seq.prefilled += tokens

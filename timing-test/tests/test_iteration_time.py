@@ -14,6 +14,7 @@ Plausible wrong implementations:
 - Use chunk-end context instead of the causal mean for prefill attention.
 - Charge the input embedding matrix as a dense per-token operator.
 - Collapse independent prefill chunks into one fictitious attention context.
+- Assign mixed-iteration work to both phases instead of decomposing it.
 - Collapse sequential transformer and output-head operators under one roofline.
 - Apply an FP8 transformer calibration to BF16 head, attention, or KV traffic.
 """
@@ -69,6 +70,21 @@ def test_mixed_iteration_charges_one_weight_sweep():
     assert mixed["attn_flops"] == decode_only["attn_flops"] + 512.0
     assert mixed["attn_bytes"] == decode_only["attn_bytes"] + 64.0 + 128.0
     assert mixed["gemm_bytes"] == 100.0
+
+
+def test_mixed_iteration_phase_work_recomposes_exact_totals():
+    work = iteration_work(
+        COMPONENT_DENSE, decode_batch=2, context_mean=5,
+        prefill_chunk=4, prefill_context=3, prefill_logits=1,
+    )
+    assert work["prefill_gemm_flops"] == 52.0
+    assert work["decode_gemm_flops"] == 32.0
+    assert work["prefill_gemm_flops"] + work["decode_gemm_flops"] \
+        == work["gemm_flops"]
+    assert work["prefill_attn_flops"] + work["decode_attn_flops"] \
+        == work["attn_flops"]
+    assert work["prefill_attn_bytes"] + work["decode_attn_bytes"] \
+        == work["attn_bytes"]
 
 
 def test_component_work_treats_embedding_as_rows_and_output_as_projection():

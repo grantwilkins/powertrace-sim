@@ -24,9 +24,10 @@ not to this work clock.
 
 The emitter also carries simulator-only engine coordinates that the legacy
 request reconstruction could not observe: ``busy``, phase duty fractions,
-exact iteration and scheduled-token rates, and tokens per iteration.  The
-exact iteration channels come from iteration-completion events; they never
-reuse the reconstruction-only ``dec_tok / batch`` approximation.
+exact iteration and scheduled-token rates, tokens per iteration, and the
+GEMM/attention work used by the timing roofline. The exact iteration channels
+come from iteration-completion events; they never reuse the reconstruction-only
+``dec_tok / batch`` approximation.
 
 Build the simulated cache over the timing dataset:
     uv run python timing-test/simulated_ledger.py \
@@ -46,7 +47,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from evaluate_timing import MAX_NUM_SEQS  # noqa: E402
-from iteration_time import launch_overhead_s, transformer_bw_scale  # noqa: E402
+from iteration_time import (  # noqa: E402
+    iteration_work,
+    launch_overhead_s,
+    transformer_bw_scale,
+)
 from scheduler_sim import EngineConfig, simulate_requests  # noqa: E402
 from model.training_data.arch import ARCH, get_arch  # noqa: E402
 from model.training_data.moe_routing import (  # noqa: E402
@@ -63,6 +68,12 @@ from model.training_data.ledger_view import (  # noqa: E402
 BASE = Path(__file__).resolve().parent
 ALL_ROLES = ("train", "test_indomain", "holdout_model", "holdout_twin",
              "holdout_rate", "dtype_calibration")
+
+
+def selected_roles(manifest: dict, requested: str) -> tuple[str, ...]:
+    if requested == "all":
+        return tuple(sorted(set(manifest["roles"].values())))
+    return tuple(requested.split(","))
 
 
 def _overlap_add(out, edges, t0, t1, weight):
@@ -82,6 +93,7 @@ def _overlap_add(out, edges, t0, t1, weight):
 def emit_bins(
     trace, per_request, *, arch, tp, dt=0.25,
     routing_law: RoutingLaw | None = None,
+    horizon_s: float | None = None,
 ):
     """Simulated iteration trace + per-request timing -> ledger channels.
 
@@ -90,19 +102,57 @@ def emit_bins(
     channel dict (power absent) plus ``busy``, with ``n`` and ``arch``.
     """
     trace = np.asarray(trace, dtype=np.float64)
-    if trace.ndim != 2 or trace.shape[1] not in (7, 9):
-        raise ValueError("Iteration traces must use the legacy 7 or current 9 fields")
-    t0, t1, dec_batch, context_mean, chunk_tokens, _, n_chunks = trace[:, :7].T
-    prefill_logits = trace[:, 7] if trace.shape[1] == 9 else np.zeros_like(t0)
-    recorded_weight_bytes = trace[:, 8] if trace.shape[1] == 9 else None
+    if trace.ndim != 2 or trace.shape[1] not in (7, 9, 12, 18):
+        raise ValueError("Iteration traces must use 7, 9, 12, or 18 fields")
+    t0, t1, dec_batch, context_mean, chunk_tokens, chunk_context, n_chunks = (
+        trace[:, :7].T
+    )
+    prefill_logits = trace[:, 7] if trace.shape[1] >= 9 else np.zeros_like(t0)
+    recorded_weight_bytes = trace[:, 8] if trace.shape[1] >= 9 else None
+    if trace.shape[1] == 18:
+        gemm_flops, attn_flops, attn_bytes = trace[:, 9:12].T
+        (prefill_gemm_flops, decode_gemm_flops,
+         prefill_attn_flops, decode_attn_flops,
+         prefill_attn_bytes, decode_attn_bytes) = trace[:, 12:18].T
+    else:
+        work = [
+            iteration_work(
+                arch, decode_batch=decode, context_mean=context,
+                prefill_chunks=[(prefill, prior)] if prefill > 0 else [],
+                prefill_logits=logits, routing_law=routing_law,
+            )
+            for decode, context, prefill, prior, logits in zip(
+                dec_batch, context_mean, chunk_tokens, chunk_context,
+                prefill_logits,
+            )
+        ]
+        if trace.shape[1] == 12:
+            gemm_flops, attn_flops, attn_bytes = trace[:, 9:12].T
+        else:
+            gemm_flops = np.asarray([row["gemm_flops"] for row in work])
+            attn_flops = np.asarray([row["attn_flops"] for row in work])
+            attn_bytes = np.asarray([row["attn_bytes"] for row in work])
+        phase_keys = (
+            "prefill_gemm_flops", "decode_gemm_flops",
+            "prefill_attn_flops", "decode_attn_flops",
+            "prefill_attn_bytes", "decode_attn_bytes",
+        )
+        (prefill_gemm_flops, decode_gemm_flops,
+         prefill_attn_flops, decode_attn_flops,
+         prefill_attn_bytes, decode_attn_bytes) = (
+            np.asarray([row[key] for row in work]) for key in phase_keys
+        )
     arr = np.asarray([r["arrival_s"] for r in per_request], dtype=np.float64)
     adm = np.asarray([r["admitted_s"] for r in per_request], dtype=np.float64)
     n_in = np.asarray([r["n_in"] for r in per_request], dtype=np.float64)
     n_out = np.asarray([r["n_out"] for r in per_request], dtype=np.float64)
     dec_e = arr + np.asarray([r["e2e_s"] for r in per_request], dtype=np.float64)
 
-    t_max = max(float(t1.max()) if t1.size else 0.0,
-                float(dec_e.max()) if dec_e.size else 0.0)
+    predicted_end = max(float(t1.max()) if t1.size else 0.0,
+                        float(dec_e.max()) if dec_e.size else 0.0)
+    t_max = predicted_end if horizon_s is None else float(horizon_s)
+    if not np.isfinite(t_max) or t_max <= 0.0:
+        raise ValueError("Ledger horizon must be positive and finite")
     # One bin past t_max: completion events use right-open bins, so a token
     # landing exactly on the final edge must still fall inside the grid.
     nb = int(np.floor(t_max / dt)) + 1
@@ -124,6 +174,15 @@ def emit_bins(
     w_read = np.zeros(nb)
     w_read_pre = np.zeros(nb)
     w_read_dec = np.zeros(nb)
+    gemm_flops_rate = np.zeros(nb)
+    attn_flops_rate = np.zeros(nb)
+    attn_bytes_rate = np.zeros(nb)
+    prefill_gemm_flops_rate = np.zeros(nb)
+    decode_gemm_flops_rate = np.zeros(nb)
+    prefill_attn_flops_rate = np.zeros(nb)
+    decode_attn_flops_rate = np.zeros(nb)
+    prefill_attn_bytes_rate = np.zeros(nb)
+    decode_attn_bytes_rate = np.zeros(nb)
     _overlap_add(pre_tok, edges, t0, t1, chunk_tokens / wall / dt)
     _overlap_add(batch, edges, t0, t1, dec_batch / dt)
     _overlap_add(pre_active, edges, t0, t1, n_chunks / dt)
@@ -147,11 +206,24 @@ def emit_bins(
         w_read_pre, edges, t0, t1, weight_rate * chunk_tokens / iteration_tokens)
     _overlap_add(
         w_read_dec, edges, t0, t1, weight_rate * dec_batch / iteration_tokens)
+    _overlap_add(gemm_flops_rate, edges, t0, t1, gemm_flops / wall / dt)
+    _overlap_add(attn_flops_rate, edges, t0, t1, attn_flops / wall / dt)
+    _overlap_add(attn_bytes_rate, edges, t0, t1, attn_bytes / wall / dt)
+    for output, values in (
+        (prefill_gemm_flops_rate, prefill_gemm_flops),
+        (decode_gemm_flops_rate, decode_gemm_flops),
+        (prefill_attn_flops_rate, prefill_attn_flops),
+        (decode_attn_flops_rate, decode_attn_flops),
+        (prefill_attn_bytes_rate, prefill_attn_bytes),
+        (decode_attn_bytes_rate, decode_attn_bytes),
+    ):
+        _overlap_add(output, edges, t0, t1, values / wall / dt)
 
     # Decode tokens complete at the iteration end, one per decoding sequence,
     # each reading its (mean) context from the KV cache.
     event_bins = np.searchsorted(edges, t1, side="right") - 1
-    in_grid = (event_bins >= 0) & (event_bins < nb) & (dec_batch > 0)
+    iteration_in_grid = (event_bins >= 0) & (event_bins < nb)
+    in_grid = iteration_in_grid & (dec_batch > 0)
     dec_tok = np.bincount(event_bins[in_grid], weights=dec_batch[in_grid],
                           minlength=nb) / dt
     kv_read = np.bincount(
@@ -166,15 +238,26 @@ def emit_bins(
     out["w_read"] = w_read
     out["w_read_pre"] = w_read_pre
     out["w_read_dec"] = w_read_dec
+    out["gemm_flops_rate"] = gemm_flops_rate
+    out["attn_flops_rate"] = attn_flops_rate
+    out["attn_bytes_rate"] = attn_bytes_rate
+    out["prefill_gemm_flops_rate"] = prefill_gemm_flops_rate
+    out["decode_gemm_flops_rate"] = decode_gemm_flops_rate
+    out["prefill_attn_flops_rate"] = prefill_attn_flops_rate
+    out["decode_attn_flops_rate"] = decode_attn_flops_rate
+    out["prefill_attn_bytes_rate"] = prefill_attn_bytes_rate
+    out["decode_attn_bytes_rate"] = decode_attn_bytes_rate
     out["busy"] = busy
     out["prefill_duty"] = prefill_duty
     out["decode_duty"] = decode_duty
     out["engine_iterations_rate"] = np.bincount(
-        event_bins, minlength=nb).astype(np.float64) / dt
+        event_bins[iteration_in_grid], minlength=nb).astype(np.float64) / dt
     out["engine_iteration_tokens_rate"] = np.bincount(
-        event_bins, weights=iteration_tokens, minlength=nb) / dt
+        event_bins[iteration_in_grid],
+        weights=iteration_tokens[iteration_in_grid], minlength=nb) / dt
     out["logit_tokens_rate"] = np.bincount(
-        event_bins, weights=dec_batch + prefill_logits, minlength=nb
+        event_bins[iteration_in_grid],
+        weights=(dec_batch + prefill_logits)[iteration_in_grid], minlength=nb
     ) / dt
     out["engine_tokens_per_iteration"] = np.divide(
         out["engine_iteration_tokens_rate"], out["engine_iterations_rate"],
@@ -236,8 +319,24 @@ PER_BIN_CHANNELS = (
     "A_t", "delta_A_t", "running_requests", "waiting_requests", "busy",
     "prefill_duty", "decode_duty", "engine_iteration_tokens_rate",
     "engine_iterations_rate", "engine_tokens_per_iteration",
-    "logit_tokens_rate",
+    "logit_tokens_rate", "gemm_flops_rate", "attn_flops_rate",
+    "attn_bytes_rate", "prefill_gemm_flops_rate",
+    "decode_gemm_flops_rate", "prefill_attn_flops_rate",
+    "decode_attn_flops_rate", "prefill_attn_bytes_rate",
+    "decode_attn_bytes_rate",
 )
+
+
+def measured_run_horizon(data: dict, run_id: int) -> float:
+    selected = np.asarray(data["req_run_id"]) == run_id
+    if not selected.any():
+        raise ValueError(f"Run {run_id} has no requests")
+    completion = (
+        np.asarray(data["arrival_time_s"], float)[selected]
+        + np.asarray(data["ttft_s"], float)[selected]
+        + np.asarray(data["decode_duration_s"], float)[selected]
+    )
+    return float(np.max(completion))
 
 
 def main():
@@ -258,7 +357,7 @@ def main():
     manifest = json.loads(Path(args.manifest).read_text())
     fitted = json.loads(Path(args.fitted).read_text())
     routing_laws = load_routing_laws() if args.moe_routing == "measured" else {}
-    wanted = ALL_ROLES if args.roles == "all" else tuple(args.roles.split(","))
+    wanted = selected_roles(manifest, args.roles)
     roles = {int(k): v for k, v in manifest["roles"].items() if v in wanted}
     role_names = sorted(set(roles.values()))
     family_names = sorted({value["family"] for value in ARCH.values()})
@@ -270,7 +369,8 @@ def main():
             data, rid, fitted, routing_laws)
         bins = emit_bins(
             trace, per_request, arch=arch, tp=tp, dt=args.dt,
-            routing_law=routing_law)
+            routing_law=routing_law,
+            horizon_s=measured_run_horizon(data, rid))
         n = bins["n"]
         for key in PER_BIN_CHANNELS:
             cols[key].append(bins[key])

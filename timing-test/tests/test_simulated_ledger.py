@@ -8,7 +8,10 @@ the measured exact-ITL path), batch as the time-averaged decode batch,
 KV reads weighted by per-token context, exact weight bytes conserved from
 the timing model's engine iterations, queue-state channels from the simulator's
 true admission times, and exact iteration coordinates from the simulator's
-iteration-completion records.
+iteration-completion records. The timing model's GEMM and context-dependent
+attention work must also be conserved on the uniform grid.
+The grid horizon comes from measured request completions, not predicted drain
+time, so timing error cannot change the interval on which power is evaluated.
 
 Plausible wrong implementations:
 - Drop the token that completes exactly at the end of the grid.
@@ -22,6 +25,9 @@ Plausible wrong implementations:
 - Lose weight bytes when an iteration crosses a bin boundary.
 - Confuse admitted and arrived when splitting running/waiting.
 - Count every prefill token as a vocabulary projection.
+- Drop causal attention FLOPs after using them to predict iteration time.
+- Merge prefill and decode work so mixed-phase power cannot be identified.
+- End the grid at predicted completion and silently discard measured tail bins.
 """
 import sys
 from pathlib import Path
@@ -32,7 +38,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2]))
 from scheduler_sim import EngineConfig, simulate_requests  # noqa: E402
-from simulated_ledger import PER_BIN_CHANNELS, emit_bins  # noqa: E402
+from simulated_ledger import (  # noqa: E402
+    PER_BIN_CHANNELS,
+    emit_bins,
+    measured_run_horizon,
+    selected_roles,
+)
 from model.training_data.ledger_view import kv_bytes_per_token  # noqa: E402
 from model.training_data.moe_routing import RoutingLaw  # noqa: E402
 
@@ -56,6 +67,15 @@ def _simulate(requests, chunk_budget=2):
     return trace, per_request
 
 
+def test_all_roles_come_from_the_selected_manifest():
+    manifest = {"roles": {
+        "0": "train", "1": "heldout_rate", "2": "heldout_tp"
+    }}
+    assert selected_roles(manifest, "all") == (
+        "heldout_rate", "heldout_tp", "train"
+    )
+
+
 def test_hand_worked_single_request_bins():
     # (0.0, 4, 3) with chunk budget 2 and 1 s iterations: prefill [0,1) and
     # [1,2) of 2 tokens each (first output token at t=2), decode iterations
@@ -76,6 +96,10 @@ def test_hand_worked_single_request_bins():
     assert np.allclose(out["pre_active"], [1, 1, 1, 1, 0, 0, 0, 0, 0])
     assert np.allclose(out["prefill_duty"], [1, 1, 1, 1, 0, 0, 0, 0, 0])
     assert np.allclose(out["decode_duty"], [0, 0, 0, 0, 1, 1, 1, 1, 0])
+    assert np.all(out["prefill_gemm_flops_rate"][:4] > 0.0)
+    assert np.all(out["prefill_gemm_flops_rate"][4:] == 0.0)
+    assert np.all(out["decode_gemm_flops_rate"][:4] == 0.0)
+    assert np.all(out["decode_gemm_flops_rate"][4:8] > 0.0)
     assert np.allclose(out["engine_iterations_rate"],
                        [0, 0, 2, 0, 2, 0, 2, 0, 2])
     assert np.allclose(out["engine_iteration_tokens_rate"],
@@ -118,10 +142,36 @@ def test_schema_matches_measured_ledger_channels():
         "busy", "prefill_duty", "decode_duty",
         "engine_iteration_tokens_rate", "engine_iterations_rate",
         "engine_tokens_per_iteration", "logit_tokens_rate",
+        "gemm_flops_rate", "attn_flops_rate", "attn_bytes_rate",
+        "prefill_gemm_flops_rate", "decode_gemm_flops_rate",
+        "prefill_attn_flops_rate", "decode_attn_flops_rate",
+        "prefill_attn_bytes_rate", "decode_attn_bytes_rate",
     }
     assert set(PER_BIN_CHANNELS) == measured_channels | simulator_channels
     nb = out["n"]
     assert all(np.asarray(out[key]).shape == (nb,) for key in PER_BIN_CHANNELS)
+
+
+def test_timing_work_is_conserved_across_ledger_bins():
+    trace, per_request = _simulate([(0.0, 4, 3)])
+    out = emit_bins(trace, per_request, arch=ARCH, tp=1, dt=0.5)
+
+    assert len(trace[0]) == 18
+    for channel, column in (
+        ("gemm_flops_rate", 9),
+        ("attn_flops_rate", 10),
+        ("attn_bytes_rate", 11),
+    ):
+        observed = float(out[channel].sum() * 0.5)
+        expected = sum(row[column] for row in trace)
+        assert observed == pytest.approx(expected)
+    assert float(out["attn_flops_rate"].sum()) > 0.0
+    for total, prefill, decode in (
+        ("gemm_flops_rate", "prefill_gemm_flops_rate", "decode_gemm_flops_rate"),
+        ("attn_flops_rate", "prefill_attn_flops_rate", "decode_attn_flops_rate"),
+        ("attn_bytes_rate", "prefill_attn_bytes_rate", "decode_attn_bytes_rate"),
+    ):
+        np.testing.assert_allclose(out[total], out[prefill] + out[decode])
 
 
 def test_waiting_vs_running_uses_admission_time():
@@ -203,3 +253,41 @@ def test_moe_mixed_weight_union_is_conserved_across_bins():
     assert float(out["w_read"].sum() * 0.5) == pytest.approx(7.0)
     np.testing.assert_allclose(
         out["w_read"], out["w_read_pre"] + out["w_read_dec"])
+
+
+def test_fixed_horizon_retains_idle_bins_after_simulated_completion():
+    trace = [(0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0)]
+    per_request = [{
+        "arrival_s": 0.0, "admitted_s": 0.0, "n_in": 1, "n_out": 1,
+        "e2e_s": 1.0,
+    }]
+
+    out = emit_bins(
+        trace, per_request, arch=ARCH, tp=1, dt=0.5, horizon_s=2.0)
+
+    np.testing.assert_allclose(out["busy"], [1.0, 1.0, 0.0, 0.0, 0.0])
+
+
+def test_fixed_horizon_excludes_completion_events_beyond_evaluation_grid():
+    trace = [(0.0, 3.0, 1.0, 1.0, 0.0, 0.0, 0.0)]
+    per_request = [{
+        "arrival_s": 0.0, "admitted_s": 0.0, "n_in": 1, "n_out": 1,
+        "e2e_s": 3.0,
+    }]
+
+    out = emit_bins(
+        trace, per_request, arch=ARCH, tp=1, dt=0.5, horizon_s=2.0)
+
+    assert out["n"] == 5
+    assert out["engine_iterations_rate"].sum() == 0.0
+
+
+def test_measured_horizon_includes_ttft_and_decode_duration():
+    data = {
+        "req_run_id": np.asarray([2, 2, 3]),
+        "arrival_time_s": np.asarray([0.0, 4.0, 100.0]),
+        "ttft_s": np.asarray([2.0, 1.0, 1.0]),
+        "decode_duration_s": np.asarray([8.0, 3.0, 1.0]),
+    }
+
+    assert measured_run_horizon(data, 2) == 10.0

@@ -132,22 +132,37 @@ def iteration_work(
     linear_tokens = decode_batch + prefill_tokens
     logit_tokens = decode_batch + prefill_logits
 
-    transformer_flops = 0.0
-    output_head_flops = 0.0
-    attn_flops = 0.0
-    attn_bytes = 0.0
+    prefill_transformer_flops = 0.0
+    decode_transformer_flops = 0.0
+    prefill_output_head_flops = 0.0
+    decode_output_head_flops = 0.0
+    prefill_attn_flops = 0.0
+    decode_attn_flops = 0.0
+    prefill_attn_bytes = 0.0
+    decode_attn_bytes = 0.0
     if "transformer_active_params" in arch and "output_head_params" in arch:
-        transformer_flops = (
-            2.0 * scale * float(arch["transformer_active_params"]) * linear_tokens
+        prefill_transformer_flops = (
+            2.0 * scale * float(arch["transformer_active_params"]) * prefill_tokens
         )
-        output_head_flops = (
-            2.0 * float(arch["output_head_params"]) * logit_tokens
+        decode_transformer_flops = (
+            2.0 * scale * float(arch["transformer_active_params"]) * decode_batch
+        )
+        prefill_output_head_flops = (
+            2.0 * float(arch["output_head_params"]) * prefill_logits
+        )
+        decode_output_head_flops = (
+            2.0 * float(arch["output_head_params"]) * decode_batch
         )
     else:
-        transformer_flops = scale * 2.0 * float(arch["n_active"]) * linear_tokens
+        prefill_transformer_flops = (
+            scale * 2.0 * float(arch["n_active"]) * prefill_tokens
+        )
+        decode_transformer_flops = (
+            scale * 2.0 * float(arch["n_active"]) * decode_batch
+        )
     if decode_batch > 0:
-        attn_flops += _attention_flops(arch, decode_batch, context_mean)
-        attn_bytes += decode_batch * (
+        decode_attn_flops += _attention_flops(arch, decode_batch, context_mean)
+        decode_attn_bytes += decode_batch * (
             _effective_context(context_mean, arch) + 1.0) * kv_tok
     for chunk_tokens, prior_context in chunks:
         # Causal chunk: token j attends to prefill_context + j prior tokens.
@@ -158,9 +173,18 @@ def iteration_work(
         # per-query accounting over-predicts by ~8x). One streaming pass of
         # the visible context plus the chunk's KV write is charged.
         mean_visible = prior_context + chunk_tokens / 2.0
-        attn_flops += _attention_flops(arch, chunk_tokens, mean_visible)
-        attn_bytes += (_effective_context(mean_visible, arch)
-                       + chunk_tokens) * kv_tok
+        prefill_attn_flops += _attention_flops(
+            arch, chunk_tokens, mean_visible
+        )
+        prefill_attn_bytes += (
+            _effective_context(mean_visible, arch) + chunk_tokens
+        ) * kv_tok
+    prefill_gemm_flops = prefill_transformer_flops + prefill_output_head_flops
+    decode_gemm_flops = decode_transformer_flops + decode_output_head_flops
+    transformer_flops = prefill_transformer_flops + decode_transformer_flops
+    output_head_flops = prefill_output_head_flops + decode_output_head_flops
+    attn_flops = prefill_attn_flops + decode_attn_flops
+    attn_bytes = prefill_attn_bytes + decode_attn_bytes
     component_bytes = (
         _component_weight_bytes(arch, tokens=linear_tokens, logit_tokens=logit_tokens)
         if float(arch.get("moe_frac", 0.0)) == 0.0 else None
@@ -193,6 +217,12 @@ def iteration_work(
     return {"gemm_flops": transformer_flops + output_head_flops,
             "gemm_bytes": gemm_bytes,
             "attn_flops": attn_flops, "attn_bytes": attn_bytes,
+            "prefill_gemm_flops": prefill_gemm_flops,
+            "decode_gemm_flops": decode_gemm_flops,
+            "prefill_attn_flops": prefill_attn_flops,
+            "decode_attn_flops": decode_attn_flops,
+            "prefill_attn_bytes": prefill_attn_bytes,
+            "decode_attn_bytes": decode_attn_bytes,
             "sampled_tokens": decode_batch, "logit_tokens": logit_tokens,
             **detail}
 

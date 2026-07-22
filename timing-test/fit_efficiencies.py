@@ -71,6 +71,9 @@ def probe_points(calibration) -> list[dict]:
     """One fitting point per probe level (llama-3-70b probes only exist)."""
     points = []
     for row in calibration["rows"]:
+        counters = row.get("engine_counters") or {}
+        if counters.get("preemptions", 0.0) > 0.0:
+            continue
         measured = row["measured"]
         model = row.get("model", "llama-3-70b")
         if model == "gpt-oss-20b":
@@ -258,10 +261,13 @@ def fit_hardware(points, hardware) -> dict:
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=str(BASE / "fitted_efficiencies.json"))
+    parser.add_argument("--dataset", default=str(BASE / "timing_dataset.npz"))
+    parser.add_argument("--split-manifest", default=str(BASE / "split_manifest.json"))
+    parser.add_argument("--calibration", default=str(BASE / "probe_calibration.json"))
     args = parser.parse_args(argv)
-    calibration = json.loads((BASE / "probe_calibration.json").read_text())
-    data = dict(np.load(BASE / "timing_dataset.npz", allow_pickle=False))
-    manifest = json.loads((BASE / "split_manifest.json").read_text())
+    calibration = json.loads(Path(args.calibration).read_text())
+    data = dict(np.load(args.dataset, allow_pickle=False))
+    manifest = json.loads(Path(args.split_manifest).read_text())
     roles = {int(k): v for k, v in manifest["roles"].items()}
     points = (probe_points(calibration) + solo_request_points(data, roles)
               + loaded_request_points(data, roles))

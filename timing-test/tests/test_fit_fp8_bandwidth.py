@@ -16,7 +16,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from fit_fp8_bandwidth import calibrate  # noqa: E402
+from fit_fp8_bandwidth import calibrate, calibration_run_ids  # noqa: E402
 
 
 def _data(held_itl):
@@ -60,3 +60,8 @@ def test_noncalibration_repeat_cannot_change_fp8_scale():
         "0": "dtype_calibration",
         "1": "holdout_model",
     }
+
+
+def test_coverage_training_rows_can_supply_fp8_calibration():
+    manifest = {"roles": {"0": "train", "1": "heldout_model"}}
+    assert calibration_run_ids(_data(0.01), manifest) == [0]
