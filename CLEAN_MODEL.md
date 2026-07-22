@@ -37,7 +37,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Move the complete tracked prepared datasets, checkpoints,
   GMM/normalization/AR artifacts, manifests, curves, and metric trees into the
   runnable archive before pruning.
-- [ ] Remove duplicate reruns and regenerable plot copies from the archive.
+- [ ] Remove duplicate reruns after documenting why their metrics differ.
+- [x] Remove regenerable evaluation plot copies while retaining training curves.
 - [x] Give the archive its own README, dependency extra, and focused tests.
 - [x] Remove BiGRU commands from the default package without compatibility shims.
 

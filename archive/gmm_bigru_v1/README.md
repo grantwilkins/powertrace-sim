@@ -28,7 +28,8 @@ inside this archive. They preserve:
 - training curves, run manifests, and one canonical metric summary per
   scientifically distinct variant.
 
-Duplicate reruns and regenerable plot copies remain present until the next
-curation checkpoint; the intact move is the rollback boundary for that prune.
+Metric reruns remain because their CSVs or manifests are not universally
+identical. Regenerable evaluation overlays and AR-parameter plots were removed
+after the intact archive was checkpointed; training curves remain preserved.
 No code in this snapshot imports the new selected-model timing or power
 implementation.
