@@ -37,15 +37,9 @@ longer loads the archived training manifest or throughput database.
 
 ## Other Maintained Evaluations
 
-`appendix_surrogate_validity.py` checks measured versus surrogate active-request
-traces without importing the archived model:
-
-```bash
-uv run -m scripts.eval.appendix_surrogate_validity --dry-run
-```
-
-`occupancy_roofline.py` and `collect_results.py` retain their existing paper
-collection roles.
+`occupancy_roofline.py` retains the profiling-bundle occupancy analysis used to
+interpret the selected power coordinates. It is support analysis, not an
+allowlisted paper renderer.
 
 ## Historical Evaluation
 
@@ -59,6 +53,7 @@ uv run --project ../.. --extra archive-bigru python \
 ```
 
 See `archive/gmm_bigru_v1/README.md` for the archived command and test surface.
+The stale surrogate-validity renderer now lives under `scripts/legacy/`.
 
 ## Testing
 

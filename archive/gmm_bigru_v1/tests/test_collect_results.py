@@ -1,6 +1,4 @@
-"""
-Tests for scripts/eval/collect_results.py merge policy and aggregation.
-"""
+"""Tests for the archived result collector's merge policy and aggregation."""
 
 import csv
 import os
@@ -10,7 +8,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../scripts/eval"))
 
 from collect_results import (  # noqa: E402
     _parse_and_annotate_rows,

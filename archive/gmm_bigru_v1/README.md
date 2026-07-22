@@ -31,15 +31,19 @@ inside this archive. They preserve:
 - the earlier per-configuration `results/training/` checkpoints and curves;
 - the tracked `results/rps_sweep*/` request-rate sweep outputs.
 
-Metric reruns remain because their CSVs or manifests are not universally
-identical. Regenerable evaluation overlays and AR-parameter plots were removed
+Scientifically distinct metric reruns remain: `eval_metrics_fullheldout` adds
+all-heldout columns, `eval_metrics_rerun_energy` corrects energy accounting,
+and the IID, AR(1), and thresholded-AR trees use different generation modes.
+The two thresholded-AR reruns produced identical metric CSVs after normalizing
+their output-directory strings, so only the later `eval_metrics_rerun2` copy is
+retained. Regenerable evaluation overlays and AR-parameter plots were removed
 after the intact archive was checkpointed; training curves remain preserved.
 No code in this snapshot imports the new selected-model timing or power
 implementation.
 
 The archive also contains the model-specific node/facility comparisons,
 feature-sufficiency and power-CDF figures, trace-fidelity table, request-rate
-sweep, and their tests. The copied Splitwise helper is part of the frozen
+sweep, historical result collector, and their tests. The copied Splitwise helper is part of the frozen
 comparison environment; the maintained facility pipeline uses its own root
 copy.
 

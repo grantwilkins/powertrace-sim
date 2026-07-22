@@ -173,6 +173,10 @@ maintained `scripts/eval/` package no longer imports the archived learned model.
 Historical per-configuration checkpoints and sweep outputs are also stored
 under the archive's `results/` tree.
 
+The selected training libraries are import-only; all fitting file I/O is owned
+by `model.scripts.train`. Pre-audit surrogate renderers and the rejected
+arrivals-only physics wrapper are isolated under `scripts/legacy/`.
+
 Maintained Azure node-trace generation compares only the selected model with
 the Splitwise-style comparator. The superseded physics prototype is not an
 accepted generation method.

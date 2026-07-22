@@ -37,7 +37,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Move the complete tracked prepared datasets, checkpoints,
   GMM/normalization/AR artifacts, manifests, curves, and metric trees into the
   runnable archive before pruning.
-- [ ] Remove duplicate reruns after documenting why their metrics differ.
+- [x] Remove path-only duplicate reruns after documenting why the retained
+  summaries differ.
 - [x] Remove regenerable evaluation plot copies while retaining training curves.
 - [x] Give the archive its own README, dependency extra, and focused tests.
 - [x] Remove BiGRU commands from the default package without compatibility shims.
@@ -54,7 +55,7 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Promote the continuous-batching scheduler and 250 ms ledger projection.
 - [x] Promote the clean dense and bounded-MoE power equations into `model/power/`.
 - [x] Remove Torch and disk intermediates from the selected inference path.
-- [ ] Replace remaining maintained imports from `timing-test/`, `power-test/`,
+- [x] Replace remaining maintained imports from `timing-test/`, `power-test/`,
   and `feature-test/` with the promoted modules.
 
 ### 3. Consolidate artifacts and data preparation
@@ -99,7 +100,9 @@ default artifact remains `pre_sealed` until the external validation gate passes.
   entry points.
 - [x] Split minimal runtime, training/evaluation, profiling, plotting, and
   `archive-bigru` dependencies.
-- [ ] Remove obsolete helpers and prototype compatibility branches.
+- [ ] Remove obsolete helpers and prototype compatibility branches after the
+  active rejected-candidate changes under `feature-test/` and `power-test/`
+  are reconciled. The selected-model runtime no longer depends on them.
 - [x] Run `uv run -m pytest -x` and each primary CLI.
 
 ### 7. Refit and seal

@@ -10,20 +10,15 @@ BF16 efficiency. It is a dtype-class constant (any FP8 deployment could
 supply it; it is shared by all FP8 models), not a per-model refit. 405B
 repeat 2 and all rate-4 runs remain untouched test data.
 
-Writes the calibrated fit and amended split to explicit paths. FP8 consumers
-fail closed when this calibration is absent.
+The public training command owns file I/O. FP8 consumers fail closed when this
+calibration is absent.
 """
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize_scalar
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from model.timing.iteration import (
     iteration_time_s,
@@ -32,7 +27,6 @@ from model.timing.iteration import (
 )
 from model.training_data.arch import get_arch
 
-BASE = Path(__file__).resolve().parents[2] / "timing-test"
 CALIBRATION_MODEL = "llama-3-405b"
 CALIBRATION_REPEATS = (0, 1)
 CALIBRATION_MAX_RATE = 2.0
@@ -141,42 +135,3 @@ def calibrate(data, manifest, fitted) -> tuple[dict, dict, dict]:
         "runs": len(run_ids),
     }
     return calibrated, amended, summary
-
-
-def main(argv=None):
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default=str(BASE / "timing_dataset.npz"))
-    parser.add_argument("--manifest-in", default=str(BASE / "split_manifest.json"))
-    parser.add_argument(
-        "--fitted-in", default=str(BASE / "fitted_efficiencies.json")
-    )
-    parser.add_argument(
-        "--fitted-out", default=str(BASE / "fitted_efficiencies.json")
-    )
-    parser.add_argument(
-        "--manifest-out", default=str(BASE / "split_manifest_fp8.json")
-    )
-    args = parser.parse_args(argv)
-    data = dict(np.load(args.dataset, allow_pickle=False))
-    manifest = json.loads(Path(args.manifest_in).read_text())
-    fitted = json.loads(Path(args.fitted_in).read_text())
-    calibrated, amended, summary = calibrate(data, manifest, fitted)
-    Path(args.fitted_out).write_text(
-        json.dumps(calibrated, indent=2, sort_keys=True) + "\n"
-    )
-    Path(args.manifest_out).write_text(
-        json.dumps(amended, indent=2, sort_keys=True) + "\n"
-    )
-    print(
-        f"{summary['hardware']} fp8_stream_scale="
-        f"{summary['fp8_stream_scale']:.4f} "
-        f"(rmse_log={summary['rmse_log']:.4f} over "
-        f"{summary['requests']} requests, {summary['runs']} runs)"
-    )
-
-
-if __name__ == "__main__":
-    main()
-

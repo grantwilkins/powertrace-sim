@@ -1,35 +1,24 @@
 """Fit per-hardware roofline efficiencies and per-GPU-count iteration overhead.
 
-Frozen procedure (timing-test/DESIGN.md section 7): least squares on log
+The frozen procedure uses least squares on log
 ratios over (a) probe calibration rows (direct iteration-time observations)
 and (b) solo requests from TRAINING runs only — requests whose lifetime
 overlaps no other request, so their inter-token latency samples the batch-1
 iteration time and their time to first token samples queue-free prefill.
 Holdout roles never contribute a point. No per-model constants: efficiencies
 are shared across every model on a hardware; architecture enters only
-through the work calculator.
-
-Output: timing-test/fitted_efficiencies.json
-  {hardware: {eff_flops, eff_bw, t_launch_s: {tp: value}, points, rmse_log}}
+through the work calculator. The public training command owns all file I/O.
 """
 from __future__ import annotations
 
-import argparse
-import json
-import sys
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 from scipy.optimize import least_squares
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from model.timing.iteration import iteration_time_s, iteration_work, launch_overhead_s
 from model.training_data.arch import ARCH, get_arch
 
-BASE = Path(__file__).resolve().parents[2] / "timing-test"
 CHUNK_BUDGET_TOKENS = 2048
 EFF_BOUNDS = (0.05, 1.0)
 BASE_OVERHEAD_BOUNDS_S = (0.0, 0.05)
@@ -256,39 +245,3 @@ def fit_hardware(points, hardware) -> dict:
                              "predicted_s": float(predict(result.x, p))}
                             for p in rows]}
     return fitted
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default=str(BASE / "fitted_efficiencies.json"))
-    parser.add_argument("--dataset", default=str(BASE / "timing_dataset.npz"))
-    parser.add_argument("--split-manifest", default=str(BASE / "split_manifest.json"))
-    parser.add_argument("--calibration", default=str(BASE / "probe_calibration.json"))
-    args = parser.parse_args(argv)
-    calibration = json.loads(Path(args.calibration).read_text())
-    data = dict(np.load(args.dataset, allow_pickle=False))
-    manifest = json.loads(Path(args.split_manifest).read_text())
-    roles = {int(k): v for k, v in manifest["roles"].items()}
-    points = (probe_points(calibration) + solo_request_points(data, roles)
-              + loaded_request_points(data, roles))
-    held_pairs = {(hardware, model)
-                  for source in (manifest["holdout_model"], manifest["holdout_twin"])
-                  for hardware, model in source.items()}
-    assert not any((p["hardware"], p["model"]) in held_pairs for p in points), \
-        "holdout model leaked into fitting points"
-    output = {"procedure": "timing-test/DESIGN.md section 7",
-              "chunk_budget_tokens": CHUNK_BUDGET_TOKENS}
-    for hardware in ("A100", "H100"):
-        output[hardware] = fit_hardware(points, hardware)
-        summary = {k: output[hardware][k] for k in
-                   ("eff_flops", "eff_bw", "base_overhead_s", "per_message_s",
-                    "first_token_overhead_s", "per_token_sample_s",
-                    "points", "rmse_log")}
-        print(hardware, json.dumps(summary))
-    Path(args.out).write_text(
-        json.dumps(output, indent=2, sort_keys=True) + "\n")
-
-
-if __name__ == "__main__":
-    main()
-
