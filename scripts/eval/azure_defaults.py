@@ -52,13 +52,16 @@ def build_default_paths() -> Dict[str, str]:
         "repo_root": str(repo_root),
         "run_manifest": str(
             repo_root
+            / "archive"
+            / "gmm_bigru_v1"
             / "results"
             / "continuous_v1_gmm_bigru"
             / "k10_f2"
             / "run_manifest.json"
         ),
         "experimental_manifest": str(
-            repo_root / "results" / "experimental_continuous_v1" / "manifest.json"
+            repo_root / "archive" / "gmm_bigru_v1" / "results"
+            / "experimental_continuous_v1" / "manifest.json"
         ),
         "throughput_db": str(repo_root / "model" / "throughput_database.json"),
         "physics_artifact": str(

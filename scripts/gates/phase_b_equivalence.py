@@ -3,7 +3,8 @@
 Rebuilds the two derived training artifacts from raw data into a scratch
 directory and byte-compares every array against the reference on disk:
 
-- GRU datasets:  results/experimental_continuous_v1/  (datasets/*.npz,
+- GRU datasets:  archive/gmm_bigru_v1/results/experimental_continuous_v1/
+  (datasets/*.npz,
   splits/*.json, norm_params/*.json, manifest.json)
 - Ledger cache:  feature-test/ledger_cache.npz
 
@@ -227,7 +228,11 @@ def main() -> int:
             min_traces_per_config=2,
         )
         reports.extend(
-            _compare_tree(REPO_ROOT / "results" / "experimental_continuous_v1", gru_out)
+            _compare_tree(
+                REPO_ROOT / "archive" / "gmm_bigru_v1" / "results"
+                / "experimental_continuous_v1",
+                gru_out,
+            )
         )
 
     if not args.skip_ledger:

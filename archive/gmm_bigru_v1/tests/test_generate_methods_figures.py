@@ -21,7 +21,7 @@ from model.scripts.generate_methods_figures import (
     select_transition_dense_window,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+ARCHIVE_ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestGenerateMethodsFigures(unittest.TestCase):
@@ -35,7 +35,7 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         self.assertIsNone(normalize_rate("abc"))
 
     def test_trace_selection_dense_config(self):
-        per_trace_path = REPO_ROOT / (
+        per_trace_path = ARCHIVE_ROOT / (
             "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_trace_metrics.csv"
         )
         self.assertTrue(
@@ -59,7 +59,7 @@ class TestGenerateMethodsFigures(unittest.TestCase):
         )
 
     def test_seed_selection_nearest_median(self):
-        per_seed_path = REPO_ROOT / (
+        per_seed_path = ARCHIVE_ROOT / (
             "results/continuous_v1_gmm_bigru/k10_f2/eval_metrics/per_seed_metrics.csv"
         )
         self.assertTrue(

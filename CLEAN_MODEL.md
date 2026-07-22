@@ -34,8 +34,9 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 ### 1. Preserve GMM-BiGRU
 
 - [x] Create a self-contained `archive/gmm_bigru_v1/` snapshot.
-- [ ] Preserve every scientifically distinct prepared dataset, checkpoint,
-  GMM/normalization/AR artifact, manifest, curve, and canonical metric summary.
+- [x] Move the complete tracked prepared datasets, checkpoints,
+  GMM/normalization/AR artifacts, manifests, curves, and metric trees into the
+  runnable archive before pruning.
 - [ ] Remove duplicate reruns and regenerable plot copies from the archive.
 - [x] Give the archive its own README, dependency extra, and focused tests.
 - [x] Remove BiGRU commands from the default package without compatibility shims.

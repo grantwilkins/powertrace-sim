@@ -1,14 +1,14 @@
 # Results Directory
 
-This directory contains training outputs, model checkpoints, evaluation metrics, and experiment artifacts for the PowerTrace-Sim project.
+This directory contains maintained evaluation and experiment outputs. The
+historical GMM-BiGRU result trees moved intact to
+`archive/gmm_bigru_v1/results/`.
 
 ## Directory Structure
 
 ```
 results/
 ├── stage0/
-├── continuous_v1_gmm_bigru/
-├── experimental_continuous_v1/
 ├── azure_facility/
 ├── eval_paper/
 └── training/
@@ -26,7 +26,8 @@ stage0/
 
 ## Experimental Data
 
-`results/experimental_continuous_v1/` contains the preprocessed datasets, splits, and normalization parameters used by the current continuous experiments.
+`archive/gmm_bigru_v1/results/experimental_continuous_v1/` contains the
+historical preprocessed datasets, splits, and normalization parameters.
 
 ```
 experimental_continuous_v1/
@@ -38,7 +39,8 @@ experimental_continuous_v1/
 
 ## Primary Results
 
-`results/continuous_v1_gmm_bigru/` holds the main GMM-BiGRU experiment family.
+`archive/gmm_bigru_v1/results/continuous_v1_gmm_bigru/` holds the historical
+GMM-BiGRU experiment family.
 
 ```
 continuous_v1_gmm_bigru/

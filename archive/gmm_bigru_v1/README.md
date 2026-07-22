@@ -18,9 +18,9 @@ uv run --project ../.. --extra archive-bigru python -m model.scripts.infer_gmm_b
 uv run --project ../.. --extra archive-bigru python -m pytest -x tests
 ```
 
-The curated artifacts remain under `results/continuous_v1_gmm_bigru/` and
-`results/experimental_continuous_v1/` during the staged migration because
-legacy paper scripts still resolve those paths. The final archive pass moves:
+The complete tracked artifact trees now live under
+`results/continuous_v1_gmm_bigru/` and `results/experimental_continuous_v1/`
+inside this archive. They preserve:
 
 - prepared per-configuration datasets and normalization parameters;
 - K10 and auto-K checkpoints and GMM parameters;
@@ -28,6 +28,7 @@ legacy paper scripts still resolve those paths. The final archive pass moves:
 - training curves, run manifests, and one canonical metric summary per
   scientifically distinct variant.
 
-Duplicate reruns and regenerable plot copies are intentionally excluded.
+Duplicate reruns and regenerable plot copies remain present until the next
+curation checkpoint; the intact move is the rollback boundary for that prune.
 No code in this snapshot imports the new selected-model timing or power
 implementation.

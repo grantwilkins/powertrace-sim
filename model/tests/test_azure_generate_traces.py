@@ -22,7 +22,6 @@ from azure_defaults import (  # noqa: E402
 )
 from azure_generate_traces import _normalize_methods, generate_node_traces  # noqa: E402
 
-from model.tests.test_eval_baselines_scripts import _build_toy_fixture  # noqa: E402
 from model.release import load_artifact
 
 
@@ -32,6 +31,55 @@ def _write_node_stream(path: Path, rows) -> None:
         writer = csv.DictWriter(f, fieldnames=["arrival_time", "n_in", "n_out"])
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _build_toy_fixture(root: Path) -> dict[str, Path | str]:
+    config_id = "toy-70b_H100_tp4"
+    dataset = root / "datasets" / "toy.npz"
+    dataset.parent.mkdir(parents=True)
+    np.savez(
+        dataset,
+        power=np.asarray(
+            [np.asarray([96.0, 100.0]), np.asarray([98.0, 102.0])],
+            dtype=object,
+        ),
+    )
+    split = root / "splits" / "toy.json"
+    split.parent.mkdir(parents=True)
+    split.write_text(json.dumps({"train_indices": [0], "test_indices": [1]}) + "\n")
+    experimental = root / "experimental.json"
+    experimental.write_text(json.dumps({
+        "configs": {config_id: {
+            "dataset_npz": str(dataset), "split_json": str(split),
+        }},
+    }) + "\n")
+    perf = root / "perf_model.csv"
+    with perf.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow([
+            "model", "hardware", "prompt_size", "batch_size", "token_size",
+            "peak_power", "average_power", "prompt_time", "token_time",
+            "e2e_time", "tensor_parallel",
+        ])
+        for batch, prompt, token, peak, average in (
+            (1, 196.0, 55.0, 1.02, 0.72),
+            (2, 416.0, 60.0, 1.05, 0.74),
+            (4, 845.0, 60.5, 1.01, 0.59),
+            (8, 1600.0, 61.0, 0.98, 0.43),
+        ):
+            writer.writerow([
+                "llama2-70b", "a100-80gb", 512, batch, 128, peak,
+                average, prompt, token, 8000.0, 4,
+            ])
+    return {
+        "config_id": config_id,
+        "run_manifest": root / "missing-run.json",
+        "experimental_manifest": experimental,
+        "throughput_db": root / "missing-throughput.json",
+        "pair_manifest": root / "missing-pairs.csv",
+        "perf_model_csv": perf,
+        "ar1_params_dir": root / "missing-ar1",
+    }
 
 
 def test_default_config_and_splitwise_defaults_match_llama70b_a100_tp8() -> None:
