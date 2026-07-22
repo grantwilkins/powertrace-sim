@@ -13,9 +13,9 @@
       "power": {
         "non_gpu_overhead_w": 1000.0,
         "pue": 1.3,
-        "site_avg_w": 633345.6079903806,
-        "site_it_peak_w": 627601.0933837891,
-        "site_peak_w": 815881.4213989258
+        "site_avg_w": 538558.6009047386,
+        "site_it_peak_w": 507702.98529052734,
+        "site_peak_w": 660013.8808776856
       },
       "status": "ok",
       "timing": {

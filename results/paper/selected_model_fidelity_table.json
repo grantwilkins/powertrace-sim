@@ -1,0 +1,193 @@
+{
+  "schema_version": "selected-model-fidelity-table-v1",
+  "source": {
+    "path": "results/paper/selected_replay_per_run.csv",
+    "sha256": "72bba230a58a3151da8c9fbd0a7d79723ae214c47052f23d21fc00ec27ee3dd4"
+  },
+  "population": "supported held-out runs scored by the frozen release artifact",
+  "bootstrap_seed": 20260721,
+  "models": [
+    {
+      "model": "deepseek-r1-distill-70b",
+      "label": "DeepSeek-R1-Distill 70B",
+      "traces": 63,
+      "points": 21,
+      "nrmse_range": {
+        "median": 6.267782637255781,
+        "low": 5.708645620891774,
+        "high": 11.160555551265086
+      },
+      "ks_agreement": {
+        "median": 0.6215780998389694,
+        "low": 0.4172185430463575,
+        "high": 0.6547433903576982
+      },
+      "energy_error_pct": {
+        "median": 2.74114781511594,
+        "low": 1.1980768585249078,
+        "high": 3.3987254389892443
+      },
+      "acf_r2": {
+        "median": 0.99149933817714,
+        "low": 0.7692160612584686,
+        "high": 0.9962702641003301
+      }
+    },
+    {
+      "model": "deepseek-r1-distill-8b",
+      "label": "DeepSeek-R1-Distill 8B",
+      "traces": 126,
+      "points": 42,
+      "nrmse_range": {
+        "median": 5.709819110983415,
+        "low": 4.470443052657508,
+        "high": 7.187438336960446
+      },
+      "ks_agreement": {
+        "median": 0.5706131363244176,
+        "low": 0.5036433503368929,
+        "high": 0.670539740779026
+      },
+      "energy_error_pct": {
+        "median": 1.7787892463528652,
+        "low": 1.0200743916720487,
+        "high": 2.886353417052841
+      },
+      "acf_r2": {
+        "median": 0.9944816710481363,
+        "low": 0.9832304368207732,
+        "high": 0.9963804511900409
+      }
+    },
+    {
+      "model": "gpt-oss-120b",
+      "label": "GPT-OSS 120B",
+      "traces": 27,
+      "points": 9,
+      "nrmse_range": {
+        "median": 7.389029491287753,
+        "low": 5.638204378195173,
+        "high": 7.980173510837972
+      },
+      "ks_agreement": {
+        "median": 0.8,
+        "low": 0.3476112026359144,
+        "high": 0.9013157894736842
+      },
+      "energy_error_pct": {
+        "median": 1.3033522736112917,
+        "low": 0.3727926030937454,
+        "high": 2.803527501020147
+      },
+      "acf_r2": {
+        "median": 0.9475904663713222,
+        "low": 0.9201904112243274,
+        "high": 0.9823432124684466
+      }
+    },
+    {
+      "model": "gpt-oss-20b",
+      "label": "GPT-OSS 20B",
+      "traces": 18,
+      "points": 6,
+      "nrmse_range": {
+        "median": 6.276714257271513,
+        "low": 5.261313504892289,
+        "high": 6.526164481629449
+      },
+      "ks_agreement": {
+        "median": 0.832187826768909,
+        "low": 0.4078178822824622,
+        "high": 0.9522465299171516
+      },
+      "energy_error_pct": {
+        "median": 0.9757234711618048,
+        "low": 0.2292014518489594,
+        "high": 4.0803292985100335
+      },
+      "acf_r2": {
+        "median": 0.962639683125013,
+        "low": 0.9441055309811556,
+        "high": 0.9755714399379414
+      }
+    },
+    {
+      "model": "llama-3-405b",
+      "label": "Llama 3 405B",
+      "traces": 9,
+      "points": 3,
+      "nrmse_range": {
+        "median": 10.922871041421601,
+        "low": 5.42233523805603,
+        "high": 15.867552013010583
+      },
+      "ks_agreement": {
+        "median": 0.5681444991789819,
+        "low": 0.5305466237942122,
+        "high": 0.6194398682042834
+      },
+      "energy_error_pct": {
+        "median": 1.9157805861862207,
+        "low": 1.781778787413682,
+        "high": 3.5553341121662148
+      },
+      "acf_r2": {
+        "median": 0.9822283267284837,
+        "low": 0.8827438985508129,
+        "high": 0.9974546012393202
+      }
+    },
+    {
+      "model": "llama-3-70b",
+      "label": "Llama 3 70B",
+      "traces": 36,
+      "points": 12,
+      "nrmse_range": {
+        "median": 6.746589551172418,
+        "low": 4.636821340887024,
+        "high": 11.806395054037573
+      },
+      "ks_agreement": {
+        "median": 0.4282285185235612,
+        "low": 0.29845798931558876,
+        "high": 0.6719445061591252
+      },
+      "energy_error_pct": {
+        "median": 2.6703132981912665,
+        "low": 1.4690285139411983,
+        "high": 3.7210306155920376
+      },
+      "acf_r2": {
+        "median": 0.9822153009287804,
+        "low": -0.37303683355704176,
+        "high": 0.9977778652811423
+      }
+    },
+    {
+      "model": "llama-3-8b",
+      "label": "Llama 3 8B",
+      "traces": 54,
+      "points": 18,
+      "nrmse_range": {
+        "median": 4.2115812758467985,
+        "low": 3.5412316950531904,
+        "high": 6.569754853561726
+      },
+      "ks_agreement": {
+        "median": 0.5984458428680397,
+        "low": 0.5039131226111752,
+        "high": 0.7484544742765797
+      },
+      "energy_error_pct": {
+        "median": 1.399773575879255,
+        "low": 0.6648326736904394,
+        "high": 2.386106149689053
+      },
+      "acf_r2": {
+        "median": 0.9949170693263218,
+        "low": 0.9904431428849421,
+        "high": 0.9972753202409661
+      }
+    }
+  ]
+}

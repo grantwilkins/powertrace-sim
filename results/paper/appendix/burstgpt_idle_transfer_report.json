@@ -1,0 +1,147 @@
+{
+  "schema_version": "burstgpt-idle-transfer-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9"
+  },
+  "evidence_role": "retrospective idle-calibrated sealed-trace diagnostic",
+  "claim_boundary": "exact arbitrary-arrival replay marks; frozen timing/dynamic power; per-run pre-request idle intercept only",
+  "runs": [
+    {
+      "stratum": 0,
+      "requests": 851,
+      "state_source": "exact BurstGPT replay marks through request simulation",
+      "coefficient_changes": [
+        "pre-request target idle"
+      ],
+      "evidence_role": "retrospective idle-calibrated sealed-trace diagnostic",
+      "source_idle_w_per_gpu": 70.11875,
+      "target_idle_w_per_gpu": 84.99,
+      "idle_delta_w_per_gpu": 14.87124999999999,
+      "interpolated_bins": 6,
+      "timing": {
+        "requests": 851,
+        "ttft_s_medabs_pct": 19.709003957933607,
+        "ttft_s_p90abs_pct": 36.15764877073189,
+        "ttft_s_median_signed_pct": -19.40722266841342,
+        "decode_s_medabs_pct": 3.4144844762363333,
+        "decode_s_p90abs_pct": 4.939848790595912,
+        "decode_s_median_signed_pct": 3.2057453428631772,
+        "e2e_s_medabs_pct": 3.187432555606761,
+        "e2e_s_p90abs_pct": 17.899431158223518,
+        "e2e_s_median_signed_pct": 1.3856469117898422
+      },
+      "zero_shot_metrics": {
+        "energy_error_pct": 3.8227619622094577,
+        "acf_mae": 0.0270692147144128,
+        "acf_r2": 0.34657521060532226,
+        "soft_dtw_divergence": 0.01034060232288624,
+        "nrmse_range": 0.1056106945010379
+      },
+      "metrics": {
+        "energy_error_pct": 1.604437499163069,
+        "acf_mae": 0.027069214714412818,
+        "acf_r2": 0.34657521060532215,
+        "soft_dtw_divergence": 0.008534406151973265,
+        "nrmse_range": 0.09905740104346437
+      },
+      "outputs": {
+        "pdf": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_0_idle_1s.pdf",
+        "png": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_0_idle_1s.png"
+      },
+      "run_id": "a100_trace_replay_tp1_1784576269"
+    },
+    {
+      "stratum": 1,
+      "requests": 7,
+      "state_source": "exact BurstGPT replay marks through request simulation",
+      "coefficient_changes": [
+        "pre-request target idle"
+      ],
+      "evidence_role": "retrospective idle-calibrated sealed-trace diagnostic",
+      "source_idle_w_per_gpu": 70.11875,
+      "target_idle_w_per_gpu": 85.36,
+      "idle_delta_w_per_gpu": 15.241249999999994,
+      "interpolated_bins": 25,
+      "timing": {
+        "requests": 7,
+        "ttft_s_medabs_pct": 32.011221762702,
+        "ttft_s_p90abs_pct": 60.04014813042656,
+        "ttft_s_median_signed_pct": -32.011221762702,
+        "decode_s_medabs_pct": 4.973540253396625,
+        "decode_s_p90abs_pct": 6.136278458339943,
+        "decode_s_median_signed_pct": 4.973540253396625,
+        "e2e_s_medabs_pct": 4.859781873184172,
+        "e2e_s_p90abs_pct": 8.190602379390057,
+        "e2e_s_median_signed_pct": 3.5864799115756956
+      },
+      "zero_shot_metrics": {
+        "energy_error_pct": 15.271679820846735,
+        "acf_mae": 0.003711827575568513,
+        "acf_r2": 0.9989144412399305,
+        "soft_dtw_divergence": 0.008188847462735644,
+        "nrmse_range": 0.0725180230270673
+      },
+      "metrics": {
+        "energy_error_pct": 1.157245189444548,
+        "acf_mae": 0.0037118275755685065,
+        "acf_r2": 0.9989144412399305,
+        "soft_dtw_divergence": 0.0008651110620409071,
+        "nrmse_range": 0.028808746679135664
+      },
+      "outputs": {
+        "pdf": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_1_idle_1s.pdf",
+        "png": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_1_idle_1s.png"
+      },
+      "run_id": "a100_trace_replay_tp1_1784577316"
+    },
+    {
+      "stratum": 2,
+      "requests": 1755,
+      "state_source": "exact BurstGPT replay marks through request simulation",
+      "coefficient_changes": [
+        "pre-request target idle"
+      ],
+      "evidence_role": "retrospective idle-calibrated sealed-trace diagnostic",
+      "source_idle_w_per_gpu": 70.11875,
+      "target_idle_w_per_gpu": 85.08,
+      "idle_delta_w_per_gpu": 14.961249999999993,
+      "interpolated_bins": 17,
+      "timing": {
+        "requests": 1755,
+        "ttft_s_medabs_pct": 22.430544914151383,
+        "ttft_s_p90abs_pct": 42.55448055447308,
+        "ttft_s_median_signed_pct": -21.753838868315572,
+        "decode_s_medabs_pct": 3.7251852150480893,
+        "decode_s_p90abs_pct": 12.857764281193706,
+        "decode_s_median_signed_pct": 1.8499569801052336,
+        "e2e_s_medabs_pct": 7.0384604257771475,
+        "e2e_s_p90abs_pct": 20.788111517595272,
+        "e2e_s_median_signed_pct": -6.943057465364185
+      },
+      "zero_shot_metrics": {
+        "energy_error_pct": 4.766298936514418,
+        "acf_mae": 0.011701377876974473,
+        "acf_r2": 0.9944334470178011,
+        "soft_dtw_divergence": 0.0038514323084174722,
+        "nrmse_range": 0.06999516579620009
+      },
+      "metrics": {
+        "energy_error_pct": 3.2524028031888017,
+        "acf_mae": 0.011701377876974462,
+        "acf_r2": 0.9944334470178011,
+        "soft_dtw_divergence": 0.004193276481337613,
+        "nrmse_range": 0.06815607143167662
+      },
+      "outputs": {
+        "pdf": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_2_idle_1s.pdf",
+        "png": "results/paper/appendix/power_trace_burstgpt_qwen3_8b_a100_tp1_stratum_2_idle_1s.png"
+      },
+      "run_id": "a100_trace_replay_tp1_1784578375"
+    }
+  ],
+  "outputs": {
+    "trace_csv": "results/paper/appendix/burstgpt_idle_transfer_1s.csv",
+    "captions": "results/paper/appendix/burstgpt_idle_transfer_captions.tex"
+  }
+}

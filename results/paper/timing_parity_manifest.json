@@ -1,0 +1,18 @@
+{
+  "schema_version": "timing-parity-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9"
+  },
+  "timing_dataset_sha256": "e5696d83d618eba472c9907d9c507120548f52af1970c568a0c2f312a3f617a2",
+  "split_sha256": "7fcffc5746bfab9200126ebd8f76e584b84917b19a84792244a486ca62d981f4",
+  "probe_calibration_sha256": "8288c7c8a90cd47b14fd114e2203ba16f6339e4970fb4b81658b89d2bf4d152e",
+  "point_counts": {
+    "prefill": 735,
+    "decode": 1200
+  },
+  "outputs": [
+    "/Users/grantwilkins/powertrace-sim/results/paper/timing_prefill_parity.pdf",
+    "/Users/grantwilkins/powertrace-sim/results/paper/timing_decode_parity.pdf"
+  ]
+}

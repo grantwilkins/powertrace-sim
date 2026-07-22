@@ -1,0 +1,86 @@
+{
+  "schema_version": "powertrace-paper-artifacts-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9",
+    "bytes": 15884
+  },
+  "evidence_boundary": {
+    "selected_replay_and_facility": "frozen release artifact",
+    "appendix_transfer": "retrospective target-calibrated diagnostics",
+    "external_score": "deferred and not included",
+    "disaggregated_inference": "deferred and not included"
+  },
+  "outputs": [
+    {
+      "path": "results/paper/selected_replay_manifest.json",
+      "sha256": "9a9fad77fc0082b96a9e6c21394c28963a41e2cd30cdd7c3e9175c223d97fe63",
+      "bytes": 707
+    },
+    {
+      "path": "results/paper/selected_model_fidelity_table.tex",
+      "sha256": "00127412024b5991c87b41bbf1b274bc6ac80bf971511d10b4fb59752dc3c901",
+      "bytes": 1250
+    },
+    {
+      "path": "results/paper/selected_representative_traces.json",
+      "sha256": "870550fb5d1f11e14006e77e388c296bbec43fc6751e5a49dfc37c15c43e91eb",
+      "bytes": 3203
+    },
+    {
+      "path": "results/paper/timing_parity_manifest.json",
+      "sha256": "6199503bbf427756ca21e0dd78345a936da8442bca75734e03bedc910cf00c0d",
+      "bytes": 724
+    },
+    {
+      "path": "results/paper/appendix/transfer_trace_report.json",
+      "sha256": "459ec4109bff6c66239685a1af47fdda242cf21c6fb328f8107337e912ce1fd6",
+      "bytes": 4009
+    },
+    {
+      "path": "results/paper/appendix/burstgpt_idle_transfer_report.json",
+      "sha256": "6e3861b879e338744cc91af7969187b49baef7b8b5773e26c289b68a228b0ec6",
+      "bytes": 5860
+    },
+    {
+      "path": "results/paper/appendix/openhands_platform_calibration.json",
+      "sha256": "b5f9b0b6cb9834b4c19d930fb6fd460314a1d0d170856d160e6a01dc436aeab3",
+      "bytes": 7807
+    },
+    {
+      "path": "results/azure_facility/node_traces/trace_summary.json",
+      "sha256": "c4de0e51afe92403e47d8c11abdb1dd9746c3ab7422a99b410ea9ab4ca3a8ec3",
+      "bytes": 2488
+    },
+    {
+      "path": "results/eval_paper/azure_facility_metrics.csv",
+      "sha256": "735c88ac8979ddf27dba2bdc2e5e60d23bd0ca082b4823a55b42703ab489a280",
+      "bytes": 4466
+    },
+    {
+      "path": "results/eval_paper/azure_facility_ldc_15min.csv",
+      "sha256": "b640ee192a6846ba5e4691a21d32fbd3d5ed71517d18e5b0deac790b68d52c8e",
+      "bytes": 18842
+    },
+    {
+      "path": "results/eval_paper/azure_facility_site_traces_15min.csv",
+      "sha256": "d213e995c02460e6c5384322be89a7821920ff93f22da618cd1e0979f5a5964d",
+      "bytes": 19337
+    },
+    {
+      "path": "results/eval_paper/azure_oversubscription_capacity.json",
+      "sha256": "da7352d06093e016968e877e69ab67848c4f847b982155f03c86b19cfb5d08d5",
+      "bytes": 92612
+    },
+    {
+      "path": "results/eval_paper/azure_facility_sizing_table.json",
+      "sha256": "219fc1d5fca76ef9fdf62caae58b789965f798879503afb7f4be63fc16943a1d",
+      "bytes": 2487
+    },
+    {
+      "path": "figures/azure_figure_manifest.json",
+      "sha256": "8c1b5953ad41c344fd81555a89826f856ee854b473f0743f4bd2fe9c7bf7c449",
+      "bytes": 4615
+    }
+  ]
+}

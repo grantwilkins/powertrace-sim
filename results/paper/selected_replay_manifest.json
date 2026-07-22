@@ -1,0 +1,19 @@
+{
+  "schema_version": "powertrace-release-replay-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9"
+  },
+  "cache": {
+    "path": "power-test/sim_ledger_power_uniform_current_250ms.npz",
+    "sha256": "61619f512d322bf356c130b0e326bdc9a2201cd8b78f020e4029d90f4280efdb"
+  },
+  "split": {
+    "path": "timing-test/coverage_split_manifest_fp8.json",
+    "sha256": "a4dc0fe7871906d30c486fe550cdf26b46e5865660821625169e86f705fa0db0"
+  },
+  "aggregation": "matched nonoverlapping one-second per-GPU means",
+  "runs": 450,
+  "supported_runs": 450,
+  "output_csv": "results/paper/selected_replay_per_run.csv"
+}

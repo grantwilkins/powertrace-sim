@@ -1,0 +1,103 @@
+{
+  "schema_version": "selected-representative-traces-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9"
+  },
+  "scores": {
+    "path": "results/paper/selected_replay_per_run.csv",
+    "sha256": "72bba230a58a3151da8c9fbd0a7d79723ae214c47052f23d21fc00ec27ee3dd4"
+  },
+  "selection": {
+    "hardware": "H100",
+    "model": "deepseek-r1-distill-8b",
+    "tp": 1,
+    "energy_error_pct": 0.8677157032425757,
+    "rmse_w_per_gpu": 13.907209927136334,
+    "acf_r2": 0.9979560029463047,
+    "ranks": {
+      "energy_error_pct": 1,
+      "rmse_w_per_gpu": 3,
+      "acf_r2": 1
+    },
+    "rank_sum": 5
+  },
+  "panels": [
+    {
+      "run_id": 146,
+      "model": "deepseek-r1-distill-8b",
+      "hardware": "H100",
+      "family": "dense-8b",
+      "tp": 1,
+      "rate": 0.125,
+      "role": "heldout_model",
+      "surface_supported": true,
+      "interpolated_power_bins": 19,
+      "seconds": 608,
+      "energy_error_pct": 0.784414815681655,
+      "rmse_w_per_gpu": 9.774884947179979,
+      "nrmse_range": 0.02952200947487942,
+      "ks_agreement": 0.4046052631578947,
+      "acf_r2": 0.998714273218207
+    },
+    {
+      "run_id": 153,
+      "model": "deepseek-r1-distill-8b",
+      "hardware": "H100",
+      "family": "dense-8b",
+      "tp": 1,
+      "rate": 1.0,
+      "role": "heldout_model",
+      "surface_supported": true,
+      "interpolated_power_bins": 12,
+      "seconds": 612,
+      "energy_error_pct": 0.892226734357139,
+      "rmse_w_per_gpu": 14.660186896440502,
+      "nrmse_range": 0.04167874765329882,
+      "ks_agreement": 0.7156862745098038,
+      "acf_r2": 0.9976372220895804
+    },
+    {
+      "run_id": 157,
+      "model": "deepseek-r1-distill-8b",
+      "hardware": "H100",
+      "family": "dense-8b",
+      "tp": 1,
+      "rate": 2.0,
+      "role": "heldout_model",
+      "surface_supported": true,
+      "interpolated_power_bins": 14,
+      "seconds": 610,
+      "energy_error_pct": 1.8969807563397258,
+      "rmse_w_per_gpu": 13.991421167885134,
+      "nrmse_range": 0.03966693694869222,
+      "ks_agreement": 0.5672131147540984,
+      "acf_r2": 0.993118825490169
+    },
+    {
+      "run_id": 160,
+      "model": "deepseek-r1-distill-8b",
+      "hardware": "H100",
+      "family": "dense-8b",
+      "tp": 1,
+      "rate": 4.0,
+      "role": "heldout_model",
+      "surface_supported": true,
+      "interpolated_power_bins": 11,
+      "seconds": 624,
+      "energy_error_pct": 3.9597377376970497,
+      "rmse_w_per_gpu": 20.153074059582334,
+      "nrmse_range": 0.05936497723584706,
+      "ks_agreement": 0.28525641025641024,
+      "acf_r2": 0.8349638666582981
+    }
+  ],
+  "aggregation": "first 600 matched one-second per-GPU means",
+  "samples": "results/paper/selected_representative_traces_1s.csv",
+  "outputs": [
+    "results/paper/power_trace_deepseek_r1_distill_8b_h100_tp1_rate_0p125_release_1s.pdf",
+    "results/paper/power_trace_deepseek_r1_distill_8b_h100_tp1_rate_1_release_1s.pdf",
+    "results/paper/power_trace_deepseek_r1_distill_8b_h100_tp1_rate_2_release_1s.pdf",
+    "results/paper/power_trace_deepseek_r1_distill_8b_h100_tp1_rate_4_release_1s.pdf"
+  ]
+}

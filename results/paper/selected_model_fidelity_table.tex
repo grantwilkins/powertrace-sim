@@ -1,0 +1,19 @@
+\begin{table*}[t]
+\centering
+\small
+\caption{Fidelity of the frozen release artifact on held-out measured traces. Medians and 95\% bootstrap intervals are computed over model-local hardware/TP/rate points after collapsing repetitions.}
+\label{tab:selected-model-fidelity}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Traces & Points & Power error (\%) & Distribution & Energy error (\%) & ACF $R^2$ \\
+\midrule
+DeepSeek-R1-Distill 70B & 63 & 21 & 6.27 [5.71, 11.16] & 0.622 [0.417, 0.655] & 2.74 [1.20, 3.40] & 0.991 [0.769, 0.996] \\
+DeepSeek-R1-Distill 8B & 126 & 42 & 5.71 [4.47, 7.19] & 0.571 [0.504, 0.671] & 1.78 [1.02, 2.89] & 0.994 [0.983, 0.996] \\
+GPT-OSS 120B & 27 & 9 & 7.39 [5.64, 7.98] & 0.800 [0.348, 0.901] & 1.30 [0.37, 2.80] & 0.948 [0.920, 0.982] \\
+GPT-OSS 20B & 18 & 6 & 6.28 [5.26, 6.53] & 0.832 [0.408, 0.952] & 0.98 [0.23, 4.08] & 0.963 [0.944, 0.976] \\
+Llama 3 405B & 9 & 3 & 10.92 [5.42, 15.87] & 0.568 [0.531, 0.619] & 1.92 [1.78, 3.56] & 0.982 [0.883, 0.997] \\
+Llama 3 70B & 36 & 12 & 6.75 [4.64, 11.81] & 0.428 [0.298, 0.672] & 2.67 [1.47, 3.72] & 0.982 [-0.373, 0.998] \\
+Llama 3 8B & 54 & 18 & 4.21 [3.54, 6.57] & 0.598 [0.504, 0.748] & 1.40 [0.66, 2.39] & 0.995 [0.990, 0.997] \\
+\bottomrule
+\end{tabular}
+\end{table*}

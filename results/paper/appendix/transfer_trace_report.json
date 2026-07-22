@@ -1,0 +1,104 @@
+{
+  "schema_version": "checkpoint-transfer-traces-v1",
+  "artifact": {
+    "path": "results/clean_model/powertrace_v1.json",
+    "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9"
+  },
+  "plot_contract": "request-generated predictions; common observed interval; nonoverlapping one-second per-GPU means; common y-axis",
+  "dense": {
+    "run_id": "a100_validate_tp1_r2p5_b1p0_s20260720_1784576420",
+    "model": "Qwen/Qwen3-14B",
+    "hardware": "A100",
+    "tp": 1,
+    "state_source": "request_simulation",
+    "coefficient_changes": [
+      "pre-request target idle"
+    ],
+    "evidence_role": "retrospective idle-calibrated transfer diagnostic",
+    "interpolated_bins": 0,
+    "timing": {
+      "requests": 600,
+      "ttft_s_medabs_pct": 16.875369350799584,
+      "ttft_s_p90abs_pct": 35.999165494947256,
+      "ttft_s_median_signed_pct": -15.069192859734521,
+      "decode_s_medabs_pct": 1.2934657986418783,
+      "decode_s_p90abs_pct": 3.637569242381018,
+      "decode_s_median_signed_pct": 0.4261111758308992,
+      "e2e_s_medabs_pct": 1.4186361752564556,
+      "e2e_s_p90abs_pct": 5.335928506332141,
+      "e2e_s_median_signed_pct": -0.2162696388460505
+    },
+    "metrics": {
+      "energy_error_pct": 0.5167670889511956,
+      "acf_mae": 0.06843929895279756,
+      "acf_r2": -1.5400138244589576,
+      "soft_dtw_divergence": 0.01144227268322233,
+      "nrmse_range": 0.11145286628057224
+    },
+    "outputs": {
+      "pdf": "results/paper/appendix/power_trace_qwen3_14b_a100_tp1_dense_transfer_1s.pdf",
+      "png": "results/paper/appendix/power_trace_qwen3_14b_a100_tp1_dense_transfer_1s.png"
+    },
+    "pure_zero_shot_metrics": {
+      "energy_error_pct": 4.6210046531236335,
+      "acf_mae": 0.06843929895279754,
+      "acf_r2": -1.5400138244589563,
+      "soft_dtw_divergence": 0.015561437791017384,
+      "nrmse_range": 0.14259440996842823
+    },
+    "source_idle_w_per_gpu": 70.11875,
+    "target_idle_w_per_gpu": 87.9,
+    "idle_delta_w_per_gpu": 17.78125
+  },
+  "moe": {
+    "run_id": "h100_validate_tp2_r2p0_b1p0_s20260720_1784672812",
+    "model": "Qwen/Qwen3-30B-A3B",
+    "hardware": "H100",
+    "tp": 2,
+    "state_source": "request_simulation",
+    "coefficient_changes": [
+      "pre-request target idle",
+      "source-only H100/A100 memory energy-per-work ratio",
+      "source-only H100/A100 compute energy-per-work ratio"
+    ],
+    "evidence_role": "retrospective calibrated transfer diagnostic",
+    "interpolated_bins": 0,
+    "timing": {
+      "requests": 600,
+      "ttft_s_medabs_pct": 15.99399773972944,
+      "ttft_s_p90abs_pct": 57.14565567736291,
+      "ttft_s_median_signed_pct": -10.88066000014058,
+      "decode_s_medabs_pct": 18.940393850390514,
+      "decode_s_p90abs_pct": 25.210288146666176,
+      "decode_s_median_signed_pct": -18.940393850390514,
+      "e2e_s_medabs_pct": 19.42271801036098,
+      "e2e_s_p90abs_pct": 27.116343209070784,
+      "e2e_s_median_signed_pct": -19.42271801036098
+    },
+    "metrics": {
+      "energy_error_pct": 20.627919378684574,
+      "acf_mae": 0.024872625206654723,
+      "acf_r2": 0.9451212042098467,
+      "soft_dtw_divergence": 0.03622870047083461,
+      "nrmse_range": 0.2541335298522709
+    },
+    "outputs": {
+      "pdf": "results/paper/appendix/power_trace_qwen3_30b_a3b_h100_tp2_moe_transfer_1s.pdf",
+      "png": "results/paper/appendix/power_trace_qwen3_30b_a3b_h100_tp2_moe_transfer_1s.png"
+    },
+    "target_idle_w_per_gpu": 118.285,
+    "hardware_energy_per_work_ratios": {
+      "logical_memory_util_lag_250ms": 0.9155865625845471,
+      "duty_sqrt_exact_compute_util": 0.8750789509640029
+    },
+    "pure_zero_shot_metrics": {
+      "energy_error_pct": 31.999240172389975,
+      "acf_mae": 0.024993197314047245,
+      "acf_r2": 0.9450861834796872,
+      "soft_dtw_divergence": 0.08174326205374054,
+      "nrmse_range": 0.3803342925352203
+    }
+  },
+  "trace_csv": "results/paper/appendix/transfer_traces_1s.csv",
+  "captions": "results/paper/appendix/transfer_trace_captions.tex"
+}

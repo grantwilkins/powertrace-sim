@@ -10,15 +10,27 @@
   "generation": {
     "base_seed": 42,
     "batch_size": 8,
-    "decode_mode": "stochastic",
-    "device": "cpu",
-    "median_filter_window": 1,
+    "generation_mode_by_method": {
+      "ours": "selected_request_scheduler_power",
+      "splitwise_strict": "splitwise_style_lut"
+    },
     "n_gpus_per_node": 8,
     "non_gpu_overhead_w": 1000.0,
-    "ours_logit_temperature": 1.0,
-    "ours_std_scale": 1.0,
-    "tp_gpus": 8,
-    "uses_ar1": false
+    "runtime": "numpy",
+    "selected_artifact": {
+      "path": "/Users/grantwilkins/powertrace-sim/results/clean_model/powertrace_v1.json",
+      "sha256": "5699cb825110aee705175b31620f58f6bd0b2691992e16ef5a024366cae24ac9",
+      "size_bytes": 15884
+    },
+    "source_revision": {
+      "git_commit": "2c29ee3074882bb5b8975906cc533e18ff780ace",
+      "git_dirty": true
+    },
+    "timing_mode_by_method": {
+      "ours": "selected_vllm_v1_decode_first",
+      "splitwise_strict": "splitwise_prompt_biased_preemptive_fifo"
+    },
+    "tp_gpus": 8
   },
   "layout": {
     "n_nodes": 240,

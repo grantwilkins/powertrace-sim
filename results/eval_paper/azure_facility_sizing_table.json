@@ -20,20 +20,20 @@
   },
   "method_metrics_15min": {
     "mean_baseline": {
-      "avg_mw": 0.8547199523122527,
+      "avg_mw": 0.53855860083903,
       "load_factor": 1.0,
       "max_ramp_mw_per_hr": 0.0,
       "par": 1.0,
-      "peak_mw": 0.8547199523122527,
-      "transformer_mva": 0.949688835902503
+      "peak_mw": 0.53855860083903,
+      "transformer_mva": 0.5983984453767
     },
     "ours": {
-      "avg_mw": 0.6333456087239583,
-      "load_factor": 0.8423785921485851,
-      "max_ramp_mw_per_hr": 0.11046199999999999,
-      "par": 1.1871146884791826,
-      "peak_mw": 0.751853875,
-      "transformer_mva": 0.8353931944444444
+      "avg_mw": 0.5385586018880208,
+      "load_factor": 0.8953120128538865,
+      "max_ramp_mw_per_hr": 0.05146174999999994,
+      "par": 1.116929054500689,
+      "peak_mw": 0.60153175,
+      "transformer_mva": 0.6683686111111111
     },
     "splitwise_strict": {
       "avg_mw": 0.5719525511067708,
@@ -56,35 +56,35 @@
     {
       "mean_baseline": "---",
       "metric": "Peak facility power (MW)",
-      "ours": "0.75",
+      "ours": "0.60",
       "splitwise_strict": "0.67",
       "tdp_baseline": "2.06"
     },
     {
-      "mean_baseline": "0.85",
+      "mean_baseline": "0.54",
       "metric": "Average facility power (MW)",
-      "ours": "0.63",
+      "ours": "0.54",
       "splitwise_strict": "0.57",
       "tdp_baseline": "---"
     },
     {
       "mean_baseline": "1.00",
       "metric": "Peak-to-average ratio",
-      "ours": "1.19",
+      "ours": "1.12",
       "splitwise_strict": "1.17",
       "tdp_baseline": "1.00"
     },
     {
       "mean_baseline": "0.00",
       "metric": "Max 15-min ramp rate (MW/hr)",
-      "ours": "0.11",
+      "ours": "0.05",
       "splitwise_strict": "0.08",
       "tdp_baseline": "0.00"
     },
     {
       "mean_baseline": "1.00",
       "metric": "Load factor",
-      "ours": "0.84",
+      "ours": "0.90",
       "splitwise_strict": "0.86",
       "tdp_baseline": "1.00"
     }
