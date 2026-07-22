@@ -50,10 +50,6 @@ def build_default_paths() -> Dict[str, str]:
     repo_root = Path(__file__).resolve().parents[2]
     return {
         "repo_root": str(repo_root),
-        "experimental_manifest": str(
-            repo_root / "archive" / "gmm_bigru_v1" / "results"
-            / "experimental_continuous_v1" / "manifest.json"
-        ),
         "selected_artifact": str(
             repo_root / "model" / "artifacts" / "powertrace_v1.json"
         ),

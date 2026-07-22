@@ -102,7 +102,6 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
     metrics_summary = compute_azure_facility_metrics(
         aggregated_root=kwargs["aggregated_root"],
         node_traces_root=kwargs["node_traces_root"],
-        experimental_manifest=kwargs["experimental_manifest"],
         metrics_csv=kwargs["metrics_csv"],
         ldc_csv=kwargs["ldc_csv"],
         site_traces_15min_csv=kwargs["site_traces_15min_csv"],
@@ -181,7 +180,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the Azure facility pipeline with Splitwise baselines included."
     )
-    parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--selected-artifact", default=defaults["selected_artifact"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
@@ -252,7 +250,6 @@ def main() -> None:
     args = parser.parse_args()
 
     result = run_pipeline(
-        experimental_manifest=str(args.experimental_manifest),
         selected_artifact=str(args.selected_artifact),
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
         node_stream_dir=str(args.node_stream_dir),

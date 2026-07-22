@@ -56,7 +56,10 @@ from model.simulation import simulate
 
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
 ALLOWED_METHODS = {"ours", "splitwise_strict"}
-TIMING_MODE = "arrival_only"
+TIMING_MODE_BY_METHOD = {
+    "ours": "selected_vllm_v1_decode_first",
+    "splitwise_strict": "splitwise_prompt_biased_preemptive_fifo",
+}
 
 
 def _validate_config_id(config_id: str) -> None:
@@ -218,10 +221,9 @@ def generate_node_traces(
     if t_horizon <= 0:
         raise ValueError("Computed horizon is zero; increase duration_s or reduce dt.")
 
-    # All model classes generate IID; AR(1) generation was removed.
     generation_mode_by_method = {
         method: (
-            "selected_deterministic_mean"
+            "selected_request_scheduler_power"
             if method == "ours"
             else "splitwise_style_lut"
         )
@@ -318,7 +320,7 @@ def generate_node_traces(
                                 "node": int(node),
                                 "file": f"{method}/node_{row}_{rack}_{node}.npy",
                                 "generation_mode": str(generation_mode_by_method[method]),
-                                "timing_mode": TIMING_MODE,
+                                "timing_mode": TIMING_MODE_BY_METHOD[method],
                                 "num_requests": 0,
                                 "seed": int(base_seed + node_id * 1009),
                                 "status": "failed",
@@ -428,7 +430,7 @@ def generate_node_traces(
                                 "node": int(node),
                                 "file": f"{method}/{os.path.basename(out_path)}",
                                 "generation_mode": str(generation_mode_by_method[method]),
-                                "timing_mode": TIMING_MODE,
+                                "timing_mode": TIMING_MODE_BY_METHOD[method],
                                 "num_requests": int(num_requests),
                                 "seed": int(node_seed),
                                 "status": "evaluated",
@@ -450,7 +452,7 @@ def generate_node_traces(
                                 "node": int(node),
                                 "file": f"{method}/node_{row}_{rack}_{node}.npy",
                                 "generation_mode": str(generation_mode_by_method[method]),
-                                "timing_mode": TIMING_MODE,
+                                "timing_mode": TIMING_MODE_BY_METHOD[method],
                                 "num_requests": int(num_requests),
                                 "seed": int(node_seed),
                                 "status": "failed",
@@ -515,7 +517,9 @@ def generate_node_traces(
             "batch_size": int(batch_size),
             "base_seed": int(base_seed),
             "runtime": "numpy",
-            "timing_mode": TIMING_MODE,
+            "timing_mode_by_method": {
+                method: TIMING_MODE_BY_METHOD[method] for method in method_list
+            },
             "generation_mode_by_method": {
                 key: str(value) for key, value in generation_mode_by_method.items()
             },
@@ -621,7 +625,7 @@ def main() -> None:
     print(f"Output root        : {summary['out_root']}")
     print(f"Nodes              : {summary['layout']['n_nodes']}")
     print(f"Timesteps/node     : {summary['timing']['timesteps']}")
-    print(f"Timing mode        : {summary['generation']['timing_mode']}")
+    print(f"Timing modes       : {summary['generation']['timing_mode_by_method']}")
     print(f"Manifest           : {summary['trace_manifest_csv']}")
     print("=" * 72)
 

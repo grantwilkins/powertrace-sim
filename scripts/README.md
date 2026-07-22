@@ -9,7 +9,8 @@ command-line surface lives in `scripts/eval/`; training entrypoints live under
 
 ```text
 scripts/
-├── eval/                 # Selected-model and Azure evaluations
+├── eval/                 # Selected-model and Azure evaluation support
+├── paper/                # One maintained local paper-regeneration entry point
 └── legacy/               # Non-BiGRU scripts cut from the paper path
 ```
 
@@ -17,10 +18,12 @@ scripts/
 
 ```bash
 uv run -m scripts.eval.run_azure_pipeline
-uv run -m scripts.eval.generate_azure_facility_sizing_table
+uv run -m scripts.paper.regenerate
 ```
 
-The complete paper-output allowlist and evidence labels are in
+This refits one selected artifact, regenerates the replay, timing, transfer,
+and facility families, then writes a hash-bound manifest. The complete
+paper-output allowlist and evidence labels are in
 [`docs/PAPER_OUTPUTS.md`](../docs/PAPER_OUTPUTS.md). Other analysis modules are
 support code or development diagnostics, not additional paper entry points.
 

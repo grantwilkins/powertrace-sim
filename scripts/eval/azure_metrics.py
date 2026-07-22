@@ -25,13 +25,11 @@ from scripts.eval.azure_defaults import (
     DEFAULT_TRACE_KINDS,
     build_default_paths,
     ensure_dir_for_file,
-    load_json,
     parse_csv_list,
 )
 from model import metrics as shared_metrics
 from model.utils.config import tp_gpus_from_config_id
 from scripts.eval.facility import FacilityLayout
-from model.pipeline.artifact_resolution import resolve_experimental_paths
 
 RESOLUTION_FILE_MAP = {
     0.25: "site_250ms.npy",
@@ -58,41 +56,6 @@ def _load_array(path: str) -> np.ndarray:
     if arr.size == 0:
         raise ValueError(f"Empty array: {path}")
     return arr
-
-
-def _load_train_mean_gpu_power_w(
-    *,
-    config_id: str,
-    experimental_manifest_path: str,
-) -> float:
-    manifest = load_json(experimental_manifest_path)
-    base = str(Path(experimental_manifest_path).resolve().parent)
-    dataset_path, split_path = resolve_experimental_paths(
-        manifest,
-        config_id=config_id,
-        experimental_base=base,
-    )
-    split_payload = load_json(split_path)
-    train_indices = [int(x) for x in split_payload.get("train_indices", [])]
-
-    with np.load(dataset_path, allow_pickle=True) as data:
-        power_arr = np.asarray(data["power"], dtype=object)
-    n_total = int(len(power_arr))
-
-    traces: List[np.ndarray] = []
-    for idx in train_indices:
-        if idx < 0 or idx >= n_total:
-            raise ValueError(f"Training trace index out of bounds: {idx}")
-        power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
-        if power.size > 0:
-            traces.append(power.astype(np.float64))
-    if len(traces) == 0:
-        raise ValueError(f"No training traces available for {config_id}")
-
-    flat_total = np.concatenate(traces, axis=0).astype(np.float64)
-    if flat_total.size == 0:
-        raise ValueError("Empty train GPU power pool")
-    return float(np.mean(flat_total))
 
 
 def _compute_metrics(arr_kw: np.ndarray, resolution_s: float) -> Dict[str, float]:
@@ -182,7 +145,6 @@ def compute_azure_facility_metrics(
     *,
     aggregated_root: str,
     node_traces_root: str,
-    experimental_manifest: str,
     metrics_csv: str,
     ldc_csv: str,
     site_traces_15min_csv: str,
@@ -227,12 +189,10 @@ def compute_azure_facility_metrics(
     node_tdp_it_w = float(tp_gpus) * float(gpu_tdp_w) + float(non_gpu_overhead_w)
     site_tdp_w = float(n_nodes) * node_tdp_it_w * float(pue)
 
-    train_mean_gpu_w = _load_train_mean_gpu_power_w(
-        config_id=config_id,
-        experimental_manifest_path=experimental_manifest,
+    site_mean_w = float(np.mean(reference_by_resolution[0.25]))
+    reference_mean_node_gpu_w = (
+        site_mean_w / (float(n_nodes) * float(pue)) - float(non_gpu_overhead_w)
     )
-    node_mean_it_w = float(train_mean_gpu_w) + float(non_gpu_overhead_w)
-    site_mean_w = float(n_nodes) * node_mean_it_w * float(pue)
 
     diversity_by_method: Dict[str, float] = {}
     for method, site_it_by_res in method_site_it_w.items():
@@ -391,7 +351,7 @@ def compute_azure_facility_metrics(
             "tp_gpus": int(tp_gpus),
             "site_tdp_w": float(site_tdp_w),
             "site_mean_w": float(site_mean_w),
-            "train_mean_gpu_w": float(train_mean_gpu_w),
+            "reference_mean_node_gpu_w": float(reference_mean_node_gpu_w),
         },
         "diversity_by_method": {key: float(value) for key, value in diversity_by_method.items()},
         "diversity_factor_definition": DIVERSITY_FACTOR_DEFINITION,
@@ -404,7 +364,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Compute Azure facility metrics with Splitwise baselines.")
     parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
     parser.add_argument("--node-traces-root", default=defaults["node_traces_root"])
-    parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--metrics-csv", default=defaults["metrics_csv"])
     parser.add_argument("--ldc-csv", default=defaults["ldc_csv"])
     parser.add_argument("--site-traces-15min-csv", default=defaults["site_traces_15min_csv"])
@@ -427,7 +386,6 @@ def main() -> None:
     summary = compute_azure_facility_metrics(
         aggregated_root=str(args.aggregated_root),
         node_traces_root=str(args.node_traces_root),
-        experimental_manifest=str(args.experimental_manifest),
         metrics_csv=str(args.metrics_csv),
         ldc_csv=str(args.ldc_csv),
         site_traces_15min_csv=str(args.site_traces_15min_csv),

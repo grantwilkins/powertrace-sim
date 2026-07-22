@@ -1,10 +1,9 @@
 # Eval Paper Artifact Map
 
-> **Stale after the 2026-07-09 data-path audit.** Existing generated outputs
-> predate disjoint splits, train-only throughput calibration, strict artifact
-> identities, corrected diversity semantics, and required IID provenance. Do
-> not cite them as current results. Regenerate datasets and models first, then
-> rebuild this directory with the producers below.
+> **Mixed historical/current directory.** Only the Azure facility files named
+> in `docs/PAPER_OUTPUTS.md` and bound by `results/paper/manifest.json` belong
+> to the maintained paper surface. Other files here predate the data-path audit
+> or document archived GMM-BiGRU experiments and must not be substituted.
 
 `results/eval_paper/` contains checked-in paper support artifacts: CSV/JSON
 inputs for plots and LaTeX tables consumed by the manuscript. Treat these files
@@ -27,7 +26,7 @@ Artifact classes:
 | Historical trace fidelity table | `trace_fidelity_table.tex`, `trace_fidelity_table_gptoss_a100.tex` | From `archive/gmm_bigru_v1`: `uv run --project ../.. --extra archive-bigru python -m scripts.eval.generate_trace_fidelity_table --output <path> --format latex` | archived evaluation summaries | fitted, rendered | No new randomness; seconds once eval summaries exist. |
 | Historical node baseline metrics and table | `baselines_node_level.csv`, `baselines_node_table.csv`, `baselines_node_table.json`, `baselines_node_table.tex` | From `archive/gmm_bigru_v1`: run `scripts.eval.run_baselines_node`, then `scripts.eval.generate_baselines_node_table` | archived manifests and trained model, Splitwise perf model | generated, rendered | Defaults use `--num-seeds 5 --base-seed 42`; table generation is seconds after metrics exist. |
 | Historical held-out node replay | `baselines_node_groundtruth_metrics.csv`; figure: `figures/baselines_node_groundtruth_trace.pdf` | From `archive/gmm_bigru_v1`: run `scripts.eval.run_baselines_node_groundtruth` | archived held-out trace and trained generator, Splitwise LUT | measured, generated, rendered | Defaults are deterministic for fixed `--base-seed`; expected runtime is one held-out replay. |
-| Azure facility profile | `azure_facility_metrics.csv`, `azure_facility_ldc_15min.csv`, `azure_facility_site_traces_15min.csv`; figures: `figures/azure_figure_*.pdf`, `figures/azure_figure_manifest.json` | `uv run -m scripts.eval.run_azure_pipeline`, or `azure_metrics` plus `azure_figures` for partial regeneration | `data/azure_trace/`, `data/azure_facility/node_streams/`, `results/azure_facility/node_traces/`, `results/azure_facility/aggregated/` | measured, generated, aggregated, rendered | Node stream defaults use seed 42; full pipeline is the expensive path, figures are quick once aggregation exists. |
+| Azure facility profile | `azure_facility_metrics.csv`, `azure_facility_ldc_15min.csv`, `azure_facility_site_traces_15min.csv`; figures: `figures/azure_figure_*.pdf`, `figures/azure_figure_manifest.json` | `uv run -m scripts.paper.regenerate` | regenerated selected artifact, Azure production arrivals, node streams, and Splitwise LUT | measured, generated, aggregated, rendered | Node streams and oversubscription use seed 42; all 240 selected-model nodes are regenerated before aggregation. |
 | Facility sizing table | `azure_facility_sizing_table.csv`, `azure_facility_sizing_table.json`, `azure_facility_sizing_table.tex` | `uv run -m scripts.eval.generate_azure_facility_sizing_table` | `azure_facility_metrics.csv` | aggregated, rendered | No new randomness; seconds after facility metrics exist. |
 | Hierarchy smoothing figure | `azure_hierarchy_figure.csv`, `azure_hierarchy_figure.json`; figures: `figures/azure_hierarchy_figure.pdf` or `figures/azure_hierarchy_{server,rack,row,site}.pdf` | `uv run -m scripts.eval.hierarchy_figure` | `results/azure_facility/node_traces/ours/`, `results/azure_facility/aggregated/ours/` | aggregated, rendered | No new randomness; quick once Azure traces exist. |
 | Oversubscription sensitivity | `azure_oversubscription_capacity.csv`, `azure_oversubscription_capacity.json`; figures: `figures/azure_oversubscription_capacity.pdf`, `figures/azure_oversubscription_lines.pdf` | `uv run -m scripts.eval.oversubscription_figure` | Azure aggregated rack traces and `azure_facility_metrics.csv` | aggregated, rendered | Defaults use `--seed 42`; runtime depends on sampling settings. |
@@ -45,7 +44,7 @@ Artifact classes:
 
 ## Regeneration policy
 
-Prefer the entry points documented in `scripts/eval/README.md`. Preserve the
+Use `uv run -m scripts.paper.regenerate` for the maintained set. Preserve the
 large upstream artifacts under `data/`, `results/azure_facility/`,
 `results/continuous_v1_gmm_bigru/`, `figures/`, and `feature-test/results/`
 unless the task explicitly asks to regenerate them.

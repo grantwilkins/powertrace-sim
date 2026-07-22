@@ -75,8 +75,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Add named deployment presets and recorded overrides.
 - [x] Enforce support by default with explicit unsupported extrapolation.
 - [x] Emit `power.csv`, `requests.csv`, and `manifest.json`.
-- [x] Convert facility consumers to a genuinely incremental bin iterator whose
-  retained memory does not grow with emitted bins.
+- [x] Keep CLI inference incremental and make bulk facility request-state
+  projection linear-memory with bounded parallel node batches.
 
 ### 5. Evaluation and paper regeneration
 
@@ -96,8 +96,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 
 - [x] Replace the README quick start and package descriptions.
 - [x] Restrict `model/scripts/` to the four maintained lifecycle commands.
-- [ ] Reduce `model/scripts/` and `scripts/` to maintained lifecycle and paper
-  entry points.
+- [x] Expose one maintained `scripts.paper.regenerate` paper entry point; keep
+  the detailed producers as private support code.
 - [x] Split minimal runtime, training/evaluation, profiling, plotting, and
   `archive-bigru` dependencies.
 - [ ] Remove obsolete helpers and prototype compatibility branches after the
@@ -109,7 +109,7 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 
 - [x] Refit from the canonical prepared dataset after equivalence passes; every
   released timing and power coefficient regenerated exactly.
-- [ ] Regenerate the final paper allowlist after the archived evidence is curated.
+- [x] Regenerate the local paper allowlist from one hash-bound release artifact.
 - [ ] Score sealed data once without refitting or threshold changes.
 
 The sealing gate is median absolute end-to-end timing error at most 10%, total

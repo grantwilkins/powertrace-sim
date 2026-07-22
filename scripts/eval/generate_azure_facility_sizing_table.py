@@ -224,7 +224,6 @@ def generate_azure_facility_sizing_table(
     recompute_metrics: bool = False,
     aggregated_root: str = "",
     node_traces_root: str = "",
-    experimental_manifest: str = "",
     ldc_csv: str = "",
     site_traces_15min_csv: str = "",
     config_id: str = DEFAULT_CONFIG_ID,
@@ -243,7 +242,6 @@ def generate_azure_facility_sizing_table(
         compute_azure_facility_metrics(
             aggregated_root=aggregated_root,
             node_traces_root=node_traces_root,
-            experimental_manifest=experimental_manifest,
             metrics_csv=metrics_csv,
             ldc_csv=ldc_csv,
             site_traces_15min_csv=site_traces_15min_csv,
@@ -351,7 +349,6 @@ def main() -> None:
     parser.add_argument("--recompute-metrics", action="store_true")
     parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
     parser.add_argument("--node-traces-root", default=defaults["node_traces_root"])
-    parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--ldc-csv", default=defaults["ldc_csv"])
     parser.add_argument("--site-traces-15min-csv", default=defaults["site_traces_15min_csv"])
     parser.add_argument("--config-id", default=DEFAULT_CONFIG_ID)
@@ -386,7 +383,6 @@ def main() -> None:
         recompute_metrics=bool(args.recompute_metrics),
         aggregated_root=str(args.aggregated_root),
         node_traces_root=str(args.node_traces_root),
-        experimental_manifest=str(args.experimental_manifest),
         ldc_csv=str(args.ldc_csv),
         site_traces_15min_csv=str(args.site_traces_15min_csv),
         config_id=str(args.config_id),

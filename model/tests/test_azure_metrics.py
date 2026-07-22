@@ -3,7 +3,6 @@ Tests for scripts/eval/azure_metrics.py.
 """
 
 import csv
-import json
 import os
 import sys
 import tempfile
@@ -13,7 +12,6 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts/eval"))
 
-from model.utils.io import write_json as _write_json
 from azure_defaults import DEFAULT_TRACE_KINDS  # noqa: E402
 from azure_metrics import (  # noqa: E402
     DIVERSITY_FACTOR_DEFINITION,
@@ -29,44 +27,6 @@ def _downsample_mean(arr: np.ndarray, factor: int) -> np.ndarray:
     x = np.asarray(arr, dtype=np.float64).reshape(-1)
     assert x.size % factor == 0
     return np.mean(x.reshape(-1, factor), axis=1)
-
-
-def _build_minimal_experimental_fixture(root: Path, cfg: str = "toy-70b_H100_tp4") -> dict:
-    dataset_path = (
-        root / "results" / "experimental_continuous_v1" / "datasets" / f"{cfg}.npz"
-    )
-    dataset_path.parent.mkdir(parents=True, exist_ok=True)
-
-    power_train = np.array([1090.0, 1110.0, 1130.0, 1150.0], dtype=np.float64)
-    power_test = np.array([1100.0, 1120.0, 1140.0, 1160.0], dtype=np.float64)
-    np.savez(
-        dataset_path,
-        config_id=np.asarray([cfg, cfg], dtype=object),
-        dt=np.asarray([0.25], dtype=np.float64),
-        pair_key=np.asarray(["pk_train", "pk_test"], dtype=object),
-        rate=np.asarray(["1", "1"], dtype=object),
-        power_start_epoch_s=np.asarray([1000.0, 1000.0], dtype=np.float64),
-        power=np.asarray([power_train, power_test], dtype=object),
-    )
-
-    split_path = root / "results" / "experimental_continuous_v1" / "splits" / f"{cfg}.json"
-    _write_json(split_path, {"train_indices": [0], "val_indices": [], "test_indices": [1]})
-
-    manifest_path = root / "results" / "experimental_continuous_v1" / "manifest.json"
-    _write_json(
-        manifest_path,
-        {
-            "schema_version": "experimental-continuous-v1",
-            "configs": {
-                cfg: {
-                    "dataset_npz": str(dataset_path),
-                    "split_json": str(split_path),
-                    "written": True,
-                }
-            },
-        },
-    )
-    return {"config_id": cfg, "experimental_manifest": manifest_path}
 
 
 def _write_method_aggregates(
@@ -127,7 +87,7 @@ def test_physics_trace_is_supported_without_becoming_a_default() -> None:
 def test_metrics_outputs_include_splitwise() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        fx = _build_minimal_experimental_fixture(root)
+        config_id = "toy-70b_H100_tp4"
 
         aggregated_root = root / "results" / "azure_facility" / "aggregated"
         node_traces_root = root / "results" / "azure_facility" / "node_traces"
@@ -164,11 +124,10 @@ def test_metrics_outputs_include_splitwise() -> None:
         summary = compute_azure_facility_metrics(
             aggregated_root=str(aggregated_root),
             node_traces_root=str(node_traces_root),
-            experimental_manifest=str(fx["experimental_manifest"]),
             metrics_csv=str(metrics_csv),
             ldc_csv=str(ldc_csv),
             site_traces_15min_csv=str(site_csv),
-            config_id=str(fx["config_id"]),
+            config_id=config_id,
             rows=1,
             racks_per_row=1,
             nodes_per_rack=2,
@@ -195,7 +154,7 @@ def test_metrics_outputs_include_splitwise() -> None:
         }
 
         expected_tdp_kw = ((2.0 * ((4.0 * 700.0) + overhead)) * pue) / 1000.0
-        expected_mean_kw = ((2.0 * (1120.0 + overhead)) * pue) / 1000.0
+        expected_mean_kw = ((100.0 + 120.0 + 2.0 * overhead) * pue) / 1000.0
         tdp_rows = [r for r in rows if r["trace_kind"] == "tdp_baseline"]
         mean_rows = [r for r in rows if r["trace_kind"] == "mean_baseline"]
         for row in tdp_rows:
@@ -225,7 +184,7 @@ def test_tdp_baseline_resolves_tp8_from_config_id() -> None:
     """
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        fx = _build_minimal_experimental_fixture(root, cfg="toy-70b_H100_tp8")
+        config_id = "toy-70b_H100_tp8"
 
         aggregated_root = root / "results" / "azure_facility" / "aggregated"
         node_traces_root = root / "results" / "azure_facility" / "node_traces"
@@ -251,11 +210,10 @@ def test_tdp_baseline_resolves_tp8_from_config_id() -> None:
         summary = compute_azure_facility_metrics(
             aggregated_root=str(aggregated_root),
             node_traces_root=str(node_traces_root),
-            experimental_manifest=str(fx["experimental_manifest"]),
             metrics_csv=str(root / "metrics.csv"),
             ldc_csv=str(root / "ldc.csv"),
             site_traces_15min_csv=str(root / "site.csv"),
-            config_id=str(fx["config_id"]),
+            config_id=config_id,
             trace_kinds="ours,tdp_baseline,mean_baseline",
             rows=1,
             racks_per_row=1,

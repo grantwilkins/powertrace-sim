@@ -138,9 +138,12 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert summary["methods"] == ["ours", "splitwise_strict"]
         assert summary["counts"]["evaluated_by_method"]["ours"] == 2
         assert summary["counts"]["evaluated_by_method"]["splitwise_strict"] == 2
-        assert summary["generation"]["timing_mode"] == "arrival_only"
+        assert summary["generation"]["timing_mode_by_method"] == {
+            "ours": "selected_vllm_v1_decode_first",
+            "splitwise_strict": "splitwise_prompt_biased_preemptive_fifo",
+        }
         assert summary["generation"]["generation_mode_by_method"] == {
-            "ours": "selected_deterministic_mean",
+            "ours": "selected_request_scheduler_power",
             "splitwise_strict": "splitwise_style_lut",
         }
         assert (
@@ -183,8 +186,10 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert {row["status"] for row in rows} == {"evaluated"}
         assert {row["method"] for row in rows} == {"ours", "splitwise_strict"}
         modes = {row["method"]: row["generation_mode"] for row in rows}
-        assert modes["ours"] == "selected_deterministic_mean"
+        assert modes["ours"] == "selected_request_scheduler_power"
         assert modes["splitwise_strict"] == "splitwise_style_lut"
+        timing_modes = {row["method"]: row["timing_mode"] for row in rows}
+        assert timing_modes == summary["generation"]["timing_mode_by_method"]
 
 
 def test_splitwise_lut_is_rejected() -> None:
