@@ -59,7 +59,7 @@ from model.release import (
     resolve_deployment,
     support_violations,
 )
-from model.simulation import simulate
+from model.simulation import iter_prepared_power_bins, prepare_simulation
 
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
 ALLOWED_METHODS = {"ours", "physics", "splitwise_strict"}
@@ -195,16 +195,15 @@ def _selected_power_trace(
     )
     trace = np.full(horizon, idle, dtype=np.float64)
     if requests:
-        result = simulate(
+        prepared = prepare_simulation(
             requests,
             deployment=preset,
             artifact=artifact,
         )
-        predicted = np.asarray(
-            result.power["node_gpu_power_w"], dtype=np.float64
-        )
-        copied = min(horizon, predicted.size)
-        trace[:copied] = predicted[:copied]
+        for index, row in enumerate(iter_prepared_power_bins(prepared)):
+            if index >= horizon:
+                break
+            trace[index] = float(row["node_gpu_power_w"])
     return trace
 
 

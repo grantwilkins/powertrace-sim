@@ -63,6 +63,11 @@ MoE surface maps the ledger to deterministic GPU power. TP output is reported
 as both mean per-GPU power and TP-summed node GPU power; it does not fabricate
 different traces for individual GPUs.
 
+The command-line and facility paths consume ledger bins once and retain only
+the finite meter-response history, so output memory does not scale with trace
+duration. The analysis API may still materialize complete ledger and power
+arrays when callers explicitly request them.
+
 ## Evaluation and leakage boundary
 
 Validation consumes the same three-file inference result used by downstream

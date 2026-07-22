@@ -104,8 +104,10 @@ The output directory contains `power.csv`, `requests.csv`, and
 it is the selected model used by the repository's clean power-trace and
 compatibility evaluations, but the final external validation campaign is not
 complete. Native inference is fixed at the calibrated 250 ms cadence.
-Power rows are written incrementally rather than duplicated into a second
-in-memory table during CSV emission.
+The CLI and Azure facility consumer project ledger and power bins through a
+single-pass iterator. Their retained output memory is bounded by the short
+meter-response window rather than growing with trace duration; the public
+`simulate()` function still materializes arrays for analysis compatibility.
 
 Requests may instead provide an explicit categorical
 `output_tokens_distribution` with `values` and `probabilities`; `--seed`

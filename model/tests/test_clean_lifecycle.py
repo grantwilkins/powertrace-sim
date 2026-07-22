@@ -20,7 +20,14 @@ import pytest
 
 from model.evaluation import evaluate_power_csv
 from model.preparation import prepare_dataset
-from model.simulation import iter_power_bins, simulate, write_result
+from model.simulation import (
+    iter_power_bins,
+    iter_prepared_power_bins,
+    prepare_simulation,
+    simulate,
+    write_result,
+)
+from model.timing.ledger import emit_bins, iter_bins
 
 
 def _write_trace(path, values):
@@ -115,3 +122,52 @@ def test_power_writer_consumes_rows_incrementally(tmp_path, monkeypatch):
         written = list(csv.DictReader(stream))
     assert len(written) == len(yielded)
     assert yielded == sorted(yielded)
+
+
+@pytest.mark.parametrize(
+    "deployment",
+    ["llama-3-8b-a100-tp1", "llama-3-70b-h100-tp4", "gpt-oss-20b-a100-tp1"],
+)
+def test_incremental_power_bins_match_vectorized_model(deployment):
+    requests = [
+        {"arrival_time": 0.0, "input_tokens": 32, "output_tokens": 4},
+        {"arrival_time": 0.4, "input_tokens": 16, "output_tokens": 3},
+    ]
+    vectorized = simulate(requests, deployment=deployment)
+    prepared = prepare_simulation(requests, deployment=deployment)
+    streamed = list(iter_prepared_power_bins(prepared))
+
+    np.testing.assert_allclose(
+        [row["node_gpu_power_w"] for row in streamed],
+        vectorized.power["node_gpu_power_w"],
+        rtol=1e-12,
+        atol=1e-9,
+    )
+    np.testing.assert_allclose(
+        [row["busy_fraction"] for row in streamed],
+        vectorized.ledger["busy"],
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+
+def test_incremental_ledger_matches_every_vectorized_channel():
+    requests = [
+        {"arrival_time": 0.25, "input_tokens": 64, "output_tokens": 4},
+        {"arrival_time": 0.25, "input_tokens": 8, "output_tokens": 2},
+        {"arrival_time": 0.75, "input_tokens": 16, "output_tokens": 3},
+    ]
+    prepared = prepare_simulation(requests, deployment="gpt-oss-20b-a100-tp1")
+    expected = emit_bins(
+        prepared.trace, prepared.timed, arch=prepared.arch, tp=1,
+    )
+    streamed = list(iter_bins(
+        prepared.trace, prepared.timed, arch=prepared.arch, tp=1,
+    ))
+    for key, values in expected.items():
+        if key in {"n", "arch"}:
+            continue
+        np.testing.assert_allclose(
+            [row[key] for row in streamed], values, rtol=1e-12, atol=1e-9,
+            err_msg=key,
+        )

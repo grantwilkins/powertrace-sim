@@ -11,3 +11,8 @@ The default model exposes four commands:
 
 See the repository `README.md` for runnable examples. Historical GMM-BiGRU
 commands live exclusively under `archive/gmm_bigru_v1/`.
+
+`model.scripts.infer` streams native 250 ms ledger and power bins directly to
+`power.csv`; only request timing records and the engine iteration trace are
+retained. Use the Python `simulate()` API when materialized ledger and power
+arrays are required for analysis.

@@ -74,7 +74,7 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Add named deployment presets and recorded overrides.
 - [x] Enforce support by default with explicit unsupported extrapolation.
 - [x] Emit `power.csv`, `requests.csv`, and `manifest.json`.
-- [ ] Convert facility consumers to a genuinely incremental bin iterator whose
+- [x] Convert facility consumers to a genuinely incremental bin iterator whose
   retained memory does not grow with emitted bins.
 
 ### 5. Evaluation and paper regeneration

@@ -1,6 +1,8 @@
 """Project simulated engine iterations onto the selected 250 ms work ledger."""
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import numpy as np
 
 from model.timing.iteration import iteration_work
@@ -225,3 +227,150 @@ def emit_bins(
     out["delta_A_t"] = np.r_[0.0, np.diff(out["A_t"])]
     arch_scalar = {k: float(v) for k, v in arch.items() if k != "family"}
     return dict(out, n=nb, arch=arch_scalar)
+
+
+def iter_bins(
+    trace, per_request, *, arch, tp, dt=NATIVE_DT_S,
+    horizon_s: float | None = None,
+) -> Iterator[dict[str, float]]:
+    """Yield selected-model ledger bins without retaining output-sized arrays."""
+    records = np.asarray(trace, dtype=np.float64)
+    if records.ndim != 2 or records.shape[1] != 18:
+        raise ValueError("Streaming ledger requires the selected 18-field trace")
+    if not np.isfinite(records).all():
+        raise ValueError("Iteration trace records must be finite")
+    (t0, t1, dec_batch, context_mean, chunk_tokens, _chunk_context,
+     n_chunks, prefill_logits, weight_bytes, gemm_flops, attn_flops,
+     attn_bytes, prefill_gemm, decode_gemm, prefill_attn,
+     decode_attn, prefill_attn_bytes, decode_attn_bytes) = records.T
+    wall = t1 - t0
+    if np.any(wall <= 0.0) or np.any(np.diff(t0) < 0.0):
+        raise ValueError("Iteration trace must be ordered with positive durations")
+    iteration_tokens = dec_batch + chunk_tokens
+    if np.any(iteration_tokens <= 0.0):
+        raise ValueError("Iteration trace records must schedule at least one token")
+
+    arrivals = np.asarray([row["arrival_s"] for row in per_request], dtype=float)
+    admitted = np.asarray([row["admitted_s"] for row in per_request], dtype=float)
+    inputs = np.asarray([row["n_in"] for row in per_request], dtype=float)
+    outputs = np.asarray([row["n_out"] for row in per_request], dtype=float)
+    completed = arrivals + np.asarray(
+        [row["e2e_s"] for row in per_request], dtype=float
+    )
+    predicted_end = max(float(t1[-1]) if t1.size else 0.0,
+                        float(completed.max()) if completed.size else 0.0)
+    limit = predicted_end if horizon_s is None else float(horizon_s)
+    if not np.isfinite(limit) or limit <= 0.0:
+        raise ValueError("Ledger horizon must be positive and finite")
+    count = int(np.floor(limit / dt)) + 1
+    arrival_order = np.argsort(arrivals, kind="stable")
+    sorted_arrivals = arrivals[arrival_order]
+    sorted_inputs = inputs[arrival_order]
+    sorted_outputs = outputs[arrival_order]
+    admitted_order = np.argsort(admitted, kind="stable")
+    sorted_admitted = admitted[admitted_order]
+    admitted_arrivals = arrivals[admitted_order]
+    sorted_completed = np.sort(completed)
+    kv_token_bytes = kv_bytes_per_token(arch)
+    previous_active = 0.0
+    overlap_cursor = 0
+
+    for index in range(count):
+        lo, hi = index * dt, (index + 1) * dt
+        while overlap_cursor < t1.size and t1[overlap_cursor] <= lo:
+            overlap_cursor += 1
+        end = overlap_cursor
+        while end < t0.size and t0[end] < hi:
+            end += 1
+        section = slice(overlap_cursor, end)
+        overlap = np.clip(
+            np.minimum(t1[section], hi) - np.maximum(t0[section], lo),
+            0.0, None,
+        )
+        def duty(values) -> float:
+            return float(np.sum(np.asarray(values)[section] * overlap) / dt)
+
+        pre_tok = duty(chunk_tokens / wall)
+        batch = duty(dec_batch)
+        pre_active = duty(n_chunks)
+        pre_iter = duty((chunk_tokens > 0.0) / wall)
+        busy = float(overlap.sum() / dt)
+        prefill_duty = duty(chunk_tokens > 0.0)
+        decode_duty = duty(dec_batch > 0.0)
+        weight_rate = weight_bytes / wall
+        w_read = duty(weight_rate)
+        w_read_pre = duty(weight_rate * chunk_tokens / iteration_tokens)
+        w_read_dec = duty(weight_rate * dec_batch / iteration_tokens)
+
+        event_lo = int(np.searchsorted(t1, lo, side="left"))
+        event_hi = int(np.searchsorted(t1, hi, side="left"))
+        events = slice(event_lo, event_hi)
+        decode_events = dec_batch[events]
+        dec_tok = float(decode_events.sum() / dt)
+        kv_read = float(np.sum(
+            decode_events * effective_context(context_mean[events], arch)
+        ) * kv_token_bytes / dt)
+        engine_iterations = float((event_hi - event_lo) / dt)
+        engine_tokens = float(iteration_tokens[events].sum() / dt)
+
+        base = bin_work_rates(
+            np.asarray([pre_tok]), np.asarray([dec_tok]), np.asarray([batch]),
+            np.asarray([pre_active]), np.asarray([pre_iter]),
+            np.asarray([kv_read]), arch, tp, 1,
+        )
+        row = {key: float(np.asarray(value)[0]) for key, value in base.items()}
+        for key, values in (
+            ("w_read", weight_rate),
+            ("w_read_pre", weight_rate * chunk_tokens / iteration_tokens),
+            ("w_read_dec", weight_rate * dec_batch / iteration_tokens),
+            ("gemm_flops_rate", gemm_flops / wall),
+            ("attn_flops_rate", attn_flops / wall),
+            ("attn_bytes_rate", attn_bytes / wall),
+            ("prefill_gemm_flops_rate", prefill_gemm / wall),
+            ("decode_gemm_flops_rate", decode_gemm / wall),
+            ("prefill_attn_flops_rate", prefill_attn / wall),
+            ("decode_attn_flops_rate", decode_attn / wall),
+            ("prefill_attn_bytes_rate", prefill_attn_bytes / wall),
+            ("decode_attn_bytes_rate", decode_attn_bytes / wall),
+        ):
+            row[key] = duty(values)
+        row.update({
+            "busy": busy,
+            "prefill_duty": prefill_duty,
+            "decode_duty": decode_duty,
+            "engine_iterations_rate": engine_iterations,
+            "engine_iteration_tokens_rate": engine_tokens,
+            "logit_tokens_rate": float(
+                (dec_batch[events] + prefill_logits[events]).sum() / dt
+            ),
+            "engine_tokens_per_iteration": (
+                engine_tokens / engine_iterations if engine_iterations else 0.0
+            ),
+        })
+        arrival_lo = int(np.searchsorted(sorted_arrivals, lo, side="left"))
+        arrival_hi = int(np.searchsorted(sorted_arrivals, hi, side="left"))
+        arrival_slice = slice(arrival_lo, arrival_hi)
+        active = float(
+            np.searchsorted(sorted_arrivals, hi, side="left")
+            - np.searchsorted(sorted_completed, hi, side="right")
+        )
+        admitted_left = int(np.searchsorted(sorted_admitted, hi, side="left"))
+        admitted_right = int(np.searchsorted(sorted_admitted, hi, side="right"))
+        admitted_at_edge = np.count_nonzero(
+            admitted_arrivals[admitted_left:admitted_right] < hi
+        )
+        running = float(
+            admitted_left + admitted_at_edge
+            - np.searchsorted(sorted_completed, hi, side="right")
+        )
+        row.update({
+            "arrivals": float((arrival_hi - arrival_lo) / dt),
+            "input_tokens_arriving": float(sorted_inputs[arrival_slice].sum() / dt),
+            "output_tokens_requested": float(sorted_outputs[arrival_slice].sum() / dt),
+            "A_t": active,
+            "running_requests": running,
+            "waiting_requests": active - running,
+            "delta_A_t": active - previous_active if index else 0.0,
+        })
+        previous_active = active
+        yield row
