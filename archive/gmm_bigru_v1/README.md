@@ -9,12 +9,13 @@ training bin by mixture component, and trains a bidirectional GRU to predict
 the component sequence from normalized active-request count and its first
 difference. Inference samples power from the predicted component distribution.
 
-Run the archived code with its own import root:
+Run the archived code from this directory so it is the Python import root:
 
 ```bash
-PYTHONPATH=archive/gmm_bigru_v1 uv run --extra archive-bigru python -m model.scripts.train_gmm_bigru --help
-PYTHONPATH=archive/gmm_bigru_v1 uv run --extra archive-bigru python -m model.scripts.infer_gmm_bigru --help
-PYTHONPATH=archive/gmm_bigru_v1 uv run --extra archive-bigru -m pytest -x archive/gmm_bigru_v1/tests
+cd archive/gmm_bigru_v1
+uv run --project ../.. --extra archive-bigru python -m model.scripts.train_gmm_bigru --help
+uv run --project ../.. --extra archive-bigru python -m model.scripts.infer_gmm_bigru --help
+uv run --project ../.. --extra archive-bigru python -m pytest -x tests
 ```
 
 The curated artifacts remain under `results/continuous_v1_gmm_bigru/` and

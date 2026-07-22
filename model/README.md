@@ -1,62 +1,23 @@
-# Model Package
+# Selected model package
 
-`model/` contains the reusable training/evaluation/inference library code plus thin CLI wrappers and tests.
-
-## Package Structure
+`model/` contains the maintained architecture-aware timing and deterministic
+power pipeline.
 
 ```text
-model/
-├── classifiers/        # GMM/BiGRU helpers, features, metrics, trace generation
-├── pipeline/           # Reusable train/eval/infer modules
-├── scripts/            # Thin CLI wrappers over pipeline/training_data modules
-├── training_data/      # Data discovery, alignment, manifest preparation
-├── tests/              # Consolidated test suite
-└── utils/              # Shared I/O, config, decode-time, and runtime helpers
+request_schedule.py -> timing/ -> power/ -> simulation.py
+                            ^          ^
+                            |          |
+                         training/ + artifacts/powertrace_v1.json
 ```
 
-## End-to-End Flow
+The public lifecycle is `prepare_data`, `train`, `evaluate`, and `infer` under
+`model.scripts`. Shared architecture and ledger primitives remain in
+`model.training_data` while their final package locations are consolidated.
 
-1. Stage0 discovery and throughput extraction:
+The previous GMM-BiGRU implementation and its commands are runnable only from
+`archive/gmm_bigru_v1/`.
 
-```bash
-uv run -m model.scripts.stage0_inventory --data_root_dir data
-```
-
-2. Build experimental manifest artifacts:
-
-```bash
-uv run -m model.scripts.prepare_manifest \
-    --pair-manifest-csv results/stage0/pair_manifest.csv \
-    --out-dir results/experimental_continuous_v1
-```
-
-3. Train GMM-BiGRU models:
-
-```bash
-uv run -m model.scripts.train_gmm_bigru \
-    --manifest results/experimental_continuous_v1/manifest.json \
-    --out-root results/continuous_v1_gmm_bigru \
-    --k 10
-```
-
-4. Evaluate trained artifacts:
-
-```bash
-uv run -m model.scripts.eval_gmm_bigru \
-    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
-    --experimental-manifest results/experimental_continuous_v1/manifest.json
-```
-
-5. Generate traces for a request stream:
-
-```bash
-uv run -m model.scripts.infer_gmm_bigru \
-    --config-id llama-3-8b_H100_tp1 \
-    --requests-json input_requests.json \
-    --out-csv generated_power.csv
-```
-
-## Testing
+Run the maintained test suite with:
 
 ```bash
 uv run -m pytest -x

@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict
 
+import numpy as np
+
 from model.utils.config import parse_csv_list, safe_float
 from model.utils.io import (
     ensure_dir,
@@ -36,6 +38,12 @@ MODEL_NAME_MAP = {
     "deepseek-r1-distill": "DeepSeek-R1-Distill",
     "gpt-oss": "gpt-oss",
 }
+
+
+def format_metric(value: float | None, decimals: int, dash: str = "---") -> str:
+    if value is None or not np.isfinite(float(value)):
+        return dash
+    return f"{float(value):.{int(decimals)}f}"
 
 
 def build_default_paths() -> Dict[str, str]:

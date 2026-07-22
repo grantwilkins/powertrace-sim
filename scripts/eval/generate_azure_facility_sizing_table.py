@@ -26,12 +26,12 @@ from scripts.eval.azure_defaults import (
     DEFAULT_TRACE_KINDS,
     build_default_paths,
     ensure_dir_for_file,
+    format_metric,
     parse_csv_list,
     safe_float,
     write_json,
 )
 from scripts.eval.azure_metrics import compute_azure_facility_metrics
-from scripts.eval.pipeline_utils import _fmt
 
 TRACE_KIND_HEADER = {
     "tdp_baseline": "TDP",
@@ -149,7 +149,7 @@ def _build_table_rows(
     def _row(metric: str, key: str, decimals: int) -> Dict[str, str]:
         out = {"metric": metric}
         for method in method_order:
-            out[method] = _fmt(float(method_metrics[method][key]), decimals)
+            out[method] = format_metric(float(method_metrics[method][key]), decimals)
         return out
 
     rows.append(_row("Peak facility power (MW)", "peak_mw", decimals_power))

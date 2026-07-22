@@ -28,10 +28,10 @@ from scripts.eval.azure_defaults import (
     load_json,
     parse_csv_list,
 )
-from model.classifiers import metrics as shared_metrics
+from model import metrics as shared_metrics
 from model.utils.config import tp_gpus_from_config_id
 from scripts.eval.facility import FacilityLayout
-from scripts.eval.pipeline_utils import resolve_experimental_paths
+from model.pipeline.artifact_resolution import resolve_experimental_paths
 
 RESOLUTION_FILE_MAP = {
     0.25: "site_250ms.npy",

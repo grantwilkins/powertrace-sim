@@ -15,7 +15,7 @@ import unittest
 
 import numpy as np
 
-from model.classifiers.metrics import (
+from model.metrics import (
     _total_energy_from_bins,
     autocorrelation_r2,
     autocorrelation_r2_aggregate,

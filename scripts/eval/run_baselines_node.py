@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from model.classifiers.metrics import compute_aggregate_power_metrics
+from model.metrics import compute_aggregate_power_metrics
 from model.pipeline.request_builder import _build_requests_from_stage0_json
 from model.utils.io import ensure_dir, load_json
 from scripts.eval.pipeline_utils import (

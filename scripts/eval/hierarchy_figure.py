@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from model.classifiers import metrics as shared_metrics
+from model import metrics as shared_metrics
 from model.utils.io import write_json
 
 PANEL_ORDER = ("server", "rack", "row", "site")

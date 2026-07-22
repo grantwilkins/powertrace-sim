@@ -107,7 +107,7 @@ raw week CSV -> split_azure_week_to_days -> parse_azure_trace -> azure_to_node_s
 
 ### 1f. Metrics
 
-A canonical library exists (`model/classifiers/metrics.py`) and the GRU
+A canonical library exists (`model/metrics.py`) and the historical GRU
 evaluation uses it. Facility-side scripts partially reimplement: one
 byte-identical KS clone; two ramp definitions (diff at native resolution vs
 always-downsample-to-1s); NRMSE normalized per-trace vs over pooled min/max;
@@ -169,7 +169,7 @@ RunRecord
 
 ### Layer 3 — one metrics module
 
-`model/classifiers/metrics.py` becomes the only implementation. Add the
+`model/metrics.py` becomes the only implementation. Add the
 facility metrics (peak, ramps with an explicit `resolution_s` parameter
 recorded in every output row, one LDC estimator, load factor, CoV). Delete
 the KS clone; scripts import instead of reimplementing. Every consumer

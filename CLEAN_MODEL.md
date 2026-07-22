@@ -38,7 +38,7 @@ default artifact remains `pre_sealed` until the external validation gate passes.
   GMM/normalization/AR artifact, manifest, curve, and canonical metric summary.
 - [ ] Remove duplicate reruns and regenerable plot copies from the archive.
 - [x] Give the archive its own README, dependency extra, and focused tests.
-- [ ] Remove BiGRU commands from the default package without compatibility shims.
+- [x] Remove BiGRU commands from the default package without compatibility shims.
 
 ### 2. Promote the selected implementation
 

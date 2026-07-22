@@ -20,7 +20,7 @@ from model.classifiers.features import (
 )
 from model.classifiers.trace_generation import generate_gmm_bigru_trace
 from model.classifiers.model_loading import load_gru_classifier
-from model.classifiers.metrics import (
+from model.metrics import (
     compute_aggregate_power_metrics,
     compute_power_metrics,
 )

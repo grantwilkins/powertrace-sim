@@ -142,18 +142,14 @@ uv run -m model.scripts.evaluate \
 
 ## Historical GMM-BiGRU workflow
 
-The commands below describe the first PowerTrace-Sim model and remain
-available only while its self-contained `archive/gmm_bigru_v1/` migration is
-completed. They are not the repository default:
+The first PowerTrace-Sim model is available only through its self-contained
+archive. Run these commands from the archive directory so Python cannot resolve
+the maintained root package instead:
 
 ```bash
-uv run -m model.scripts.stage0_inventory --data_root_dir data
-uv run -m model.scripts.prepare_manifest \
-    --pair-manifest-csv results/stage0/pair_manifest.csv \
-    --out-dir results/experimental_continuous_v1
-uv run -m model.scripts.train_gmm_bigru \
-    --manifest results/experimental_continuous_v1/manifest.json \
-    --out-root results/continuous_v1_gmm_bigru --k 10
+cd archive/gmm_bigru_v1
+uv run --project ../.. --extra archive-bigru python \
+    -m model.scripts.train_gmm_bigru --help
 ```
 
 The canonical throughput database is `model/throughput_database.json` for Stage0
@@ -165,10 +161,8 @@ be repo-relative when loading manifests and request JSONs.
 Add a repeatable `--bundle-dir data/runs/<campaign_id>/<run_id>` only when a
 canonical bundle exists; it is not required for the legacy-data quick start.
 
-Other available entry points:
-
-- `uv run -m model.scripts.compare_gmm_bigru`
-- `uv run -m model.scripts.generate_methods_figures`
+The archive README documents its remaining preparation, inference, evaluation,
+comparison, and figure entry points.
 
 Profile same-node disaggregated GPT-OSS-20B serving on two Sherlock A100-80GB
 GPUs with the pinned vLLM 0.22 Queue-Haul image using one TP1 prefiller and one
