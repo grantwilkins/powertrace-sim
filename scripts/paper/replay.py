@@ -16,6 +16,7 @@ from model.paper_replay import (
     run_slices,
     sha256_file,
 )
+from scripts.paper.render import save_figure
 
 RATES = (0.125, 1.0, 2.0, 4.0)
 METRICS = (
@@ -205,7 +206,7 @@ def write_traces(
         axis.set(xlabel="Time (min)", ylabel="Power (W/GPU)", xlim=(0, seconds / 60), ylim=(0, ymax))
         axis.legend(frameon=False, ncol=2, loc="upper center")
         fig.tight_layout()
-        fig.savefig(path, bbox_inches="tight")
+        save_figure(fig, path, bbox_inches="tight")
         plt.close(fig)
         outputs.append(path)
         samples.extend({

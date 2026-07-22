@@ -18,6 +18,7 @@ from iteration_time import launch_overhead_s, transformer_bw_scale  # noqa: E402
 from model.paper_replay import sha256_file  # noqa: E402
 from model.training.timing import probe_points  # noqa: E402
 from model.training_data.arch import get_arch  # noqa: E402
+from scripts.paper.render import save_figure  # noqa: E402
 
 ARTIFACT_PATH = REPO / "results" / "clean_model" / "powertrace_v1.json"
 DATA_PATH = TIMING_DIR / "timing_dataset.npz"
@@ -246,7 +247,7 @@ def save_phase(points: list[dict], phase: str, path: Path, *, legend: bool) -> N
     fig, axis = plt.subplots(figsize=(3.25, 3.0))
     draw_phase(axis, points, phase, legend=legend)
     fig.tight_layout(pad=0.35)
-    fig.savefig(path, bbox_inches="tight")
+    save_figure(fig, path, bbox_inches="tight")
     plt.close(fig)
 
 

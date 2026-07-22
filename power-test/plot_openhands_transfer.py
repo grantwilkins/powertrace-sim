@@ -15,6 +15,7 @@ sys.path[:0] = [str(ROOT), str(BASE)]
 import plot_transfer_traces as transfer  # noqa: E402
 from model.power.response import apply_response  # noqa: E402
 from scripts.paper import transfer_core  # noqa: E402
+from scripts.paper.render import save_figure  # noqa: E402
 
 BUNDLE_ROOT = ROOT / "data/runs/sealed_openhands_qwen3-8b_a100"
 OUT_DIR = ROOT / "results/paper/appendix"
@@ -116,8 +117,8 @@ def save_plot(rows: list[dict], views: list[tuple[np.ndarray, np.ndarray]]) -> N
         axis.grid(alpha=0.2)
     axes[0, 0].legend(frameon=False, ncol=2, fontsize=8)
     fig.tight_layout()
-    fig.savefig(PLOT, bbox_inches="tight")
-    fig.savefig(PNG, bbox_inches="tight", dpi=220)
+    save_figure(fig, PLOT, bbox_inches="tight")
+    save_figure(fig, PNG, bbox_inches="tight", dpi=220)
     plt.close(fig)
 
 

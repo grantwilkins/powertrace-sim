@@ -17,6 +17,7 @@ sys.path[:0] = [
 from evaluation_core import trace_metrics  # noqa: E402
 from model.paper_replay import sha256_file  # noqa: E402
 from scripts.paper import transfer_core  # noqa: E402
+from scripts.paper.render import save_figure  # noqa: E402
 
 DT_S = 0.25
 DENSE_BUNDLE = next(
@@ -240,8 +241,8 @@ def save_trace(row: dict, ymax_w: float) -> dict[str, str]:
     fig.tight_layout(pad=0.35, rect=(0.0, 0.0, 1.0, 0.92))
     stem = output_stem(row)
     pdf, png = stem.with_suffix(".pdf"), stem.with_suffix(".png")
-    fig.savefig(pdf, bbox_inches="tight")
-    fig.savefig(png, bbox_inches="tight", dpi=220)
+    save_figure(fig, pdf, bbox_inches="tight")
+    save_figure(fig, png, bbox_inches="tight", dpi=220)
     plt.close(fig)
     return {
         "pdf": str(pdf.relative_to(ROOT)),
