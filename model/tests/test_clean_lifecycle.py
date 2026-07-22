@@ -20,6 +20,7 @@ import pytest
 
 from model.evaluation import evaluate_power_csv
 from model.preparation import prepare_dataset
+from model.simulation import iter_power_bins, simulate, write_result
 
 
 def _write_trace(path, values):
@@ -94,3 +95,23 @@ def test_prepare_dataset_rejects_run_identity_mismatch(tmp_path):
             base_split_manifest=split, probe_calibration=split,
             power_cache=power, out_manifest=tmp_path / "manifest.json",
         )
+
+
+def test_power_writer_consumes_rows_incrementally(tmp_path, monkeypatch):
+    result = simulate(
+        [{"arrival_time": 0.0, "input_tokens": 32, "output_tokens": 4}],
+        deployment="llama-3-8b-a100-tp1",
+    )
+    yielded = []
+
+    def rows(_result):
+        for row in iter_power_bins(result):
+            yielded.append(float(row["time_s"]))
+            yield row
+
+    monkeypatch.setattr("model.simulation.iter_power_bins", rows)
+    outputs = write_result(result, tmp_path)
+    with open(outputs["power"], newline="") as stream:
+        written = list(csv.DictReader(stream))
+    assert len(written) == len(yielded)
+    assert yielded == sorted(yielded)

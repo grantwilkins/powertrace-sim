@@ -168,11 +168,15 @@ def write_result(
     power_path = output / "power.csv"
     request_path = output / "requests.csv"
     manifest_path = output / "manifest.json"
-    power_rows = list(iter_power_bins(result))
     with power_path.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(power_rows[0]))
+        fieldnames = [
+            "time_s", "node_gpu_power_w", "mean_active_gpu_power_w",
+            "busy_fraction", "surface", "support_status",
+            *(f"component_{name}_node_w" for name in result.power["feature_names"]),
+        ]
+        writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(power_rows)
+        writer.writerows(iter_power_bins(result))
     with request_path.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(result.requests[0]))
         writer.writeheader()
