@@ -127,13 +127,9 @@ def test_correction_must_improve_dynamics_without_trading_away_mean():
     assert not ev.passes_correction_safety(unsafe, physics)
 
 
-def test_b2_comparison_enforces_each_declared_tolerance():
-    baseline = {"energy_error_pct_median": 0.5, "acf_r2_median": 0.95,
-                "nrmse_range_median": 0.08}
-    passing = {"energy_error_pct_median": 1.5, "acf_r2_median": 0.90,
-               "nrmse_range_median": 0.10}
-    assert ev.passes_b2_comparison(passing, baseline)
-    assert not ev.passes_b2_comparison({**passing, "energy_error_pct_median": 1.501}, baseline)
+def test_maintained_candidate_ladder_excludes_archived_b2():
+    assert "B2" not in ev.CANDIDATES
+    assert not hasattr(ev, "fit_s0_gmm_bigru")
 
 
 def _patch_meter_kernel():

@@ -11,7 +11,8 @@ results/
 ├── stage0/
 ├── azure_facility/
 ├── eval_paper/
-└── training/
+├── feature_test_v2/
+└── timing_test_v1/
 ```
 
 ## Stage 0 Data
@@ -59,9 +60,10 @@ continuous_v1_gmm_bigru/
 └── ...
 ```
 
-## Training Outputs
+## Historical Training Outputs
 
-`results/training/` contains per-configuration training checkpoints and CSV summaries for the profiling models.
+`archive/gmm_bigru_v1/results/training/` contains the older
+per-configuration BiGRU checkpoints and CSV summaries.
 
 ```
 training/
@@ -130,28 +132,7 @@ eval_paper/
 
 ## Using Results
 
-### Loading a Trained Model
-
-```python
-import torch
-from model.classifiers.gru import GRUClassifier
-from model.classifiers.gmm_bigru import load_gmm_params_json_dict
-import json
-
-# Load checkpoint
-ckpt = torch.load("results/continuous_v1_gmm_bigru/k10_f2/checkpoints/llama-3-8b_H100_tp1.pt")
-model = GRUClassifier(**ckpt["config"])
-model.load_state_dict(ckpt["model_state_dict"])
-
-# Load GMM parameters
-with open("results/continuous_v1_gmm_bigru/k10_f2/gmms/llama-3-8b_H100_tp1.json") as f:
-    gmm_payload = json.load(f)
-gmm_params = load_gmm_params_json_dict(gmm_payload)
-
-# Load normalization parameters
-with open("results/continuous_v1_gmm_bigru/k10_f2/norm_params/llama-3-8b_H100_tp1.json") as f:
-    norm_params = json.load(f)
-```
+The historical archive README documents how to load and rerun those models.
 
 ### Loading Evaluation Results
 

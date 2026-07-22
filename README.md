@@ -166,6 +166,8 @@ canonical bundle exists; it is not required for the legacy-data quick start.
 The archive README documents its remaining preparation, inference, evaluation,
 comparison, figure, trace-fidelity, and request-rate-sweep entry points. The
 maintained `scripts/eval/` package no longer imports the archived learned model.
+Historical per-configuration checkpoints and sweep outputs are also stored
+under the archive's `results/` tree.
 
 Profile same-node disaggregated GPT-OSS-20B serving on two Sherlock A100-80GB
 GPUs with the pinned vLLM 0.22 Queue-Haul image using one TP1 prefiller and one

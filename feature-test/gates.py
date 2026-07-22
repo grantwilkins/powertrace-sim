@@ -44,15 +44,6 @@ def passes_correction_safety(score: dict, physics: dict) -> bool:
     )
 
 
-def passes_b2_comparison(score: dict, baseline: dict) -> bool:
-    """Apply the frozen G1 tolerance relative to same-configuration B2."""
-    return bool(
-        score["energy_error_pct_median"] <= baseline["energy_error_pct_median"] + 1.0
-        and score["acf_r2_median"] >= baseline["acf_r2_median"] - 0.05
-        and score["nrmse_range_median"] <= baseline["nrmse_range_median"] + 0.02
-    )
-
-
 def choose_hardware_candidate(split_names, source_scores, physics_bases) -> str:
     """Choose one hardware mode from all of its source-development cells."""
     choices = []

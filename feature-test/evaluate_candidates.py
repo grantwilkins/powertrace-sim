@@ -24,12 +24,11 @@ from feature_metrics import secondary_trace_metrics  # noqa: E402
 from gates import PREFERENCE as PREFERENCE  # noqa: E402
 from gates import choose_hardware_candidate  # noqa: E402
 from gates import choose_source_candidate as choose_source_candidate  # noqa: E402
-from gates import energy_limit, passes_b2_comparison, passes_correction_safety, passes_primary  # noqa: E402
-from gmm_bigru_baseline import fit_s0_gmm_bigru, predict_s0_gmm_bigru  # noqa: E402
+from gates import energy_limit, passes_correction_safety, passes_primary  # noqa: E402
 from model.classifiers.physics import load_selected_physics_artifact, physics_design, physics_feature_order  # noqa: E402
 TAPS_S = (0, 1, 2, 4, 8)
 RIDGES = (0.001, 0.01, 0.1, 1.0, 10.0)
-CANDIDATES = ("B0", "B1", "B2", "B3", "B4", "M0", "M0b", "M0bR", "M0dR", "M0c", "M4A", "M1", "M2", "M3")
+CANDIDATES = ("B0", "B1", "B3", "B4", "M0", "M0b", "M0bR", "M0dR", "M0c", "M4A", "M1", "M2", "M3")
 # Board power limits from the NVIDIA datasheets (A100 SXM4 80GB: 400 W;
 # H100 SXM5: 700 W). The M0c cap is this physical limit, not a fitted
 # quantile of training power.
@@ -368,23 +367,7 @@ def main(argv=None):
         config = d["model_idx"].astype(int) * 100 + d["tp"].astype(int)
         busy = (d["pre_tok"] + d["dec_tok"]) > 0
         for candidate in CANDIDATES:
-            if candidate in ("B2", "B4") and not split["name"].startswith("S0"):
-                continue
-            if candidate == "B2":
-                candidate_started = time.perf_counter()
-                fit = fit_s0_gmm_bigru(
-                    d["run_id"], config, d["A_t"], d["delta_A_t"], d["power"],
-                    split["train"], split["development"],
-                )
-                pred = predict_s0_gmm_bigru(
-                    d["run_id"], config, d["A_t"], d["delta_A_t"], split["test"], fit,
-                )
-                fit["training_source_ids"] = sorted(
-                    rows_by_id[r]["source_id"] for r in split["train"] + split["development"]
-                )
-                fits[(split["name"], candidate)] = fit
-                per_run += _evaluate(d, split, candidate, fit, rows_by_id, pred)
-                candidate_seconds[candidate] += time.perf_counter() - candidate_started
+            if candidate == "B4" and not split["name"].startswith("S0"):
                 continue
             candidate_started = time.perf_counter()
             ridge = None
@@ -519,12 +502,10 @@ def main(argv=None):
             passes_correction_safety(r, aggregate_by_key[(name, physics_bases[name])])
             if r["candidate"] in ("M1", "M2", "M3") else True
         )
-        b2 = aggregate_by_key.get((name, "B2"))
-        b2_ok = not name.startswith("S0") or b2 is None or passes_b2_comparison(r, b2)
-        passes = passes_primary(r, name) and bias_ok and correction_ok and b2_ok
+        passes = passes_primary(r, name) and bias_ok and correction_ok
         gates.append({**r, "low_high_rate_bias_passes": bias_ok,
                       "correction_safety_passes": correction_ok,
-                      "b2_comparison_passes": b2_ok, "passes": bool(passes)})
+                      "passes": bool(passes)})
     choices = set(selected_by_hardware.values())
     selected = next(iter(choices)) if len(choices) == 1 else "hardware_local"
     revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
@@ -573,7 +554,7 @@ def main(argv=None):
         load_selected_physics_artifact(artifact_path)
         deployments[hardware] = artifact_path.name
         deployment_specs[hardware] = (candidate, artifact, artifact_path)
-    benchmarks = benchmark_deployments(deployment_specs, d, splits, fits)
+    benchmarks = benchmark_deployments(deployment_specs, d, splits)
     _write_csv(out / "deployment_benchmark.csv", benchmarks)
     _write_csv(out / "support_failures.csv", failures)
     serial_fits = {f"{s}:{c}": {k: (v.tolist() if isinstance(v, np.ndarray) else [x.tolist() for x in v] if k == "scale" else v)

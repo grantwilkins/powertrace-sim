@@ -43,6 +43,10 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Remove BiGRU commands from the default package without compatibility shims.
 - [x] Move the BiGRU-specific node/facility comparisons, retrospective figures,
   trace-fidelity table, request-rate sweep, and their tests into the archive.
+- [x] Retire B2 fitting and relative gates from the maintained feature evaluator
+  while preserving the frozen B2 implementation and test in the archive.
+- [x] Remove the BiGRU implementation modules and remaining training/sweep
+  artifacts from the maintained package and root results tree.
 
 ### 2. Promote the selected implementation
 

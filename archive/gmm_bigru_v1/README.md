@@ -28,6 +28,8 @@ inside this archive. They preserve:
 - IID, AR(1), and thresholded-AR parameters;
 - training curves, run manifests, and one canonical metric summary per
   scientifically distinct variant.
+- the earlier per-configuration `results/training/` checkpoints and curves;
+- the tracked `results/rps_sweep*/` request-rate sweep outputs.
 
 Metric reruns remain because their CSVs or manifests are not universally
 identical. Regenerable evaluation overlays and AR-parameter plots were removed
@@ -40,3 +42,7 @@ feature-sufficiency and power-CDF figures, trace-fidelity table, request-rate
 sweep, and their tests. The copied Splitwise helper is part of the frozen
 comparison environment; the maintained facility pipeline uses its own root
 copy.
+
+`feature_test/gmm_bigru_baseline.py` preserves the B2 comparator from the later
+feature-selection ladder. Its target-blind deterministic test is included in
+the archive suite.

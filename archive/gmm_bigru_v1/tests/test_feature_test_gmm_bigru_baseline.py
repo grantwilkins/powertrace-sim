@@ -12,6 +12,11 @@ Plausible wrong implementations:
 
 import numpy as np
 import pytest
+import sys
+from pathlib import Path
+
+FEATURE_TEST = Path(__file__).resolve().parents[1] / "feature_test"
+sys.path.insert(0, str(FEATURE_TEST))
 
 from gmm_bigru_baseline import fit_s0_gmm_bigru, predict_s0_gmm_bigru
 

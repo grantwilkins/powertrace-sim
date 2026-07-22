@@ -9,7 +9,6 @@ from model.classifiers.physics import (
     predict_selected_physics,
 )
 from model.training_data.arch import get_arch
-from gmm_bigru_baseline import predict_s0_gmm_bigru
 
 
 def selected_provenance_ids(hardware, splits, rows_by_id):
@@ -117,32 +116,16 @@ def benchmark_selected_physics(artifact, data, run_id, *, repeats=3):
             "bins_per_s": float(mask.sum() * repeats / elapsed)}
 
 
-def benchmark_deployments(specs, data, splits, fits):
-    """Compare each hardware-local production artifact with its S0 B2 model."""
+def benchmark_deployments(specs, data, splits):
+    """Benchmark each hardware-local production artifact on its S0 holdout."""
     output = []
-    config = data["model_idx"].astype(int) * 100 + data["tp"].astype(int)
     for hardware, (candidate, artifact, artifact_path) in specs.items():
         split = next(item for item in splits if item["name"] == f"S0_{hardware}")
         run_id, repeats = split["test"][0], 3
         selected = benchmark_selected_physics(artifact, data, run_id, repeats=repeats)
-        b2_fit = fits[(split["name"], "B2")]
-        started = time.perf_counter()
-        for _ in range(repeats):
-            predict_s0_gmm_bigru(
-                data["run_id"], config, data["A_t"], data["delta_A_t"],
-                (run_id,), b2_fit,
-            )
-        b2_seconds = (time.perf_counter() - started) / repeats
         artifact_bytes = artifact_path.stat().st_size
         row = {"hardware": hardware, "selected_candidate": candidate, **selected,
                "artifact_bytes": artifact_bytes,
-               "b2_bins_per_s": selected["bins"] / b2_seconds,
-               "b2_parameter_bytes": b2_fit["parameter_count"] * 4,
-               "speedup_over_b2": b2_seconds / selected["seconds"],
-               "size_reduction_over_b2": b2_fit["parameter_count"] * 4 / artifact_bytes,
                "process_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss}
-        row["passes_10x_speed_and_size"] = (
-            row["speedup_over_b2"] >= 10 and row["size_reduction_over_b2"] >= 10
-        )
         output.append(row)
     return output

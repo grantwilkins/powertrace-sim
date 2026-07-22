@@ -1,6 +1,8 @@
 # Training Data Modules
 
-This package contains data discovery, parsing, alignment, and manifest preparation for the GMM-BiGRU pipeline.
+This package contains shared data discovery, parsing, alignment, and ledger
+preparation. The historical experimental-manifest builder remains for evidence
+equivalence; GMM-BiGRU training and inference live only in the archive.
 
 ## Module Layout
 
@@ -53,11 +55,14 @@ Trained GMM evaluation and inference then use the bound throughput and
 hash-checked lineage; they do not read the mutable Stage0 throughput database
 or pair manifest.
 
-3. Train/evaluate with `model.scripts.train_gmm_bigru` and `model.scripts.eval_gmm_bigru`.
+3. Historical GMM-BiGRU training and evaluation are run from
+   `archive/gmm_bigru_v1/`; selected-model preparation and fitting use
+   `model.scripts.prepare_data` and `model.scripts.train`.
 
 ## Notes
 
-- Tests for these modules live under `model/tests/`.
+- Tests for shared modules live under `model/tests/`; historical model tests
+  live under `archive/gmm_bigru_v1/tests/`.
 - Canonical live bundles use `data/runs/<campaign_id>/<run_id>/`; legacy pairs
   remain supported through the same `RunRecord` contract.
 - Canonical power rows require GPU index/UUID. The parser groups by timestamp and
