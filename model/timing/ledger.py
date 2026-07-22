@@ -21,6 +21,27 @@ def selected_roles(manifest: dict, requested: str) -> tuple[str, ...]:
     return tuple(requested.split(","))
 
 
+def request_state_counts(arrivals, admitted, completed, bin_hi, *, dt):
+    """Count active and running requests at right bin edges in linear memory."""
+    arrivals = np.asarray(arrivals, dtype=float)
+    admitted = np.asarray(admitted, dtype=float)
+    completed = np.asarray(completed, dtype=float)
+    if not (arrivals.shape == admitted.shape == completed.shape):
+        raise ValueError("request event arrays must align")
+    if np.any(admitted < arrivals) or np.any(completed < admitted):
+        raise ValueError("request events must satisfy arrival <= admission <= completion")
+    finished = np.searchsorted(np.sort(completed), bin_hi, side="right")
+    active = np.searchsorted(np.sort(arrivals), bin_hi, side="left") - finished
+    running = np.searchsorted(np.sort(admitted), bin_hi, side="right") - finished
+
+    edge = np.rint(arrivals / dt).astype(int) - 1
+    exact_edge = np.isclose(arrivals, (edge + 1) * dt, rtol=0.0, atol=1e-12)
+    not_arrived = exact_edge & (admitted <= arrivals) & (completed > arrivals)
+    valid = not_arrived & (edge >= 0) & (edge < len(bin_hi))
+    running -= np.bincount(edge[valid], minlength=len(bin_hi))
+    return active.astype(float), running.astype(float)
+
+
 def _overlap_add(out, edges, t0, t1, weight):
     """out[b] += weight_j * overlap([t0_j, t1_j), bin b) for every interval j."""
     dt = float(edges[1] - edges[0])
@@ -218,11 +239,9 @@ def emit_bins(
         arrival_bin[ok], weights=n_in[ok], minlength=nb) / dt
     out["output_tokens_requested"] = np.bincount(
         arrival_bin[ok], weights=n_out[ok], minlength=nb) / dt
-    arrived = arr[:, None] < bin_hi
-    unfinished = arrived & (dec_e[:, None] > bin_hi)
-    running = unfinished & (adm[:, None] <= bin_hi)
-    out["A_t"] = unfinished.sum(axis=0).astype(np.float64)
-    out["running_requests"] = running.sum(axis=0).astype(np.float64)
+    active, running = request_state_counts(arr, adm, dec_e, bin_hi, dt=dt)
+    out["A_t"] = active
+    out["running_requests"] = running
     out["waiting_requests"] = out["A_t"] - out["running_requests"]
     out["delta_A_t"] = np.r_[0.0, np.diff(out["A_t"])]
     arch_scalar = {k: float(v) for k, v in arch.items() if k != "family"}

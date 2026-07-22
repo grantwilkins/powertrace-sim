@@ -13,6 +13,7 @@ import csv
 import os
 import re
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -51,7 +52,7 @@ from model.release import (
     resolve_deployment,
     support_violations,
 )
-from model.simulation import iter_prepared_power_bins, prepare_simulation
+from model.simulation import simulate
 
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
 ALLOWED_METHODS = {"ours", "splitwise_strict"}
@@ -146,16 +147,22 @@ def _selected_power_trace(
     )
     trace = np.full(horizon, idle, dtype=np.float64)
     if requests:
-        prepared = prepare_simulation(
+        result = simulate(
             requests,
             deployment=preset,
             artifact=artifact,
         )
-        for index, row in enumerate(iter_prepared_power_bins(prepared)):
-            if index >= horizon:
-                break
-            trace[index] = float(row["node_gpu_power_w"])
+        predicted = np.asarray(result.power["node_gpu_power_w"], dtype=float)
+        size = min(horizon, predicted.size)
+        trace[:size] = predicted[:size]
     return trace
+
+
+def _selected_preset(config_id: str) -> str:
+    match = CONFIG_ID_RE.fullmatch(config_id)
+    if match is None:
+        raise ValueError(f"Cannot resolve selected identity from {config_id!r}")
+    return f"{match.group(1)}-{match.group(2).lower()}-tp{int(match.group(3))}"
 
 
 def generate_node_traces(
@@ -210,8 +217,6 @@ def generate_node_traces(
     t_horizon = int(np.floor(float(duration_s) / float(dt)))
     if t_horizon <= 0:
         raise ValueError("Computed horizon is zero; increase duration_s or reduce dt.")
-
-    config_match = CONFIG_ID_RE.match(config_id)
 
     # All model classes generate IID; AR(1) generation was removed.
     generation_mode_by_method = {
@@ -285,150 +290,181 @@ def generate_node_traces(
 
     rows_out: List[Dict[str, object]] = []
     success_by_method = {method: 0 for method in method_list}
-    for start in range(0, len(node_infos), int(batch_size)):
-        chunk = node_infos[start : start + int(batch_size)]
-        prepared: List[Tuple[int, int, int, int, int, List[Dict[str, float]], np.ndarray]] = []
+    selected_preset = _selected_preset(config_id) if "ours" in method_list else None
+    workers = min(int(batch_size), os.cpu_count() or 1)
+    executor = (
+        ProcessPoolExecutor(max_workers=workers)
+        if "ours" in method_list and len(node_infos) > int(batch_size) and workers > 1
+        else None
+    )
+    try:
+        for start in range(0, len(node_infos), int(batch_size)):
+            chunk = node_infos[start : start + int(batch_size)]
+            prepared: List[Tuple[int, int, int, int, int, List[Dict[str, float]], np.ndarray]] = []
 
-        for node_id, row, rack, node, path in chunk:
-            try:
-                requests = _load_node_requests(path)
-                features = np.empty((t_horizon, 0), dtype=np.float32)
-                prepared.append((node_id, row, rack, node, len(requests), requests, features))
-            except Exception as exc:
-                for method in method_list:
-                    rows_out.append(
-                        {
-                            "method": method,
-                            "node_id": int(node_id),
-                            "row": int(row),
-                            "rack": int(rack),
-                            "node": int(node),
-                            "file": f"{method}/node_{row}_{rack}_{node}.npy",
-                            "generation_mode": str(generation_mode_by_method[method]),
-                            "timing_mode": TIMING_MODE,
-                            "num_requests": 0,
-                            "seed": int(base_seed + node_id * 1009),
-                            "status": "failed",
-                            "reason": f"{type(exc).__name__}: {exc}",
-                            "num_timesteps": 0,
-                            "min_power_w": float("nan"),
-                            "max_power_w": float("nan"),
-                            "mean_power_w": float("nan"),
-                        }
-                    )
-
-        if len(prepared) == 0:
-            continue
-
-        for node_id, row, rack, node, num_requests, requests, _features in prepared:
-            node_seed = int(base_seed + node_id * 1009)
-            for method in method_list:
+            for node_id, row, rack, node, path in chunk:
                 try:
-                    if method == "ours":
-                        match = CONFIG_ID_RE.fullmatch(config_id)
-                        if match is None:
-                            raise ValueError(f"Cannot resolve selected identity from {config_id!r}")
-                        selected_preset = (
-                            f"{match.group(1)}-{match.group(2).lower()}-tp{int(match.group(3))}"
-                        )
-                        trace = _selected_power_trace(
-                            requests,
-                            preset=selected_preset,
-                            artifact_path=selected_artifact,
-                            horizon=t_horizon,
-                        )
-                    elif method == "splitwise_strict":
-                        if splitwise_strict_params is None:
-                            raise ValueError("splitwise_strict params unavailable")
-                        trace, strict_runtime_meta = generate_splitwise_style_lut_trace(
-                            requests=requests,
-                            T=t_horizon,
-                            dt=float(dt),
-                            config={
-                                "config_id": config_id,
-                                "tp": int(resolved_tp),
-                                "n_gpus_per_node": int(resolved_n_gpus),
-                                "non_gpu_power_w": 0.0,
-                            },
-                            lut_params=splitwise_strict_params,
-                        )
-                        splitwise_meta["splitwise_extrapolation_events"] = int(
-                            splitwise_meta.get("splitwise_extrapolation_events", 0)
-                        ) + int(strict_runtime_meta.get("splitwise_extrapolation_events", 0))
-                        splitwise_meta["splitwise_power_clamp_events"] = int(
-                            splitwise_meta.get("splitwise_power_clamp_events", 0)
-                        ) + int(strict_runtime_meta.get("splitwise_power_clamp_events", 0))
-                        splitwise_meta["splitwise_max_batch_tokens_seen"] = float(
-                            max(
-                                float(splitwise_meta.get("splitwise_max_batch_tokens_seen", 0.0)),
-                                float(strict_runtime_meta.get("splitwise_max_batch_tokens_seen", 0.0)),
-                            )
-                        )
-                        splitwise_meta["splitwise_power_support_status"] = str(
-                            strict_runtime_meta.get(
-                                "splitwise_power_support_status",
-                                splitwise_meta.get("splitwise_power_support_status", ""),
-                            )
-                        )
-                    else:
-                        raise ValueError(f"Unknown method: {method}")
-
-                    trace = np.asarray(trace, dtype=np.float64).reshape(-1)
-                    if trace.size != t_horizon:
-                        if trace.size > t_horizon:
-                            trace = trace[:t_horizon]
-                        else:
-                            fill = trace[-1] if trace.size > 0 else 0.0
-                            padded = np.empty((t_horizon,), dtype=np.float64)
-                            if trace.size > 0:
-                                padded[: trace.size] = trace
-                            padded[trace.size :] = float(fill)
-                            trace = padded
-
-                    out_path = os.path.join(out_root, method, f"node_{row}_{rack}_{node}.npy")
-                    np.save(out_path, np.asarray(trace, dtype=np.float32))
-                    rows_out.append(
-                        {
-                            "method": method,
-                            "node_id": int(node_id),
-                            "row": int(row),
-                            "rack": int(rack),
-                            "node": int(node),
-                            "file": f"{method}/{os.path.basename(out_path)}",
-                            "generation_mode": str(generation_mode_by_method[method]),
-                            "timing_mode": TIMING_MODE,
-                            "num_requests": int(num_requests),
-                            "seed": int(node_seed),
-                            "status": "evaluated",
-                            "reason": "",
-                            "num_timesteps": int(t_horizon),
-                            "min_power_w": float(np.min(trace)),
-                            "max_power_w": float(np.max(trace)),
-                            "mean_power_w": float(np.mean(trace)),
-                        }
-                    )
-                    success_by_method[method] += 1
+                    requests = _load_node_requests(path)
+                    features = np.empty((t_horizon, 0), dtype=np.float32)
+                    prepared.append((node_id, row, rack, node, len(requests), requests, features))
                 except Exception as exc:
-                    rows_out.append(
-                        {
-                            "method": method,
-                            "node_id": int(node_id),
-                            "row": int(row),
-                            "rack": int(rack),
-                            "node": int(node),
-                            "file": f"{method}/node_{row}_{rack}_{node}.npy",
-                            "generation_mode": str(generation_mode_by_method[method]),
-                            "timing_mode": TIMING_MODE,
-                            "num_requests": int(num_requests),
-                            "seed": int(node_seed),
-                            "status": "failed",
-                            "reason": f"{type(exc).__name__}: {exc}",
-                            "num_timesteps": 0,
-                            "min_power_w": float("nan"),
-                            "max_power_w": float("nan"),
-                            "mean_power_w": float("nan"),
-                        }
+                    for method in method_list:
+                        rows_out.append(
+                            {
+                                "method": method,
+                                "node_id": int(node_id),
+                                "row": int(row),
+                                "rack": int(rack),
+                                "node": int(node),
+                                "file": f"{method}/node_{row}_{rack}_{node}.npy",
+                                "generation_mode": str(generation_mode_by_method[method]),
+                                "timing_mode": TIMING_MODE,
+                                "num_requests": 0,
+                                "seed": int(base_seed + node_id * 1009),
+                                "status": "failed",
+                                "reason": f"{type(exc).__name__}: {exc}",
+                                "num_timesteps": 0,
+                                "min_power_w": float("nan"),
+                                "max_power_w": float("nan"),
+                                "mean_power_w": float("nan"),
+                            }
+                        )
+
+            if len(prepared) == 0:
+                continue
+
+            selected_futures = {}
+            if executor is not None:
+                selected_futures = {
+                    node_id: executor.submit(
+                        _selected_power_trace,
+                        requests,
+                        preset=selected_preset,
+                        artifact_path=selected_artifact,
+                        horizon=t_horizon,
                     )
+                    for node_id, _, _, _, _, requests, _ in prepared
+                }
+
+            for node_id, row, rack, node, num_requests, requests, _features in prepared:
+                node_seed = int(base_seed + node_id * 1009)
+                for method in method_list:
+                    try:
+                        if method == "ours":
+                            trace = (
+                                selected_futures[node_id].result()
+                                if executor is not None
+                                else _selected_power_trace(
+                                    requests,
+                                    preset=selected_preset,
+                                    artifact_path=selected_artifact,
+                                    horizon=t_horizon,
+                                )
+                            )
+                        elif method == "splitwise_strict":
+                            if splitwise_strict_params is None:
+                                raise ValueError("splitwise_strict params unavailable")
+                            trace, strict_runtime_meta = generate_splitwise_style_lut_trace(
+                                requests=requests,
+                                T=t_horizon,
+                                dt=float(dt),
+                                config={
+                                    "config_id": config_id,
+                                    "tp": int(resolved_tp),
+                                    "n_gpus_per_node": int(resolved_n_gpus),
+                                    "non_gpu_power_w": 0.0,
+                                },
+                                lut_params=splitwise_strict_params,
+                            )
+                            splitwise_meta["splitwise_extrapolation_events"] = int(
+                                splitwise_meta.get("splitwise_extrapolation_events", 0)
+                            ) + int(strict_runtime_meta.get("splitwise_extrapolation_events", 0))
+                            splitwise_meta["splitwise_power_clamp_events"] = int(
+                                splitwise_meta.get("splitwise_power_clamp_events", 0)
+                            ) + int(strict_runtime_meta.get("splitwise_power_clamp_events", 0))
+                            splitwise_meta["splitwise_max_batch_tokens_seen"] = float(
+                                max(
+                                    float(
+                                        splitwise_meta.get(
+                                            "splitwise_max_batch_tokens_seen", 0.0
+                                        )
+                                    ),
+                                    float(
+                                        strict_runtime_meta.get(
+                                            "splitwise_max_batch_tokens_seen", 0.0
+                                        )
+                                    ),
+                                )
+                            )
+                            splitwise_meta["splitwise_power_support_status"] = str(
+                                strict_runtime_meta.get(
+                                    "splitwise_power_support_status",
+                                    splitwise_meta.get("splitwise_power_support_status", ""),
+                                )
+                            )
+                        else:
+                            raise ValueError(f"Unknown method: {method}")
+
+                        trace = np.asarray(trace, dtype=np.float64).reshape(-1)
+                        if trace.size != t_horizon:
+                            if trace.size > t_horizon:
+                                trace = trace[:t_horizon]
+                            else:
+                                fill = trace[-1] if trace.size > 0 else 0.0
+                                padded = np.empty((t_horizon,), dtype=np.float64)
+                                if trace.size > 0:
+                                    padded[: trace.size] = trace
+                                padded[trace.size :] = float(fill)
+                                trace = padded
+
+                        out_path = os.path.join(out_root, method, f"node_{row}_{rack}_{node}.npy")
+                        np.save(out_path, np.asarray(trace, dtype=np.float32))
+                        rows_out.append(
+                            {
+                                "method": method,
+                                "node_id": int(node_id),
+                                "row": int(row),
+                                "rack": int(rack),
+                                "node": int(node),
+                                "file": f"{method}/{os.path.basename(out_path)}",
+                                "generation_mode": str(generation_mode_by_method[method]),
+                                "timing_mode": TIMING_MODE,
+                                "num_requests": int(num_requests),
+                                "seed": int(node_seed),
+                                "status": "evaluated",
+                                "reason": "",
+                                "num_timesteps": int(t_horizon),
+                                "min_power_w": float(np.min(trace)),
+                                "max_power_w": float(np.max(trace)),
+                                "mean_power_w": float(np.mean(trace)),
+                            }
+                        )
+                        success_by_method[method] += 1
+                    except Exception as exc:
+                        rows_out.append(
+                            {
+                                "method": method,
+                                "node_id": int(node_id),
+                                "row": int(row),
+                                "rack": int(rack),
+                                "node": int(node),
+                                "file": f"{method}/node_{row}_{rack}_{node}.npy",
+                                "generation_mode": str(generation_mode_by_method[method]),
+                                "timing_mode": TIMING_MODE,
+                                "num_requests": int(num_requests),
+                                "seed": int(node_seed),
+                                "status": "failed",
+                                "reason": f"{type(exc).__name__}: {exc}",
+                                "num_timesteps": 0,
+                                "min_power_w": float("nan"),
+                                "max_power_w": float("nan"),
+                                "mean_power_w": float("nan"),
+                            }
+                        )
+            print(f"generated {min(start + len(chunk), len(node_infos))}/{len(node_infos)} nodes")
+    finally:
+        if executor is not None:
+            executor.shutdown()
 
     rows_out.sort(key=lambda row: (str(row["method"]), int(row["node_id"])))
     with open(manifest_csv, "w", newline="") as f:
