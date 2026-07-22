@@ -35,7 +35,7 @@ from scripts.eval.azure_defaults import (
     parse_csv_list,
     write_json,
 )
-from scripts.eval.baselines import (
+from scripts.eval.splitwise import (
     SPLITWISE_REMOVED_MESSAGE,
     SPLITWISE_STYLE_LUT_V1,
     build_splitwise_style_lut_params,

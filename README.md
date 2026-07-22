@@ -1220,7 +1220,8 @@ the legacy 30-minute timestamp fold.
 
 ## Splitwise-Style LUT Baseline Notes
 
-The evaluation baseline API uses the Splitwise-style LUT entry points in `scripts/eval/baselines.py`:
+The maintained facility evaluation keeps its Splitwise-style comparator in
+`scripts/eval/splitwise.py`, separate from the archived learned baselines:
 - `build_splitwise_style_lut_params(...)`
 - `generate_splitwise_style_lut_trace(...)`
 

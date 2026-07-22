@@ -30,7 +30,7 @@ from scripts.eval.azure_defaults import (
 from scripts.eval.azure_figures import generate_azure_figures
 from scripts.eval.azure_generate_traces import generate_node_traces
 from scripts.eval.azure_metrics import compute_azure_facility_metrics
-from scripts.eval.baselines import SPLITWISE_STYLE_LUT_V1
+from scripts.eval.splitwise import SPLITWISE_STYLE_LUT_V1
 from scripts.eval.generate_azure_facility_sizing_table import (
     generate_azure_facility_sizing_table,
 )
