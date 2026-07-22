@@ -84,10 +84,12 @@ default artifact remains `pre_sealed` until the external validation gate passes.
   including calibrated idle traces for empty nodes.
 - [x] Remove the rejected physics method and archived training inputs from
   maintained Azure node-trace generation.
-- [ ] Retain timing parity, representative dense/MoE traces,
+- [x] Retain timing parity, representative dense/MoE traces,
   compatibility/coverage tables, sealed scores, and facility figures.
-- [ ] Retain Qwen, BurstGPT, and OpenHands transfer panels as labeled appendix
-  evidence; archive rejected candidates and diagnostic-only renderers.
+- [x] Retain Qwen, BurstGPT, and OpenHands transfer panels as labeled appendix
+  evidence with an explicit retrospective boundary.
+- [ ] Archive rejected candidates and diagnostic-only renderers after their
+  active, currently uncommitted research changes are reconciled.
 
 ### 6. Default repository cleanup
 

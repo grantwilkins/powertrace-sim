@@ -36,6 +36,8 @@ artifact rather than used by the default pipeline.
 - `data-path.md`: audited common ingestion, feature, metric, and identity contract.
 - `docs/MODEL_PIPELINE.md`: paper-facing end-to-end training, inference, and
   evaluation flow for the selected model.
+- `docs/PAPER_OUTPUTS.md`: authoritative main-paper and appendix output
+  allowlist, evidence labels, producers, and regeneration order.
 
 ## Project Structure
 

@@ -18,8 +18,11 @@ scripts/
 ```bash
 uv run -m scripts.eval.run_azure_pipeline
 uv run -m scripts.eval.generate_azure_facility_sizing_table
-uv run -m scripts.eval.appendix_surrogate_validity --dry-run
 ```
+
+The complete paper-output allowlist and evidence labels are in
+[`docs/PAPER_OUTPUTS.md`](../docs/PAPER_OUTPUTS.md). Other analysis modules are
+support code or development diagnostics, not additional paper entry points.
 
 ## See Also
 
