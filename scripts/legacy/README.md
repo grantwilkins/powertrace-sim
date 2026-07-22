@@ -9,6 +9,7 @@ path.
 - `saturating_fit.py` - Saturating-curve fits on the two-price windows
 - `operator_table.py` - Descriptive operator table from the two-price windows
 - `ledger_fit_lomo.py` - Leave-one-model-out ledger fit
+- `infer_physics.py` - Superseded arrivals-only physics inference wrapper
 - `run_training.sh` - Old training wrapper
 - `run_ablation_study.sh` - Old ablation study wrapper
 - `collect_random_weights.sh` - Old random-weights collection wrapper

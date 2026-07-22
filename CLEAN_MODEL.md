@@ -92,6 +92,7 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 ### 6. Default repository cleanup
 
 - [x] Replace the README quick start and package descriptions.
+- [x] Restrict `model/scripts/` to the four maintained lifecycle commands.
 - [ ] Reduce `model/scripts/` and `scripts/` to maintained lifecycle and paper
   entry points.
 - [x] Split minimal runtime, training/evaluation, profiling, plotting, and
