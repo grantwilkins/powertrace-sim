@@ -1958,13 +1958,43 @@ name = "powertrace-sim"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "datasets" },
-    { name = "matplotlib" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+
+[package.optional-dependencies]
+archive-bigru = [
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "torch" },
+]
+paper = [
+    { name = "matplotlib" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "seaborn" },
+]
+profiling = [
+    { name = "datasets" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+train = [
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "datasets" },
+    { name = "matplotlib" },
     { name = "pytest" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "seaborn" },
     { name = "torch" },
     { name = "transformers" },
@@ -1972,11 +2002,27 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'profiling'", specifier = ">=4.7.0" },
+    { name = "matplotlib", marker = "extra == 'paper'", specifier = ">=3.10.8" },
+    { name = "numpy", specifier = ">=2.2.6" },
+    { name = "scikit-learn", marker = "extra == 'archive-bigru'", specifier = ">=1.7.2" },
+    { name = "scipy", marker = "extra == 'archive-bigru'", specifier = ">=1.15.3" },
+    { name = "scipy", marker = "extra == 'paper'", specifier = ">=1.15.3" },
+    { name = "scipy", marker = "extra == 'train'", specifier = ">=1.15.3" },
+    { name = "seaborn", marker = "extra == 'paper'", specifier = ">=0.13.2" },
+    { name = "torch", marker = "extra == 'archive-bigru'", specifier = ">=2.10.0" },
+    { name = "torch", marker = "extra == 'profiling'", specifier = ">=2.10.0" },
+    { name = "transformers", marker = "extra == 'profiling'", specifier = ">=5.3.0" },
+]
+provides-extras = ["train", "paper", "profiling", "archive-bigru"]
+
+[package.metadata.requires-dev]
+dev = [
     { name = "datasets", specifier = ">=4.7.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
-    { name = "numpy", specifier = ">=2.2.6" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
+    { name = "scipy", specifier = ">=1.15.3" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "torch", specifier = ">=2.10.0" },
     { name = "transformers", specifier = ">=5.3.0" },

@@ -69,6 +69,7 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
         experimental_manifest=kwargs["experimental_manifest"],
         throughput_db=kwargs["throughput_db"],
         physics_artifact=kwargs["physics_artifact"],
+        selected_artifact=kwargs["selected_artifact"],
         node_stream_dir=kwargs["node_stream_dir"],
         out_root=kwargs["node_traces_root"],
         config_id=kwargs["config_id"],
@@ -80,21 +81,14 @@ def run_pipeline(**kwargs) -> Dict[str, object]:
         nodes_per_rack=kwargs["nodes_per_rack"],
         batch_size=kwargs["batch_size"],
         base_seed=kwargs["base_seed"],
-        device=kwargs["device"],
-        decode_mode=kwargs["decode_mode"],
-        median_filter_window=kwargs["median_filter_window"],
-        ours_std_scale=kwargs["ours_std_scale"],
-        ours_logit_temperature=kwargs["ours_logit_temperature"],
         splitwise_perf_model_csv=kwargs["splitwise_perf_model_csv"],
         splitwise_source_model=kwargs["splitwise_source_model"],
         splitwise_source_hardware=kwargs["splitwise_source_hardware"],
         splitwise_source_tp=kwargs["splitwise_source_tp"],
         splitwise_style_lut_mode=kwargs["splitwise_style_lut_mode"],
-        pair_manifest_csv=kwargs["pair_manifest_csv"],
         tp_gpus=kwargs["tp_gpus"],
         n_gpus_per_node=kwargs["n_gpus_per_node"],
         non_gpu_overhead_w=kwargs["non_gpu_overhead_w"],
-        require_recorded_timestamps=not kwargs["allow_synthetic_request_timestamps"],
     )
 
     aggregation_summary = aggregate_all_methods(
@@ -195,13 +189,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
     parser.add_argument("--physics-artifact", default=defaults["physics_artifact"])
-    parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
+    parser.add_argument("--selected-artifact", default=defaults["selected_artifact"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
-    parser.add_argument(
-        "--ar1-params-dir",
-        default="",
-        help="(ignored; AR(1) generation removed)",
-    )
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
     parser.add_argument("--node-traces-root", default=defaults["node_traces_root"])
     parser.add_argument("--aggregated-root", default=defaults["aggregated_root"])
@@ -231,11 +220,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nodes-per-rack", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--base-seed", type=int, default=42)
-    parser.add_argument("--device", default="auto")
-    parser.add_argument("--decode-mode", default="stochastic")
-    parser.add_argument("--median-filter-window", type=int, default=1)
-    parser.add_argument("--ours-std-scale", type=float, default=1.0)
-    parser.add_argument("--ours-logit-temperature", type=float, default=1.0)
 
     parser.add_argument("--splitwise-source-model", default=DEFAULT_SPLITWISE_SOURCE_MODEL)
     parser.add_argument("--splitwise-source-hardware", default=DEFAULT_SPLITWISE_SOURCE_HARDWARE)
@@ -267,7 +251,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show Mean-peak and TDP-average cells in the facility sizing table.",
     )
-    parser.add_argument("--allow-synthetic-request-timestamps", action="store_true")
     return parser
 
 
@@ -280,7 +263,7 @@ def main() -> None:
         experimental_manifest=str(args.experimental_manifest),
         throughput_db=str(args.throughput_db),
         physics_artifact=str(args.physics_artifact),
-        pair_manifest_csv=str(args.pair_manifest_csv),
+        selected_artifact=str(args.selected_artifact),
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
         node_stream_dir=str(args.node_stream_dir),
         node_traces_root=str(args.node_traces_root),
@@ -309,11 +292,6 @@ def main() -> None:
         nodes_per_rack=int(args.nodes_per_rack),
         batch_size=int(args.batch_size),
         base_seed=int(args.base_seed),
-        device=str(args.device),
-        decode_mode=str(args.decode_mode),
-        median_filter_window=int(args.median_filter_window),
-        ours_std_scale=float(args.ours_std_scale),
-        ours_logit_temperature=float(args.ours_logit_temperature),
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
@@ -341,7 +319,6 @@ def main() -> None:
         ),
         power_factor=float(args.power_factor),
         hide_redundant_cells=not bool(args.show_redundant_baseline_cells),
-        allow_synthetic_request_timestamps=bool(args.allow_synthetic_request_timestamps),
     )
 
     print("[run_azure_pipeline] Done")

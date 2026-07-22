@@ -3,6 +3,7 @@ Tests for scripts/eval/azure_generate_traces.py.
 """
 
 import csv
+import json
 import os
 import sys
 import tempfile
@@ -22,6 +23,7 @@ from azure_defaults import (  # noqa: E402
 from azure_generate_traces import _normalize_methods, generate_node_traces  # noqa: E402
 
 from model.tests.test_eval_baselines_scripts import _build_toy_fixture  # noqa: E402
+from model.release import load_artifact
 
 
 def _write_node_stream(path: Path, rows) -> None:
@@ -61,13 +63,18 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         )
 
         out_root = root / "results" / "azure_facility" / "node_traces"
+        selected_artifact = root / "selected_artifact.json"
+        artifact = load_artifact()
+        artifact["presets"]["toy-70b-h100-tp4"] = {
+            **artifact["presets"]["llama-3-70b-h100-tp4"],
+        }
+        selected_artifact.write_text(json.dumps(artifact) + "\n")
         summary = generate_node_traces(
             run_manifest=str(fx["run_manifest"]),
             experimental_manifest=str(fx["experimental_manifest"]),
             throughput_db=str(fx["throughput_db"]),
-            pair_manifest_csv=str(fx["pair_manifest"]),
             splitwise_perf_model_csv=str(fx["perf_model_csv"]),
-            ar1_params_dir=str(fx["ar1_params_dir"]),
+            selected_artifact=str(selected_artifact),
             node_stream_dir=str(node_stream_dir),
             out_root=str(out_root),
             config_id=str(fx["config_id"]),
@@ -78,9 +85,6 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
             nodes_per_rack=2,
             batch_size=2,
             base_seed=123,
-            device="cpu",
-            decode_mode="stochastic",
-            median_filter_window=1,
             tp_gpus=4,
             n_gpus_per_node=4,
         )
@@ -91,7 +95,7 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert summary["counts"]["evaluated_by_method"]["splitwise_strict"] == 2
         assert summary["generation"]["timing_mode"] == "arrival_only"
         assert summary["generation"]["generation_mode_by_method"] == {
-            "ours": "iid",
+            "ours": "selected_deterministic_mean",
             "splitwise_strict": "splitwise_style_lut",
         }
         assert (
@@ -123,6 +127,8 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
             assert arr1.shape == (40,)
             assert np.all(np.isfinite(arr0))
             assert np.all(np.isfinite(arr1))
+            if method == "ours":
+                assert arr0[-1] == arr1[-1]
 
         manifest_csv = out_root / "trace_manifest.csv"
         assert manifest_csv.exists()
@@ -132,7 +138,7 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         assert {row["status"] for row in rows} == {"evaluated"}
         assert {row["method"] for row in rows} == {"ours", "splitwise_strict"}
         modes = {row["method"]: row["generation_mode"] for row in rows}
-        assert modes["ours"] == "iid"
+        assert modes["ours"] == "selected_deterministic_mean"
         assert modes["splitwise_strict"] == "splitwise_style_lut"
 
 
@@ -151,7 +157,6 @@ def test_splitwise_lut_is_rejected() -> None:
                 run_manifest=str(fx["run_manifest"]),
                 experimental_manifest=str(fx["experimental_manifest"]),
                 throughput_db=str(root / "missing-throughput.json"),
-                ar1_params_dir=str(fx["ar1_params_dir"]),
                 node_stream_dir=str(node_stream_dir),
                 out_root=str(root / "results" / "azure_facility" / "node_traces"),
                 config_id=str(fx["config_id"]),
@@ -163,9 +168,34 @@ def test_splitwise_lut_is_rejected() -> None:
                 nodes_per_rack=1,
                 batch_size=1,
                 base_seed=1,
-                device="cpu",
             )
 
 
 def test_physics_is_an_explicit_generation_method() -> None:
     assert _normalize_methods(["physics"]) == ["physics"]
+
+
+def test_selected_model_emits_calibrated_idle_power_for_empty_node() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        node_stream_dir = root / "node_streams"
+        _write_node_stream(node_stream_dir / "node_0_0_0.csv", [])
+        summary = generate_node_traces(
+            run_manifest=str(root / "missing-run-manifest.json"),
+            experimental_manifest=str(root / "missing-experimental-manifest.json"),
+            throughput_db=str(root / "missing-throughput.json"),
+            node_stream_dir=str(node_stream_dir),
+            out_root=str(root / "traces"),
+            config_id="llama-3-70b_A100_tp8",
+            methods="ours",
+            duration_s=1.0,
+            dt=0.25,
+            rows=1,
+            racks_per_row=1,
+            nodes_per_rack=1,
+        )
+        trace = np.load(root / "traces" / "ours" / "node_0_0_0.npy")
+        assert summary["status"] == "ok"
+        assert trace.shape == (4,)
+        assert np.all(trace == trace[0])
+        assert trace[0] > 0.0

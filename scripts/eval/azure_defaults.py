@@ -56,6 +56,9 @@ def build_default_paths() -> Dict[str, str]:
         "physics_artifact": str(
             repo_root / "feature-test" / "results" / "physics_artifact_v1.json"
         ),
+        "selected_artifact": str(
+            repo_root / "model" / "artifacts" / "powertrace_v1.json"
+        ),
         "pair_manifest_csv": str(
             repo_root / "results" / "stage0" / "pair_manifest.csv"
         ),

@@ -4,13 +4,14 @@ import re
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
-import torch
 
 CONFIG_MODEL_SIZE_RE = re.compile(r"^(.+)-(\d+)b_(A100|H100)_tp(\d+)$")
 CONFIG_TP_SUFFIX_RE = re.compile(r"_tp(\d+)$")
 
 
-def resolve_device(device: Optional[torch.device | str]) -> torch.device:
+def resolve_device(device: Optional[object | str]):
+    import torch
+
     if device is None:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if isinstance(device, torch.device):

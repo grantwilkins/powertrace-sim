@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple
 
 import numpy as np
-import torch
 
 # Allow running via: python3 scripts/eval/*.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1209,6 +1208,8 @@ def generate_splitwise_lut(
 
 
 def _resolve_device(config: Mapping[str, object], classifier: torch.nn.Module) -> torch.device:
+    import torch
+
     raw = config.get("device")
     if raw is not None:
         return torch.device(str(raw))
@@ -1279,6 +1280,8 @@ def generate_ours(
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """Full pipeline: BiGRU logits + IID GMM sampling."""
+    import torch
+
     features = np.asarray(feature_sequence, dtype=np.float32)
     if features.ndim != 2:
         raise ValueError(f"feature_sequence must have shape (T,D); got {features.shape}")

@@ -20,4 +20,5 @@ def test_run_azure_pipeline_parser_defaults() -> None:
     assert args.oversub_methods == ",".join(DEFAULT_OVERSUB_METHODS)
     assert args.method_order == ",".join(DEFAULT_TRACE_KINDS)
     assert args.splitwise_source_tp == DEFAULT_SPLITWISE_SOURCE_TP
+    assert args.selected_artifact.endswith("model/artifacts/powertrace_v1.json")
     assert args.show_redundant_baseline_cells is False

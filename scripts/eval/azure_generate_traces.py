@@ -3,7 +3,7 @@
 Experiment 2b: Generate per-node power traces for Azure facility streams.
 
 Pipeline per node:
-  requests -> rollout features -> BiGRU logits -> sampling / Splitwise LUT -> power trace
+  requests -> selected timing/work model -> clean power surface / Splitwise LUT
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -46,19 +45,21 @@ from scripts.eval.baselines import (
 from scripts.eval.facility import FacilityLayout
 from model.classifiers.physics import load_physics_artifact, predict_mean_node_power
 from model.pipeline.physics_inference import build_modeled_work_ledger
-from model.pipeline.artifact_resolution import resolve_bound_throughput
-from model.training_data.arch import get_arch
-from scripts.eval.pipeline_utils import (
-    build_rollout_features_from_requests,
-    extract_norm_params,
-    generate_gmm_bigru_trace,
-    load_gmm_params_json_dict,
-    load_gru_classifier,
-    resolve_checkpoint_norm_gmm_paths as _resolve_checkpoint_norm_gmm_paths,
-    resolve_experimental_paths as _resolve_experimental_paths,
+from model.pipeline.artifact_resolution import (
+    resolve_bound_throughput,
+    resolve_experimental_paths,
 )
+from model.training_data.arch import get_arch
 from model.utils.config import tp_gpus_from_config_id
-from model.utils.provenance import assert_file_identity, file_identity, git_state
+from model.utils.provenance import file_identity, git_state
+from model.power import idle_node_power
+from model.release import (
+    DEFAULT_ARTIFACT,
+    load_artifact,
+    resolve_deployment,
+    support_violations,
+)
+from model.simulation import simulate
 
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
 ALLOWED_METHODS = {"ours", "physics", "splitwise_strict"}
@@ -70,15 +71,6 @@ def _validate_config_id(config_id: str) -> None:
         raise ValueError(f"Invalid config_id format: {config_id}")
 
 
-def _resolve_device(device: str) -> torch.device:
-    if str(device).strip().lower() == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(str(device))
-
-
-_extract_norm_for_eval = extract_norm_params
-
-
 def _load_training_bundle(
     *,
     config_id: str,
@@ -86,7 +78,7 @@ def _load_training_bundle(
 ) -> Dict[str, object]:
     manifest = load_json(experimental_manifest_path)
     base = str(Path(experimental_manifest_path).resolve().parent)
-    dataset_path, split_path = _resolve_experimental_paths(
+    dataset_path, split_path = resolve_experimental_paths(
         manifest,
         config_id=config_id,
         experimental_base=base,
@@ -118,9 +110,6 @@ def _load_training_bundle(
         "train_power_flat": flat,
         "train_power_flat_gpu": flat.copy(),
     }
-
-
-_load_model = load_gru_classifier
 
 
 def _load_node_requests(path: str) -> List[Dict[str, float]]:
@@ -166,36 +155,6 @@ def _list_node_stream_paths(layout: FacilityLayout, node_stream_dir: str) -> Lis
     return out
 
 
-def _sample_power_from_logits(
-    *,
-    logits_node: np.ndarray,
-    gmm_params: Dict[str, object],
-    seed: int,
-    decode_mode: str,
-    median_filter_window: int,
-    clamp_range: Tuple[float, float],
-    std_scale: float,
-) -> np.ndarray:
-    gmm_sampling = dict(gmm_params)
-    if abs(float(std_scale) - 1.0) > 1e-12:
-        variances = np.asarray(gmm_params["variances"], dtype=np.float64).reshape(-1)
-        gmm_sampling["variances"] = np.clip(
-            variances * float(std_scale * std_scale),
-            a_min=1e-12,
-            a_max=None,
-        )
-
-    generated = generate_gmm_bigru_trace(
-        logits=logits_node,
-        gmm_params=gmm_sampling,
-        seed=int(seed),
-        decode_mode=str(decode_mode),
-        median_filter_window=int(median_filter_window),
-        clamp_range=clamp_range,
-    )
-    return np.asarray(generated["power_w"], dtype=np.float64).reshape(-1)
-
-
 def _normalize_methods(methods: Sequence[str] | str | None) -> List[str]:
     if methods is None:
         out = list(DEFAULT_METHODS_GENERATION)
@@ -217,13 +176,45 @@ def _normalize_methods(methods: Sequence[str] | str | None) -> List[str]:
     return dedup
 
 
+def _selected_power_trace(
+    requests: List[Dict[str, float]], *, preset: str, artifact_path: str,
+    horizon: int,
+) -> np.ndarray:
+    artifact = load_artifact(artifact_path)
+    deployment, _ = resolve_deployment(preset, artifact)
+    violations = support_violations(deployment, artifact)
+    if violations:
+        raise ValueError("unsupported deployment: " + "; ".join(violations))
+    model = str(deployment["model"])
+    idle = idle_node_power(
+        arch=artifact["architectures"][model],
+        model=model,
+        hardware=str(deployment["hardware"]),
+        tp=int(deployment["tp"]),
+        artifact=artifact,
+    )
+    trace = np.full(horizon, idle, dtype=np.float64)
+    if requests:
+        result = simulate(
+            requests,
+            deployment=preset,
+            artifact=artifact,
+        )
+        predicted = np.asarray(
+            result.power["node_gpu_power_w"], dtype=np.float64
+        )
+        copied = min(horizon, predicted.size)
+        trace[:copied] = predicted[:copied]
+    return trace
+
+
 def generate_node_traces(
     *,
     run_manifest: str,
     experimental_manifest: str,
     throughput_db: str,
     physics_artifact: str = "feature-test/results/physics_artifact_v1.json",
-    ar1_params_dir: str = "",
+    selected_artifact: str = str(DEFAULT_ARTIFACT),
     node_stream_dir: str,
     out_root: str,
     config_id: str = DEFAULT_CONFIG_ID,
@@ -235,26 +226,16 @@ def generate_node_traces(
     nodes_per_rack: int = 4,
     batch_size: int = 8,
     base_seed: int = 42,
-    device: str = "auto",
-    decode_mode: str = "stochastic",
-    median_filter_window: int = 1,
-    ours_std_scale: float = 1.0,
-    ours_logit_temperature: float = 1.0,
     splitwise_perf_model_csv: str = "data/perf_model.csv",
     splitwise_source_model: str = DEFAULT_SPLITWISE_SOURCE_MODEL,
     splitwise_source_hardware: str = DEFAULT_SPLITWISE_SOURCE_HARDWARE,
     splitwise_source_tp: Optional[int] = None,
     splitwise_style_lut_mode: str = SPLITWISE_STYLE_LUT_V1,
-    pair_manifest_csv: str = "results/stage0/pair_manifest.csv",
     tp_gpus: Optional[int] = None,
     n_gpus_per_node: Optional[int] = None,
     non_gpu_overhead_w: float = DEFAULT_NON_GPU_OVERHEAD_W,
-    require_recorded_timestamps: bool = True,
 ) -> Dict[str, object]:
     del throughput_db
-    del pair_manifest_csv
-    del require_recorded_timestamps
-    del ar1_params_dir  # accepted but ignored; AR(1) generation removed
 
     _validate_config_id(config_id)
     method_list = _normalize_methods(methods)
@@ -265,12 +246,10 @@ def generate_node_traces(
         raise ValueError("duration_s must be > 0")
     if float(dt) <= 0:
         raise ValueError("dt must be > 0")
+    if "ours" in method_list and not np.isclose(float(dt), 0.25):
+        raise ValueError("selected model inference requires dt=0.25 s")
     if int(batch_size) <= 0:
         raise ValueError("batch_size must be >= 1")
-    if float(ours_std_scale) <= 0:
-        raise ValueError("ours_std_scale must be > 0")
-    if float(ours_logit_temperature) <= 0:
-        raise ValueError("ours_logit_temperature must be > 0")
     if float(non_gpu_overhead_w) < 0:
         raise ValueError("non_gpu_overhead_w must be >= 0")
 
@@ -294,46 +273,12 @@ def generate_node_traces(
         run_cfgs = run_manifest_payload.get("configs", {})
         if not isinstance(run_cfgs, dict):
             raise ValueError("Invalid run manifest format")
-    elif "ours" in method_list:
-        raise FileNotFoundError(f"Run manifest not found: {run_manifest}")
     cfg_entry = run_cfgs.get(config_id)
     cfg_entry = cfg_entry if isinstance(cfg_entry, dict) else {}
-    resolved_device = _resolve_device(device)
-    checkpoint_path = norm_path = gmm_path = None
-    norm_cfg = gmm_cfg = model = None
-    feature_set = "f2"
-    if "ours" in method_list:
-        if str(cfg_entry.get("status", "")) != "trained":
-            raise ValueError(f"config '{config_id}' is not trained in run manifest")
-        run_manifest_base = str(Path(run_manifest).resolve().parent)
-        checkpoint_path, norm_path, gmm_path = _resolve_checkpoint_norm_gmm_paths(
-            cfg_entry, run_manifest_base
-        )
-        identities = cfg_entry.get("artifact_identities")
-        if not isinstance(identities, dict):
-            raise ValueError("trained config is missing artifact identities")
-        assert_file_identity(checkpoint_path, identities.get("checkpoint"), label="checkpoint")
-        assert_file_identity(norm_path, identities.get("trained_norm"), label="normalization")
-        assert_file_identity(gmm_path, identities.get("gmm"), label="GMM")
-        norm_payload = load_json(norm_path)
-        norm_cfg = _extract_norm_for_eval(norm_payload)
-        gmm_cfg = load_gmm_params_json_dict(load_json(gmm_path))
-        feature_set = str(cfg_entry.get("feature_set", norm_payload.get("feature_set", "f2"))).lower()
-        if feature_set != "f2":
-            raise ValueError(f"invalid feature_set: {feature_set}")
-        k = int(cfg_entry.get("k", gmm_cfg["k"]))
-        if int(gmm_cfg["k"]) != k:
-            raise ValueError("k mismatch between manifest and gmm params")
-        model = _load_model(
-            checkpoint_path=checkpoint_path,
-            k=k,
-            input_dim=int(cfg_entry.get("input_dim", 2)),
-            hidden_dim=int(cfg_entry.get("hidden_dim", norm_payload.get("hidden_dim", 64))),
-            num_layers=int(cfg_entry.get("num_layers", norm_payload.get("num_layers", 1))),
-            device=resolved_device,
-        )
-
-    throughput = resolve_bound_throughput(cfg_entry, config_id)
+    throughput = (
+        resolve_bound_throughput(cfg_entry, config_id)
+        if "physics" in method_list else None
+    )
     physics_payload = None
     physics_arch = None
     config_match = CONFIG_ID_RE.match(config_id)
@@ -356,7 +301,7 @@ def generate_node_traces(
     # All model classes generate IID; AR(1) generation was removed.
     generation_mode_by_method = {
         method: (
-            "iid"
+            "selected_deterministic_mean"
             if method == "ours"
             else "modeled_mean"
             if method == "physics"
@@ -420,10 +365,6 @@ def generate_node_traces(
             }
         )
 
-    clamp_range = (
-        (float(norm_cfg["power_min"]), float(norm_cfg["power_max"]))
-        if norm_cfg is not None else None
-    )
     ensure_dir(out_root)
     for method in method_list:
         ensure_dir(os.path.join(out_root, method))
@@ -446,19 +387,7 @@ def generate_node_traces(
         for node_id, row, rack, node, path in chunk:
             try:
                 requests = _load_node_requests(path)
-                if "ours" in method_list:
-                    assert norm_cfg is not None
-                    feat = build_rollout_features_from_requests(
-                        requests=requests, throughput=throughput, norm=norm_cfg,
-                        T=t_horizon, dt=float(dt), feature_set=feature_set,
-                    )
-                    features = np.asarray(feat["features_norm"], dtype=np.float32)
-                    if features.ndim != 2 or features.shape[0] != t_horizon:
-                        raise ValueError(
-                            f"Feature shape mismatch for node {node_id}: {features.shape}, expected ({t_horizon},D)"
-                        )
-                else:
-                    features = np.empty((t_horizon, 0), dtype=np.float32)
+                features = np.empty((t_horizon, 0), dtype=np.float32)
                 prepared.append((node_id, row, rack, node, len(requests), requests, features))
             except Exception as exc:
                 for method in method_list:
@@ -486,43 +415,26 @@ def generate_node_traces(
         if len(prepared) == 0:
             continue
 
-        logits_np = None
-        if "ours" in method_list:
-            assert model is not None and gmm_cfg is not None and clamp_range is not None
-            features_batch = np.stack([item[6] for item in prepared], axis=0).astype(np.float32)
-            with torch.no_grad():
-                try:
-                    x_t = torch.from_numpy(features_batch)
-                except Exception:
-                    x_t = torch.tensor(features_batch.tolist(), dtype=torch.float32)
-                x_t = x_t.to(device=resolved_device, dtype=torch.float32)
-                logits = model(x_t)
-                if isinstance(logits, (tuple, list)):
-                    logits = logits[0]
-                try:
-                    logits_np = np.asarray(logits.detach().cpu().numpy(), dtype=np.float64)
-                except Exception:
-                    logits_np = np.asarray(logits.detach().cpu().tolist(), dtype=np.float64)
-            if abs(float(ours_logit_temperature) - 1.0) > 1e-12:
-                logits_np = logits_np / float(ours_logit_temperature)
-
-        for batch_idx, (node_id, row, rack, node, num_requests, requests, _features) in enumerate(prepared):
+        for node_id, row, rack, node, num_requests, requests, _features in prepared:
             node_seed = int(base_seed + node_id * 1009)
             for method in method_list:
                 try:
                     if method == "ours":
-                        assert logits_np is not None
-                        trace = _sample_power_from_logits(
-                            logits_node=logits_np[batch_idx],
-                            gmm_params=gmm_cfg,
-                            seed=node_seed + 23,
-                            decode_mode=decode_mode,
-                            median_filter_window=median_filter_window,
-                            clamp_range=clamp_range,
-                            std_scale=float(ours_std_scale),
+                        match = CONFIG_ID_RE.fullmatch(config_id)
+                        if match is None:
+                            raise ValueError(f"Cannot resolve selected identity from {config_id!r}")
+                        selected_preset = (
+                            f"{match.group(1)}-{match.group(2).lower()}-tp{int(match.group(3))}"
+                        )
+                        trace = _selected_power_trace(
+                            requests,
+                            preset=selected_preset,
+                            artifact_path=selected_artifact,
+                            horizon=t_horizon,
                         )
                     elif method == "physics":
                         assert physics_payload is not None and physics_arch is not None
+                        assert throughput is not None
                         ledger = build_modeled_work_ledger(
                             requests,
                             arch=physics_arch,
@@ -680,11 +592,7 @@ def generate_node_traces(
         "generation": {
             "batch_size": int(batch_size),
             "base_seed": int(base_seed),
-            "device": str(resolved_device),
-            "decode_mode": str(decode_mode),
-            "median_filter_window": int(median_filter_window),
-            "ours_std_scale": float(ours_std_scale),
-            "ours_logit_temperature": float(ours_logit_temperature),
+            "runtime": "numpy",
             "timing_mode": TIMING_MODE,
             "generation_mode_by_method": {
                 key: str(value) for key, value in generation_mode_by_method.items()
@@ -694,6 +602,9 @@ def generate_node_traces(
             "non_gpu_overhead_w": float(non_gpu_overhead_w),
             "physics_artifact": (
                 file_identity(physics_artifact) if physics_payload is not None else None
+            ),
+            "selected_artifact": (
+                file_identity(selected_artifact) if "ours" in method_list else None
             ),
             "source_revision": git_state(),
         },
@@ -705,14 +616,14 @@ def generate_node_traces(
                 file_identity(experimental_manifest)
                 if Path(experimental_manifest).is_file() else None
             ),
-            "throughput": {
-                "source": "run_manifest_bound",
-                "lambda_prefill": throughput["lambda_prefill"],
-                "lambda_decode": throughput["lambda_decode"],
-            },
-            "checkpoint": file_identity(checkpoint_path) if checkpoint_path else None,
-            "norm": file_identity(norm_path) if norm_path else None,
-            "gmm": file_identity(gmm_path) if gmm_path else None,
+            "throughput": (
+                {
+                    "source": "run_manifest_bound",
+                    "lambda_prefill": throughput["lambda_prefill"],
+                    "lambda_decode": throughput["lambda_decode"],
+                }
+                if throughput is not None else None
+            ),
         },
         "counts": {
             "evaluated_by_method": {key: int(value) for key, value in success_by_method.items()},
@@ -748,13 +659,8 @@ def main() -> None:
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
     parser.add_argument("--throughput-db", default=defaults["throughput_db"])
     parser.add_argument("--physics-artifact", default=defaults["physics_artifact"])
-    parser.add_argument("--pair-manifest-csv", default=defaults["pair_manifest_csv"])
+    parser.add_argument("--selected-artifact", default=defaults["selected_artifact"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
-    parser.add_argument(
-        "--ar1-params-dir",
-        default="",
-        help="(ignored; AR(1) generation removed)",
-    )
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
     parser.add_argument("--output-root", default=defaults["node_traces_root"])
     parser.add_argument("--config-id", default=DEFAULT_CONFIG_ID)
@@ -766,11 +672,6 @@ def main() -> None:
     parser.add_argument("--nodes-per-rack", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--base-seed", type=int, default=42)
-    parser.add_argument("--device", default="auto")
-    parser.add_argument("--decode-mode", default="stochastic")
-    parser.add_argument("--median-filter-window", type=int, default=1)
-    parser.add_argument("--ours-std-scale", type=float, default=1.0)
-    parser.add_argument("--ours-logit-temperature", type=float, default=1.0)
     parser.add_argument("--splitwise-source-model", default=DEFAULT_SPLITWISE_SOURCE_MODEL)
     parser.add_argument("--splitwise-source-hardware", default=DEFAULT_SPLITWISE_SOURCE_HARDWARE)
     parser.add_argument("--splitwise-source-tp", type=int, default=DEFAULT_SPLITWISE_SOURCE_TP)
@@ -788,11 +689,6 @@ def main() -> None:
         help="Total GPUs per node for Splitwise accounting; defaults to tp_gpus.",
     )
     parser.add_argument("--non-gpu-overhead-w", type=float, default=DEFAULT_NON_GPU_OVERHEAD_W)
-    parser.add_argument(
-        "--allow-synthetic-request-timestamps",
-        action="store_true",
-        help="Accepted for compatibility; recorded timestamps are not required here.",
-    )
     args = parser.parse_args()
 
     summary = generate_node_traces(
@@ -800,7 +696,7 @@ def main() -> None:
         experimental_manifest=str(args.experimental_manifest),
         throughput_db=str(args.throughput_db),
         physics_artifact=str(args.physics_artifact),
-        ar1_params_dir=str(args.ar1_params_dir),
+        selected_artifact=str(args.selected_artifact),
         node_stream_dir=str(args.node_stream_dir),
         out_root=str(args.output_root),
         config_id=str(args.config_id),
@@ -812,21 +708,14 @@ def main() -> None:
         nodes_per_rack=int(args.nodes_per_rack),
         batch_size=int(args.batch_size),
         base_seed=int(args.base_seed),
-        device=str(args.device),
-        decode_mode=str(args.decode_mode),
-        median_filter_window=int(args.median_filter_window),
-        ours_std_scale=float(args.ours_std_scale),
-        ours_logit_temperature=float(args.ours_logit_temperature),
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
         splitwise_source_model=str(args.splitwise_source_model),
         splitwise_source_hardware=str(args.splitwise_source_hardware),
         splitwise_source_tp=int(args.splitwise_source_tp),
         splitwise_style_lut_mode=str(args.splitwise_style_lut_mode),
-        pair_manifest_csv=str(args.pair_manifest_csv),
         tp_gpus=(int(args.tp_gpus) if args.tp_gpus is not None else None),
         n_gpus_per_node=(int(args.n_gpus_per_node) if args.n_gpus_per_node is not None else None),
         non_gpu_overhead_w=float(args.non_gpu_overhead_w),
-        require_recorded_timestamps=not bool(args.allow_synthetic_request_timestamps),
     )
 
     print("=" * 72)

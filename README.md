@@ -1,6 +1,10 @@
 # PowerTrace-Sim
 
-PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU power traces for LLM inference workloads.
+PowerTrace-Sim predicts LLM request timing and deterministic GPU power from a
+request schedule. Its default is the selected architecture-aware scheduler,
+250 ms work ledger, and clean v4 dense/support-bounded-MoE power model. The
+superseded GMM-BiGRU system is being preserved as a runnable historical
+artifact rather than used by the default pipeline.
 
 ## Planning Docs
 
@@ -10,8 +14,9 @@ PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU
 - `FEATURE_TEST_PLAN.md`: exact baseline, feature-ablation, transfer-split,
   metric, and pass/fail specification for selecting the smallest
   architecture-aware node-power model.
-- `FEATURE_TEST_LEARNINGS.md`: failure analysis, identifiability geometry,
-  rejected model classes, and the minimum measurement needed to continue.
+- `FEATURE_TEST_LEARNINGS.md`: current model/evidence map, paper-safe findings,
+  OpenHands hardware-calibration result, historical failure analysis, and the
+  minimum measurement needed to continue.
 - `profiling/MODEL_READINESS_RUNBOOK.md`: authoritative, unconfounded campaign
   order, launch prerequisites, acceptance criteria, and explicit post-collection
   blockers before model fitting or sealed scoring.
@@ -29,16 +34,21 @@ PowerTrace-Sim trains and evaluates GMM-BiGRU models that generate realistic GPU
   the fitted objectives, routing assumptions, split policy, and metric equations.
 - `cleaning-plan.md`: staged cleanup plan for trimming the repo around grid-facing evaluations.
 - `data-path.md`: audited common ingestion, feature, metric, and identity contract.
+- `docs/MODEL_PIPELINE.md`: paper-facing end-to-end training, inference, and
+  evaluation flow for the selected model.
 
 ## Project Structure
 
 ```text
 powertrace-sim/
+├── archive/gmm_bigru_v1/ # Runnable historical GMM-BiGRU snapshot
+├── docs/                 # Paper-facing model and experiment documentation
 ├── model/
-│   ├── classifiers/      # GMM/BiGRU helpers, features, metrics, trace generation
-│   ├── pipeline/         # Reusable train/eval/infer logic
-│   ├── scripts/          # Thin CLI wrappers
-│   ├── training_data/    # Inventory, throughput, manifest preparation modules
+│   ├── artifacts/        # Compact selected release artifact
+│   ├── power/            # Dense and support-bounded MoE power equations
+│   ├── timing/           # Scheduler, iteration timing, and 250 ms ledger
+│   ├── training/         # Frozen-equation coefficient fitting
+│   ├── scripts/          # prepare_data, train, evaluate, and infer CLIs
 │   ├── tests/            # Consolidated unit/integration tests
 │   ├── utils/            # Shared helpers
 │   └── throughput_database.json
@@ -63,8 +73,17 @@ powertrace-sim/
 brew install uv
 # or: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create/sync the project environment from pyproject.toml + uv.lock
+# Full research/development environment (default dev group included).
 uv sync
+
+# Minimal selected-model inference environment (NumPy only).
+uv sync --no-dev
+
+# Add fitting, paper, profiling, or historical-model support as needed.
+uv sync --extra train
+uv sync --extra paper
+uv sync --extra profiling
+uv sync --extra archive-bigru
 
 # Optional: activate the venv directly
 source .venv/bin/activate
@@ -73,30 +92,68 @@ source .venv/bin/activate
 ## Quick Start
 
 ```bash
-# 1) Stage0 inventory + throughput extraction
-uv run -m model.scripts.stage0_inventory --data_root_dir data
+uv run -m model.scripts.infer \
+    --requests examples/requests.json \
+    --deployment llama-3-70b-a100-tp4 \
+    --seed 42 \
+    --out-dir outputs/example
+```
 
-# 2) Build experimental manifest datasets/splits
+The output directory contains `power.csv`, `requests.csv`, and
+`manifest.json`. The release artifact is currently marked `pre_sealed`:
+it is the selected model used by the repository's clean power-trace and
+compatibility evaluations, but the final external validation campaign is not
+complete. Native inference is fixed at the calibrated 250 ms cadence.
+
+Requests may instead provide an explicit categorical
+`output_tokens_distribution` with `values` and `probabilities`; `--seed`
+controls only that workload realization. Optional `cached_prefix_tokens` is
+subtracted from total `input_tokens` for executed prefill work while remaining
+part of the initial KV context. Unsupported deployment overrides fail unless
+`--allow-unsupported` is supplied, in which case every output is labeled as an
+unsupported extrapolation.
+
+See `CLEAN_MODEL.md` for the phased archive, training, evaluation, and
+disaggregated-extension migration.
+
+Regenerate the selected release without reopening model selection:
+
+```bash
+uv run --extra train -m model.scripts.prepare_data
+uv run --extra train -m model.scripts.train \
+    --prepared-manifest results/clean_model/prepared_dataset.json \
+    --out-artifact results/clean_model/powertrace_v1.json
+```
+
+`prepare_data` validates and hash-binds the external 450-run timing and power
+payloads; it does not copy their roughly 400 MB of arrays into Git. `train`
+refits only the frozen timing calibration and clean v4 dense/bounded-MoE
+equations. On the current 354,125-request dataset it regenerates every released
+timing and power coefficient exactly.
+
+Score two already aligned standard power CSVs with:
+
+```bash
+uv run -m model.scripts.evaluate \
+    --measured measured_power.csv \
+    --predicted outputs/example/power.csv \
+    --out results/clean_model/evaluation.json
+```
+
+## Historical GMM-BiGRU workflow
+
+The commands below describe the first PowerTrace-Sim model and remain
+available only while its self-contained `archive/gmm_bigru_v1/` migration is
+completed. They are not the repository default:
+
+```bash
+uv run -m model.scripts.stage0_inventory --data_root_dir data
 uv run -m model.scripts.prepare_manifest \
     --pair-manifest-csv results/stage0/pair_manifest.csv \
     --out-dir results/experimental_continuous_v1
-
-# 3) Train
 uv run -m model.scripts.train_gmm_bigru \
     --manifest results/experimental_continuous_v1/manifest.json \
-    --out-root results/continuous_v1_gmm_bigru \
-    --k 10
-
-# 4) Evaluate
-uv run -m model.scripts.eval_gmm_bigru \
-    --run-manifest results/continuous_v1_gmm_bigru/k10_f2/run_manifest.json \
-    --experimental-manifest results/experimental_continuous_v1/manifest.json
-
-# 5) Inference
-uv run -m model.scripts.infer_gmm_bigru \
-    --config-id llama-3-8b_H100_tp1 \
-    --requests-json input_requests.json \
-    --out-csv generated_power.csv
+    --out-root results/continuous_v1_gmm_bigru --k 10
 ```
 
 The canonical throughput database is `model/throughput_database.json` for Stage0
@@ -113,6 +170,42 @@ Other available entry points:
 - `uv run -m model.scripts.compare_gmm_bigru`
 - `uv run -m model.scripts.generate_methods_figures`
 
+Profile same-node disaggregated GPT-OSS-20B serving on two Sherlock A100-80GB
+GPUs with the pinned vLLM 0.22 Queue-Haul image using one TP1 prefiller and one
+TP1 decoder:
+
+```bash
+# Ten-minute 2 requests/s integration gate.
+POWERTRACE_DISAGG_MODE=smoke sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
+
+# 0.25, 2, and 4 requests/s; three ten-minute repetitions per rate.
+sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
+```
+
+The job requires the staged `openai/gpt-oss-20b` checkpoint and the same
+ShareGPT file used by the legacy GPT-OSS campaign. An alternate
+`POWERTRACE_DISAGG_IMAGE` must preserve the vLLM 0.22 NIXL request contract;
+disaggregated serving is experimental and the script does not claim generic
+compatibility with every vLLM 0.20+ release. Each measured request carries one
+ID through the client, proxy, prefiller, and decoder, so the benchmark's extra
+preflight request is excluded and concurrent stage timelines remain joinable.
+
+Each checkpointed cell contains the detailed request result, ordered proxy
+events, canonical extended 250 ms power telemetry for both GPU UUIDs,
+role-separated `engine_prefill.csv` and `engine_decode.csv` streams, NIXL
+transfer time/byte/failure counters, and capture start/end epochs. The run-level
+`run_metadata.json` binds each GPU UUID to its prefill or decode role. A nominal
+ten-minute cell means ten minutes of offered Poisson arrivals; capture continues
+until every admitted request drains. Resubmitting with the same `RUN_ROOT` skips
+only cells that passed the complete-request and stage-timeline gates.
+
+These files deliberately remain role-aware. Do not label the two GPUs as GPT-OSS
+TP2 when evaluating the existing model: each engine is TP1 and the GPUs perform
+different phases. The current TP1 GPT-OSS timing calibration is the appropriate
+starting point for each role, but a small role-aware ingestion/projection step is
+still required before the four-file dense bundle pipeline can score the combined
+deployment.
+
 Run the frozen 250 ms conditional-timing feature ladder and transfer matrix with:
 
 ```bash
@@ -122,8 +215,10 @@ uv run python feature-test/evaluate_candidates.py \
   --out-dir results/feature_test_v1
 ```
 
-The evaluator emits per-run and aggregate energy, 60-second ACF, and NRMSE
-metrics plus split, complexity, support, gate, and selected-model manifests.
+The evaluator emits per-run and aggregate energy, 60-second ACF, NRMSE, and
+normalized soft-DTW divergence metrics plus split, complexity, support, gate,
+and selected-model manifests. Soft-DTW is report-only and does not alter the
+frozen selection or pass/fail gates.
 Candidate and hyperparameter selection uses source development runs only;
 target results only grade the already-frozen choice.
 
@@ -137,6 +232,302 @@ uv run python power-test/evaluate_arrival_only.py
 
 This reproduction path consumes the frozen fitted surface; it does not refit it
 in place.
+
+Generate the standalone paper timing-parity panels from the frozen timing
+evaluation with:
+
+```bash
+uv run python power-test/plot_timing_parity.py
+```
+
+This writes `power-test/timing_prefill_parity.pdf` and
+`power-test/timing_decode_parity.pdf`. Prefill uses both the calibration
+observations and a deterministic model/hardware sample of individual training
+requests whose measured lifetimes do not overlap another request. This retains
+the intrinsic queue-free phase contract rather than raw loaded-run TTFT, which
+also contains queueing and admission delay. Decode evaluates one repetition
+from every frozen non-training cell, then deterministically samples each
+model/hardware stratum. Both panels use log-scaled
+observed-versus-predicted milliseconds, model color, A100/H100 marker shape,
+and enlarged paper-scale typography with no title; only the decode panel
+includes the combined legend so the PDFs can be placed in adjacent LaTeX
+subfigures.
+
+Generate four standalone 10-minute measured-versus-predicted power traces for
+Llama-3-70B on A100 TP4 with:
+
+```bash
+uv run python power-test/plot_best_rate_traces.py
+```
+
+The model, hardware, and TP are fixed; the selector uses the metric-medoid
+repetition under energy error, ACF R², and soft-DTW at 0.125, 0.5, 1, and 2
+requests/s and writes one PDF per rate for a 2x2 LaTeX `figure*`. These are four
+source rates with at least 600 seconds of aligned data; rate 4 remains a
+retrospective stress condition. Measured per-GPU power is black and the
+PowerTrace-Sim prediction is Stanford red; every panel is cropped to exactly
+600 seconds, reduced to matched nonoverlapping one-second means, and displayed
+with common axes. The generator consumes the corrected uniform-routing ledger
+and `clean_power_surfaces.json`, not the legacy frozen dense artifact. Selection
+evidence, per-panel metrics, and output paths are recorded in
+`power-test/best_rate_traces_1s.json`; the exact plotted samples are in
+`power-test/best_rate_traces_1s.csv`. The rate-1 and rate-2 panels retain the
+observed late-trace pointwise alignment miss; low energy error must not be read
+as good ACF-profile agreement.
+
+To rebuild the source-only controlled-probe candidate and apply the
+pre-registered source-development selection rule, run:
+
+```bash
+uv run python power-test/build_probe_power_calibration.py
+uv run python power-test/fit_power_surface.py
+```
+
+The calibration builder admits only the Llama-70B A100 prefill and decode
+staircases. It preserves raw 250 ms power targets, conserves bursty engine
+counters over each request-active level, and assigns equal total regression
+weight to every level after per-GPU scaling. Cached-context, mixed-grid, and
+transient probes are excluded because their counters do not isolate an
+instantaneous power component. The candidate replaces the baseline only on a
+strict source-development Pareto improvement in energy error, ACF-MAE, ACF R²,
+and range NRMSE; Qwen and every holdout remain unseen during that choice.
+The current candidate is rejected: source dense development energy improves
+from 10.08% to 9.35% and ACF-MAE from 0.01371 to 0.01354, while ACF R² falls
+from 0.96687 to 0.96672, soft-DTW rises from 0.01894 to 0.01943, and range
+NRMSE rises from 0.1362 to 0.1477. The generated surface therefore retains the
+baseline and the fit report preserves the candidate as diagnostic evidence.
+
+Audit the frozen dense surface over every one of the 450 legacy runs with:
+
+```bash
+uv run python power-test/plot_power_metric_audit.py
+```
+
+The audit covers all seven models, both hardware types, TP1--TP8, every rate
+from 0.125 through 4 requests/s, and every split role. It writes six standalone
+rate-sweep PDFs for energy error, soft-DTW, range NRMSE, per-GPU RMSE, ACF R²,
+and KS agreement; metric/feature correlation heatmaps; a signed-bias cell
+heatmap; per-run and per-cell CSVs; and `power-test/power_metric_audit.json`.
+Every metric uses the same nonoverlapping one-second window. GPT-OSS cells are
+shown only as dotted, explicitly unsupported dense-surface comparators rather
+than being mixed with the separate MoE-v3 artifact.
+
+The audit records why `fitted_surface.json` is a diagnostic legacy baseline.
+The synchronized replacement contract, complete fit/evaluation population,
+and support boundary are in `power-test/POWER_MODEL_REDESIGN.md` and
+`power-test/power_pipeline_methods.tex`.
+
+Fit and score the clean dense/MoE replacement candidate with:
+
+```bash
+uv run python timing-test/simulated_ledger.py \
+  --dt 0.25 --roles all --moe-routing uniform \
+  --out feature-test/ledger_cache_sim_uniform_current_250ms.npz
+uv run python power-test/join_power.py \
+  --cache feature-test/ledger_cache_sim_uniform_current_250ms.npz \
+  --out power-test/sim_ledger_power_uniform_current_250ms.npz \
+  --provenance-out power-test/sim_ledger_power_uniform_current_250ms.provenance.json
+uv run python power-test/fit_clean_power_pipelines.py
+uv run python power-test/plot_best_rate_traces.py
+uv run python timing-test/evaluate_expansion.py \
+  --timing-fit timing-test/fitted_efficiencies.json \
+  --power-fit power-test/clean_power_surfaces.json \
+  --out power-test/clean_expansion_report.json
+```
+
+The four standalone trace PDFs use Llama-3 8B on H100 TP1 at 0.125, 0.5,
+1, and 2 requests/s. Each shows exactly ten minutes of matched one-second
+means, with measured power in black and the clean prediction in Stanford red.
+Both lines use a subtle left-to-right opacity gradient, and the shared legend
+sits above the axes so it cannot obscure trace data.
+TP1 is fixed because it has the best joint energy/ACF/Soft-DTW summary among
+the measured Llama-3 8B H100 TP configurations; repetitions are chosen by the
+three-metric medoid rather than minimum error.
+
+The dense path is one four-coordinate law per hardware: a fixed hardware idle
+floor, busy-gated local weight fraction, exact timing-roofline compute
+utilization, and duty-aware square-root HBM utilization. The last coordinate is
+`sqrt(busy * memory_util)`, which averages the instantaneous nonlinear response
+instead of taking a square root after idle and active time have already been
+mixed. GEMM FLOPs, causal-attention FLOPs, attention bytes, and their exact
+prefill/decode decomposition are conserved from every simulated engine
+iteration. The fitted law deliberately combines the phase work: a phase-split
+ablation did not improve source, twin, and rate-4 trace-shape and
+autocorrelation-profile metrics together.
+Dense fitting uses matched nonoverlapping one-second means, gives equal total
+mass to each run, and splits that mass equally between its ordinary and upper
+power-decile seconds. It selects response delay under the same objective
+(A100 0 s; H100 0.25 s). The law never uses model name, arrival rate, or trace
+time. The MoE path remains separate, now uses exact timing work for its compute
+coordinate, and retains per-architecture coefficients with explicit TP1/2
+versus TP4/8 support. Neither path clips predictions without an explicit
+run-level operating limit.
+
+The legacy repetitions replay nearly identical workloads and therefore cannot
+be split honestly between fitting and development. All rate-through-2 source
+repetitions fit 225 dense and 60 MoE runs; all 57 rate-4 runs remain stress
+tests, and 108 related-model twins remain transfer comparators. The collected
+405B/GPT-OSS-120B/Qwen request traces are retrospective development evidence,
+not part of this fit and not sealed transfer evidence.
+
+Dense source medians are 1.68% energy error, 13.10 W/GPU RMSE, 0.9941 ACF R²,
+and 0.548 KS agreement. Dense twin comparators score 1.97%, 12.30 W/GPU,
+0.9952, and 0.623. Dense rate-4 stress scores 2.99% energy error,
+14.09 W/GPU RMSE, and 0.730 median ACF R². MoE source/stress energy medians
+are 1.27%/2.08%, with ACF R² 0.968/0.916. The fixed measured-trace horizon
+retains idle bins when simulation drains early and truncates events beyond the
+common evaluation window. The A100 Llama-70B rate-2 showcase still has
+negative ACF R²: its measured power rises while exact total compute, memory,
+raw GPU utilization, and memory allocation remain nearly fixed. Phase-split
+regression improves some energy summaries but lowers rate-4 ACF, so it remains
+a diagnostic channel rather than an extra fitted coefficient. New clock,
+P-state, and power-limit telemetry is required to distinguish phase response
+from an unobserved device-state transition. This candidate is not a sealed
+transfer model until the external traces are scored.
+
+The script writes `clean_power_surfaces.json`, `clean_power_report.json`,
+per-run and per-cell CSVs, six standalone metric PDFs, and the signed-bias
+heatmap under `power-test/`.
+
+The alternate coverage-basis experiment trains on 117 traces from 39 complete
+configuration/rate cells and holds out 333 traces as new rates, new TP setups,
+or new model setups. All three repetitions of a cell stay together. Training
+covers A100/H100, TP1/2/4/8, every measured request rate including rate 4,
+dense/MoE, and BF16/MXFP4/FP8. It is an explicitly versioned development
+experiment and does not replace the frozen default split:
+
+```bash
+uv run python timing-test/build_coverage_split.py
+uv run python timing-test/fit_efficiencies.py \
+  --split-manifest timing-test/coverage_split_manifest.json \
+  --out timing-test/coverage_fitted_efficiencies_base.json
+uv run python timing-test/fit_fp8_bandwidth.py \
+  --manifest-in timing-test/coverage_split_manifest.json \
+  --fitted-in timing-test/coverage_fitted_efficiencies_base.json \
+  --fitted-out timing-test/coverage_fitted_efficiencies.json \
+  --manifest-out timing-test/coverage_split_manifest_fp8.json
+uv run python timing-test/evaluate_timing.py \
+  --manifest coverage_split_manifest_fp8.json \
+  --fitted timing-test/coverage_fitted_efficiencies.json \
+  --out-dir results/timing_test_coverage
+uv run python timing-test/simulated_ledger.py \
+  --dt 0.25 --roles all \
+  --manifest timing-test/coverage_split_manifest_fp8.json \
+  --fitted timing-test/coverage_fitted_efficiencies.json \
+  --out feature-test/ledger_cache_coverage_250ms.npz
+uv run python power-test/join_power.py \
+  --cache feature-test/ledger_cache_coverage_250ms.npz \
+  --out power-test/sim_ledger_power_coverage_250ms.npz \
+  --provenance-out power-test/sim_ledger_power_coverage_250ms.provenance.json
+uv run python power-test/evaluate_coverage_split.py
+```
+
+On the 333 held-out traces, this fit obtains 3.26% median end-to-end timing
+error, 1.97% energy error, 13.6 W/GPU power RMSE, and 0.989 temporal
+similarity. The reproducible confidence intervals and simple paper table are
+written to `power-test/coverage_power_report.json` and
+`power-test/coverage_trace_fidelity_table.tex`.
+
+Generate the model-wise held-out simulator fidelity table with:
+
+```bash
+uv run python power-test/coverage_model_fidelity_table.py
+```
+
+This writes `power-test/coverage_model_fidelity_table.tex`, `.csv`, and
+`.json`. The table reports power error, distribution agreement, energy error,
+and temporal error by model. Temporal error is `100 * sqrt(Soft-DTW)`, reported
+as a percentage of the measured trace power range. Repeated runs are first
+collapsed within each model-local hardware/TP/rate point, then each model's
+median and 95% confidence interval are bootstrapped over those points with
+1000 deterministic resamples.
+
+Plot the 108 held-out-model traces from this split with:
+
+```bash
+uv run python power-test/plot_coverage_heldout_models.py
+```
+
+This writes a six-rate metric sweep and a measured-versus-predicted rate-4
+trace panel to `power-test/coverage_heldout_models_rate_sweep.pdf` and
+`power-test/coverage_heldout_models_rate4_traces.pdf`, with matching PNGs and
+the representative-run selections in
+`power-test/coverage_heldout_models_plots.json`. Every rate-4 cell is retained;
+the trace panels select the central repetition across energy error, power RMSE,
+and Soft-DTW trace-shape error rather than the best repetition.
+
+The paper-style four-trace showcase selects one fixed held-out configuration
+using median energy error, power RMSE, and Soft-DTW trace-shape error across all
+four requested rates, then plots the central repetition at each rate:
+
+```bash
+uv run python power-test/plot_best_coverage_holdout_traces.py
+```
+
+It writes separate `power_trace_*_coverage_1s.pdf` and PNG files for 0.125, 1,
+2, and 4 requests/s, using an 11x4 talk-context layout with the legend below
+the axes and the prediction labeled "Our Simulator". The plotted one-second
+values and selection provenance are in
+`power-test/best_coverage_holdout_traces_1s.csv` and `.json`.
+
+Soft-DTW is report-only. It is a symmetric divergence on nonoverlapping
+one-second means, normalized once by the measured power range, with
+`gamma=0.01` and a 10-second Sakoe-Chiba band. The CSVs also report the
+zero-band divergence and the signed band effect. The zero-band value is
+exactly squared range-NRMSE; the band effect can be negative after the two
+entropic self-costs are subtracted, so it is not labeled a timing benefit and
+does not select coefficients. External temporal metrics require at least 62
+seconds, at least 95% observed one-second bins, and no telemetry gap longer
+than two seconds. Energy remains reported when this temporal coverage gate
+fails, together with the missing-bin and maximum-gap diagnostics.
+
+The clean external development report exposes the remaining boundaries rather
+than pooling them into a rate correction. The three A100 Qwen rate/shape runs
+score 3.06--3.55% energy and 5.73--6.48% median E2E error, while the H100 TP4
+same-marks control scores 5.27% energy, 2.15% E2E, and 0.943 ACF R². The two
+current GPT-OSS-120B runs underpredict E2E by 30--33% and energy by about 24%; a
+2x timing slowdown improves alignment but not energy, so timing and active
+power both fail across the legacy-to-current campaign boundary. The current
+405B runs underpredict E2E by 20--25% while overpredicting energy by 10--14%;
+their 17--20% missing one-second power coverage makes ACF and Soft-DTW
+unscorable. BurstGPT and both TraceLab legs still fail at least one timing or
+power gate, and the TraceLab cache pair remains identity-invalid. Gemma MoE
+fails closed because no architecture-specific MoE surface exists. These
+results rule out a universal rate, elapsed-time, or MoE multiplier.
+
+### Known flawed development campaigns
+
+Several collected bundles are intentionally retained but must not be described
+as clean transfer evidence:
+
+- Legacy ShareGPT runs have deterministic request ordering, protocol-locked
+  midpoint residual changes, and no scheduler-policy, clock, P-state,
+  temperature, or power-limit identity. They support within-protocol fitting,
+  not an elapsed-time or generic rate effect.
+- Current GPT-OSS-120B hard cells cross from legacy asynchronous serving to a
+  synchronous current stack, use different ShareGPT marks, and lack a measured
+  120B routing law. The rate-1 power log also has a seven-second gap, so its
+  temporal metrics are rejected.
+- Current H100 405B hard cells observe only 36-38% of native power bins and miss
+  16.7-20.4% of one-second bins. Their timing and cadence-qualified mean energy
+  remain diagnostic; ACF, NRMSE, and Soft-DTW are invalid.
+- The TraceLab cache pair has all 136 keyed rows but differs in 10 prompt hashes
+  and 34 output hashes. Its legs may be scored separately but never subtracted
+  as a cache treatment.
+- The 52/56 second Qwen rate-4 runs fail the 62-second temporal minimum. The
+  80-83 second A100 rate/shape runs are technically eligible but leave only
+  20-23 pairs at lag 60, so their long-lag metrics remain fragile development
+  diagnostics.
+- Two batch-256 calibration levels contain 58 and 66 preemptions, and an H100
+  mixed grid contains further preempted windows. Only zero-preemption levels
+  may calibrate the non-preemptive simulator.
+- Probe directories without a canonical `manifest.json` and MoE routing rows
+  without persisted source labels are quarantined from fitted or transfer
+  claims that require those identities.
+
+Unsupported Gemma MoE power is a model-support boundary, not a defective
+bundle. The exact allowed use and minimum useful recollection for every item
+above are recorded in `DATA_INVENTORY_CAMPAIGN_PLAN.md`, Section 2.4.
 
 Normalize the captured GPT-OSS expert IDs and run the routing-aware
 counterfactual without changing the default uniform-routing artifacts with:
@@ -340,6 +731,100 @@ IDs, an unused output path, and exact cache-pair identity when both legs are
 present. See `DATA_INVENTORY_CAMPAIGN_PLAN.md` for the fixed gates and complete
 launch order.
 
+Audit the collected Qwen3-30B-A3B H100 TP2 MoE transfer cell with:
+
+```bash
+uv run python power-test/analyze_qwen3_30b_moe_transfer.py
+```
+
+The audit applies both frozen GPT-OSS MoE laws zero-shot, repeats them with
+only the pre-declared 60-second target idle anchor updated, evaluates a
+source-only H100 energy-per-work adaptation, and includes the dense H100 law as
+an explicitly unsupported architecture diagnostic. All candidates use the
+same request-derived timing ledger, H100 meter response, observed interval,
+and one-second plotting grid. It writes the six-panel comparison
+`power-test/qwen3_30b_h100_moe_transfer.png`, exact plotted samples in
+`power-test/qwen3_30b_h100_moe_transfer_1s.csv`, and timing, engine-counter,
+architecture, metric, and failure diagnostics in
+`power-test/qwen3_30b_h100_moe_transfer.json`.
+
+Generate matched paper-style checkpoint-transfer panels and their LaTeX
+captions with:
+
+```bash
+uv run python power-test/plot_transfer_traces.py
+```
+
+This writes standalone dense Qwen3-14B A100 TP1 and MoE Qwen3-30B-A3B H100
+TP2 PDFs/PNGs using the same black-measured, Stanford-red-predicted,
+one-second per-GPU style as the `power_trace_*` figures. The dense panel is a
+retrospective idle-calibrated transfer: it replaces only the frozen A100 idle
+floor with Qwen3-14B's declared 60-second pre-request idle measurement and
+retains the pure zero-shot score in the report. The MoE panel is also
+explicitly retrospective: it applies the target's pre-request idle anchor and
+source-only A100/H100 energy-per-work ratios to the frozen GPT-OSS-20B law.
+Neither displayed prediction consumes loaded-target power or measured engine
+counters. Exact traces and metrics are recorded in
+`power-test/transfer_traces_1s.csv` and
+`power-test/transfer_trace_report.json`; a ready-to-include two-panel LaTeX
+figure is in `power-test/transfer_trace_captions.tex`.
+
+Run the unsupported dense-to-MoE response-law counterfactual for Qwen3-14B
+with:
+
+```bash
+uv run python power-test/analyze_qwen3_14b_moe_counterfactual.py
+```
+
+The diagnostic applies both frozen GPT-OSS MoE laws, with and without the
+Qwen3-14B pre-request idle anchor, to the unchanged request-generated dense
+ledger. It also includes the dense zero-shot and idle-calibrated comparators on
+the same one-second interval. Every MoE result is explicitly marked unsupported
+because the target checkpoint is dense. The six-panel comparison, exact plotted
+traces, and metric/support report are written to
+`power-test/qwen3_14b_moe_counterfactual.{pdf,png}`,
+`power-test/qwen3_14b_moe_counterfactual_1s.csv`, and
+`power-test/qwen3_14b_moe_counterfactual.json`.
+
+Generate the three idle-calibrated BurstGPT arbitrary-arrival transfer panels
+and paper-ready captions with:
+
+```bash
+uv run python power-test/plot_burstgpt_transfer.py
+```
+
+Each standalone `power_trace_burstgpt_*` PDF/PNG uses the exact replay marks
+from one disjoint sealed Fano stratum and changes only that run's idle intercept
+to its declared 60-second pre-request measurement. Timing and dynamic-power
+coefficients remain frozen, and neither measured engine state nor loaded-run
+power enters prediction. The report preserves the corresponding zero-shot
+metrics and marks the idle result retrospective. Exact samples, metrics, and a
+three-panel LaTeX figure are written to
+`power-test/burstgpt_idle_transfer_1s.csv`,
+`power-test/burstgpt_idle_transfer_report.json`, and
+`power-test/burstgpt_idle_transfer_captions.tex`.
+
+Retrospective analysis of the six OpenHands runs identifies a deployment-level
+transfer boundary that the nominal `A100` label does not encode. The source
+surface came from a 400 W Azure eight-GPU A100 platform; OpenHands used one GPU
+on a different four-GPU A100 platform. Keeping the request/timing simulation
+frozen and applying only a target idle anchor, a 1.0425 ordinary-dynamic gain,
+and a 1.6316 total prefill-compute gain reduces median energy error from 12.65%
+to 1.34%, normalized Soft-DTW from 0.0270 to 0.0049, and range NRMSE from 0.160
+to 0.075. Leave-one-pack-out gains and scores remain stable. This supports
+few-shot hardware calibration with zero-shot transfer of unseen agentic
+workload structure; because the constants were extracted after inspecting the
+OpenHands targets, it is retrospective evidence rather than a sealed claim.
+The calibrated overlay is
+`power-test/openhands_platform_calibrated_prediction_overlay.png`, and the
+full finding, evidence map, and calibration equation are in
+`FEATURE_TEST_LEARNINGS.md` Sections 15--16.
+
+ACF R2 is reported separately as autocorrelation-profile agreement. It is not
+a temporal-fidelity or event-alignment measure: Soft-DTW describes time-warped
+shape agreement, range NRMSE describes pointwise magnitude agreement, and
+energy error describes integrated magnitude.
+
 The minimal expansion also contains independent same-marks jobs for Qwen
 A100/H100 transfer, an off-grid rate of 2.5 requests/s, controlled Gamma arrival
 shapes 0.25/1/4, exact BurstGPT arrivals, and Gemma-4-26B-A4B cross-family MoE
@@ -393,17 +878,23 @@ footprint, embedding storage precision, and quantized FLOP fraction; the 405B
 campaign no longer infers a uniform one-byte-per-parameter footprint.
 Bundle evaluation binds `max_num_batched_tokens` and `max_num_seqs`; cached
 prefixes consume context/KV capacity but not executed prefill. The deployable
-power surface fixes a per-hardware loaded-idle floor from dedicated source
-idle probes, sets checkpoint and standing-link idle corrections to zero, then
-fits nonnegative dynamic work terms. A deployment-specific measured idle delta
-can be applied per GPU before an explicit cap. Engine scheduling policy is now
+power surface fixes a per-hardware loaded-idle floor from the settled portion
+of sustained source-run idle gaps, gates checkpoint footprint by busy duty,
+and fits nonnegative dynamic work terms at the reported one-second timescale.
+A deployment-specific measured idle delta can be applied per GPU before an
+explicitly recorded cap. Engine scheduling policy is now
 launched and recorded explicitly. Existing idle data support checkpoint
 transfer only under the observed allocator/engine/power state; unseen scheduler
 policy, P-state, clocks, or cap remain unsupported rather than pooled.
 
-The 2026-07-19 corrected development score gives 3.57% overall median timing
-error on the frozen non-training matrix. H100 405B FP8 median E2E error is
-7.31% across rates: 2.88-8.12% through rate 2 and 12.50% at rate 4. The
+The corrected calibration rejects two batch-256 probe levels that recorded 58
+and 66 preemptions because the deployed simulator is non-preemptive. This
+improves median cell E2E error over the 150-cell non-training matrix from 4.13%
+to 3.63% and p90 from 10.84% to 10.14%. BurstGPT improves from 3.84% to 1.93%
+and TraceLab cache-off from 7.57% to 3.08%; legacy GPT-OSS-120B model-transfer
+cells regress from 9.41% to 10.22% median, so the change is not presented as a
+uniform MoE timing gain. H100 405B FP8 median E2E error is
+7.24% across rates: 2.89-8.07% through rate 2 and 12.41% at rate 4. The
 remaining high-rate miss is concentrated in mixed prefill/decode token-latency
 tails; the recorded 405B validation cells show no waiting or preemption. The
 leading hypotheses are a missing phase-specific weight sweep or an
@@ -440,14 +931,18 @@ cannot be repaired retrospectively; they remain valid only as separate
 per-regime agentic model-error reports. All scores are retrospective
 development results, not sealed transfer claims.
 
-The power fit uses dense training bins only and loads exact simulated
+The baseline power fit uses dense training bins and loads exact simulated
 iteration counts, tokens/iteration, prefill/decode duty, and weight-memory
 traffic. Each simulated iteration contributes exactly the weight bytes charged
-by the timing model; mixed prefill/decode iterations are not counted twice.
+by the timing model; mixed prefill/decode iterations are not counted twice. An
+A100 controlled-staircase candidate can be fit jointly, but is deployed only
+when it Pareto-improves all source-development objectives under the rule above;
+the report preserves both source scores and the rejected candidate fit.
 The frozen arrival-only evaluation scores 290 non-training runs without
 refitting. Dense energy transfer is strong (A100/H100 held-rate medians
-2.85%/1.68%; H100 405B 3.49%), but rate-4 70B temporal fidelity does not pass
-(ACF-MAE 0.30-0.37). The deployed dense surface remains frozen; the completed
+2.85%/1.68%; H100 405B 3.49%), but rate-4 70B autocorrelation-profile agreement
+does not pass (ACF-MAE 0.30-0.37). The deployed dense surface remains frozen;
+the completed
 MoE routing counterfactual is report-only, and sealed MoE validation remains
 gated on M2/M3 measurements.
 Exact results and contextual M4A/B2 comparisons are in

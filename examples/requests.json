@@ -1,0 +1,20 @@
+{
+  "requests": [
+    {
+      "request_id": "example-0",
+      "arrival_time": 0.0,
+      "input_tokens": 512,
+      "output_tokens": 64
+    },
+    {
+      "request_id": "example-1",
+      "arrival_time": 0.5,
+      "input_tokens": 1024,
+      "cached_prefix_tokens": 256,
+      "output_tokens_distribution": {
+        "values": [64, 128],
+        "probabilities": [0.75, 0.25]
+      }
+    }
+  ]
+}

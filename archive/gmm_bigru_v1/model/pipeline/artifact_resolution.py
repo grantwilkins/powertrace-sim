@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from typing import Dict, Mapping, Tuple
+
+from model.utils.io import finite_float, resolve_existing_path
+
+
+def resolve_experimental_paths(
+    experimental_manifest: Mapping[str, object],
+    *,
+    config_id: str,
+    experimental_base: str,
+) -> Tuple[str, str]:
+    cfgs = experimental_manifest.get("configs", {})
+    if not isinstance(cfgs, dict):
+        raise ValueError("Invalid experimental manifest format")
+    row = cfgs.get(config_id)
+    if not isinstance(row, dict):
+        raise ValueError(f"config_id '{config_id}' not found in experimental manifest")
+    dataset_path = resolve_existing_path(str(row.get("dataset_npz", "")), experimental_base)
+    split_path = resolve_existing_path(str(row.get("split_json", "")), experimental_base)
+    if dataset_path is None:
+        raise ValueError(f"Dataset path not found for '{config_id}'")
+    if split_path is None:
+        raise ValueError(f"Split path not found for '{config_id}'")
+    return dataset_path, split_path
+
+
+def resolve_checkpoint_norm_gmm_paths(
+    config_entry: Mapping[str, object], base_dir: str
+) -> Tuple[str, str, str]:
+    checkpoint_raw = str(config_entry.get("checkpoint_path", ""))
+    norm_raw = str(config_entry.get("norm_params_path", ""))
+    gmm_raw = str(config_entry.get("gmm_params_path", ""))
+    checkpoint_path = resolve_existing_path(checkpoint_raw, base_dir)
+    norm_path = resolve_existing_path(norm_raw, base_dir)
+    gmm_path = resolve_existing_path(gmm_raw, base_dir)
+    if checkpoint_path is None:
+        raise ValueError(f"Checkpoint path not found: {checkpoint_raw}")
+    if norm_path is None:
+        raise ValueError(f"Norm params path not found: {norm_raw}")
+    if gmm_path is None:
+        raise ValueError(f"GMM path not found: {gmm_raw}")
+    return checkpoint_path, norm_path, gmm_path
+
+
+def resolve_throughput(
+    throughput_payload: Mapping[str, object], config_id: str
+) -> Dict[str, float]:
+    cfgs = throughput_payload.get("configs", {})
+    if not isinstance(cfgs, dict):
+        raise ValueError("Invalid throughput database format")
+    row = cfgs.get(config_id)
+    if not isinstance(row, dict):
+        raise ValueError(f"config_id '{config_id}' not found in throughput DB")
+    prefill = finite_float(row.get("prefill_rate_median_toks_per_s"))
+    decode = finite_float(row.get("decode_rate_median_toks_per_s"))
+    if prefill is None or prefill <= 0.0:
+        raise ValueError(f"Invalid prefill throughput for '{config_id}'")
+    if decode is None or decode <= 0.0:
+        raise ValueError(f"Invalid decode throughput for '{config_id}'")
+    return {"lambda_prefill": prefill, "lambda_decode": decode}
+
+
+def resolve_bound_throughput(
+    config_entry: Mapping[str, object],
+    config_id: str,
+) -> Dict[str, float]:
+    """Read the calibration bound into a trained artifact.
+
+    Runtime rollout must not fall back to the mutable Stage0 throughput database:
+    doing so makes an existing model's inputs depend on data that was not used to
+    train it.
+    """
+    bound = config_entry.get("throughput")
+    if not isinstance(bound, Mapping):
+        raise ValueError(
+            f"Run manifest for '{config_id}' is missing bound train throughput"
+        )
+    prefill = finite_float(bound.get("lambda_prefill"))
+    decode = finite_float(bound.get("lambda_decode"))
+    if prefill is None or prefill <= 0.0 or decode is None or decode <= 0.0:
+        raise ValueError(f"Invalid bound throughput for '{config_id}'")
+    return {"lambda_prefill": prefill, "lambda_decode": decode}
+
+
+__all__ = [
+    "resolve_checkpoint_norm_gmm_paths",
+    "resolve_bound_throughput",
+    "resolve_experimental_paths",
+    "resolve_throughput",
+]
+
