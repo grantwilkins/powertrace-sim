@@ -37,6 +37,7 @@ from scripts.eval.azure_defaults import (
     safe_float,
     write_json,
 )
+from scripts.paper.render import save_figure
 
 METHOD_LABEL = {
     "mean_baseline": "Mean",
@@ -501,7 +502,7 @@ def compute_oversubscription_capacity(
     ax_a.legend(loc="best")
     fig_a.tight_layout()
     ensure_dir_for_file(out_capacity_plot)
-    fig_a.savefig(out_capacity_plot, bbox_inches="tight")
+    save_figure(fig_a, out_capacity_plot, bbox_inches="tight")
     plt.close(fig_a)
 
     fig_b, ax_b = plt.subplots(figsize=(8.8, 5.1))
@@ -560,7 +561,7 @@ def compute_oversubscription_capacity(
     ax_b.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), frameon=False, ncol=2)
     fig_b.tight_layout()
     ensure_dir_for_file(out_lines_plot)
-    fig_b.savefig(out_lines_plot, bbox_inches="tight")
+    save_figure(fig_b, out_lines_plot, bbox_inches="tight")
     plt.close(fig_b)
 
     ensure_dir_for_file(out_csv)

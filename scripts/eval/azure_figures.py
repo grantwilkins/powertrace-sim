@@ -36,6 +36,7 @@ from scripts.eval.azure_defaults import (
     safe_float,
     write_json,
 )
+from scripts.paper.render import save_figure
 
 COLOR_DARK = "#2c3e50"
 COLOR_RED = "#e74c3c"
@@ -70,7 +71,7 @@ def apply_publication_style() -> None:
 def save_pdf(fig: Any, path: str | Path) -> None:
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight")
+    save_figure(fig, out, bbox_inches="tight")
     plt.close(fig)
 
 

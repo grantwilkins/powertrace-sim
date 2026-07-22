@@ -81,12 +81,14 @@ def build_default_paths() -> Dict[str, str]:
             / "parsed"
             / "day_2024-05-16_requests.csv"
         ),
-        "figures_out_dir": str(repo_root / "figures"),
+        "figures_out_dir": str(repo_root / "results" / "paper" / "facility"),
         "oversub_capacity_plot": str(
-            repo_root / "figures" / "azure_oversubscription_capacity.pdf"
+            repo_root / "results" / "paper" / "facility"
+            / "azure_oversubscription_capacity.pdf"
         ),
         "oversub_lines_plot": str(
-            repo_root / "figures" / "azure_oversubscription_lines.pdf"
+            repo_root / "results" / "paper" / "facility"
+            / "azure_oversubscription_lines.pdf"
         ),
         "oversub_csv": str(
             repo_root / "results" / "eval_paper" / "azure_oversubscription_capacity.csv"

@@ -22,10 +22,10 @@
   },
   "metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_metrics.csv",
   "outputs": {
-    "capacity_plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/azure_oversubscription_capacity.pdf",
+    "capacity_plot_pdf": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_oversubscription_capacity.pdf",
     "csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_oversubscription_capacity.csv",
     "json": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_oversubscription_capacity.json",
-    "lines_plot_pdf": "/Users/grantwilkins/powertrace-sim/figures/azure_oversubscription_lines.pdf"
+    "lines_plot_pdf": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_oversubscription_lines.pdf"
   },
   "selection": {
     "selection_by_method": {

@@ -43,7 +43,14 @@ OUTPUTS = (
     "results/eval_paper/azure_facility_site_traces_15min.csv",
     "results/eval_paper/azure_oversubscription_capacity.json",
     "results/eval_paper/azure_facility_sizing_table.json",
-    "figures/azure_figure_manifest.json",
+    "results/paper/facility/azure_figure_1_diurnal_profile.pdf",
+    "results/paper/facility/azure_figure_2_baseline_comparison_15min.pdf",
+    "results/paper/facility/azure_figure_3_load_duration_curve.pdf",
+    "results/paper/facility/azure_figure_4_rack_heatmap.pdf",
+    "results/paper/facility/azure_figure_5_sizing_metrics.pdf",
+    "results/paper/facility/azure_oversubscription_capacity.pdf",
+    "results/paper/facility/azure_oversubscription_lines.pdf",
+    "results/paper/facility/azure_figure_manifest.json",
 )
 
 

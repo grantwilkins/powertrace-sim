@@ -1,0 +1,123 @@
+{
+  "config": {
+    "arrival_bin_seconds": 300,
+    "dry_run": false,
+    "heatmap_downsample_seconds": 300,
+    "peak_window_hours": 3.0,
+    "power_resolution_seconds": 900,
+    "racks_per_row": 6,
+    "rows": 10,
+    "trace_kinds": [
+      "tdp_baseline",
+      "mean_baseline",
+      "splitwise_strict",
+      "ours"
+    ]
+  },
+  "derived_metrics": {
+    "p99_mw_by_method": {
+      "mean_baseline": 0.53855860083903,
+      "ours": 0.60153175,
+      "splitwise_strict": 0.6686418125,
+      "tdp_baseline": 2.0591999999999997
+    },
+    "sizing_metrics": {
+      "mean_baseline": {
+        "max_abs_kw_per_step": 0.0,
+        "max_ramp_mw_per_hr": 0.0,
+        "par": 1.0,
+        "peak_mw": 0.53855860083903
+      },
+      "ours": {
+        "max_abs_kw_per_step": 12.865437499999985,
+        "max_ramp_mw_per_hr": 0.05146174999999994,
+        "par": 1.116929054500689,
+        "peak_mw": 0.60153175
+      },
+      "splitwise_strict": {
+        "max_abs_kw_per_step": 20.646875000000023,
+        "max_ramp_mw_per_hr": 0.08258750000000009,
+        "par": 1.1690511935056995,
+        "peak_mw": 0.6686418125
+      },
+      "tdp_baseline": {
+        "max_abs_kw_per_step": 0.0,
+        "max_ramp_mw_per_hr": 0.0,
+        "par": 0.9999999999999998,
+        "peak_mw": 2.0591999999999997
+      }
+    },
+    "splitwise_vs_ours": {
+      "splitwise_strict_over_avg_pct_vs_ours": 6.200615699327996,
+      "splitwise_strict_over_peak_pct_vs_ours": 11.156528728533454
+    },
+    "tdp_over_avg_pct": 282.3539337745379,
+    "tdp_over_peak_pct": 242.32607007028304
+  },
+  "figures": {
+    "figure_1_diurnal_profile": {
+      "file": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_1_diurnal_profile.pdf",
+      "n_points": {
+        "arrival_rate": 288,
+        "site_power": 96
+      },
+      "notes": "Ours only for the diurnal overlay.",
+      "stats": {
+        "arrival_avg_req_per_s": 35.58524305555555,
+        "arrival_peak_req_per_s": 85.42,
+        "site_avg_mw": 0.5385586018880208,
+        "site_peak_mw": 0.60153175
+      },
+      "title": "24-hour Site Power with Arrival Overlay"
+    },
+    "figure_2_baseline_comparison_15min": {
+      "file": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_2_baseline_comparison_15min.pdf",
+      "n_points": 96,
+      "notes": "All selected trace kinds plotted.",
+      "title": "15-minute Baseline Comparison"
+    },
+    "figure_3_load_duration_curve": {
+      "file": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_3_load_duration_curve.pdf",
+      "n_points_per_method": 96,
+      "stats": {
+        "p99_mw": {
+          "mean_baseline": 0.53855860083903,
+          "ours": 0.60153175,
+          "splitwise_strict": 0.6686418125,
+          "tdp_baseline": 2.0591999999999997
+        }
+      },
+      "title": "Load Duration Curve (15-min)"
+    },
+    "figure_4_rack_heatmap": {
+      "file": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_4_rack_heatmap.pdf",
+      "n_points": {
+        "peak_window_bins": 39,
+        "racks": 60,
+        "time_bins": 288
+      },
+      "title": "Rack Power Heatmap (Ours peak window)"
+    },
+    "figure_5_sizing_metrics": {
+      "file": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_5_sizing_metrics.pdf",
+      "n_points": 12,
+      "title": "Infrastructure Sizing Metrics"
+    }
+  },
+  "inputs": {
+    "aggregated_root": "/Users/grantwilkins/powertrace-sim/results/azure_facility/aggregated",
+    "ldc_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_ldc_15min.csv",
+    "metrics_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_metrics.csv",
+    "parsed_requests_csv": "/Users/grantwilkins/powertrace-sim/data/azure_trace/parsed/day_2024-05-16_requests.csv",
+    "site_traces_15min_csv": "/Users/grantwilkins/powertrace-sim/results/eval_paper/azure_facility_site_traces_15min.csv"
+  },
+  "output_paths": {
+    "figure_1_diurnal_profile": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_1_diurnal_profile.pdf",
+    "figure_2_baseline_comparison_15min": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_2_baseline_comparison_15min.pdf",
+    "figure_3_load_duration_curve": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_3_load_duration_curve.pdf",
+    "figure_4_rack_heatmap": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_4_rack_heatmap.pdf",
+    "figure_5_sizing_metrics": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_5_sizing_metrics.pdf",
+    "manifest": "/Users/grantwilkins/powertrace-sim/results/paper/facility/azure_figure_manifest.json"
+  },
+  "schema_version": "azure-figures-v2"
+}
