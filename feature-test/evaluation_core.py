@@ -1,8 +1,98 @@
 """Shared causal feature and reporting primitives for the frozen evaluator."""
 
 import csv
+import math
 
 import numpy as np
+
+SOFT_DTW_GAMMA = 0.01
+SOFT_DTW_BAND_S = 10
+
+
+def soft_dtw_cost(
+    x: np.ndarray, y: np.ndarray, *, gamma: float, band: int
+) -> float:
+    """Squared-error soft-DTW cost within a Sakoe-Chiba band."""
+    x = np.asarray(x, dtype=float).reshape(-1)
+    y = np.asarray(y, dtype=float).reshape(-1)
+    if gamma <= 0.0 or band < 0:
+        raise ValueError("soft-DTW gamma must be positive and band non-negative")
+    if abs(x.size - y.size) > band:
+        return float("inf")
+    previous = np.full(y.size + 1, np.inf)
+    previous[0] = 0.0
+    for i, x_value in enumerate(x, start=1):
+        current = np.full(y.size + 1, np.inf)
+        for j in range(max(1, i - band), min(y.size, i + band) + 1):
+            candidates = (previous[j - 1], previous[j], current[j - 1])
+            minimum = min(candidates)
+            soft_minimum = minimum - gamma * math.log(sum(
+                math.exp(-(value - minimum) / gamma)
+                for value in candidates if math.isfinite(value)
+            ))
+            current[j] = (x_value - y[j - 1]) ** 2 + soft_minimum
+        previous = current
+    return float(previous[-1])
+
+
+def soft_dtw_divergence(
+    measured: np.ndarray,
+    predicted: np.ndarray,
+    *,
+    gamma: float = SOFT_DTW_GAMMA,
+    band: int = SOFT_DTW_BAND_S,
+) -> float:
+    """Non-negative, symmetric soft-DTW divergence; zero for equal traces."""
+    measured = np.asarray(measured, dtype=float).reshape(-1)
+    predicted = np.asarray(predicted, dtype=float).reshape(-1)
+    if measured.size != predicted.size:
+        raise ValueError("soft-DTW traces must have equal length")
+    cross = soft_dtw_cost(measured, predicted, gamma=gamma, band=band)
+    self_measured = soft_dtw_cost(measured, measured, gamma=gamma, band=band)
+    self_predicted = soft_dtw_cost(predicted, predicted, gamma=gamma, band=band)
+    return max(cross - 0.5 * (self_measured + self_predicted), 0.0)
+
+
+def normalized_soft_dtw_diagnostics(
+    measured: np.ndarray,
+    predicted: np.ndarray,
+    *,
+    band: int = SOFT_DTW_BAND_S,
+) -> dict[str, float]:
+    """Range-normalized divergence and signed effect of the declared band.
+
+    The effect can be negative because widening the band changes both the
+    cross-cost and the two entropic self-costs in soft-DTW divergence.
+    """
+    measured = np.asarray(measured, dtype=float).reshape(-1)
+    predicted = np.asarray(predicted, dtype=float).reshape(-1)
+    if measured.size != predicted.size or measured.size == 0:
+        raise ValueError("soft-DTW diagnostic traces must have equal nonzero length")
+    power_range = np.ptp(measured)
+    if power_range <= 0.0:
+        return {
+            "soft_dtw_divergence": float("nan"),
+            "soft_dtw_diagonal_divergence": float("nan"),
+            "soft_dtw_band_effect": float("nan"),
+            "soft_dtw_band_effect_fraction": float("nan"),
+        }
+    normalized_measured = (measured - measured.mean()) / power_range
+    normalized_predicted = (predicted - measured.mean()) / power_range
+    warped = soft_dtw_divergence(
+        normalized_measured, normalized_predicted, band=band
+    ) / measured.size
+    diagonal = soft_dtw_divergence(
+        normalized_measured, normalized_predicted, band=0
+    ) / measured.size
+    band_effect = diagonal - warped
+    return {
+        "soft_dtw_divergence": warped,
+        "soft_dtw_diagonal_divergence": diagonal,
+        "soft_dtw_band_effect": band_effect,
+        "soft_dtw_band_effect_fraction": (
+            band_effect / diagonal if diagonal > 0.0 else 0.0
+        ),
+    }
 
 
 def raw_channels(d, candidate: str) -> tuple[np.ndarray, list[str], set[int]]:
@@ -85,7 +175,10 @@ def trace_metrics(measured, predicted, native_dt=0.25) -> dict:
     n = min(measured.size, predicted.size) // factor * factor
     if n < 62 * factor:
         return {key: float("nan") for key in
-                ("energy_error_pct", "acf_r2", "acf_mae", "nrmse_range", "nrmse_mean")}
+                ("energy_error_pct", "acf_r2", "acf_mae", "nrmse_range",
+                 "nrmse_mean", "soft_dtw_divergence",
+                 "soft_dtw_diagonal_divergence", "soft_dtw_band_effect",
+                 "soft_dtw_band_effect_fraction")}
     y = measured[:n].reshape(-1, factor).mean(1)
     p = predicted[:n].reshape(-1, factor).mean(1)
     yc, pc = y - y.mean(), p - p.mean()
@@ -98,11 +191,14 @@ def trace_metrics(measured, predicted, native_dt=0.25) -> dict:
     ay, ap = acf(yc), acf(pc)
     tss = np.sum((ay - ay.mean()) ** 2)
     rmse = np.sqrt(np.mean((p - y) ** 2))
+    power_range = np.ptp(y)
+    soft_dtw = normalized_soft_dtw_diagnostics(y, p)
     return {"energy_error_pct": 100 * abs(p.sum() - y.sum()) / y.sum(),
             "acf_r2": 1 - np.sum((ap - ay) ** 2) / tss if tss > 0 else np.nan,
             "acf_mae": float(np.mean(np.abs(ap - ay))),
-            "nrmse_range": rmse / np.ptp(y) if np.ptp(y) > 0 else np.nan,
+            "nrmse_range": rmse / power_range if power_range > 0 else np.nan,
             "nrmse_mean": rmse / y.mean(),
+            **soft_dtw,
             "mean_bias_pct": 100 * (p.mean() - y.mean()) / y.mean()}
 
 
@@ -145,7 +241,13 @@ def stratified_summaries(rows: list[dict]) -> list[dict]:
     for key, values in groups.items():
         record = dict(zip(("candidate", "hardware", "split", "family", "tp", "rate", "load"), key))
         record["runs"] = len(values)
-        for metric in ("energy_error_pct", "acf_r2", "acf_mae", "nrmse_range"):
+        for metric in (
+            "energy_error_pct",
+            "acf_r2",
+            "acf_mae",
+            "nrmse_range",
+            "soft_dtw_divergence",
+        ):
             data = np.asarray([value[metric] for value in values])
             record[f"{metric}_median"] = float(np.nanmedian(data))
         output.append(record)
@@ -161,7 +263,13 @@ def bootstrap_intervals(rows: list[dict], *, seed=20260710, samples=1000) -> lis
     for (split, candidate), values in groups.items():
         record = {"split": split, "candidate": candidate, "runs": len(values),
                   "seed": seed, "samples": samples}
-        for metric in ("energy_error_pct", "acf_r2", "acf_mae", "nrmse_range"):
+        for metric in (
+            "energy_error_pct",
+            "acf_r2",
+            "acf_mae",
+            "nrmse_range",
+            "soft_dtw_divergence",
+        ):
             data = np.asarray([value[metric] for value in values])
             draws = np.nanmedian(data[rng.integers(0, data.size, (samples, data.size))], axis=1)
             record[f"{metric}_median_ci_low"] = float(np.nanpercentile(draws, 2.5))

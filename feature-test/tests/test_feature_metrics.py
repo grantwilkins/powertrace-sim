@@ -36,6 +36,8 @@ def test_constant_offset_changes_energy_and_tail_but_not_ramps():
 def test_bootstrap_resamples_whole_runs_deterministically():
     rows = [{"split": "S", "candidate": "M0", "energy_error_pct": value,
              "acf_r2": 1 - value / 10, "acf_mae": value / 10,
-             "nrmse_range": value / 20} for value in (1.0, 2.0, 3.0)]
+             "nrmse_range": value / 20,
+             "soft_dtw_divergence": value / 30}
+            for value in (1.0, 2.0, 3.0)]
     assert bootstrap_intervals(rows, seed=7, samples=20) == bootstrap_intervals(
         rows, seed=7, samples=20)
