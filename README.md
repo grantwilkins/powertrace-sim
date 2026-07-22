@@ -171,6 +171,10 @@ maintained `scripts/eval/` package no longer imports the archived learned model.
 Historical per-configuration checkpoints and sweep outputs are also stored
 under the archive's `results/` tree.
 
+Maintained Azure node-trace generation compares only the selected model with
+the Splitwise-style comparator. The superseded physics prototype is not an
+accepted generation method.
+
 Profile same-node disaggregated GPT-OSS-20B serving on two Sherlock A100-80GB
 GPUs with the pinned vLLM 0.22 Queue-Haul image using one TP1 prefiller and one
 TP1 decoder:

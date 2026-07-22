@@ -65,10 +65,6 @@ def _summarize_power_assumptions(*, non_gpu_overhead_w: float, pue: float) -> Di
 
 def run_pipeline(**kwargs) -> Dict[str, object]:
     trace_summary = generate_node_traces(
-        run_manifest=kwargs["run_manifest"],
-        experimental_manifest=kwargs["experimental_manifest"],
-        throughput_db=kwargs["throughput_db"],
-        physics_artifact=kwargs["physics_artifact"],
         selected_artifact=kwargs["selected_artifact"],
         node_stream_dir=kwargs["node_stream_dir"],
         out_root=kwargs["node_traces_root"],
@@ -185,10 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the Azure facility pipeline with Splitwise baselines included."
     )
-    parser.add_argument("--run-manifest", default=defaults["run_manifest"])
     parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
-    parser.add_argument("--throughput-db", default=defaults["throughput_db"])
-    parser.add_argument("--physics-artifact", default=defaults["physics_artifact"])
     parser.add_argument("--selected-artifact", default=defaults["selected_artifact"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
@@ -259,10 +252,7 @@ def main() -> None:
     args = parser.parse_args()
 
     result = run_pipeline(
-        run_manifest=str(args.run_manifest),
         experimental_manifest=str(args.experimental_manifest),
-        throughput_db=str(args.throughput_db),
-        physics_artifact=str(args.physics_artifact),
         selected_artifact=str(args.selected_artifact),
         splitwise_perf_model_csv=str(args.splitwise_perf_model_csv),
         node_stream_dir=str(args.node_stream_dir),

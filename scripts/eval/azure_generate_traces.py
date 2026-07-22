@@ -31,7 +31,6 @@ from scripts.eval.azure_defaults import (
     DEFAULT_SPLITWISE_SOURCE_TP,
     build_default_paths,
     ensure_dir,
-    load_json,
     parse_csv_list,
     write_json,
 )
@@ -43,13 +42,6 @@ from scripts.eval.splitwise import (
     normalize_splitwise_style_lut_mode,
 )
 from scripts.eval.facility import FacilityLayout
-from model.classifiers.physics import load_physics_artifact, predict_mean_node_power
-from model.pipeline.physics_inference import build_modeled_work_ledger
-from model.pipeline.artifact_resolution import (
-    resolve_bound_throughput,
-    resolve_experimental_paths,
-)
-from model.training_data.arch import get_arch
 from model.utils.config import tp_gpus_from_config_id
 from model.utils.provenance import file_identity, git_state
 from model.power import idle_node_power
@@ -62,54 +54,13 @@ from model.release import (
 from model.simulation import iter_prepared_power_bins, prepare_simulation
 
 CONFIG_ID_RE = re.compile(r"^(.+)_(A100|H100)_tp(\d+)$")
-ALLOWED_METHODS = {"ours", "physics", "splitwise_strict"}
+ALLOWED_METHODS = {"ours", "splitwise_strict"}
 TIMING_MODE = "arrival_only"
 
 
 def _validate_config_id(config_id: str) -> None:
     if CONFIG_ID_RE.match(str(config_id).strip()) is None:
         raise ValueError(f"Invalid config_id format: {config_id}")
-
-
-def _load_training_bundle(
-    *,
-    config_id: str,
-    experimental_manifest_path: str,
-) -> Dict[str, object]:
-    manifest = load_json(experimental_manifest_path)
-    base = str(Path(experimental_manifest_path).resolve().parent)
-    dataset_path, split_path = resolve_experimental_paths(
-        manifest,
-        config_id=config_id,
-        experimental_base=base,
-    )
-    split_payload = load_json(split_path)
-    train_indices = [int(x) for x in split_payload.get("train_indices", [])]
-
-    with np.load(dataset_path, allow_pickle=True) as data:
-        power_arr = np.asarray(data["power"], dtype=object)
-    n_total = int(len(power_arr))
-
-    train_traces: List[np.ndarray] = []
-    for idx in train_indices:
-        if idx < 0 or idx >= n_total:
-            continue
-        power = np.asarray(power_arr[idx], dtype=np.float64).reshape(-1)
-        if power.size > 0:
-            train_traces.append(power.astype(np.float64))
-
-    if len(train_traces) == 0:
-        raise ValueError(f"Training split has no power traces for {config_id}")
-
-    flat = np.concatenate(train_traces, axis=0).astype(np.float64)
-    if flat.size == 0:
-        raise ValueError("Training power pool is empty after concat")
-
-    return {
-        "train_power_traces": train_traces,
-        "train_power_flat": flat,
-        "train_power_flat_gpu": flat.copy(),
-    }
 
 
 def _load_node_requests(path: str) -> List[Dict[str, float]]:
@@ -209,10 +160,6 @@ def _selected_power_trace(
 
 def generate_node_traces(
     *,
-    run_manifest: str,
-    experimental_manifest: str,
-    throughput_db: str,
-    physics_artifact: str = "feature-test/results/physics_artifact_v1.json",
     selected_artifact: str = str(DEFAULT_ARTIFACT),
     node_stream_dir: str,
     out_root: str,
@@ -234,8 +181,6 @@ def generate_node_traces(
     n_gpus_per_node: Optional[int] = None,
     non_gpu_overhead_w: float = DEFAULT_NON_GPU_OVERHEAD_W,
 ) -> Dict[str, object]:
-    del throughput_db
-
     _validate_config_id(config_id)
     method_list = _normalize_methods(methods)
     splitwise_style_lut_mode = normalize_splitwise_style_lut_mode(
@@ -266,44 +211,13 @@ def generate_node_traces(
     if t_horizon <= 0:
         raise ValueError("Computed horizon is zero; increase duration_s or reduce dt.")
 
-    run_cfgs = {}
-    if Path(run_manifest).is_file():
-        run_manifest_payload = load_json(run_manifest)
-        run_cfgs = run_manifest_payload.get("configs", {})
-        if not isinstance(run_cfgs, dict):
-            raise ValueError("Invalid run manifest format")
-    cfg_entry = run_cfgs.get(config_id)
-    cfg_entry = cfg_entry if isinstance(cfg_entry, dict) else {}
-    throughput = (
-        resolve_bound_throughput(cfg_entry, config_id)
-        if "physics" in method_list else None
-    )
-    physics_payload = None
-    physics_arch = None
     config_match = CONFIG_ID_RE.match(config_id)
-    if "physics" in method_list:
-        if config_match is None:
-            raise ValueError(f"Cannot resolve physics identity from {config_id!r}")
-        physics_payload = load_physics_artifact(physics_artifact)
-        physics_model = str(config_match.group(1))
-        architectures = physics_payload.get("architectures", {})
-        physics_arch = (
-            dict(architectures[physics_model])
-            if physics_model in architectures
-            else get_arch(physics_model)
-        )
-        if str(config_match.group(2)) not in physics_payload["hardware"]:
-            raise ValueError(
-                f"Physics artifact has no {config_match.group(2)} coefficients"
-            )
 
     # All model classes generate IID; AR(1) generation was removed.
     generation_mode_by_method = {
         method: (
             "selected_deterministic_mean"
             if method == "ours"
-            else "modeled_mean"
-            if method == "physics"
             else "splitwise_style_lut"
         )
         for method in method_list
@@ -318,17 +232,9 @@ def generate_node_traces(
         "splitwise_style_lut_mode": str(splitwise_style_lut_mode),
     }
     if "splitwise_strict" in method_list:
-        train_bundle = _load_training_bundle(
-            config_id=config_id,
-            experimental_manifest_path=experimental_manifest,
-        )
-        train_power_flat_gpu = np.asarray(
-            train_bundle["train_power_flat_gpu"], dtype=np.float64
-        )
         splitwise_strict_params = build_splitwise_style_lut_params(
             config_id=config_id,
             perf_model_csv=splitwise_perf_model_csv,
-            train_power_flat=train_power_flat_gpu,
             splitwise_source_model=splitwise_source_model,
             splitwise_source_hardware=splitwise_source_hardware,
             splitwise_source_tp=int(splitwise_requested_tp),
@@ -430,25 +336,6 @@ def generate_node_traces(
                             preset=selected_preset,
                             artifact_path=selected_artifact,
                             horizon=t_horizon,
-                        )
-                    elif method == "physics":
-                        assert physics_payload is not None and physics_arch is not None
-                        assert throughput is not None
-                        ledger = build_modeled_work_ledger(
-                            requests,
-                            arch=physics_arch,
-                            tp=int(resolved_tp),
-                            throughput=throughput,
-                            dt=float(dt),
-                            T=t_horizon,
-                        )
-                        trace = predict_mean_node_power(
-                            ledger,
-                            physics_arch,
-                            tp=int(resolved_tp),
-                            hardware=str(config_match.group(2)),
-                            artifact=physics_payload,
-                            dt_s=float(dt),
                         )
                     elif method == "splitwise_strict":
                         if splitwise_strict_params is None:
@@ -599,30 +486,10 @@ def generate_node_traces(
             "tp_gpus": int(resolved_tp),
             "n_gpus_per_node": int(resolved_n_gpus),
             "non_gpu_overhead_w": float(non_gpu_overhead_w),
-            "physics_artifact": (
-                file_identity(physics_artifact) if physics_payload is not None else None
-            ),
             "selected_artifact": (
                 file_identity(selected_artifact) if "ours" in method_list else None
             ),
             "source_revision": git_state(),
-        },
-        "input_identities": {
-            "run_manifest": (
-                file_identity(run_manifest) if Path(run_manifest).is_file() else None
-            ),
-            "experimental_manifest": (
-                file_identity(experimental_manifest)
-                if Path(experimental_manifest).is_file() else None
-            ),
-            "throughput": (
-                {
-                    "source": "run_manifest_bound",
-                    "lambda_prefill": throughput["lambda_prefill"],
-                    "lambda_decode": throughput["lambda_decode"],
-                }
-                if throughput is not None else None
-            ),
         },
         "counts": {
             "evaluated_by_method": {key: int(value) for key, value in success_by_method.items()},
@@ -654,10 +521,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate top-level Azure node traces with Splitwise baselines included."
     )
-    parser.add_argument("--run-manifest", default=defaults["run_manifest"])
-    parser.add_argument("--experimental-manifest", default=defaults["experimental_manifest"])
-    parser.add_argument("--throughput-db", default=defaults["throughput_db"])
-    parser.add_argument("--physics-artifact", default=defaults["physics_artifact"])
     parser.add_argument("--selected-artifact", default=defaults["selected_artifact"])
     parser.add_argument("--splitwise-perf-model-csv", default=defaults["splitwise_perf_model_csv"])
     parser.add_argument("--node-stream-dir", default=defaults["node_stream_dir"])
@@ -691,10 +554,6 @@ def main() -> None:
     args = parser.parse_args()
 
     summary = generate_node_traces(
-        run_manifest=str(args.run_manifest),
-        experimental_manifest=str(args.experimental_manifest),
-        throughput_db=str(args.throughput_db),
-        physics_artifact=str(args.physics_artifact),
         selected_artifact=str(args.selected_artifact),
         node_stream_dir=str(args.node_stream_dir),
         out_root=str(args.output_root),

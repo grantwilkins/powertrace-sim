@@ -31,6 +31,9 @@ The individual stages remain available as modules:
 
 The maintained Splitwise comparator is isolated in `splitwise.py`; it does not
 import Torch or the historical learned model.
+Node-trace generation accepts only `ours` and `splitwise_strict`; the rejected
+physics prototype is no longer a facility method, and trace generation no
+longer loads the archived training manifest or throughput database.
 
 ## Other Maintained Evaluations
 

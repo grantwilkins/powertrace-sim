@@ -82,6 +82,8 @@ default artifact remains `pre_sealed` until the external validation gate passes.
 - [x] Add the default `evaluate` command using the common inference contract.
 - [x] Migrate the maintained Azure facility generator to the selected model,
   including calibrated idle traces for empty nodes.
+- [x] Remove the rejected physics method and archived training inputs from
+  maintained Azure node-trace generation.
 - [ ] Retain timing parity, representative dense/MoE traces,
   compatibility/coverage tables, sealed scores, and facility figures.
 - [ ] Retain Qwen, BurstGPT, and OpenHands transfer panels as labeled appendix

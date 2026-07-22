@@ -118,9 +118,6 @@ def test_generate_node_traces_with_splitwise_outputs() -> None:
         }
         selected_artifact.write_text(json.dumps(artifact) + "\n")
         summary = generate_node_traces(
-            run_manifest=str(fx["run_manifest"]),
-            experimental_manifest=str(fx["experimental_manifest"]),
-            throughput_db=str(fx["throughput_db"]),
             splitwise_perf_model_csv=str(fx["perf_model_csv"]),
             selected_artifact=str(selected_artifact),
             node_stream_dir=str(node_stream_dir),
@@ -202,9 +199,6 @@ def test_splitwise_lut_is_rejected() -> None:
 
         with pytest.raises(ValueError, match="splitwise_lut"):
             generate_node_traces(
-                run_manifest=str(fx["run_manifest"]),
-                experimental_manifest=str(fx["experimental_manifest"]),
-                throughput_db=str(root / "missing-throughput.json"),
                 node_stream_dir=str(node_stream_dir),
                 out_root=str(root / "results" / "azure_facility" / "node_traces"),
                 config_id=str(fx["config_id"]),
@@ -219,8 +213,9 @@ def test_splitwise_lut_is_rejected() -> None:
             )
 
 
-def test_physics_is_an_explicit_generation_method() -> None:
-    assert _normalize_methods(["physics"]) == ["physics"]
+def test_retired_physics_generation_method_is_rejected() -> None:
+    with pytest.raises(ValueError, match="Unsupported methods"):
+        _normalize_methods(["physics"])
 
 
 def test_selected_model_emits_calibrated_idle_power_for_empty_node() -> None:
@@ -229,9 +224,6 @@ def test_selected_model_emits_calibrated_idle_power_for_empty_node() -> None:
         node_stream_dir = root / "node_streams"
         _write_node_stream(node_stream_dir / "node_0_0_0.csv", [])
         summary = generate_node_traces(
-            run_manifest=str(root / "missing-run-manifest.json"),
-            experimental_manifest=str(root / "missing-experimental-manifest.json"),
-            throughput_db=str(root / "missing-throughput.json"),
             node_stream_dir=str(node_stream_dir),
             out_root=str(root / "traces"),
             config_id="llama-3-70b_A100_tp8",

@@ -417,7 +417,6 @@ def _build_power_support(
 def build_splitwise_style_lut_params(
     config_id: str,
     perf_model_csv: str,
-    train_power_flat: np.ndarray,
     *,
     splitwise_source_model: str = "llama-3-70b",
     splitwise_source_hardware: str = "a100-80gb",
@@ -429,7 +428,6 @@ def build_splitwise_style_lut_params(
     target_decode_node_gpu_w: Optional[float] = None,
     target_prefill_node_gpu_w: Optional[float] = None,
 ) -> Dict[str, object]:
-    del train_power_flat
     del target_idle_node_gpu_w
     del target_decode_node_gpu_w
     del target_prefill_node_gpu_w
@@ -534,13 +532,11 @@ def build_splitwise_style_lut_params(
 def build_splitwise_style_lut_trace_params(
     config_id: str,
     perf_model_csv: str,
-    train_power_flat: np.ndarray,
     **kwargs: object,
 ) -> Dict[str, object]:
     return build_splitwise_style_lut_params(
         config_id=config_id,
         perf_model_csv=perf_model_csv,
-        train_power_flat=train_power_flat,
         **kwargs,
     )
 
