@@ -13,3 +13,4 @@ eval_results/*
 AGENTS.md
 eenergy-paper/*
 eenergy-paper
+/results/azure_facility/**/*.npy

@@ -44,7 +44,8 @@ Artifact classes:
 
 ## Regeneration policy
 
-Use `uv run -m scripts.paper.regenerate` for the maintained set. Preserve the
-large upstream artifacts under `data/`, `results/azure_facility/`,
+Use `uv run -m scripts.paper.regenerate` for the maintained set. Facility NPY
+arrays under `results/azure_facility/` are regenerated local intermediates,
+not checked artifacts. Preserve the large upstream artifacts under `data/`,
 `results/continuous_v1_gmm_bigru/`, `figures/`, and `feature-test/results/`
 unless the task explicitly asks to regenerate them.

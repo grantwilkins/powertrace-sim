@@ -123,6 +123,9 @@ local manifest. Exact outputs and caption requirements are in
 The facility comparison contains the selected scheduler/power model and the
 Splitwise-style LUT baseline. The constant mean baseline is derived from the
 new selected facility trace; it no longer reads archived BiGRU training data.
+The roughly 687 MB of node/rack/row/site `.npy` arrays are reproducible local
+intermediates and are intentionally not tracked; compact manifests, metrics,
+tables, and paper figures are tracked.
 
 ## Disaggregated GPT-OSS profiling
 
