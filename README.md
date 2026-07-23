@@ -23,8 +23,9 @@ The historical GMM-BiGRU implementation is preserved under
 
 Candidate and ablation scripts under `power-test/`, `timing-test/`, and
 `feature-test/` are development support, not additional public model
-interfaces. Historical figures are preserved under
-`archive/research_artifacts/`; maintained figures live in `results/paper/`.
+interfaces. Historical figures and retired paper-support outputs are preserved
+under `archive/research_artifacts/`; maintained figures live in
+`results/paper/`.
 
 ## Setup
 

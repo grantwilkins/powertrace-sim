@@ -123,7 +123,7 @@ How to reflect this in the paper:
 - Server trace comparison: `figures/baselines_node_groundtruth_trace.pdf`
   validates that the generator captures dynamics missed by TDP, mean, and LUT
   baselines.
-- Trace fidelity table: `results/eval_paper/trace_fidelity_table.tex` supports
+- Trace fidelity table: `archive/research_artifacts/eval_paper/trace_fidelity_table.tex` supports
   the claim that dense models preserve energy and autocorrelation well, while
   MoE remains harder.
 - Facility diurnal profile: `figures/azure_figure_1_diurnal_profile.pdf` is the

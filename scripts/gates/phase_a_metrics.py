@@ -2,8 +2,8 @@
 
 Regenerates the Azure facility metric CSVs through the unified
 ``model/classifiers/metrics.py`` implementations into a scratch directory and
-compares them column-by-column against the committed ``results/eval_paper``
-artifacts at ``HEAD``. The gate passes when the only changed columns are the intentional
+compares them column-by-column against the committed historical artifact
+archive at ``HEAD``. The gate passes when the only changed columns are the intentional
 ones (the LDC estimator moved from ``np.percentile`` to the exceedance-rank
 convention). Everything else must match to full float precision as written.
 
@@ -68,7 +68,7 @@ def _compare(reference: Path, regenerated: Path) -> dict:
 
 def _write_head_reference(name: str, out: Path) -> None:
     content = subprocess.run(
-        ["git", "show", f"HEAD:results/eval_paper/{name}"],
+        ["git", "show", f"HEAD:archive/research_artifacts/eval_paper/{name}"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

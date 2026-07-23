@@ -1,7 +1,7 @@
 """Operator-facing power-model parameters per node type.
 
 Every value has a one-sentence definition, computed directly from the measured
-windows (results/two_price_fit/windows_*.npz) with no fitting:
+windows (archive/research_artifacts/results/two_price_fit/windows_*.npz) with no fitting:
 
   F        : the fastest prefill rate the node ever sustained over a 5 s
              window [tok/s].
@@ -30,8 +30,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-IN_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "results", "two_price_fit")
-FIG_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "figures", "two_price_fit")
+IN_ROOT = os.path.join(
+    os.path.dirname(__file__), "..", "..", "archive", "research_artifacts",
+    "results", "two_price_fit",
+)
+FIG_ROOT = os.path.join(
+    os.path.dirname(__file__), "..", "..", "archive", "research_artifacts",
+    "figures", "two_price_fit",
+)
 
 RHO_STAR_FALLBACK = 0.8
 LATENCY_TOLERANCE = 1.25  # "within 25% of its best value"

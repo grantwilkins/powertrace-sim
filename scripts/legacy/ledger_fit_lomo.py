@@ -212,7 +212,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--pair-manifest-csv", default="results/stage0/pair_manifest.csv")
     ap.add_argument("--max-per-cell", type=int, default=2, help="runs per (model,hw,tp,rate)")
-    ap.add_argument("--out-dir", default="results/ledger_fit")
+    ap.add_argument(
+        "--out-dir", default="archive/research_artifacts/results/ledger_fit"
+    )
     args = ap.parse_args()
 
     runs = load_manifest_runs(args.pair_manifest_csv, args.max_per_cell)

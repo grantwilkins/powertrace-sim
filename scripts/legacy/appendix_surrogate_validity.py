@@ -1467,21 +1467,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stable-corr-threshold", type=float, default=0.80)
     parser.add_argument("--time-window-s", type=float, default=600.0)
     parser.add_argument(
-        "--out-csv", default="results/eval_paper/appendix_a1_trace_metrics.csv"
+        "--out-csv", default="archive/research_artifacts/eval_paper/appendix_a1_trace_metrics.csv"
     )
     parser.add_argument(
-        "--out-summary-csv", default="results/eval_paper/appendix_a1_config_summary.csv"
+        "--out-summary-csv", default="archive/research_artifacts/eval_paper/appendix_a1_config_summary.csv"
     )
     parser.add_argument(
         "--out-figure-overlays",
-        default="figures/appendix_a1_at",
+        default="archive/research_artifacts/figures/appendix_a1_at",
         help="Base path used to derive per-config A_t time-series/histogram filenames.",
     )
     parser.add_argument(
-        "--out-figure-scatter", default="figures/appendix_a1_lambda_vs_mean_at.pdf"
+        "--out-figure-scatter",
+        default="archive/research_artifacts/figures/appendix_a1_lambda_vs_mean_at.pdf",
     )
     parser.add_argument(
-        "--out-manifest-json", default="results/eval_paper/appendix_a1_manifest.json"
+        "--out-manifest-json", default="archive/research_artifacts/eval_paper/appendix_a1_manifest.json"
     )
     parser.add_argument("--dry-run", action="store_true")
     return parser

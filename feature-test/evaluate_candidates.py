@@ -285,7 +285,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--ledger-cache", default="feature-test/ledger_cache_250ms.npz")
     parser.add_argument("--run-index", default="feature-test/ledger_cache_250ms.runs.json")
-    parser.add_argument("--out-dir", default="results/feature_test_v1")
+    parser.add_argument(
+        "--out-dir", default="archive/research_artifacts/results/feature_test_v1"
+    )
     args = parser.parse_args(argv)
     cache, index_path, out = Path(args.ledger_cache), Path(args.run_index), Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)

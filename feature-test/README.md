@@ -19,11 +19,13 @@ Deployment provenance labels the S0 coefficient fit as
 
 ```bash
 uv run python feature-test/evaluate_candidates.py \
-  --out-dir results/feature_test_v2
+  --out-dir archive/research_artifacts/results/feature_test_v2
 ```
 
-The current retrospective scorecard is `results/feature_test_v2/`
-(`results/feature_test_v1/` is the pre-correction snapshot). The v2 rebuild
+The retained retrospective scorecard is
+`archive/research_artifacts/results/feature_test_v2/`
+(`archive/research_artifacts/results/feature_test_v1/` is the pre-correction
+snapshot). The v2 rebuild
 made three input corrections, each with cited or measured provenance:
 
 - llama-3-405b served weight bytes are 487.23e9 (sum of the served FP8

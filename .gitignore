@@ -8,6 +8,7 @@ random_plots_training_data
 *wandb*
 *.pdf
 /archive/research_artifacts/figures/**
+/archive/research_artifacts/results/**
 eval_results
 eval_results/*
 AGENTS.md

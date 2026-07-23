@@ -1,51 +1,18 @@
-# Eval Paper Artifact Map
+# Maintained Facility Support Artifacts
 
-> **Mixed historical/current directory.** Only the Azure facility files named
-> in `docs/PAPER_OUTPUTS.md` and bound by `results/paper/manifest.json` belong
-> to the maintained paper surface. Other files here predate the data-path audit
-> or document archived GMM-BiGRU experiments and must not be substituted.
+This directory contains the compact CSV, JSON, and LaTeX support files used by
+the maintained Azure facility paper pipeline. Regenerate them with:
 
-`results/eval_paper/` contains checked-in paper support artifacts: CSV/JSON
-inputs for plots and LaTeX tables consumed by the manuscript. Treat these files
-as generated outputs from maintained scripts; update them by rerunning the
-producer and reviewing the diff, not by editing values by hand. Maintained PDFs
-and PNGs live under `results/paper/`.
+```bash
+uv run --extra train --extra paper -m scripts.paper.regenerate
+```
 
-Artifact classes:
+The current set consists of `azure_facility_*`,
+`azure_oversubscription_capacity.*`, and the excluded-but-currently reproducible
+`azure_hierarchy_figure.*` diagnostic. Maintained rendered figures live under
+`results/paper/facility/`; large node and hierarchy arrays under
+`results/azure_facility/` are local intermediates.
 
-- measured: derived from recorded GPU power traces or production request traces
-- fitted: derived from trained model outputs or evaluation summaries
-- generated: simulated or replayed power traces
-- aggregated: rack, row, site, or summary-level reductions
-- rendered: figure/table outputs derived from upstream artifacts
-
-## Main paper artifacts
-
-| Artifact family | Checked-in outputs | Producer | Upstream | Class | Seed and runtime notes |
-| --- | --- | --- | --- | --- | --- |
-| Historical trace fidelity table | `trace_fidelity_table.tex`, `trace_fidelity_table_gptoss_a100.tex` | From `archive/gmm_bigru_v1`: `uv run --project ../.. --extra archive-bigru python -m scripts.eval.generate_trace_fidelity_table --output <path> --format latex` | archived evaluation summaries | fitted, rendered | No new randomness; seconds once eval summaries exist. |
-| Historical node baseline metrics and table | `baselines_node_level.csv`, `baselines_node_table.csv`, `baselines_node_table.json`, `baselines_node_table.tex` | From `archive/gmm_bigru_v1`: run `scripts.eval.run_baselines_node`, then `scripts.eval.generate_baselines_node_table` | archived manifests and trained model, Splitwise perf model | generated, rendered | Defaults use `--num-seeds 5 --base-seed 42`; table generation is seconds after metrics exist. |
-| Historical held-out node replay | `baselines_node_groundtruth_metrics.csv`; local archive figure: `archive/research_artifacts/figures/baselines_node_groundtruth_trace.pdf` | From `archive/gmm_bigru_v1`: run `scripts.eval.run_baselines_node_groundtruth` | archived held-out trace and trained generator, Splitwise LUT | measured, generated, rendered | Defaults are deterministic for fixed `--base-seed`; expected runtime is one held-out replay. |
-| Azure facility profile | `azure_facility_metrics.csv`, `azure_facility_ldc_15min.csv`, `azure_facility_site_traces_15min.csv`; figures: `results/paper/facility/azure_figure_*.pdf` | `uv run -m scripts.paper.regenerate` | regenerated selected artifact, Azure production arrivals, node streams, and Splitwise LUT | measured, generated, aggregated, rendered | Node streams and oversubscription use seed 42; all 240 selected-model nodes are regenerated before aggregation. |
-| Facility sizing table | `azure_facility_sizing_table.csv`, `azure_facility_sizing_table.json`, `azure_facility_sizing_table.tex` | `uv run -m scripts.eval.generate_azure_facility_sizing_table` | `azure_facility_metrics.csv` | aggregated, rendered | No new randomness; seconds after facility metrics exist. |
-| Historical hierarchy smoothing figure | `azure_hierarchy_figure.csv`, `azure_hierarchy_figure.json`; local archive figures under `archive/research_artifacts/figures/` | `uv run -m scripts.eval.hierarchy_figure` | `results/azure_facility/node_traces/ours/`, `results/azure_facility/aggregated/ours/` | aggregated, rendered | Excluded from the current paper allowlist. |
-| Oversubscription sensitivity | `azure_oversubscription_capacity.csv`, `azure_oversubscription_capacity.json`; figures under `results/paper/facility/` | `uv run -m scripts.eval.oversubscription_figure` | Azure aggregated rack traces and `azure_facility_metrics.csv` | aggregated, rendered | Defaults use `--seed 42`; runtime depends on sampling settings. |
-
-## Appendix and support artifacts
-
-| Artifact family | Checked-in outputs | Producer | Upstream | Class | Seed and runtime notes |
-| --- | --- | --- | --- | --- | --- |
-| Historical synthetic facility baselines | `baselines_facility_metrics.csv` | From `archive/gmm_bigru_v1`: run `scripts.eval.run_baselines_facility` | archived generator manifests and baseline settings | generated, aggregated | Uses explicit seed controls in the script; runtime scales with node count and duration. |
-| Node-level summary rollup | `node_level_summary.csv` | From `archive/gmm_bigru_v1`: `uv run --project ../.. --extra archive-bigru python -m scripts.eval.collect_results` | archived `continuous_v1_gmm_bigru/k10_f2*/eval_metrics/config_summary.csv` | fitted, aggregated | No new randomness; seconds. |
-| Historical power CDF comparison | `trace_power_cdf_comparison_points.csv`, `trace_power_cdf_comparison.csv`, `trace_power_cdf_comparison.json`; figures: `figures/trace_power_cdf_comparison/*_power_cdf.{pdf,png}` | From `archive/gmm_bigru_v1`: run `scripts.eval.generate_power_cdf_comparison` | archived model artifacts and manifests | measured, generated, rendered | Defaults use `--num-seeds 5 --base-seed 42`; runtime scales with selected configs. |
-| Historical feature sufficiency | `feature_sufficiency_per_config.csv`, `feature_sufficiency_summary.csv`, `feature_sufficiency_manifest.json`; figure: `figures/feature_sufficiency_curve.pdf` | From `archive/gmm_bigru_v1`: run `scripts.eval.feature_sufficiency_figure` | archived run manifest, training data, and GMM params | fitted, rendered | Defaults use `--seed 42`; retrains reduced-feature models. |
-| Appendix A1 surrogate validity | `appendix_a1_trace_metrics.csv`, `appendix_a1_config_summary.csv`, `appendix_a1_manifest.json`; figures: `figures/appendix_a1_*` | Historical producer: `scripts/legacy/appendix_surrogate_validity.py` | pre-audit run, experimental, and pair manifests | measured, generated, rendered | Excluded from the current paper allowlist. |
-| Splitwise arrival alignment | `splitwise_arrival_alignment_summary.csv` | No current maintained producer was found in `scripts/eval/` during this audit. | Existing checked-in support artifact | rendered | Keep only while referenced by the manuscript or replace with a maintained producer. |
-
-## Regeneration policy
-
-Use `uv run -m scripts.paper.regenerate` for the maintained set. Facility NPY
-arrays under `results/azure_facility/` are regenerated local intermediates,
-not checked artifacts. Preserve the large upstream artifacts under `data/`,
-`results/continuous_v1_gmm_bigru/`, `archive/research_artifacts/figures/`, and `feature-test/results/`
-unless the task explicitly asks to regenerate them.
+Retired appendix, GMM-BiGRU baseline, feature-sufficiency, and trace-fidelity
+outputs are preserved under `archive/research_artifacts/eval_paper/`. They are
+not valid inputs to the maintained paper manifest.

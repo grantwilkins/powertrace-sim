@@ -1,7 +1,8 @@
 """Saturating refit of node power on the windowed raw traces.
 
 Consumes the per-window arrays produced by two_price_fit.py
-(results/two_price_fit/windows_<config>.npz: P, f, g, itl, ttft_pt) and fits,
+(archive/research_artifacts/results/two_price_fit/windows_<config>.npz: P, f,
+g, itl, ttft_pt) and fits,
 per node type:
 
     P(f, g) = P0 + dP * w / (1 + w),   w = a*f + b*g     (Michaelis-Menten)
@@ -18,8 +19,7 @@ at P0 + dP.  From the fit and the latency data it derives:
   - p_amort    : pi(rho*)/rho* (autoscaler-amortized price per node-unit)
   - per-busy-second phase prices p_pre = dP*a*F, p_dec = dP*b*G
 
-Outputs results/two_price_fit/saturating_summary.csv and a three-panel figure
-per config in figures/two_price_fit/sat_<config>.png.
+Outputs into the matching archived result and figure directories.
 
 Usage:  uv run python scripts/eval/saturating_fit.py
 """
@@ -35,8 +35,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares
 
-IN_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "results", "two_price_fit")
-FIG_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "figures", "two_price_fit")
+IN_ROOT = os.path.join(
+    os.path.dirname(__file__), "..", "..", "archive", "research_artifacts",
+    "results", "two_price_fit",
+)
+FIG_ROOT = os.path.join(
+    os.path.dirname(__file__), "..", "..", "archive", "research_artifacts",
+    "figures", "two_price_fit",
+)
 
 LATENCY_KNEE_FACTOR = 1.25
 POWER_KNEE_FRAC = 0.8  # power knee = ell where P reaches P0 + this * dP
