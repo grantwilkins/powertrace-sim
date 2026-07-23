@@ -7,7 +7,7 @@ random_plots_training_data
 *__pycache__*
 *wandb*
 *.pdf
-figures/*
+/archive/research_artifacts/figures/**
 eval_results
 eval_results/*
 AGENTS.md

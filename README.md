@@ -17,12 +17,14 @@ The historical GMM-BiGRU implementation is preserved under
 - `archive/gmm_bigru_v1/`: self-contained first-generation model and results.
 - `docs/MODEL_PIPELINE.md`: paper-facing end-to-end training/inference flow.
 - `docs/PAPER_OUTPUTS.md`: paper artifact and evidence contract.
+- `docs/plans/`: active paper, campaign, and measurement plans.
+- `archive/research_notes/`: superseded plans and detailed failure analyses.
 - `CLEAN_MODEL.md`: migration status and remaining external work.
 
-`FEATURE_TEST_LEARNINGS.md` and the plans at the repository root retain the
-detailed research record. Candidate and ablation scripts under `power-test/`,
-`timing-test/`, and `feature-test/` are development support, not additional
-public model interfaces.
+Candidate and ablation scripts under `power-test/`, `timing-test/`, and
+`feature-test/` are development support, not additional public model
+interfaces. Historical figures are preserved under
+`archive/research_artifacts/`; maintained figures live in `results/paper/`.
 
 ## Setup
 

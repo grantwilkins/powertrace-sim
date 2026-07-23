@@ -1,4 +1,4 @@
-"""Phase A equivalence gate: metrics unification (data-path.md D11).
+"""Phase A equivalence gate: metrics unification (archive/research_notes/data-path.md D11).
 
 Regenerates the Azure facility metric CSVs through the unified
 ``model/classifiers/metrics.py`` implementations into a scratch directory and

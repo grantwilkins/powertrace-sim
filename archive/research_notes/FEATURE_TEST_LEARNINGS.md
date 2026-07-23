@@ -1,32 +1,78 @@
-# FEATURE_TEST_LEARNINGS: failure analysis and continuation map
+# FEATURE_TEST_LEARNINGS: current findings and historical failure analysis
 
-Status: handoff after the 2026-07-11 v2 evaluation (`results/feature_test_v2/`),
-which followed the measured-ITL rebuild and a cited-constant correction pass.
-This document records what has been established, why the remaining cells fail,
-and how to continue without turning target errors into constants.
+Status: current through 2026-07-21. The maintained request-only simulator is
+the exact timing-ledger path using `timing-test/fitted_efficiencies.json` and
+the separated clean power artifact `power-test/clean_power_surfaces.json`.
+Sections 2--7 and 9--14 preserve the July 11--16 feature-ladder investigation
+and its adversarial review as historical evidence; they are not the current
+deployment or result summary. Section 8 is the maintained resume map, while
+Sections 15--16 record the completed OpenHands analysis and the current
+pipeline, evidence boundaries, and continuation point.
 
-Read this after `FEATURE_TEST_PLAN.md` and before changing candidates. Treat
-`results/feature_test_v2/transfer_scorecard.csv` and its `selected_model.json`
-as the current numerical truth (`results/feature_test_v1/` is the
-pre-correction snapshot). Much of the lower half of `feature-test/README.md`
-is historical exploration and is not the frozen selection result.
+Read this after `FEATURE_TEST_PLAN.md` and before changing candidates. Numerical
+truth is claim-specific:
 
-## 1. Current state in one paragraph
+- clean legacy source/twin/stress results: `power-test/clean_power_report.json`;
+- coverage-basis held-out experiment: `power-test/coverage_power_report.json`
+  and `power-test/coverage_model_fidelity_table.json`;
+- external development bundles: `power-test/clean_expansion_report.json`;
+- support-limited MoE v3: `power-test/moe_surface_dev_v3.json` and
+  `power-test/moe_surface_stress_v3.json`;
+- historical M4A/M0c ladder only: `results/feature_test_v2/`.
 
-Source-only selection still chooses M4A on both hardwares; it passes 7 of 13
-cells and no candidate passes all gates. Relative to v1, three input
-corrections with cited or measured provenance (405B FP8 weight bytes 487.23e9
-instead of 405.85e9; FP8 FLOP fraction 0.7996 instead of a blanket 0.5 scale;
-a step-identified meter kernel matching published NVML metering behavior)
-improved the 405B energy cell to 4.70% (was 5.72%) and fixed the H100 TP8
-ACF-MAE gate (0.114, was 0.143), while regressing H100 hold-TP1 energy (7.64%)
-through the changed 405B source fit. A new candidate, M0c (phase-anchored
-concave physics mean, 16 scalars, no request-state columns, board-power cap),
-is not selected — its source-development energy trails M4A — but it passes all
-four H100 TP holdouts including hold-TP1, has the best H100 dynamics in the
-ladder (S2a ACF R2 0.991), and lifts 405B median ACF R2 from negative values
-to 0.602 while over-predicting 405B energy by 8-11%. This is still not a
-passing model. Do not describe it as one.
+No complete sealed-campaign score exists yet. Ten of eleven planned bundles
+are present; the Qwen3-30B-A3B H100 MoE run is missing, and the current cache
+pair comparator also treats run-specific server epochs as invariant controls.
+Do not substitute ad hoc per-run scoring for the absent final campaign report.
+
+## 1. Current state
+
+The current deterministic simulator predicts request timing, emits exact
+per-iteration GEMM/attention work into a 250 ms ledger, and applies separate
+dense and architecture-specific MoE power laws. The dense law uses a fixed
+hardware idle floor, busy-gated resident-weight fraction, exact timing-roofline
+compute utilization, and duty-aware square-root HBM utilization. It does not
+route on model name, arrival rate, or elapsed trace time. The clean default fit
+uses all 225 dense and 60 MoE source repetitions through rate 2; 57 rate-4 runs
+are retrospective stress tests and 108 related-model runs are transfer twins.
+
+On that legacy population, dense source/twin/rate-4 medians are respectively
+1.68%/1.97%/2.99% energy error, 13.10/12.30/14.09 W/GPU RMSE, and
+0.9941/0.9952/0.7295 ACF R2. The separated MoE source/rate-4 medians are
+1.27%/2.08% energy error and 0.9676/0.9160 ACF R2. These legacy repetitions
+overlap heavily in request content, so source and twin summaries are useful
+comparators, not an honest independent validation split.
+
+The alternate coverage-basis experiment is the strongest broad held-out
+development result. It trains on 117 traces from 39 complete cells and holds
+out 333 traces from 111 cells as new rates, TP setups, or model setups. Across
+all held-out cells it obtains 3.26% median end-to-end timing error, 1.97% energy
+error, 13.58 W/GPU RMSE, and 0.9894 ACF-profile R2. This experiment is explicitly
+versioned and does not silently replace the default artifact.
+
+External evidence remains mixed. Clean Qwen rate/shape development runs score
+3.06--3.55% energy and 5.73--6.48% timing error, but current GPT-OSS-120B and
+405B bundles cross protocol or telemetry boundaries and fail. The measured
+routing ablation is rejected. The support-limited GPT-OSS-20B MoE v3 surface
+does improve retrospective development/rate-4 energy to 0.92%/1.16% and range
+NRMSE to 0.065/0.052, but it is restricted to A100 TP1/2 with uniform routing.
+
+The completed OpenHands packs establish the newest and most useful boundary.
+The frozen simulator transfers unseen agentic event structure, cache behavior,
+and tool waits, but absolute watts do not transfer zero-shot between nominally
+identical A100 deployment platforms. A retrospective two-gain hardware
+calibration reduces median energy error from 12.65% to 1.34%, normalized
+Soft-DTW from 0.0270 to 0.0049, and range NRMSE from 0.160 to 0.075. This is
+few-shot hardware calibration with zero-shot workload transfer, not a sealed
+zero-shot result or workload retraining.
+
+### Historical scope of Sections 2--7 and 9--14
+
+Those sections explain why the July feature ladder failed, which constants and
+assumptions were rejected, and how the current clean design was motivated.
+Statements such as “current result,” “next candidate,” or “pending campaign”
+inside them are dated to July 11--16 unless Section 16 explicitly carries them
+forward.
 
 ## 2. The geometry of the problem (established, unchanged by v2)
 
@@ -44,14 +90,15 @@ occupancy. Several middle-layer trajectories produce the same request-level
 ledger but different power. v2 sharpened this from a general statement into
 two specific, named axes (section 5).
 
-### 2.2 Energy and temporal fidelity constrain nearly orthogonal directions
+### 2.2 Energy and autocorrelation structure constrain different directions
 
-Full-run energy constrains the zero-frequency component; ACF constrains the
-normalized spectrum. v2 exhibits the trade concretely: on the 405B cell, M4A
-gets energy right (4.70%) with collapsed dynamics (ACF R2 -0.615), while M0c
-gets dynamics largely right (0.602; rates 2-4 positive) with energy 8-11%
-over. Neither passes. The information missing from the ledger is exactly what
-would let one model do both.
+Full-run energy constrains the zero-frequency component; ACF compares a
+normalized lag-dependence profile. v2 exhibits the trade concretely: on the
+405B cell, M4A gets energy right (4.70%) with poor ACF-profile agreement
+(R2 -0.615), while M0c improves that profile (0.602; rates 2-4 positive) with
+energy 8-11% over. Neither passes the registered gates. ACF does not measure
+event timing, alignment, or temporal fidelity; pointwise error and Soft-DTW
+must carry those separate claims.
 
 ### 2.3 Identifiability findings that now have numbers
 
@@ -212,6 +259,9 @@ New from v2:
 
 ## 6. The smallest meaningful next experiment
 
+Historical July 16 plan. Several listed campaigns have since run; use
+Section 16.8 for the current continuation point.
+
 Unchanged in spirit from v1, now with sharper targets. Collect synchronized
 engine and device state for cells that separate the two named axes:
 
@@ -278,29 +328,36 @@ test. See `profiling/CAMPAIGN.md` for the executable campaign order.
 
 ## 8. Where to resume
 
-- plan: `FEATURE_TEST_PLAN.md`;
-- shared ledger: `model/training_data/ledger_view.py`; arch constants with
-  citations: `model/training_data/arch.py`;
-- physics kernel (including the M0c concave basis): `model/classifiers/physics.py`;
-- evaluator: `feature-test/evaluate_candidates.py` (M0c staged fit:
-  `_m0c_coefficients`; board-power caps: `TDP_W_PER_GPU`);
-- meter kernel: `feature-test/meter_kernel.json`, regenerated by
-  `feature-test/identify_meter_kernel.py`;
-- gates: `feature-test/gates.py`;
-- current results: `results/feature_test_v2/` (pre-correction snapshot:
-  `results/feature_test_v1/`).
+- experiment contract: `FEATURE_TEST_PLAN.md`;
+- current timing fit and scheduler: `timing-test/fitted_efficiencies.json`,
+  `timing-test/scheduler_sim.py`, and `timing-test/simulated_ledger.py`;
+- current dense law: `power-test/clean_dense_surface.py`;
+- separated fit/evaluation: `power-test/fit_clean_power_pipelines.py` and
+  `power-test/clean_power_surfaces.json`;
+- external evaluator: `timing-test/evaluate_expansion.py`;
+- sealed scorer: `power-test/score_sealed_campaign.py`;
+- coverage experiment: `timing-test/build_coverage_split.py` and
+  `power-test/evaluate_coverage_split.py`;
+- MoE support boundary: `power-test/moe_surface.py` and
+  `power-test/fitted_moe_surface_v3.json`;
+- historical M4A/M0c ladder: `feature-test/evaluate_candidates.py` and
+  `results/feature_test_v2/`.
 
-Rebuild and evaluate:
+Rebuild the maintained clean path:
 
 ```bash
-uv run python feature-test/build_ledger_cache.py \
-  --dt 0.25 \
-  --out feature-test/ledger_cache_250ms.npz
-
-uv run python feature-test/evaluate_candidates.py \
-  --ledger-cache feature-test/ledger_cache_250ms.npz \
-  --run-index feature-test/ledger_cache_250ms.runs.json \
-  --out-dir results/feature_test_v2
+uv run python timing-test/simulated_ledger.py \
+  --dt 0.25 --roles all --moe-routing uniform \
+  --out feature-test/ledger_cache_sim_uniform_current_250ms.npz
+uv run python power-test/join_power.py \
+  --cache feature-test/ledger_cache_sim_uniform_current_250ms.npz \
+  --out power-test/sim_ledger_power_uniform_current_250ms.npz \
+  --provenance-out power-test/sim_ledger_power_uniform_current_250ms.provenance.json
+uv run python power-test/fit_clean_power_pipelines.py
+uv run python timing-test/evaluate_expansion.py \
+  --timing-fit timing-test/fitted_efficiencies.json \
+  --power-fit power-test/clean_power_surfaces.json \
+  --out power-test/clean_expansion_report.json
 ```
 
 Before trusting any result:
@@ -312,15 +369,14 @@ uv run -m pytest -x feature-test/tests
 
 ## 9. Final lesson
 
-v1's lesson stands: the data identify a good average power surface over the
-source manifold but not a unique map from request timing to power dynamics
-where the engine changes its batch and clock behavior. v2 adds the sharper
-version: every constant that could be audited against a served artifact or a
-published measurement was worth auditing (two of three were wrong in ways
-that moved transfer cells), and the two remaining failure axes now have
-names — tensor-parallel synchronization power and MoE iteration granularity —
-with specific probes that would identify them. The next breakthrough is those
-probes, not another surface.
+Historical July 16 lesson: the data identify a good average power surface over
+the source manifold but not a unique map from request timing to power response
+when engine iteration structure or device operating state changes. The current
+pipeline resolves much of the scheduler/work-accounting ambiguity, and the
+coverage experiment demonstrates broad within-platform transfer. OpenHands
+adds the sharper deployment lesson: nominal accelerator identity still does
+not identify the watt response. Current conclusions and next actions are in
+Sections 15--16.
 
 ## 10. Repaired-data audit (2026-07-16)
 
@@ -807,8 +863,9 @@ broke and what survived; every number below was recomputed, not quoted.
    kernel JSON are untested. The board-power cap is well pinned.
 6. Reporting: 405B ACF R2 medians average regimes with 10x different
    denominators (measured-ACF total variance 2.2-3.1 at low rates vs
-   0.19-0.33 at rates 1-4); ACF-MAE is the stable metric and should carry
-   temporal claims. energy_error_pct equals |mean_bias_pct| per run, which
+   0.19-0.33 at rates 1-4); ACF-MAE is the stable metric for
+   autocorrelation-profile claims. `energy_error_pct` equals
+   `|mean_bias_pct|` per run, which
    is what let a sign flip read as improvement. The deployed v2 artifacts
    (M4A) still carry the 0.5 s window and fitted quantile cap that
    sections 3.2-3.3 describe as superseded — the fixes shipped only in the
@@ -834,3 +891,234 @@ broke and what survived; every number below was recomputed, not quoted.
   "source development only after retrospective model design" — and it
   must also be carried on the deployable artifacts and README, and can
   only be discharged by the sealed campaign.
+
+## 15. OpenHands finding: workload transfer after hardware calibration
+
+The six-run OpenHands subset exposed a boundary hidden by the coarse `A100`
+hardware label. The source power surface was fit on an Azure eight-GPU
+A100 node with a 400 W limit, while OpenHands ran TP1 on a different four-GPU
+A100 platform. The OpenHands bundles preserve the unseen agentic structure:
+tool waits, growing conversational contexts, large uncached prefills, and
+cache-on/off execution. Their request-derived predictions place those events
+correctly, but the frozen source watt mapping under-prices compute-bound
+prefill on the new platform.
+
+A retrospective two-gain platform calibration explains most of the miss
+without changing timing, scheduling, cache accounting, or the source power
+surface:
+
+```text
+P_calibrated = 83.2 W
+             + 1.0425 * (P_source - 70.1188 W)
+             + 0.5891 * source_prefill_compute_contribution
+```
+
+Equivalently, ordinary dynamic power receives a 1.0425 gain and the total
+prefill-compute contribution a 1.6316 gain. Across all six OpenHands traces,
+median energy error changes from 12.65% to 1.34%, normalized Soft-DTW from
+0.0270 to 0.0049, and range NRMSE from 0.160 to 0.075. Leave-one-pack-out
+fits are stable: ordinary gains are 1.039--1.050, total prefill gains are
+1.627--1.635, and held-out energy errors are 0.29--2.65% with median Soft-DTW
+0.0049. The overlay is
+`power-test/openhands_platform_calibrated_prediction_overlay.png`.
+
+The paper-facing finding is therefore:
+
+> Nominal accelerator identity is insufficient for zero-shot absolute-watt
+> transfer across deployment platforms. The request/timing simulator still
+> transfers unseen workload structure, including agentic pauses and cache
+> behavior, while a low-dimensional hardware calibration recovers the local
+> watt response. This is few-shot hardware calibration with zero-shot workload
+> transfer, not workload-specific retraining.
+
+Metric language must remain precise. Soft-DTW measures time-warped trace-shape
+agreement, range NRMSE measures pointwise magnitude agreement, and energy error
+measures the integrated magnitude. ACF R2 measures agreement between
+autocorrelation profiles over the selected lags; it does not measure event
+timing, alignment, or temporal fidelity. A low ACF R2 must therefore be
+reported as an autocorrelation-structure disagreement, not used to negate low
+Soft-DTW and pointwise error.
+
+These constants were extracted after inspecting OpenHands power and are
+retrospective calibration evidence, not a sealed zero-shot result. The clean
+confirmatory experiment is to estimate the same idle, ordinary-dynamic, and
+prefill gains from short non-agentic idle/prefill/decode probes, freeze them,
+and then score untouched agentic traces.
+
+## 16. Current pipeline and evidence map (2026-07-21)
+
+### 16.1 Maintained model contract
+
+The maintained request-only path is no longer the M4A feature-ladder model.
+It has three explicit stages:
+
+1. `scheduler_sim.py` predicts admission, prefill, decode, and completion from
+   released requests and the recorded server limits.
+2. `simulated_ledger.py` conserves exact per-iteration GEMM FLOPs, attention
+   FLOPs, attention bytes, phase decomposition, weight traffic, iteration rate,
+   and scheduled tokens on a 250 ms grid.
+3. `clean_power_surfaces.json` maps those channels to watts with separate dense
+   and MoE laws. Dense coefficients are hardware-local; MoE coefficients are
+   architecture-specific and fail closed outside declared support.
+
+The clean dense artifact is schema `clean-separated-power-surfaces-v4`. Its
+A100/H100 laws each contain four coordinates: idle floor, active resident-weight
+fraction, compute utilization, and duty-aware square-root memory utilization.
+The current cache rebuild from the maintained simulator is array-identical to
+the cache named by the artifact. The artifact binds its cache and timing-fit
+hashes, but generated clean artifacts and reports are currently untracked in
+the worktree; paper freeze requires versioning them and binding generator and
+evaluator code hashes as well.
+
+### 16.2 Clean legacy result
+
+`power-test/clean_power_report.json` is the current result for the 450 legacy
+runs:
+
+| surface | role | runs | energy error | RMSE W/GPU | range NRMSE | Soft-DTW | ACF-profile R2 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| dense | source fit | 225 | 1.68% | 13.10 | 0.057 | 0.0032 | 0.9941 |
+| dense | transfer twin | 108 | 1.97% | 12.30 | 0.055 | 0.0029 | 0.9952 |
+| dense | rate-4 stress | 45 | 2.99% | 14.09 | 0.089 | 0.0081 | 0.7295 |
+| MoE | source fit | 60 | 1.27% | 10.91 | 0.064 | 0.0037 | 0.9676 |
+| MoE | rate-4 stress | 12 | 2.08% | 11.66 | 0.063 | 0.0032 | 0.9160 |
+
+These numbers demonstrate fit quality and retrospective stress behavior. The
+source and twin workloads reuse nearly identical request sequences, so their
+small difference is not an independent transfer claim.
+
+### 16.3 Coverage-basis held-out experiment
+
+The versioned coverage experiment trains on 117 traces from 39 complete cells
+and holds out all repetitions from 111 other cells. Its result is:
+
+| held-out axis | traces | cells | E2E timing | energy error | RMSE W/GPU | ACF-profile R2 |
+|---|---:|---:|---:|---:|---:|---:|
+| new rates | 117 | 39 | 3.91% | 1.06% | 13.10 | 0.9822 |
+| new TP setups | 108 | 36 | 3.56% | 3.50% | 14.60 | 0.9776 |
+| new model setups | 108 | 36 | 2.55% | 2.10% | 13.17 | 0.9953 |
+| all held out | 333 | 111 | 3.26% | 1.97% | 13.58 | 0.9894 |
+
+The model-wise report additionally gives median normalized pointwise errors of
+5.34--9.84% of measured range and `100*sqrt(Soft-DTW)` values of 5.27--9.14%
+across seven models. That transformed Soft-DTW statistic is explicitly a trace
+shape error; it must not be conflated with ACF-profile R2.
+
+This is the best broad development evidence, but the split was designed and
+inspected locally. It is a versioned experiment, not the final untouched
+external claim and not a replacement for the default fit.
+
+### 16.4 External development boundaries
+
+`power-test/clean_expansion_report.json` scores current external bundles without
+refitting:
+
+- three A100 Qwen3-8B rate/shape runs: 5.73--6.48% timing and 3.06--3.55%
+  energy error;
+- H100 TP4 same-marks state control: 2.15% timing and 5.27% energy error;
+- current GPT-OSS-120B A100 runs: 30--33% timing and about 24% energy error;
+- current 405B H100 runs: 20--25% timing and 10--14% energy error, with
+  insufficient power coverage for Soft-DTW and ACF;
+- BurstGPT development run: 1.93% timing but 12.70% energy error under the
+  current clean artifact;
+- TraceLab cache-off/on: 20.89%/8.58% energy error, with a cache treatment that
+  is invalid because prompt/output hashes differ;
+- Gemma-4-26B-A4B: unsupported because no architecture-specific MoE surface
+  exists.
+
+These failures reject universal rate, elapsed-time, or MoE correction factors.
+They also show why engine protocol, power state, telemetry coverage, and exact
+cache-pair identity belong in the evidence contract rather than in footnotes.
+
+### 16.5 MoE status
+
+The measured-routing ablation is rejected. Relative to a uniform cache rebuilt
+from the same code, measured routing worsens GPT-OSS-20B development energy from
+15.52% to 17.75% and rate-4 energy from 17.23% to 22.41%; timing effects are
+mixed. Measured routing remains a diagnostic work-coordinate experiment, not
+the deployed default.
+
+The separate GPT-OSS-20B MoE v3 surface is supported only for A100 TP1/2 under
+independent-uniform routing. On ten retrospective development runs it improves
+median energy from 15.52% to 0.92% and range NRMSE from 0.140 to 0.065. On six
+opened rate-4 stress runs it improves energy from 17.23% to 1.16% and NRMSE
+from 0.233 to 0.052. GPT-OSS-120B TP4/8 remains an unsupported comparator; its
+frozen dense baseline is 3.92% energy error and 0.084 NRMSE. Do not generalize
+the 20B MoE law across model scale, TP support, or routing mode.
+
+### 16.6 Sealed campaign state
+
+The registered matrix requires eleven bundles: three BurstGPT, six OpenHands,
+one unseen Qwen3-14B dense run, and one unseen Qwen3-30B-A3B H100 MoE run. Ten
+are present. The missing MoE bundle prevents the scorer's exact campaign-matrix
+check from passing. The cache-pair comparator also currently compares
+run-specific server launch/ready epochs as if they were treatment invariants;
+that must be corrected before an official report can be produced, while still
+checking the actual engine configuration and replay identity.
+
+Direct per-run diagnostics with the frozen clean artifacts show:
+
+- BurstGPT: 3.19--7.04% timing, 3.82--15.25% energy, and Soft-DTW
+  0.0039--0.0103;
+- unseen Qwen3-14B: 1.42% timing, 4.58% energy, 0.143 range NRMSE, and 0.0156
+  Soft-DTW;
+- OpenHands cache-off: 2.88--4.22% timing and 17.11--20.94% energy;
+- OpenHands cache-on: 5.04--7.39% timing and 6.81--8.19% energy.
+
+Those diagnostics are not a substitute for the absent campaign report. All
+OpenHands targets have now been inspected, so the hardware-calibrated result in
+Section 15 is necessarily retrospective. Any confirmatory claim requires a new
+untouched agentic set after the calibration rule is frozen.
+
+### 16.7 Paper-safe findings
+
+The current evidence supports these statements:
+
+1. Exact request/timing-ledger work supports broad held-out rate, TP, and model
+   transfer within measured deployment support.
+2. Unseen agentic event structure, tool waits, growing contexts, and prefix
+   cache behavior can be simulated without agentic traces in source fitting.
+3. Nominal accelerator names do not identify deployment-local watt response;
+   a small hardware calibration can recover magnitude while leaving workload
+   simulation frozen.
+4. MoE power requires explicit architecture and routing support; a universal
+   dense or entropy multiplier is not supported.
+5. Energy, pointwise magnitude, Soft-DTW trace shape, distribution agreement,
+   and ACF-profile agreement are distinct measurements. ACF R2 is not a
+   temporal-fidelity or event-alignment metric.
+
+The evidence does not yet support these stronger statements:
+
+- zero-shot absolute-watt transfer across arbitrary systems carrying the same
+  GPU product name;
+- a sealed few-shot hardware-calibration result;
+- universal MoE transfer across model scale, TP, hardware, or routing mode;
+- a complete paper-final sealed campaign pass.
+
+### 16.8 Current continuation point
+
+Do not tune another shared surface against the opened targets. The smallest
+honest continuation is:
+
+1. Add product name, chassis/deployment identity, current/default/enforced power
+   limit, P-state, clocks, and cap/thermal event reasons to every calibration
+   and validation bundle. Hardware support must include these fields rather
+   than the string `A100` alone.
+2. On the accessible 300 W A100, collect short non-agentic idle, pure-prefill,
+   and sustained-decode probes. Estimate only the predeclared idle,
+   ordinary-dynamic, and prefill gains; freeze the adapter before agentic data.
+3. Collect fresh untouched agentic packs on that same platform and score the
+   frozen scheduler, power surface, and hardware adapter once.
+4. Collect or formally retire the missing Qwen3-30B-A3B H100 MoE sealed cell.
+   Unsupported retirement narrows the claim; it must not be counted as a pass.
+5. Fix cache-pair comparison so run epochs are recorded provenance but only
+   treatment-invariant server controls are compared. Add a regression test
+   before rescoring.
+6. Version the clean and coverage artifacts, their input hashes, generator and
+   evaluator code hashes, exact calibration population, and generated reports
+   before paper freeze.
+
+The resulting paper story is not that hardware differences are free. It is
+that the workload simulator transfers broadly, while the remaining
+deployment-specific watt map is low-dimensional, measurable with a short
+calibration, and separable from workload-specific retraining.

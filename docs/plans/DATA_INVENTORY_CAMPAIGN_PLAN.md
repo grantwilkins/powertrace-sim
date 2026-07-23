@@ -12,8 +12,10 @@ The paper's primary claim is descriptor-based transfer: a simple timing and
 power model should generalize to unseen request schedules and unseen
 checkpoints without an arrival-rate coefficient, model-name correction, or
 target-trace refit. We minimize E2E timing error, energy error, ACF-MAE, and
-range-normalized RMSE. ACF R² is the exception: higher is better, so its gate is
-a minimum rather than a minimization objective.
+range-normalized NRMSE. ACF R² is the exception: higher is better, so its gate
+is a minimum rather than a minimization objective. Normalized soft-DTW
+divergence is also reported for temporal shape, but remains diagnostic so this
+final-stage metric addition cannot rewrite the frozen selection or gates.
 
 Freeze the timing fit, power fit, feature set, architecture registry, metric
 code, gates, and all trace-plan hashes before collecting any bundle marked
@@ -102,6 +104,7 @@ Each bundle must have validated `measured_ledger` instrumentation and at least
 | ACF-MAE | ≤ 0.05 |
 | ACF R² | ≥ 0.90 |
 | range-normalized RMSE | ≤ 0.20 |
+| normalized soft-DTW divergence | report only |
 
 Report every run, the median and worst run within each question, and every
 failure. The campaign-level claim passes only if every primary run passes and
@@ -229,10 +232,10 @@ not replace the frozen checked-in surface.
 
 | evidence | timing | power/energy | interpretation |
 |---|---:|---:|---|
-| frozen non-training matrix | 3.57% median E2E | — | strong general baseline |
-| H100 405B, rate 1 | 2.88% E2E | — | pass |
-| H100 405B, rate 2 | 8.12% E2E, signed -8.10% | — | miss begins before rate 4 |
-| H100 405B, rate 4 | 12.50% E2E, signed -12.46% | 4.84% energy, 0.018 ACF-MAE | timing failure, not power failure |
+| non-training matrix | 3.63% median cell E2E | — | preempted probe levels excluded from non-preemptive calibration |
+| H100 405B, rate 1 | 2.89% E2E | — | pass |
+| H100 405B, rate 2 | 8.07% E2E, signed -8.04% | — | miss begins before rate 4 |
+| H100 405B, rate 4 | 12.41% E2E, signed -12.38% | 4.84% energy, 0.018 ACF-MAE | timing failure, not power failure |
 | Qwen A100/H100, rate 4 | 6.37%/4.97% E2E | 0.56%/14.22% energy | timing transfers; H100 power fails and L1 separates idle from active residuals |
 | Qwen A100 rate/shape trio | 5.69-5.95% E2E | 1.64-1.82% energy | no generic high-rate failure |
 | BurstGPT A100 | 2.06% E2E | 7.89% energy | timing pass, energy above target |
@@ -240,9 +243,46 @@ not replace the frozen checked-in surface.
 | TraceLab cache-on | 15.55% E2E | 2.27% underprediction | timing fails |
 | H100 TP4 state control | 2.23% E2E | 5.70% energy, 0.0166 ACF-MAE | same rate-4 marks pass temporally at TP4 |
 
-The short 52-83 second Qwen arrival experiments cannot grade a 60-second ACF
-curve reliably. Their timing and energy summaries remain valid, but long-lag
-temporal claims do not.
+The 52-56 second Qwen rate-4 runs fail the 62-second temporal minimum. The
+80-83 second A100 rate/shape runs pass that minimum but leave only 20-23 pairs
+at lag 60, so their ACF and Soft-DTW remain fragile development diagnostics.
+Timing and total-energy summaries remain valid for both groups.
+
+### 2.4 Bundle-quality ledger and data nice-to-haves
+
+The inventory distinguishes a scientifically failed model prediction from a
+flawed or out-of-contract bundle. A bundle remains useful only for the columns
+whose prerequisites survive. Missing identity or telemetry must not be repaired
+by interpolation, inferred metadata, or a model-name correction.
+
+| campaign/data | known flaw or boundary | use that remains valid | minimum useful recollection or nice-to-have |
+|---|---|---|---|
+| legacy ShareGPT timing/power corpus | deterministic request order and several protocol-locked midpoint residual changes; old runs lack scheduler-policy, clock, P-state, temperature, and power-limit identity | source fitting and within-protocol comparisons; not evidence for an elapsed-time or generic rate law | replay identical marks with cyclically shifted request order; record launch command, async/sync policy, clocks, P-state, temperature, cap, per-GPU power, and engine counters |
+| A100 GPT-OSS-120B hard cells | legacy training used asynchronous scheduling while current development serving is synchronous; old bundles have no policy manifest; old/new ShareGPT marks differ; no measured 120B routing law | two current-stack model-error reports and a serving-contract failure | cross sync/async policy on identical request hashes and checkpoint; persist router/source labels and expert-touch telemetry; recollect the rate-1 leg because its power log contains a 7-second gap |
+| H100 405B hard cells | only 36-38% of native 250-ms bins are observed; 16.7-20.4% of one-second bins are empty, with 2-3 second gaps | timing and cadence-qualified mean-energy sign; no ACF, NRMSE, or Soft-DTW claim | recollect at stable cadence with per-GPU timestamps, meter cadence validation, clocks/P-state/temperature/cap, and the same request hashes; include the planned current-stack rate-4 leg only after the timing mechanism freezes |
+| TraceLab cache-off/on pair | all 136 keys exist, but 10 prompt hashes and 34 output hashes differ | each leg is a separate agentic model-error report | forced-token replay with exact prompt/output/cache identity, normalized-plan hash, tokenizer/checkpoint hash, and a passing CPU comparator before GPU submission |
+| Qwen A100/H100 rate-4 runs | 52/56 second horizons fail the 62-second temporal minimum | request timing and total energy | a fixed 10-15 minute replay of the same marks with a pre-idle anchor if ACF/Soft-DTW is needed |
+| Qwen A100 rate/shape runs | 80-83 seconds pass the minimum but leave only 20-23 sample pairs at lag 60 | timing, energy, and fragile development-only temporal diagnostics | extend the same fixed marks to 10-15 minutes before using long-lag ACF/Soft-DTW as paper evidence |
+| high-concurrency calibration probes | A100/H100 batch-256 staircase levels record 58/66 preemptions; an H100 mixed grid records up to 114 cumulative preemptions, while the simulator is non-preemptive | zero-preemption levels only; the two staircase levels are excluded from the fit | recollect below the seat/KV boundary or enlarge capacity so the full level has zero waiting and zero preemption increments |
+| incomplete probe directories | several context-hold/GPT-OSS directories have no `manifest.json` and cannot bind code, model, engine, or window identity | none for fitted or transfer evidence | recollect through the canonical bundle writer; do not reconstruct a manifest from filenames |
+| MoE routing capture | the v2 capture omitted per-sample source labels, so the ShareGPT/SWE ordering is inferred from append order | the documented routing counterfactual only | persist source label, sample ID, model/tokenizer hash, layer, token position, selected experts, and serving policy in each row |
+
+For every future bundle, the following fields are inexpensive and should be
+treated as collection nice-to-haves even when they are not a primary model
+feature:
+
+- raw per-GPU power timestamps and UUIDs before TP summation;
+- effective sampling cadence, missing intervals, and clock-sync residuals;
+- P-state, SM/memory clocks, temperature, operating power limit, and cap events;
+- exact vLLM version and commit, scheduler policy, chunked-prefill flag,
+  `max_num_seqs`, `max_num_batched_tokens`, KV dtype, and prefix-cache policy;
+- running/waiting requests, KV use, iteration/token counters, and preemptions;
+- checkpoint, tokenizer, request-plan, prompt, output, and forced-token hashes;
+- for MoE, routing-capture identity and content-source labels.
+
+These additions are not permission for a broad new sweep. Recollect only a
+bundle whose missing field blocks a named claim, and hold request identity
+fixed so the new run resolves that ambiguity rather than introducing another.
 
 ## 3. Why rate 4 degrades
 
@@ -313,10 +353,17 @@ the model from correlation alone; use the controlled probe in Section 6.
 
 ### 3.3 The 305-second power transition is separate
 
-All twelve legacy 70B TP8 rate-4 traces change by roughly 12-19 W/GPU near
-304.2-306.5 seconds. Energy can still be close while ACF-MAE remains about
-0.30-0.37. The same rate-4 request marks on the modern H100 TP4 state control
-have ACF-MAE 0.0166 and no upward transition.
+The strongest legacy 70B TP8 rate-4 traces change by roughly 12-19 W/GPU near
+304.2-306.5 seconds, but the broader changepoint inventory also finds
+half-trace transitions in some 70B TP4 rate-1/2, 8B TP2 rate-4, and 405B
+traces. Energy can still be close while ACF-MAE remains about 0.30-0.37. The
+same rate-4 request marks on the modern H100 TP4 state control have ACF-MAE
+0.0166 and no upward transition. The supported label is therefore an
+legacy protocol-locked residual regime not explained by the current causal
+coordinates, not a 70B-, TP8-, or rate-specific physical mechanism. The
+deterministic request order changes input/output work near the midpoint, and
+legacy telemetry lacks clocks and temperature, so the mechanism is not
+identifiable from these files.
 
 The TP4 control records:
 

@@ -526,6 +526,21 @@ RMSE / (max measured power - min measured power)  # compatibility
 RMSE / mean measured power                        # stable interpretation
 ```
 
+Soft-DTW divergence is reported as an additional temporal-shape diagnostic:
+
+- aggregate both traces to 1 s, matching the ACF evaluation cadence;
+- transform both traces with the measured mean and measured power range, so
+  amplitude and bias errors are preserved rather than normalized away;
+- use squared-error soft-DTW with `gamma = 0.01` and a Sakoe-Chiba band of
+  plus or minus 10 seconds;
+- subtract half of each trace's self-cost, clamp only numerical negatives to
+  zero, and divide by trace length. Lower is better and identical traces are
+  zero.
+
+Soft-DTW is report-only for this frozen campaign. It is included in per-run,
+stratified, and run-bootstrap outputs but does not change candidate selection
+or a pre-registered gate.
+
 ### Secondary metrics
 
 - signed run-mean bias;

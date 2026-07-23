@@ -6,7 +6,8 @@ Status: specified, not run — needs ~1 hour on any GPU (16 GB for gpt-oss-20b,
 one 80 GB card for gpt-oss-120b). Until it runs, every mixture-of-experts
 power claim carries the uniform-independent routing assumption, which is
 provably unidentifiable from latency or node power (timing-test/README.md,
-FEATURE_TEST_LEARNINGS.md section 6 item 2, timing-test/fit_moe_routing.py).
+`../../archive/research_notes/FEATURE_TEST_LEARNINGS.md` section 6 item 2,
+`timing-test/fit_moe_routing.py`).
 
 What to do:
 

@@ -2,7 +2,7 @@
 
 Archived analysis scripts and shell wrappers whose results were cut from the
 e-Energy paper. They were moved here from `scripts/eval/` and `scripts/` during
-cleaning-plan.md Phase 4 and are no longer part of the maintained evaluation
+`archive/research_notes/cleaning-plan.md` Phase 4 and are no longer part of the maintained evaluation
 path.
 
 - `two_price_fit.py` - Two-price operator model fit over benchmark windows
