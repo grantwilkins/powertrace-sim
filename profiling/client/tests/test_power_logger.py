@@ -1,7 +1,11 @@
 """Unit tests for the extended nvidia-smi power logger (CAMPAIGN.md §5-A)."""
 
+import csv
+import io
 import sys
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # profiling/client
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root
@@ -9,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root
 import power_logger  # noqa: E402
 from power_logger import (  # noqa: E402
     DEFAULT_INTERVAL_MS,
+    TIMED_FIELDS,
     TP8_STATE_FIELDS,
     nvidia_smi_command,
     nvidia_smi_query_command,
@@ -63,6 +68,40 @@ def test_write_query_rows_uses_one_timestamp_for_all_gpus(tmp_path):
     rows = path.read_text().splitlines()
     assert rows[1].startswith("2026/07/13 01:00:00.123,0,GPU-0")
     assert rows[2].startswith("2026/07/13 01:00:00.123,1,GPU-1")
+
+
+def test_timed_profile_uses_query_midpoint_without_changing_power(monkeypatch):
+    times = iter((1_000_000_000, 1_200_000_000))
+    stream = io.StringIO()
+
+    def query(*_args, **_kwargs):
+        power_logger._STOP = True
+        return SimpleNamespace(
+            stdout="0, GPU-0, 100, 1980, 2619, 95, 40, 81000, 65\n"
+        )
+
+    power_logger._STOP = False
+    monkeypatch.setattr(power_logger.time, "time_ns", lambda: next(times))
+    monkeypatch.setattr(power_logger.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(power_logger.subprocess, "run", query)
+    monkeypatch.setattr(power_logger.sys, "stdout", stream)
+    power_logger.stream_power(interval_ms=250, profile="core_timed")
+    power_logger._STOP = False
+
+    rows = list(csv.DictReader(io.StringIO(stream.getvalue())))
+    parse = lambda value: datetime.strptime(value, "%Y/%m/%d %H:%M:%S.%f")
+    start = parse(rows[0]["query.start"])
+    midpoint = parse(rows[0]["timestamp"])
+    end = parse(rows[0]["query.end"])
+    assert (midpoint - start).total_seconds() == 0.1
+    assert (end - midpoint).total_seconds() == 0.1
+    assert rows[0]["power.draw [W]"] == "100"
+    query_fields = next(
+        value for value in nvidia_smi_query_command(TIMED_FIELDS)
+        if value.startswith("--query-gpu=")
+    )
+    assert "query.start" not in query_fields
+    assert query_fields.split("=", 1)[1].startswith("index,uuid,power.draw")
 
 
 def test_tp8_state_profile_requests_clock_cause_not_just_power():

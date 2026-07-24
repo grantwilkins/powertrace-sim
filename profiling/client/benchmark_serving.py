@@ -274,6 +274,20 @@ def calculate_metrics(
     return metrics, actual_output_lens
 
 
+async def _run_initial_test(request_func, test_input, *, skip: bool) -> None:
+    if skip:
+        print("Skipping initial single prompt test run.")
+        return
+    print("Starting initial single prompt test run...")
+    test_output = await request_func(request_func_input=test_input)
+    if not test_output.success:
+        raise ValueError(
+            "Initial test run failed - Please make sure benchmark arguments "
+            f"are correctly specified. Error: {test_output.error}"
+        )
+    print("Initial test run completed. Starting main benchmark run...")
+
+
 async def benchmark(
     backend: str,
     api_url: str,
@@ -294,13 +308,13 @@ async def benchmark(
     max_concurrency: Optional[int],
     lora_modules: Optional[Iterable[str]],
     extra_body: Optional[dict],
+    skip_test_prompt: bool,
 ):
     if backend in ASYNC_REQUEST_FUNCS:
         request_func = ASYNC_REQUEST_FUNCS[backend]
     else:
         raise ValueError(f"Unknown backend: {backend}")
 
-    print("Starting initial single prompt test run...")
     test_prompt, test_prompt_len, test_output_len, test_mm_content = (
         input_requests[0].prompt,
         input_requests[0].prompt_len,
@@ -322,14 +336,7 @@ async def benchmark(
         extra_body=extra_body,
     )
 
-    test_output = await request_func(request_func_input=test_input)
-    if not test_output.success:
-        raise ValueError(
-            "Initial test run failed - Please make sure benchmark arguments "
-            f"are correctly specified. Error: {test_output.error}"
-        )
-    else:
-        print("Initial test run completed. Starting main benchmark run...")
+    await _run_initial_test(request_func, test_input, skip=skip_test_prompt)
 
     if lora_modules:
         # For each input request, choose a LoRA module at random.
@@ -931,6 +938,7 @@ def main(args: argparse.Namespace):
             max_concurrency=args.max_concurrency,
             lora_modules=args.lora_modules,
             extra_body=sampling_params,
+            skip_test_prompt=args.skip_test_prompt,
         )
     )
 
@@ -1125,6 +1133,14 @@ if __name__ == "__main__":
         "--disable-tqdm",
         action="store_true",
         help="Specify to disable tqdm progress bar.",
+    )
+    parser.add_argument(
+        "--skip-test-prompt",
+        action="store_true",
+        help=(
+            "Skip the initial endpoint test request. Use only when the endpoint "
+            "was validated before the measured benchmark interval."
+        ),
     )
     parser.add_argument(
         "--profile",

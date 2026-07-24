@@ -136,32 +136,95 @@ The Sherlock job runs GPT-OSS-20B on two A100-80GB GPUs with one TP1 prefiller
 and one TP1 decoder using the pinned vLLM Queue-Haul image:
 
 ```bash
-# Ten-minute 2 requests/s integration gate.
+# One-minute 2 requests/s integration gate.
 POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=smoke \
   sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
 
-# 0.25, 2, and 4 requests/s; three ten-minute repetitions per rate.
+# One calibration cell and four held-out five-minute cells.
 POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=campaign \
   sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
 ```
 
-The run records role-separated prefill/decode engine streams, per-GPU power,
-request results, NIXL transfer counters, and path-bound run metadata. These GPUs
-perform different phases and must not be mislabeled as GPT-OSS TP2. A
-role-aware ingestion/composition step is still required before the maintained
-model can score the combined deployment; this campaign is therefore outside
-the current paper allowlist. The runner exposes the pinned image's
-`nixl_cu12` installation under the `nixl` package name required by vLLM 0.22
-and fails before model loading when that runtime is unavailable.
+The prospective confirmation keeps raw `nvidia-smi power.draw` at 250 ms, the
+two A100 TP1 roles, vLLM 0.22, and NIXL. It disables prefix caching and uses the
+supported 2048-token scheduler budget with deterministic 8192±25% token inputs
+and 64±25% token outputs. The source model predicts nonsaturated prefill/decode
+duty near 30% at 1 request/s and 60% at 2 requests/s. One 2-request/s cell is
+reserved for role-idle and one-gain-per-role calibration; independently seeded
+1- and 2-request/s workloads are each replayed twice as held-out evidence, with
+the held-out loads interleaved to limit runtime/thermal order confounding.
+Synthetic prompt lengths are re-tokenized from the exact text sent to vLLM.
 
-Interrupted cells can resume from the same run root; completed cells are
-skipped:
+Each cell records 30-second pre/post idle windows, role-separated engine
+streams, per-GPU power, exact proxy stages, and NIXL counters. The endpoint
+preflight runs before power logging; measured benchmark traffic suppresses the
+benchmark client's otherwise hidden test request. The `core_timed` power
+profile retains the unmodified `power.draw` value while recording query
+start/end and using their midpoint as the shared GPU-row timestamp. Cell gates
+require zero cached prompt tokens, one NIXL transfer per recorded request,
+prompt-token accounting within 1%, and median prefill duration of at least one
+250 ms meter interval. They also reject NIXL failures, expirations,
+preemptions, incomplete UUID samples, query durations above 200 ms, sample gaps
+above 750 ms, missing idle coverage, or failure to restore idle power and
+temperature within 5 W and 5 C.
+
+The run metadata freezes the later analysis: independent per-role pointwise
+fits in watts on the single calibration cell, an equal-parameter phase-duty
+null, and raw held-out scoring without smoothing, interpolation, fitted lag, or
+warping. Per-role acceptance requires correlation at least 0.8, standard
+deviation ratio 0.8–1.25, p95 error at most 10%, and at least 5% lower
+pointwise loss than the equal-parameter duty null. Measured replays must
+themselves reach 0.8 correlation per role and load. These GPUs perform
+different phases and must not be mislabeled as GPT-OSS TP2.
+
+The retained pilot campaign under `data/disagg/` can be analyzed with:
 
 ```bash
-RUN_ROOT="$SCRATCH/ptsim/runs/gpt-oss-20b-a100-pd-<original-job-id>" \
-  POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=campaign \
-  sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
+uv run --extra paper python power-test/analyze_disaggregated_inference.py
 ```
+
+That analyzer applies the frozen GPT-OSS A100 TP1 timing and dynamic-power
+coefficients independently to the prefiller and decoder, then sums their power.
+It retains zero-shot and shared-idle baselines and reports a minimal
+phase-calibrated variant. That variant uses separate prefill/decode idle
+baselines from the first cell's settled pre-request window and one decoder
+dynamic gain fitted on `rate-2-repeat-1`. The fit minimizes diagonal soft-DTW
+separately by role at the recorded native samples with no temporal
+warping. A proposed prefill gain is rejected because it worsens mean, p95, and
+variance-ratio guardrails; the frozen prefill dynamics remain unchanged. No
+frozen timing or power coefficient is refitted.
+
+Primary held-out-rate phase results use repeat 2 at 0.25 and 4 requests/s.
+Request latency uses exact request-ID-paired proxy boundaries, never DTW. The
+compact report, per-cell metrics, representative native-sample diagnostics, and
+two-panel held-out prefill/decode time-series figure are written under
+`results/disaggregated/`. The diagnostics and figure use every recorded
+approximately 250 ms sample without averaging, interpolation, smoothing, or
+time alignment. Each panel reports its own unwarped diagonal soft-DTW and
+correlation.
+
+The current 4 Hz power log supports warm-cell prefill mean energy, but the
+prefill trace fails the native-shape acceptance gate. Repeat-dependent
+prefix-cache state is not present in the request files, and the logger
+timestamps before each `nvidia-smi` subprocess query while prefill HTTP phases
+last about 16–20 ms. Decode trace shape passes the same gate. The report records
+diagonal and one-sample-band soft-DTW separately, constant-mean nulls,
+role-specific temporal metrics, exact phase latencies, and rejected prefill
+adjustments rather than allowing node totals or time warping to hide this
+boundary.
+
+The pilot remains retrospective unsupported-extrapolation evidence because it
+used an 8192-token scheduler override outside the frozen preset. The
+confirmatory runner instead uses the preset's 2048-token budget. It exposes the
+pinned image's `nixl_cu12` installation under the `nixl` package name required
+by vLLM 0.22 and fails before model loading when that runtime is unavailable.
+Cache-aware disaggregated modeling is explicitly deferred in
+`docs/plans/TODO.md`; the confirmatory claim is cache-disabled.
+
+Confirmatory run roots are immutable and cannot resume across allocations:
+mixing GPU UUIDs, idle calibration, images, or code across jobs would invalidate
+the held-out comparison. An interrupted campaign must restart under a fresh run
+root.
 
 ## Historical GMM-BiGRU artifact
 
@@ -206,3 +269,7 @@ explicitly, for example:
 ```bash
 uv run -m pytest -x power-test/tests timing-test/tests
 ```
+
+The profiling proxy route integration test runs when FastAPI is available from
+the profiling runtime; dependency-free campaign validation remains in the
+default suite.

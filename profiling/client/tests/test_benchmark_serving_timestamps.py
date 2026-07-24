@@ -1,3 +1,15 @@
+"""
+Claim:
+Measured request arrays retain exact request identity and timestamps, and a
+campaign that preflights its endpoint separately can suppress the otherwise
+hidden initial benchmark request.
+
+Plausible wrong implementations:
+- Drop failed-request timestamps and shift every subsequent request ID.
+- Parse the skip flag but still execute the initial request.
+- Skip the measured workload instead of only the initial endpoint check.
+"""
+import asyncio
 import importlib.machinery
 import sys
 import types
@@ -63,6 +75,30 @@ class _DummyTokenizer:
 
 
 class TestBenchmarkServingRequestTimestamps(unittest.TestCase):
+    def test_separately_preflighted_run_skips_the_hidden_request(self):
+        _stub_optional_dependencies()
+
+        from backend_request_func import RequestFuncInput, RequestFuncOutput
+        from benchmark_serving import _run_initial_test
+
+        calls = []
+
+        async def request_func(*, request_func_input):
+            calls.append(request_func_input)
+            return RequestFuncOutput(success=True)
+
+        request = RequestFuncInput(
+            prompt="prompt",
+            api_url="http://example/v1/completions",
+            prompt_len=1,
+            output_len=1,
+            model="model",
+        )
+        asyncio.run(_run_initial_test(request_func, request, skip=True))
+        self.assertEqual(calls, [])
+        asyncio.run(_run_initial_test(request_func, request, skip=False))
+        self.assertEqual(calls, [request])
+
     def test_request_timestamps_aligned_with_request_arrays_for_mixed_outcomes(self):
         _stub_optional_dependencies()
 

@@ -79,7 +79,32 @@ work threshold. Rerun
 `power-test/evaluate_arrival_only.py` unchanged after an identified correction
 or documented support exclusion.
 
-## 3. Deferred (tracked elsewhere)
+## 3. Cache-aware disaggregated inference
+
+Status: deferred beyond the cache-disabled confirmatory campaign. The pilot
+showed that repeated ShareGPT cells reached roughly 97% prefix-cache hits while
+the saved request rows retained requested prompt length but not per-request
+computed versus cached tokens. Treating every requested prompt token as fresh
+prefill work therefore changes the meaning of the model input.
+
+Supporting cached-prefix disaggregation requires a separate, explicit model
+contract:
+
+1. Record prompt identity and per-request cached/computed prefix tokens at the
+   prefiller, rather than reconstructing cache state from repeat number or
+   campaign order.
+2. Preserve full context length for decoder KV reads while charging prefill
+   compute and KV writes only to executed prompt tokens.
+3. Profile cold, partial-hit, and warm-cache conditions with a frozen split and
+   verify the cache estimator without using power as an input.
+4. Decide whether cache state is supplied by the serving runtime or predicted
+   from request history; do not silently mix those evidence claims.
+
+The prospective disaggregated confirmation disables prefix caching to isolate
+whether the existing source-trained phase timing and power structure transfers
+across separate GPUs. It must not be cited as cache-aware support.
+
+## 4. Deferred (tracked elsewhere)
 
 - Preemption mechanism in the scheduler simulation (405B at rate 4;
   counters exist in the new bundles) — timing-test/README.md.

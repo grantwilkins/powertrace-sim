@@ -9,6 +9,10 @@ The maintained model writes only to the following result families:
 - `azure_facility/`: reproducible node and hierarchy intermediates.
 - `stage0/`: current data-inventory summaries.
 - `moe_routing/`: active routing-law profiling evidence for future extensions.
+- `disaggregated/`: compact retrospective GPT-OSS prefill/decode transfer
+  metrics, representative diagnostics, and the two-panel held-out phase power
+  time-series figure. The plot and primary phase soft-DTW use the raw recorded
+  approximately 250 ms samples without smoothing, interpolation, or warping.
 
 Run the complete maintained regeneration path with:
 
@@ -22,3 +26,5 @@ GMM-BiGRU result tree is under `archive/gmm_bigru_v1/results/`.
 
 Large `.npy` facility arrays and raw experimental outputs are intentionally
 local-only; the tracked manifests hash the compact paper contract.
+The disaggregated result family is intentionally outside that paper manifest
+and records its raw local campaign hash in its own report.

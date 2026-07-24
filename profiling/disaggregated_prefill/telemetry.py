@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import signal
 import time
 import urllib.request
@@ -10,9 +11,9 @@ from pathlib import Path
 
 from profiling.client.metrics_logger import (
     ENGINE_HEADER,
+    available_columns,
     metrics_row,
     parse_prometheus_metrics,
-    preflight_metrics,
 )
 
 REQUIRED_COLUMNS = (
@@ -23,6 +24,13 @@ REQUIRED_COLUMNS = (
     "generation_tokens_total",
     "iteration_tokens_total_sum",
     "iteration_tokens_total_count",
+    "num_preemptions_total",
+    "prefix_cache_queries_total",
+    "prefix_cache_hits_total",
+    "nixl_xfer_time_seconds_count",
+    "nixl_num_failed_transfers",
+    "nixl_num_failed_notifications",
+    "nixl_num_kv_expired_reqs",
 )
 
 NIXL_COLUMNS = (
@@ -60,14 +68,29 @@ def _fetch(url: str) -> dict[str, list[float]]:
         return parse_prometheus_metrics(response.read().decode())
 
 
+def missing_required(parsed: dict[str, list[float]]) -> list[str]:
+    available = available_columns(parsed)
+    available.update(
+        column for column in NIXL_COLUMNS
+        if math.isfinite(_metric(parsed, column))
+    )
+    return sorted(set(REQUIRED_COLUMNS) - available)
+
+
+def _preflight(url: str) -> None:
+    missing = missing_required(_fetch(url))
+    if missing:
+        raise ValueError(f"{url}/metrics lacks required evidence columns: {missing}")
+
+
 def _stop(_signum, _frame) -> None:
     global _STOP
     _STOP = True
 
 
 def capture(prefill_url: str, decode_url: str, out_dir: Path, period_s: float) -> None:
-    preflight_metrics(prefill_url, REQUIRED_COLUMNS)
-    preflight_metrics(decode_url, REQUIRED_COLUMNS)
+    _preflight(prefill_url)
+    _preflight(decode_url)
     signal.signal(signal.SIGTERM, _stop)
     paths = {
         "prefill": out_dir / "engine_prefill.csv",

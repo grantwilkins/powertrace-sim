@@ -1,0 +1,353 @@
+{
+  "calibration": {
+    "idle": {
+      "cell": "rate-0p25-repeat-0",
+      "device_medians_w": [
+        86.47,
+        82.54
+      ],
+      "fit_scope": "settled pre-request samples only",
+      "pooled_gpu_samples": 132,
+      "source_idle_w_per_gpu": 74.5792717417503,
+      "target_idle_w_per_gpu": 85.72999999999999,
+      "timestamp_samples": 66,
+      "window_end_epoch_s": 1784883589.6475706,
+      "window_start_epoch_s": 1784883571.5764613
+    },
+    "phase_soft_dtw": {
+      "aggregation_s": 0.25,
+      "cell": "rate-2-repeat-1",
+      "dynamic_scale_bounds": [
+        0.5,
+        1.5
+      ],
+      "primary_band_s": 0,
+      "roles": {
+        "decode": {
+          "acceptance_guards": {
+            "absolute_mean_bias": true,
+            "diagonal_soft_dtw": true,
+            "p95_error": true,
+            "std_ratio": true
+          },
+          "accepted": true,
+          "accepted_scale": 1.045642963911713,
+          "baseline_metrics": {
+            "constant_mean_soft_dtw_diagonal_divergence": 0.09199899749124957,
+            "correlation": 0.95448452795461,
+            "mean_bias_w": -7.964036741096578,
+            "measured_p95_w": 335.03,
+            "p95_error_pct": 3.6832093912309705,
+            "predicted_p95_w": 322.69014357655885,
+            "rmse_w": 26.26110800745552,
+            "soft_dtw_diagonal_divergence": 0.009141874611979892,
+            "soft_dtw_one_sample_band_effect_fraction": 0.22978829114927524,
+            "soft_dtw_one_sample_divergence": 0.007041178866992089,
+            "std_ratio": 0.9188316535607279
+          },
+          "fitted_metrics": {
+            "constant_mean_soft_dtw_diagonal_divergence": 0.09199899749124957,
+            "correlation": 0.9544845279546104,
+            "mean_bias_w": -0.23674689473489252,
+            "measured_p95_w": 335.03,
+            "p95_error_pct": 0.41151302473913703,
+            "predicted_p95_w": 333.65130791321644,
+            "rmse_w": 24.85413888128056,
+            "soft_dtw_diagonal_divergence": 0.008188542550630494,
+            "soft_dtw_one_sample_band_effect_fraction": 0.28926842053973506,
+            "soft_dtw_one_sample_divergence": 0.005819855780487198,
+            "std_ratio": 0.9607698535651398
+          },
+          "fitted_scale": 1.045642963911713
+        },
+        "prefill": {
+          "acceptance_guards": {
+            "absolute_mean_bias": false,
+            "diagonal_soft_dtw": true,
+            "p95_error": false,
+            "std_ratio": false
+          },
+          "accepted": false,
+          "accepted_scale": 1.0,
+          "baseline_metrics": {
+            "constant_mean_soft_dtw_diagonal_divergence": 0.010934152069245267,
+            "correlation": 0.2864766920598211,
+            "mean_bias_w": -0.25046174766909246,
+            "measured_p95_w": 106.72649999999996,
+            "p95_error_pct": 0.9339182146001104,
+            "predicted_p95_w": 105.72976177669477,
+            "rmse_w": 13.905030197037496,
+            "soft_dtw_diagonal_divergence": 0.01033774198088599,
+            "soft_dtw_one_sample_band_effect_fraction": 0.07739358261744265,
+            "soft_dtw_one_sample_divergence": 0.009537667092810485,
+            "std_ratio": 0.4514510236182506
+          },
+          "fitted_metrics": {
+            "constant_mean_soft_dtw_diagonal_divergence": 0.010934152069245267,
+            "correlation": 0.286476692059821,
+            "mean_bias_w": -1.298605974266863,
+            "measured_p95_w": 106.72649999999996,
+            "p95_error_pct": 4.718155773500601,
+            "predicted_p95_w": 101.69097747839484,
+            "rmse_w": 13.799218111426583,
+            "soft_dtw_diagonal_divergence": 0.01018100789278586,
+            "soft_dtw_one_sample_band_effect_fraction": 0.06443648191767823,
+            "soft_dtw_one_sample_divergence": 0.009524979561798624,
+            "std_ratio": 0.35678145673673706
+          },
+          "fitted_scale": 0.790299363765389
+        }
+      },
+      "selection_guards": [
+        "diagonal soft-DTW",
+        "absolute mean bias",
+        "p95 error",
+        "standard-deviation ratio"
+      ]
+    }
+  },
+  "campaign": {
+    "cells": 9,
+    "hashed_files": 56,
+    "path": "data/disagg/gpt-oss-20b-a100-pd-35613154",
+    "requests": 11250,
+    "sha256": "32c8d1af696c3231008615ea080268e410a35a7697908c32b0b34811956061d1"
+  },
+  "data_quality": {
+    "cache_and_warmup_effect_by_rate": {
+      "0.25": {
+        "repeat0_nixl_bytes_multiplier": 6.580419580419581,
+        "repeat0_prefill_power_excess_w": 1.2086438869055343
+      },
+      "2.0": {
+        "repeat0_nixl_bytes_multiplier": 4.241905720516692,
+        "repeat0_prefill_power_excess_w": 8.511278912215715
+      },
+      "4.0": {
+        "repeat0_nixl_bytes_multiplier": 3.06129115447434,
+        "repeat0_prefill_power_excess_w": 9.978576123785473
+      }
+    },
+    "decoder_preemptions": 0,
+    "failed_nixl_operations": 0,
+    "input_length_sequences_replayed_across_repeats": true,
+    "prefill_timestamp_limitation": "Power is 4 Hz and timestamped before nvidia-smi acquisition; prefill HTTP phases are approximately 16\u201320 ms.",
+    "prefix_cache_hit_fraction_by_cell": {
+      "rate-0p25-repeat-0": 0.0,
+      "rate-0p25-repeat-1": 0.9714701152210791,
+      "rate-0p25-repeat-2": 0.9714701152210791,
+      "rate-2-repeat-0": 0.13419421065831452,
+      "rate-2-repeat-1": 0.9689885857931911,
+      "rate-2-repeat-2": 0.9689885857931911,
+      "rate-4-repeat-0": 0.47762622909715674,
+      "rate-4-repeat-1": 0.9703193159509814,
+      "rate-4-repeat-2": 0.9703193159509814
+    },
+    "prompt_identity_recorded": false,
+    "warm_repeat_power_correlation_by_rate": {
+      "0.25": {
+        "decode": 0.2109612681145429,
+        "prefill": -0.006684772965158665
+      },
+      "2.0": {
+        "decode": 0.23698224253458816,
+        "prefill": 0.00014454046482262854
+      },
+      "4.0": {
+        "decode": 0.9265827112824925,
+        "prefill": 0.004292093448233745
+      }
+    }
+  },
+  "diagnosis": [
+    "Role-aware TP1 composition transfers without base-model refitting.",
+    "Role-specific idle removes the prefill baseline mismatch.",
+    "One 2-rps decoder gain improves held-out decode amplitude.",
+    "Decode trace shape transfers at 250 ms; prefill cell mean transfers.",
+    "Current telemetry cannot validate 250 ms prefill burst shape."
+  ],
+  "evidence_role": "retrospective minimal phase calibration",
+  "model_adjustment": {
+    "accepted_calibration_parameters": [
+      "prefill idle",
+      "decode idle",
+      "decode dynamic gain"
+    ],
+    "accepted_calibration_scalar_count": 3,
+    "accepted_decoder_dynamic_scale": 1.045642963911713,
+    "accepted_prefill_dynamic_scale": 1.0,
+    "accepted_target_active_scalars": 1,
+    "campaign_override": "max_num_batched_tokens=8192",
+    "composition": "serial independent prefill and decode TP1 engines",
+    "decoder_output_semantics": "full output after transferred prompt KV",
+    "disaggregated_data_used_for_base_training": false,
+    "frozen_dynamic_coefficients_changed": false,
+    "frozen_timing_coefficients_changed": false,
+    "prefill_output_semantics": "one discarded token",
+    "support_status": "retrospective unsupported_extrapolation"
+  },
+  "outputs": {
+    "figure": "results/disaggregated/gpt_oss_20b_a100_pd_power_comparison.png",
+    "per_cell_metrics": "results/disaggregated/gpt_oss_20b_a100_pd_per_cell.csv",
+    "representative_traces": "results/disaggregated/gpt_oss_20b_a100_pd_representative_250ms.csv"
+  },
+  "power": {
+    "decode_trace_claim": "supported at native 250 ms",
+    "evaluation_cells": 7,
+    "heldout_rate_by_role": {
+      "decode": {
+        "cells": 2,
+        "constant_mean_soft_dtw_diagonal_median": 0.0664037446906515,
+        "energy_error_pct_median": 0.7387113088310275,
+        "frozen_soft_dtw_diagonal_median": 0.008943013548938047,
+        "soft_dtw_diagonal_median": 0.00788601782425668,
+        "trace_correlation_median": 0.9488780497388603,
+        "trace_p95_error_pct_median": 1.5221687526079783,
+        "trace_rmse_median_w": 20.22682498316297,
+        "trace_std_ratio_median": 0.9615971164982507
+      },
+      "prefill": {
+        "cells": 2,
+        "constant_mean_soft_dtw_diagonal_median": 0.006468840567284701,
+        "energy_error_pct_median": 0.7420964991905734,
+        "frozen_soft_dtw_diagonal_median": 0.0065838451287171095,
+        "soft_dtw_diagonal_median": 0.0065838451287171095,
+        "trace_correlation_median": 0.17905310114161876,
+        "trace_p95_error_pct_median": 12.242758263629131,
+        "trace_rmse_median_w": 12.317348635092216,
+        "trace_std_ratio_median": 0.4728727561173194
+      }
+    },
+    "heldout_rate_cells": 2,
+    "native_trace_acceptance": {
+      "roles": {
+        "decode": {
+          "accepted": true,
+          "correlation_at_least_0.8": true,
+          "p95_error_at_most_10_pct": true,
+          "soft_dtw_beats_constant_mean": true,
+          "std_ratio_between_0.8_and_1.25": true
+        },
+        "prefill": {
+          "accepted": false,
+          "correlation_at_least_0.8": false,
+          "p95_error_at_most_10_pct": false,
+          "soft_dtw_beats_constant_mean": false,
+          "std_ratio_between_0.8_and_1.25": false
+        }
+      },
+      "scope": "every held-out-rate cell"
+    },
+    "prefill_mean_power_claim": "supported for warm cells",
+    "prefill_trace_claim": "unsupported at native 250 ms",
+    "soft_dtw_protocol": "Primary phase score is range-normalized diagonal soft-DTW at native 250 ms; a one-sample warp is sensitivity-only.",
+    "summaries": {
+      "colocated_tp2_idle_calibrated": {
+        "acf_r2_median": 0.9422539818228469,
+        "cells": 7,
+        "energy_error_pct_median": 14.104075626065182,
+        "energy_error_pct_worst": 19.62053677950667,
+        "nrmse_range_median": 0.1972686093559753,
+        "temporal_cells": 7
+      },
+      "phase_soft_dtw_calibrated": {
+        "acf_r2_median": 0.9769718377973785,
+        "cells": 7,
+        "energy_error_pct_median": 0.489080414139277,
+        "energy_error_pct_worst": 2.789097423998264,
+        "nrmse_range_median": 0.0596990531484397,
+        "temporal_cells": 7
+      },
+      "role_aware_idle_calibrated": {
+        "acf_r2_median": 0.9769875192291714,
+        "cells": 7,
+        "energy_error_pct_median": 2.2797121429410003,
+        "energy_error_pct_worst": 4.649257188053318,
+        "nrmse_range_median": 0.06539028450810458,
+        "temporal_cells": 7
+      },
+      "role_aware_zero_shot": {
+        "acf_r2_median": 0.9769875192291714,
+        "cells": 7,
+        "energy_error_pct_median": 9.832443304471651,
+        "energy_error_pct_worst": 10.10642058438058,
+        "nrmse_range_median": 0.11183572628644667,
+        "temporal_cells": 7
+      }
+    }
+  },
+  "rejected_adjustments": {
+    "other": [
+      "source-only prefill-duty coordinate",
+      "source-only phase-split compute coordinates",
+      "cache-aware replay without per-request cache state",
+      "KV-transfer power term",
+      "constant decode-TTFT correction"
+    ],
+    "prefill_dynamic_gain": {
+      "acceptance_guards": {
+        "absolute_mean_bias": false,
+        "diagonal_soft_dtw": true,
+        "p95_error": false,
+        "std_ratio": false
+      },
+      "accepted": false,
+      "accepted_scale": 1.0,
+      "baseline_metrics": {
+        "constant_mean_soft_dtw_diagonal_divergence": 0.010934152069245267,
+        "correlation": 0.2864766920598211,
+        "mean_bias_w": -0.25046174766909246,
+        "measured_p95_w": 106.72649999999996,
+        "p95_error_pct": 0.9339182146001104,
+        "predicted_p95_w": 105.72976177669477,
+        "rmse_w": 13.905030197037496,
+        "soft_dtw_diagonal_divergence": 0.01033774198088599,
+        "soft_dtw_one_sample_band_effect_fraction": 0.07739358261744265,
+        "soft_dtw_one_sample_divergence": 0.009537667092810485,
+        "std_ratio": 0.4514510236182506
+      },
+      "fitted_metrics": {
+        "constant_mean_soft_dtw_diagonal_divergence": 0.010934152069245267,
+        "correlation": 0.286476692059821,
+        "mean_bias_w": -1.298605974266863,
+        "measured_p95_w": 106.72649999999996,
+        "p95_error_pct": 4.718155773500601,
+        "predicted_p95_w": 101.69097747839484,
+        "rmse_w": 13.799218111426583,
+        "soft_dtw_diagonal_divergence": 0.01018100789278586,
+        "soft_dtw_one_sample_band_effect_fraction": 0.06443648191767823,
+        "soft_dtw_one_sample_divergence": 0.009524979561798624,
+        "std_ratio": 0.35678145673673706
+      },
+      "fitted_scale": 0.790299363765389
+    }
+  },
+  "release": {
+    "path": "model/artifacts/powertrace_v1.json",
+    "release_status": "pre_sealed",
+    "sha256": "840eae4b78f8e65ea741b2be340503e62d6ea75fef467fba1b3e82f2400760e4"
+  },
+  "schema_version": "powertrace-disaggregated-evaluation-v2",
+  "timing": {
+    "decode_ttft_limitation": "External-KV admission is load dependent; no timing scalar was fitted.",
+    "evaluation_cell_medians": {
+      "client_to_proxy_median_ms": 1.6543865203857422,
+      "client_ttft_event_abs_median_ms": 0.20627770572900772,
+      "decode_duration_measured_median_ms": 839.5286798477173,
+      "decode_duration_medabs_pct": 2.8300037057068406,
+      "decode_duration_predicted_median_ms": 845.7558165281966,
+      "decode_engine_mean_ms": 1191.5192235165046,
+      "decode_ttft_measured_median_ms": 34.54303741455078,
+      "decode_ttft_medabs_pct": 60.10289117691299,
+      "decode_ttft_predicted_median_ms": 13.312421680040721,
+      "e2e_medabs_pct": 5.087719083281596,
+      "handoff_median_ms": 0.23257732391357422,
+      "prefill_dispatch_median_ms": 0.05507469177246094,
+      "prefill_engine_mean_ms": 11.321313352330236,
+      "prefill_measured_median_ms": 17.192721366882324,
+      "prefill_medabs_pct": 18.437985459039517,
+      "prefill_predicted_median_ms": 15.051719508334905
+    },
+    "method": "request-ID-paired proxy boundaries; no DTW"
+  }
+}

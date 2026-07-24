@@ -10,8 +10,8 @@ from anonymous row blocks.
 
 Only the command/argv construction and the small timestamping wrapper live here.
 The wrapper runs one ``nvidia-smi`` query per sample and stamps every GPU row in
-that query with the same wall timestamp, so busy-node per-row ``nvidia-smi``
-timestamp skew cannot violate the bundle contract.
+that query with the same wall timestamp. The ``core_timed`` profile additionally
+records query start/end and uses their midpoint as the sample time.
 """
 
 from __future__ import annotations
@@ -40,6 +40,12 @@ EXTENDED_FIELDS = (
     "temperature.gpu",
 )
 
+TIMED_FIELDS = (
+    "timestamp",
+    "query.start",
+    "query.end",
+) + EXTENDED_FIELDS[1:]
+
 TP8_STATE_FIELDS = EXTENDED_FIELDS + (
     "pstate",
     "power.limit",
@@ -51,6 +57,7 @@ TP8_STATE_FIELDS = EXTENDED_FIELDS + (
 
 POWER_PROFILES = {
     "core": EXTENDED_FIELDS,
+    "core_timed": TIMED_FIELDS,
     "tp8_state": TP8_STATE_FIELDS,
 }
 
@@ -73,8 +80,11 @@ POWER_FIELD_ALIASES = {
 _STOP = False
 
 
+SYNTHETIC_FIELDS = {"timestamp", "query.start", "query.end"}
+
+
 def _query_fields(fields=EXTENDED_FIELDS) -> tuple[str, ...]:
-    return tuple(field for field in fields if field != "timestamp")
+    return tuple(field for field in fields if field not in SYNTHETIC_FIELDS)
 
 
 def display_header(fields=EXTENDED_FIELDS) -> list[str]:
@@ -132,20 +142,34 @@ def nvidia_smi_snapshot_command(profile: str = "core") -> list[str]:
         raise ValueError(f"unknown power telemetry profile: {profile!r}") from exc
     return [
         "nvidia-smi",
-        f"--query-gpu={','.join(fields)}",
+        f"--query-gpu={','.join(_query_fields(fields))}",
         "--format=csv,noheader,nounits",
     ]
 
 
-def write_query_rows(stream, timestamp: str, query_stdout: str) -> None:
+def write_query_rows(
+    stream,
+    timestamp: str,
+    query_stdout: str,
+    *,
+    query_start: str | None = None,
+    query_end: str | None = None,
+) -> None:
+    if (query_start is None) != (query_end is None):
+        raise ValueError("query start and end timestamps must be provided together")
+    prefix = [timestamp]
+    if query_start is not None:
+        prefix.extend((query_start, query_end))
     writer = csv.writer(stream, lineterminator="\n")
     for row in csv.reader(StringIO(query_stdout)):
         if row:
-            writer.writerow([timestamp] + [cell.strip() for cell in row])
+            writer.writerow(prefix + [cell.strip() for cell in row])
 
 
-def _timestamp_now() -> str:
-    return dt.datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
+def _timestamp_from_ns(wall_ns: int) -> str:
+    return dt.datetime.fromtimestamp(wall_ns / 1e9).strftime(
+        "%Y/%m/%d %H:%M:%S.%f"
+    )[:-3]
 
 
 def _stop(_signum, _frame) -> None:
@@ -166,16 +190,29 @@ def stream_power(
     writer.writerow(display_header(fields))
     sys.stdout.flush()
     interval_s = int(interval_ms) / 1000.0
+    timed = "query.start" in fields
     while not _STOP:
         start = time.monotonic()
-        timestamp = _timestamp_now()
+        query_start_ns = time.time_ns()
         result = subprocess.run(
             nvidia_smi_query_command(fields, gpu_ids),
             check=True,
             stdout=subprocess.PIPE,
             text=True,
         )
-        write_query_rows(sys.stdout, timestamp, result.stdout)
+        query_end_ns = time.time_ns()
+        if timed:
+            write_query_rows(
+                sys.stdout,
+                _timestamp_from_ns((query_start_ns + query_end_ns) // 2),
+                result.stdout,
+                query_start=_timestamp_from_ns(query_start_ns),
+                query_end=_timestamp_from_ns(query_end_ns),
+            )
+        else:
+            write_query_rows(
+                sys.stdout, _timestamp_from_ns(query_start_ns), result.stdout
+            )
         sys.stdout.flush()
         remaining = interval_s - (time.monotonic() - start)
         if remaining > 0:

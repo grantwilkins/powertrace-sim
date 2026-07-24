@@ -1,12 +1,18 @@
-"""Loader length-budget behavior (runs in the full env — imports benchmark_dataset).
+"""Loader length and prompt-accounting behavior.
 
-Confirms the pruning caps are flexible: default 1024/2048, but track the served
-context window once configured, so long-context prompts are kept for big-context
-models instead of being dropped at 1024.
+Claim:
+Pruning follows the configured context window, and synthetic requests report
+the token count of the actual text sent to the server.
+
+Plausible wrong implementations:
+- Retain the historical 1024-token cap after configuring a long context.
+- Report the sampled token-ID count even when decode/re-tokenize changes it.
+- Count tokenizer-added special tokens that the server request does not add.
 """
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # profiling/client
 
@@ -38,3 +44,25 @@ def test_configure_none_is_noop():
     bd.configure_length_budget(None)
     assert not bd.is_valid_sequence(1500, 10)    # unchanged from default
     _reset()
+
+
+def test_random_dataset_reports_retokenized_prompt_length():
+    class NonInvertibleTokenizer:
+        vocab_size = 128
+
+        def decode(self, token_ids):
+            return "x" * len(token_ids)
+
+        def __call__(self, prompt, *, add_special_tokens):
+            assert add_special_tokens is False
+            return SimpleNamespace(input_ids=list(range(len(prompt) - 3)))
+
+    request = bd.RandomDataset().sample(
+        NonInvertibleTokenizer(),
+        num_requests=1,
+        input_len=8,
+        output_len=2,
+        range_ratio=0.0,
+    )[0]
+
+    assert request.prompt_len == 5

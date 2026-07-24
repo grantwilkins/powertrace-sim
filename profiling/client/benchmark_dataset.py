@@ -316,7 +316,9 @@ class RandomDataset(BenchmarkDataset):
             ).tolist()
             token_sequence = prefix_token_ids + inner_seq
             prompt = tokenizer.decode(token_sequence)
-            total_input_len = prefix_len + int(input_lens[i])
+            total_input_len = len(
+                tokenizer(prompt, add_special_tokens=False).input_ids
+            )
             requests.append(
                 SampleRequest(
                     prompt=prompt,
