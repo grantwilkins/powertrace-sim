@@ -137,20 +137,31 @@ and one TP1 decoder using the pinned vLLM Queue-Haul image:
 
 ```bash
 # Ten-minute 2 requests/s integration gate.
-POWERTRACE_DISAGG_MODE=smoke \
+POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=smoke \
   sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
 
 # 0.25, 2, and 4 requests/s; three ten-minute repetitions per rate.
-POWERTRACE_DISAGG_MODE=campaign \
+POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=campaign \
   sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
 ```
 
 The run records role-separated prefill/decode engine streams, per-GPU power,
-request results, NIXL transfer counters, and a hash-bound manifest. These GPUs
+request results, NIXL transfer counters, and path-bound run metadata. These GPUs
 perform different phases and must not be mislabeled as GPT-OSS TP2. A
 role-aware ingestion/composition step is still required before the maintained
 model can score the combined deployment; this campaign is therefore outside
-the current paper allowlist.
+the current paper allowlist. The runner exposes the pinned image's
+`nixl_cu12` installation under the `nixl` package name required by vLLM 0.22
+and fails before model loading when that runtime is unavailable.
+
+Interrupted cells can resume from the same run root; completed cells are
+skipped:
+
+```bash
+RUN_ROOT="$SCRATCH/ptsim/runs/gpt-oss-20b-a100-pd-<original-job-id>" \
+  POWERTRACE_REPO="$PWD" POWERTRACE_DISAGG_MODE=campaign \
+  sbatch profiling/jobs/disaggregated_gpt_oss_20b.sbatch
+```
 
 ## Historical GMM-BiGRU artifact
 

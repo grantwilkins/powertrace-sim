@@ -15,6 +15,7 @@ Plausible wrong implementations:
 - Count the benchmark preflight request as part of the measured workload.
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -24,8 +25,10 @@ from profiling.disaggregated_prefill.campaign import (
     validate_events,
     validate_result,
 )
-from profiling.disaggregated_prefill.proxy import prefill_payload, transferred_payload
+from profiling.disaggregated_prefill.proxy import create_app, prefill_payload, transferred_payload
 from profiling.disaggregated_prefill.telemetry import NIXL_COLUMNS, role_row
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_campaign_cells_cover_intrinsic_target_and_stress_loads():
@@ -63,6 +66,17 @@ def test_prefill_handoff_preserves_the_original_decode_request():
     assert decode["max_tokens"] == 8
     with pytest.raises(ValueError, match="omitted kv_transfer_params"):
         transferred_payload(original, {})
+
+def test_proxy_route_injects_the_http_request(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app("http://prefill", "http://decode", tmp_path / "events.jsonl")
+    route = next(route for route in app.routes if route.path == "/v1/completions")
+    assert route.dependant.request_param_name == "request"
+    assert not route.dependant.query_params
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+
 
 
 def test_stage_gate_requires_one_ordered_timeline_per_request(tmp_path):
@@ -105,5 +119,34 @@ def test_run_metadata_binds_each_role_to_one_distinct_gpu():
     assert metadata["workload"]["arrival_process"] == "poisson"
     assert metadata["clock"]["power_timestamp_basis"] == "local_wall_time"
     assert metadata["clock"]["request_timestamp_basis"] == "unix_epoch"
+    smoke = run_metadata("GPU-prefill", "GPU-decode", "/image.sif", "/share.json", True)
+    assert smoke["mode"] == "smoke"
+    assert smoke["workload"]["rates"] == [2.0]
+    assert smoke["workload"]["repeats"] == 1
     with pytest.raises(ValueError, match="distinct GPU UUIDs"):
         run_metadata("GPU-same", "GPU-same", "/image.sif", "/share.json")
+
+
+def test_batch_launch_uses_submitted_checkout_and_exposes_nixl_runtime():
+    batch = (
+        ROOT / "profiling/jobs/disaggregated_gpt_oss_20b.sbatch"
+    ).read_text()
+    runner = (
+        ROOT / "profiling/jobs/run_disaggregated_gpt_oss_20b.sh"
+    ).read_text()
+    assert 'REPO="${POWERTRACE_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}"' in batch
+    assert 'export POWERTRACE_REPO="$REPO"' in batch
+    assert "python/3.12.1 2>/dev/null || true" not in batch
+    assert "sys.version_info >= (3, 10)" in batch
+    assert 'ln -sfn "$NIXL_SITE/nixl_cu12" "$NIXL_COMPAT/nixl"' in runner
+    assert "NixlWrapper is not None and nixl_agent_config is not None" in runner
+    assert '--env "HF_HOME=$ROOT/hf"' in runner
+    assert runner.index("METADATA_ARG=") < runner.index("campaign.py metadata")
+    assert '${METADATA_ARG:+"$METADATA_ARG"}' in runner
+    assert "python3 -m profiling.disaggregated_prefill.telemetry" in runner
+    assert "PLAN_ARGS" not in runner
+    assert '${PLAN_ARG:+"$PLAN_ARG"}' in runner
+    dataset = (ROOT / "profiling/client/benchmark_dataset.py").read_text()
+    imports, burst = dataset.split("class BurstGPTDataset", 1)
+    assert "import pandas as pd" not in imports
+    assert "import pandas as pd" in burst

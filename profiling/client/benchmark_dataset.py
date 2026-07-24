@@ -27,8 +27,6 @@ from io import BytesIO
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
-import pandas as pd
-from datasets import load_dataset
 from PIL import Image
 from transformers import PreTrainedTokenizerBase
 
@@ -712,6 +710,8 @@ class BurstGPTDataset(BenchmarkDataset):
         if self.dataset_path is None:
             raise ValueError("dataset_path must be provided for loading data.")
 
+        import pandas as pd
+
         df = pd.read_csv(self.dataset_path)
         # Filter to keep only GPT-4 rows.
         gpt4_df = df[df["Model"] == "GPT-4"]
@@ -781,6 +781,8 @@ class HuggingFaceDataset(BenchmarkDataset):
 
     def load_data(self) -> None:
         """Load data from HuggingFace datasets."""
+        from datasets import load_dataset
+
         self.data = load_dataset(
             self.dataset_path,
             name=self.dataset_subset,

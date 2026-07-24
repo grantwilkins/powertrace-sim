@@ -3,7 +3,6 @@
 The request protocol follows vLLM 0.22's NixlConnector integration proxy. Each
 JSONL event uses wall-clock nanoseconds so it aligns with request and power data.
 """
-from __future__ import annotations
 
 import argparse
 import json

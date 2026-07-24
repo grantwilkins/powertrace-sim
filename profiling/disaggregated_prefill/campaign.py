@@ -12,7 +12,8 @@ DURATION_S = 600
 
 
 def run_metadata(
-    prefill_uuid: str, decode_uuid: str, image: str, dataset: str
+    prefill_uuid: str, decode_uuid: str, image: str, dataset: str,
+    smoke: bool = False,
 ) -> dict:
     if not prefill_uuid or not decode_uuid or prefill_uuid == decode_uuid:
         raise ValueError("prefill and decode require distinct GPU UUIDs")
@@ -21,6 +22,7 @@ def run_metadata(
         "model": "openai/gpt-oss-20b",
         "hardware": "A100-80GB",
         "deployment": "disaggregated_prefill",
+        "mode": "smoke" if smoke else "campaign",
         "roles": {
             "prefill": {"tp": 1, "gpu_uuid": prefill_uuid},
             "decode": {"tp": 1, "gpu_uuid": decode_uuid},
@@ -41,8 +43,8 @@ def run_metadata(
             "arrival_process": "poisson",
             "seed": 0,
             "nominal_duration_s": DURATION_S,
-            "rates": list(RATES),
-            "repeats": REPEATS,
+            "rates": [2.0] if smoke else list(RATES),
+            "repeats": 1 if smoke else REPEATS,
         },
         "container_image": image,
         "clock": {
@@ -125,6 +127,7 @@ def main() -> None:
     metadata.add_argument("--decode-uuid", required=True)
     metadata.add_argument("--image", required=True)
     metadata.add_argument("--dataset", required=True)
+    metadata.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
     if args.command == "plan":
         for rate, repeat, prompts in cells(args.smoke):
@@ -135,7 +138,7 @@ def main() -> None:
             validate_events(args.events, args.event_start_line, request_ids)
     else:
         value = run_metadata(
-            args.prefill_uuid, args.decode_uuid, args.image, args.dataset
+            args.prefill_uuid, args.decode_uuid, args.image, args.dataset, args.smoke
         )
         args.path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 

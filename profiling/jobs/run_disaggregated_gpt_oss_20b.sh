@@ -31,15 +31,25 @@ test -n "${GPU0:-}" && test -n "${GPU1:-}" && test -z "${REST:-}" || {
     echo "exactly two allocated GPUs are required; got '$GPU_LIST'" >&2; exit 1;
 }
 
-APP=(apptainer exec --nv --bind "$SCRATCH" --bind "$GROUP_HOME" --bind "$REPO" "$IMAGE")
-"${APP[@]}" python3 -c 'import fastapi,httpx,nixl,uvicorn,vllm; assert vllm.__version__.startswith("0.22."), vllm.__version__; print("vllm", vllm.__version__)' \
+NIXL_SITE=/opt/venv/lib/python3.12/site-packages
+NIXL_COMPAT="$RUN_ROOT/python_compat"
+mkdir -p "$NIXL_COMPAT"
+ln -sfn "$NIXL_SITE/nixl_cu12" "$NIXL_COMPAT/nixl"
+NIXL_LIBS="$NIXL_SITE/nixl_cu12.libs:$NIXL_SITE/.nixl_cu12.mesonpy.libs"
+APP=(apptainer exec --nv --bind "$SCRATCH" --bind "$GROUP_HOME" --bind "$REPO"
+    --env "PYTHONPATH=$NIXL_COMPAT" --env "LD_LIBRARY_PATH=$NIXL_LIBS"
+    --env UCX_RCACHE_MAX_UNRELEASED=1024 --env "HF_HOME=$ROOT/hf"
+    --env HF_HUB_OFFLINE=1 --env TRANSFORMERS_OFFLINE=1 "$IMAGE")
+"${APP[@]}" python3 -c 'import fastapi,httpx,nixl,uvicorn,vllm; from vllm.distributed.nixl_utils import NixlWrapper,nixl_agent_config; assert vllm.__version__.startswith("0.22."), vllm.__version__; assert NixlWrapper is not None and nixl_agent_config is not None; print("vllm", vllm.__version__)' \
     | tee "$RUN_ROOT/runtime.txt"
 nvidia-smi topo -m > "$RUN_ROOT/gpu_topology.txt"
 GPU0_UUID="$(nvidia-smi -i "$GPU0" --query-gpu=uuid --format=csv,noheader | tr -d ' ')"
 GPU1_UUID="$(nvidia-smi -i "$GPU1" --query-gpu=uuid --format=csv,noheader | tr -d ' ')"
+METADATA_ARG=
+test "$MODE" = campaign || METADATA_ARG=--smoke
 python3 profiling/disaggregated_prefill/campaign.py metadata \
     "$RUN_ROOT/run_metadata.json" --prefill-uuid "$GPU0_UUID" \
-    --decode-uuid "$GPU1_UUID" --image "$IMAGE" --dataset "$DATASET"
+    --decode-uuid "$GPU1_UUID" --image "$IMAGE" --dataset "$DATASET" ${METADATA_ARG:+"$METADATA_ARG"}
 
 PIDS=()
 POWER_PID=""
@@ -93,9 +103,9 @@ wait_health "http://127.0.0.1:$DECODE_PORT" "${PIDS[1]}" "$RUN_ROOT/decode.log"
 PIDS+=("$!")
 wait_health "http://127.0.0.1:$PROXY_PORT" "${PIDS[2]}" "$RUN_ROOT/proxy.log"
 
-PLAN_ARGS=()
-test "$MODE" = campaign || PLAN_ARGS+=(--smoke)
-mapfile -t CELLS < <(python3 profiling/disaggregated_prefill/campaign.py plan "${PLAN_ARGS[@]}")
+PLAN_ARG=
+test "$MODE" = campaign || PLAN_ARG=--smoke
+mapfile -t CELLS < <(python3 profiling/disaggregated_prefill/campaign.py plan ${PLAN_ARG:+"$PLAN_ARG"})
 for cell in "${CELLS[@]}"; do
     read -r RATE REPEAT PROMPTS <<< "$cell"
     TAG="rate-${RATE//./p}-repeat-$REPEAT"
@@ -108,7 +118,7 @@ for cell in "${CELLS[@]}"; do
     python3 profiling/client/power_logger.py --interval-ms 250 \
         --gpu-ids "$GPU0_UUID,$GPU1_UUID" > "$DIR/power.csv" &
     POWER_PID=$!
-    python3 profiling/disaggregated_prefill/telemetry.py \
+    python3 -m profiling.disaggregated_prefill.telemetry \
         --prefill-url "http://127.0.0.1:$PREFILL_PORT" \
         --decode-url "http://127.0.0.1:$DECODE_PORT" --out-dir "$DIR" &
     METRICS_PID=$!

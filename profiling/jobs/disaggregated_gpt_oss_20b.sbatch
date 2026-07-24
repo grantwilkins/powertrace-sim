@@ -12,8 +12,12 @@
 #SBATCH --error=/scratch/users/gfw/ptsim/logs/gptoss-pd-%j.out
 
 set -euo pipefail
-source /etc/profile.d/modules.sh 2>/dev/null || true
-ml devel python/3.12.1 2>/dev/null || true
-REPO="${POWERTRACE_REPO:-$HOME/powertrace-sim}"
+MODULES_INIT=/etc/profile.d/modules.sh
+test ! -r "$MODULES_INIT" || source "$MODULES_INIT"
+command -v ml >/dev/null
+ml devel python/3.12.1
+python3 -c 'import sys; assert sys.version_info >= (3, 10), sys.version'
+REPO="${POWERTRACE_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}"
+export POWERTRACE_REPO="$REPO"
 cd "$REPO"
 exec bash profiling/jobs/run_disaggregated_gpt_oss_20b.sh "${POWERTRACE_DISAGG_MODE:-campaign}"
