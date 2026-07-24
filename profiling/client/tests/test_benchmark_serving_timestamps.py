@@ -20,6 +20,7 @@ def _stub_optional_dependencies() -> None:
         "datasets",
         "pandas",
         "PIL",
+        "PIL.Image",
         "vllm",
         "vllm.lora",
         "vllm.lora.request",
@@ -33,7 +34,9 @@ def _stub_optional_dependencies() -> None:
             _stub_module(name)
 
     sys.modules["datasets"].load_dataset = lambda *args, **kwargs: None
-    sys.modules["PIL"].Image = type("Image", (), {})
+    image = type("Image", (), {})
+    sys.modules["PIL"].Image = image
+    sys.modules["PIL.Image"].Image = image
     sys.modules["vllm.lora.request"].LoRARequest = type("LoRARequest", (), {})
     sys.modules["vllm.lora.utils"].get_adapter_absolute_path = (
         lambda *args, **kwargs: ""
@@ -80,6 +83,7 @@ class TestBenchmarkServingRequestTimestamps(unittest.TestCase):
                 latency=0.24,
                 prompt_len=16,
                 request_timestamp=1000.0,
+                request_id="a",
             ),
             RequestFuncOutput(
                 success=False,
@@ -90,6 +94,7 @@ class TestBenchmarkServingRequestTimestamps(unittest.TestCase):
                 prompt_len=24,
                 request_timestamp=1000.5,
                 error="boom",
+                request_id="b",
             ),
             RequestFuncOutput(
                 success=True,
@@ -99,6 +104,7 @@ class TestBenchmarkServingRequestTimestamps(unittest.TestCase):
                 latency=0.17,
                 prompt_len=32,
                 request_timestamp=1001.0,
+                request_id="c",
             ),
         ]
 

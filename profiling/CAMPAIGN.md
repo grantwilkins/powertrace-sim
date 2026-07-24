@@ -263,7 +263,7 @@ as ~30-min validation passes plus the one-time §5-C/§5-D builds.
 ## 9. Model-readiness campaign generated from the v2 failures
 
 The executable configs deliberately cover only cells that resolve a named
-ambiguity in `FEATURE_TEST_LEARNINGS.md`:
+ambiguity in `archive/research_notes/FEATURE_TEST_LEARNINGS.md`:
 
 | order | configs | comparison | question answered |
 |---|---|---|---|

@@ -1,10 +1,10 @@
 # power-test: static power surface on iteration-granularity coordinates
 
-Plan items 2 and 3 of PIPELINE_PLAN.md. Inputs are the simulated ledger cache
+Plan items 2 and 3 of `archive/research_notes/PIPELINE_PLAN.md`. Inputs are the simulated ledger cache
 (feature-test/ledger_cache_sim_250ms.npz, arrival-only channels on the
 simulator clock) and the measured node power joined onto that same clock.
 Everything here is dense-first; gpt-oss cells are reported but excluded from
-the hardware fit and carry the MoE routing block (TODO.md item 1).
+the hardware fit and carry the MoE routing block (`docs/plans/TODO.md` item 1).
 
 ## Evidence base (all verified against code/data 2026-07-16)
 
@@ -27,8 +27,9 @@ the hardware fit and carry the MoE routing block (TODO.md item 1).
   coefficients (concave monotone by construction). Communication is
   dropped: collinear with compute (r ~ 0.99) and carries zero identified
   energy in every prior fit. FP8 compute scale is fractional,
-  1 - 0.5*clip(fp8_flop_frac, 0, 1). Caps are cited board power
-  (A100 400 W, H100 700 W per GPU), not fitted quantiles.
+  1 - 0.5*clip(fp8_flop_frac, 0, 1). A board-power value is not treated as a
+  sample-by-sample meter cap; clipping requires an explicit run-level
+  operating limit.
 
 ## Contracts
 
@@ -99,11 +100,23 @@ apply_chain and regresses against raw measured power.
 
 ### 4. power-test/fit_power_surface.py (CLI)
 
-Per hardware: dense bins with role == train and finite power. MoE training
-bins are counted and excluded. For each delay in
-the plan-fixed grid (0.0, 0.25, 0.5, 0.75) s: filter design columns per
-run through apply_chain, RMS-scale columns, scipy NNLS, un-scale; pick
-delay by train RMSE; report the full grid, not just the winner. Write
+Per hardware, the baseline uses dense bins with role == train and finite
+power. MoE training bins are counted and excluded. The A100 candidate also
+uses the source Llama-70B prefill/decode staircase artifact produced by
+`build_probe_power_calibration.py`: raw power remains at 250 ms, bursty engine
+counters are conserved over each request-active level, and each level receives
+equal total weight after per-GPU squared-error scaling. Cached-context,
+mixed-grid, and transient probes are excluded because they do not identify one
+instantaneous dynamic-power component. No target or holdout bundle enters the
+artifact.
+
+For each delay in the plan-fixed grid (0.0, 0.25, 0.5, 0.75) s: filter design
+columns per run through apply_chain, RMS-scale columns, scipy NNLS, un-scale;
+pick delay by train RMSE; report the full grid, not just the winner. The probe
+candidate replaces the baseline only if it is no worse on every source dense
+`test_indomain` median and strictly better on at least one of energy error,
+ACF-MAE, ACF R2, and range NRMSE. Soft-DTW and target results are report-only
+and cannot select the fit. Write
 power-test/fitted_surface.json: per hardware {coefficients by name,
 delay_s, delay_grid_rmse, optional cap_w_per_gpu, provenance: every constant
 tagged cited | plan-fixed | fitted-here}.
@@ -117,9 +130,11 @@ train and test_indomain (dev). holdout_twin / holdout_rate /
 holdout_model / dtype_calibration are NOT scored in this stage — they are
 plan item 3's matrix and are not burned during development. Report per
 (hardware, role): energy_error_pct median/p90/worst, acf_mae, acf_r2,
-nrmse_range, signed mean_bias_pct by rate; plus the same table restricted
+soft_dtw_divergence, nrmse_range, signed mean_bias_pct by rate; plus the same
+table restricted
 to dense models (gpt-oss flagged MoE-blocked). Write
-power-test/fit_report.json and print the tables. Failures are reported
+power-test/fit_report.json, including the baseline/candidate source-development
+selection record, and print the tables. Failures are reported
 as failures; nothing is dropped to make a table look better.
 
 ### 5. power-test/evaluate_arrival_only.py (CLI)

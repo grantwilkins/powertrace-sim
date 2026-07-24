@@ -58,7 +58,7 @@ def load_inputs(
         cache = {key: data[key] for key in data.files}
     artifact = json.loads(artifact_path.read_text())
     if artifact.get("schema_version") not in (
-        "power-test-surface-v1", "power-test-surface-v2"
+        "power-test-surface-v1", "power-test-surface-v2", "power-test-surface-v3"
     ):
         raise ValueError("Unknown fitted power-surface schema")
     run_index = json.loads(RUN_INDEX.read_text())
@@ -150,7 +150,12 @@ def legacy_references(rows: list[dict]) -> tuple[list[dict], dict]:
                 "source_id": row["source_id"],
                 "candidate": candidate,
                 "split": old["split"],
-                **{metric: float(old[metric]) for metric in ROW_METRICS},
+                **{
+                    metric: (
+                        float(old[metric]) if metric in old else float("nan")
+                    )
+                    for metric in ROW_METRICS
+                },
             })
             counts[f"{candidate}_matches"] += 1
     return output, counts
@@ -224,6 +229,7 @@ def main() -> None:
         print(f"{table['hardware']} {table['role']} {table['model']}: "
               f"runs={table['runs']} energy={table['energy_error_pct_median']:.2f}% "
               f"acf_mae={table['acf_mae_median']:.4f} "
+              f"soft_dtw={table['soft_dtw_divergence_median']:.4f} "
               f"nrmse={table['nrmse_range_median']:.3f}")
     print(f"Legacy reference matches: M4A={counts['M4A_matches']} "
           f"B2={counts['B2_matches']}")

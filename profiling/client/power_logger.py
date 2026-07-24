@@ -86,12 +86,17 @@ def canonical_field_name(header: str) -> str:
     return POWER_FIELD_ALIASES.get(field, field)
 
 
-def nvidia_smi_query_command(fields=EXTENDED_FIELDS) -> list[str]:
-    return [
+def nvidia_smi_query_command(
+    fields=EXTENDED_FIELDS, gpu_ids: str | None = None
+) -> list[str]:
+    command = [
         "nvidia-smi",
         f"--query-gpu={','.join(_query_fields(fields))}",
         "--format=csv,nounits,noheader",
     ]
+    if gpu_ids:
+        command.append(f"--id={gpu_ids}")
+    return command
 
 
 def nvidia_smi_command(
@@ -149,7 +154,8 @@ def _stop(_signum, _frame) -> None:
 
 
 def stream_power(
-    interval_ms: int = DEFAULT_INTERVAL_MS, profile: str = "core"
+    interval_ms: int = DEFAULT_INTERVAL_MS, profile: str = "core",
+    gpu_ids: str | None = None,
 ) -> None:
     try:
         fields = POWER_PROFILES[profile]
@@ -164,7 +170,7 @@ def stream_power(
         start = time.monotonic()
         timestamp = _timestamp_now()
         result = subprocess.run(
-            nvidia_smi_query_command(fields),
+            nvidia_smi_query_command(fields, gpu_ids),
             check=True,
             stdout=subprocess.PIPE,
             text=True,
@@ -180,8 +186,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interval-ms", type=int, default=DEFAULT_INTERVAL_MS)
     parser.add_argument("--profile", choices=POWER_PROFILES, default="core")
+    parser.add_argument("--gpu-ids")
     args = parser.parse_args()
-    stream_power(args.interval_ms, args.profile)
+    stream_power(args.interval_ms, args.profile, args.gpu_ids)
 
 
 if __name__ == "__main__":

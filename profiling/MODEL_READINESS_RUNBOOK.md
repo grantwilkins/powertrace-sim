@@ -2,11 +2,11 @@
 
 This runbook retains the development calibration campaign. The paper-final
 sealed BurstGPT/OpenHands/unseen-model campaign is now authoritative in
-`DATA_INVENTORY_CAMPAIGN_PLAN.md`; do not merge its sealed bundles into the
+`docs/plans/DATA_INVENTORY_CAMPAIGN_PLAN.md`; do not merge its sealed bundles into the
 development workflow below.
 
 This is the only execution checklist for closing the failures in
-`FEATURE_TEST_LEARNINGS.md`. `CAMPAIGN.md` is background and design rationale.
+`archive/research_notes/FEATURE_TEST_LEARNINGS.md`. `CAMPAIGN.md` is background and design rationale.
 Do not add agentic, prefix-cache, long-context replay, generic Tier-2 models, or
 custom vLLM counters to this run. They answer different questions.
 
@@ -19,7 +19,7 @@ The work is complete only when all of these are true:
    250 ms measured ledger plus a `ledger-run-index-v1` index.
 3. Candidate equations and selection rules were frozen using development data
    only, then exported as one artifact per hardware.
-4. The 11 paper-final sealed runs in `DATA_INVENTORY_CAMPAIGN_PLAN.md` were
+4. The 11 paper-final sealed runs in `docs/plans/DATA_INVENTORY_CAMPAIGN_PLAN.md` were
    collected under `SEALED_RUNS` after the freeze.
 5. A score-only path evaluated the sealed bundles once without refitting,
    reselection, threshold changes, or feature changes.
@@ -62,7 +62,7 @@ Run development campaigns in this order:
 These produce 35 development bundles: 23 controlled-probe bundles and 12
 realistic validation bundles. The former GPT-OSS/405B sealed closeout is
 superseded; after the model and thresholds are frozen, run only the 11-launch
-paper-final matrix in `DATA_INVENTORY_CAMPAIGN_PLAN.md`.
+paper-final matrix in `docs/plans/DATA_INVENTORY_CAMPAIGN_PLAN.md`.
 
 ## Before submission
 

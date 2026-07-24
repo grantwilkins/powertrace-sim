@@ -1,142 +1,142 @@
 \section{Methods}
 \label{sec:methods}
 
-\subsection{Problem Formulation and Scope}
+\subsection{Overview}
 
-We predict the node-level power of an LLM inference service from its request
-trace.  Request $i$ is described by its arrival time $a_i$, input length
-$n_i^{\mathrm{in}}$, and output length $n_i^{\mathrm{out}}$.  The prediction
-has two stages.  First, a timing model replays the requests through a
-continuous-batching scheduler and produces a trace of engine iterations.
-Second, a power model maps the simulated work in each time bin to node power.
-The timing and evaluation stages are shared by dense and mixture-of-experts
-(MoE) models.  The power regressions are separate because sparse expert
-execution changes the relation between scheduled tokens, memory traffic, and
-power.
+PowerTrace-Sim predicts the node power of an inference server from a request
+trace and the server configuration.  Request $i$ is represented by its arrival
+time $a_i$, prompt length $n_i^{\mathrm{in}}$, and output length
+$n_i^{\mathrm{out}}$.  A timing model first replays these requests through a
+continuous-batching scheduler.  The replay produces the start time, duration,
+and work of each engine iteration.  A power model then maps this work to power
+at 250-ms resolution.
 
-All internal traces use bins of width $\Delta t=0.25$ seconds.  A predicted
-sample is the total power of the tensor-parallel group, not power per GPU.
-Let $p$ denote the tensor-parallel size.  Every delay, filter, lag, and missing
-value operation is applied independently within each run.  No state is carried
-across run boundaries.
+This separation is important.  Arrival rate and model name do not enter the
+power regression.  Their effects appear through the schedule and the work it
+creates.  The same timing model is used for dense and mixture-of-experts (MoE)
+models, while their power models are fitted separately because sparse expert
+execution changes weight traffic and device occupancy.
 
-The offline experiments use the observed output lengths.  A deployment does
-not know $n_i^{\mathrm{out}}$ when a request arrives, so online use requires an
-output-length estimate.  Errors from that estimate are outside the scope of
-the power regression evaluated here.
+The prediction is the sum of power over the $p$ GPUs in the tensor-parallel
+group.  All filtering, interpolation, and delay operations are confined to a
+single run.  The experiments use observed output lengths.  Prospective use
+requires an output-length estimate or distribution.
 
-\subsection{Measurements and Time Alignment}
+\subsection{Measurements and Alignment}
 \label{sec:power-alignment}
 
-The request records and GPU power samples use independent clocks.  For each
-run, we set the timing-model origin to the earliest validated request
-timestamp $t_0^{\mathrm{req}}$.  Let $t_0^{P}$ be the first power timestamp.
-The alignment offset is
+Each run contains four synchronized records: request measurements, engine
+counters, GPU telemetry, and a manifest.  Request records provide arrival
+times, prompt and output token counts, time to first token (TTFT), and either
+per-token latency or mean inter-token latency.  Engine counters report running
+and waiting requests, prompt and generation tokens, iteration counts, tokens
+per iteration, and KV-cache use.  GPU power, clocks, utilization, memory use,
+and temperature are sampled with \texttt{nvidia-smi} at approximately 4~Hz.
+The manifest records the model architecture, GPU type, tensor-parallel size,
+data types, scheduler limits, cache policy, software version, and active GPU
+UUIDs.
+
+Prompt length is a logical request quantity.  When prefix caching is enabled,
+the executed prefill length is
 \begin{equation}
-  \delta =
-  \left(t_0^{\mathrm{req}}-t_0^{P}\right)-1800K,
+  n_i^{\mathrm{exec}} = n_i^{\mathrm{in}}-n_i^{\mathrm{cache}},
+\end{equation}
+where $n_i^{\mathrm{cache}}$ is reported by the server.  Cached tokens remain
+part of the request context but do not incur prefill computation.  Cache policy
+and cache-hit counters are checked against the manifest before a run is used.
+
+Request and engine timestamps are Unix epochs.  GPU timestamps are converted
+to the same basis using the UTC offset stored in the manifest.  For legacy
+traces, let $t_0^{\mathrm{req}}$ and $t_0^P$ be the first request and power
+timestamps.  Their residual offset is
+\begin{equation}
+  \delta=(t_0^{\mathrm{req}}-t_0^P)-1800K,
   \qquad
-  K=\operatorname{round}
-  \left(\frac{t_0^{\mathrm{req}}-t_0^{P}}{1800}\right).
+  K=\operatorname{round}\!\left(
+  \frac{t_0^{\mathrm{req}}-t_0^P}{1800}\right).
   \label{eq:clock-alignment}
 \end{equation}
-The 1800-second term handles whole- and half-hour clock offsets in the source
-data.  The retained data have $K=0$ for every run.  We reject a run if $K\ne0$
-or if $\delta\notin[-2,600]$ seconds, rather than choosing an alignment from
-the power trace.
+The half-hour correction detects timezone errors; every retained run has
+$K=0$.  Runs are rejected when the remaining offset lies outside
+$[-2,600]$ seconds.  Alignment is determined from timestamps, never by shifting
+one power trace to resemble another.
 
-For a power sample at time $t_j^P$, the corresponding time on the simulation
-clock is
-\begin{equation}
-  \tau_j=t_j^P-t_0^P-\delta.
-\end{equation}
-We assign the sample to bin $\lfloor\tau_j/\Delta t\rfloor$.  Samples from the
-first $p$ devices are summed at each timestamp, and multiple samples in one
-bin are averaged.  A bin with no sample is marked missing.  The SHA-256 digest
-of every source power file is checked before it is joined to the simulated
-trace.
+A power sample at time $t_j^P$ is placed at
+$\tau_j=t_j^P-t_0^P-\delta$.  Samples are matched to the active GPU UUIDs,
+summed across the tensor-parallel group, and averaged within each 250-ms bin.
+Bins without a sample remain missing.  Source-file hashes are stored with the
+joined trace.
 
-\subsection{Request-Timing Model}
+\subsection{From Requests to Engine Work}
 \label{sec:timing-model}
 
-\subsubsection{Work per Engine Iteration}
+\subsubsection{Work in one iteration}
 
-The timing model derives work from the model architecture rather than fitting
-a throughput value for each model.  Consider an engine iteration that decodes
-one token for each of $d$ active sequences and processes a prefill chunk of
-$q$ tokens.  Let $N_{\mathrm{act}}$ be the active parameter count, $L$ the
-number of layers, $n_q$ the number of query heads, and $h$ the head dimension.
-The data-type factor is
+The timing model calculates work from the architecture rather than fitting a
+throughput for each checkpoint.  Consider an iteration that decodes one token
+for each of $d$ sequences and processes a prefill chunk of $q$ tokens.  Let
+$N_{\mathrm{act}}$ be the active parameter count, $L$ the number of layers,
+$n_q$ the number of query heads, and $h$ the head dimension.  Mixed-precision
+work is scaled by
 \begin{equation}
-  s_{\mathrm{dtype}} =
-  1-\frac{1}{2}
-  \operatorname{clip}\!\left(f_{\mathrm{FP8}},0,1\right),
+  s_{\mathrm{dtype}}=1-\frac{1}{2}
+  \operatorname{clip}(f_{\mathrm{FP8}},0,1),
   \label{eq:dtype-scale}
 \end{equation}
-where $f_{\mathrm{FP8}}$ is the fraction of floating-point work performed at
-the double-rate data type.
+where $f_{\mathrm{FP8}}$ is the fraction of floating-point work executed at
+FP8 throughput.
 
-For dense attention, define $C(c)=\max(c,0)$.  GPT-OSS alternates full and
-sliding-window attention layers, for which
+Let $C(c)$ be the visible attention context.  For full attention,
+$C(c)=\max(c,0)$.  For a model with equal numbers of full-attention and
+sliding-window layers,
 \begin{equation}
-  C(c)=\frac{1}{2}\max(c,0)
-       +\frac{1}{2}\min\!\left(\max(c,0),w\right),
+  C(c)=\frac{1}{2}\max(c,0)+
+       \frac{1}{2}\min\{\max(c,0),w\},
   \label{eq:effective-context}
 \end{equation}
-where $w$ is the sliding-window length.  If $c_d$ is the mean visible decode
-context and $c_p$ is the number of prompt tokens processed before the current
-chunk, the linear-layer and attention work are
+where $w$ is the window length.  If $c_d$ is the mean decode context and $c_p$
+is the context preceding the current prefill chunk, the linear and attention
+work are
 \begin{align}
   F_{\mathrm{lin}}
-    &= 2s_{\mathrm{dtype}}N_{\mathrm{act}}(d+q), \\
+    &=2s_{\mathrm{dtype}}N_{\mathrm{act}}(d+q),\\
   F_{\mathrm{attn}}
-    &= 4s_{\mathrm{dtype}}n_qhL
-       \left[dC(c_d)+qC\!\left(c_p+\frac{q}{2}\right)\right].
+    &=4s_{\mathrm{dtype}}n_qhL
+      \left[dC(c_d)+qC\!\left(c_p+\frac{q}{2}\right)\right].
   \label{eq:iteration-flops}
 \end{align}
 
-The key--value (KV) cache stores keys and values in BF16.  Its bytes per token
-are
+For BF16 KV storage, the bytes stored per context token are
 \begin{equation}
-  v_{\mathrm{KV}}=2L n_{\mathrm{KV}}h \times 2\ \mathrm{bytes},
+  v_{\mathrm{KV}}=2L n_{\mathrm{KV}}h\times2\ \mathrm{bytes},
   \label{eq:kv-bytes}
 \end{equation}
-where $n_{\mathrm{KV}}$ is the number of KV heads.  The attention memory
-traffic in one iteration is
+and the attention traffic in one iteration is
 \begin{equation}
-  M_{\mathrm{attn}} =
-  v_{\mathrm{KV}}\!
-  \left[
-    d\{C(c_d)+1\}
-    +C\!\left(c_p+\frac{q}{2}\right)+q
-  \right].
+  M_{\mathrm{attn}}=v_{\mathrm{KV}}
+  \left[d\{C(c_d)+1\}+C\!\left(c_p+\frac{q}{2}\right)+q\right].
   \label{eq:attention-bytes}
 \end{equation}
-The prefill term represents one streaming pass through the visible KV cache
-plus the KV write for the chunk.  It does not charge a full KV-cache read for
-each query token, because fused attention kernels reuse KV blocks within the
-chunk.
+The prefill term represents one streaming pass through visible KV blocks and
+the write of the new chunk.  It does not charge a separate full-cache read for
+every query token within a fused attention kernel.
 
-\subsubsection{Iteration Duration}
+\subsubsection{Iteration time}
 
-Linear operators and attention operators execute in sequence.  We therefore
-apply a roofline bound to each operator class and add their durations.  Let
-$F_h$ and $B_h$ be peak compute throughput and HBM bandwidth per GPU on
-hardware $h$, and let $\eta_F$ and $\eta_B$ be fitted hardware-level
-efficiencies.  If $M_{\mathrm{w}}$ is the expected weight traffic in the
-iteration, then
+Linear and attention operators execute in sequence, so each receives its own
+roofline bound.  Let $F_h$ and $B_h$ be the peak compute rate and HBM bandwidth
+per GPU on hardware $h$, and let $\eta_F$ and $\eta_B$ be fitted efficiencies.
+For expected weight traffic $M_{\mathrm{w}}$, iteration time is
 \begin{align}
-  T_{\mathrm{iter}} ={}&
-  T_{\mathrm{launch}}
-  +\max\left(
+  T_{\mathrm{iter}}={}&T_{\mathrm{launch}}
+  +\max\!\left(
     \frac{F_{\mathrm{lin}}}{p\eta_FF_h},
     \frac{M_{\mathrm{w}}}{p\eta_BB_h}
   \right) \nonumber\\
-  &+\max\left(
+  &+\max\!\left(
     \frac{F_{\mathrm{attn}}}{p\eta_FF_h},
     \frac{M_{\mathrm{attn}}}{p\eta_BB_h}
-  \right)
-  +dT_{\mathrm{sample}} .
+  \right)+dT_{\mathrm{sample}}.
   \label{eq:iteration-time}
 \end{align}
 The launch and synchronization term is
@@ -144,299 +144,235 @@ The launch and synchronization term is
   T_{\mathrm{launch}}=T_0+2L T_{\mathrm{msg}}(h,p).
   \label{eq:launch-time}
 \end{equation}
-The factor $2L$ represents two tensor-parallel collectives per layer; at
-$p=1$, the same term accounts for the kernel-launch chain.
+The factor $2L$ represents two tensor-parallel collectives per layer; for
+$p=1$, the fitted term captures the corresponding kernel-launch chain.
 
-The efficiencies, launch terms, and sampling term are shared by all models on
-one hardware type.  They are fitted in log-time space using direct iteration
-probes and timing points from training runs.  The latter include isolated
-requests and loaded requests grouped by reconstructed decode concurrency.
-Held-out model families do not contribute calibration points.  A separate
-H100 FP8 memory-streaming multiplier is fitted from the ten runs assigned to
-data type calibration; it is a data-type constant, not a per-model
-coefficient.
+The efficiencies and overheads are shared by all checkpoints on one hardware
+type.  They are fitted in log-time space from controlled prefill and decode
+probes, isolated production requests, and loaded requests grouped by measured
+decode concurrency.  Held-out model families are excluded.  FP8 memory
+throughput is calibrated separately on H100.
 
-\subsubsection{Continuous-Batching Simulation}
+\subsubsection{Continuous batching}
 
-The scheduler is a deterministic discrete-event simulation.  Requests enter a
-first-come-first-served queue.  A request is admitted when both a sequence slot
-and sufficient KV-cache capacity are available.  The default maximum is 256
-active sequences, except for the recorded 64-sequence limit of the 405B
-configuration.  KV capacity is
+Requests enter a first-come-first-served queue.  A request is admitted when a
+sequence slot and sufficient KV capacity are available.  If $g$ is the
+recorded GPU-memory fraction and $M_h$ is memory capacity per GPU, the available
+context capacity is
 \begin{equation}
-  Q_{\mathrm{KV}} =
-  \frac{0.9\,pM_h-M_{\mathrm{weights}}}{v_{\mathrm{KV}}},
+  Q_{\mathrm{KV}}=
+  \frac{g pM_h-M_{\mathrm{weights}}}{v_{\mathrm{KV}}}.
   \label{eq:kv-capacity}
 \end{equation}
-where $M_h$ is device memory per GPU and $M_{\mathrm{weights}}$ is the model
-weight size.  Admission reserves the full prompt and the next generated token.
+The simulation uses the recorded sequence limit and token budget.  Each
+iteration first advances all sequences ready to decode, then assigns the
+remaining token budget to prefill chunks in arrival order.  The simulation
+records iteration time, decode batch, context length, prefill chunks, weight
+traffic, FLOPs, and attention bytes.
 
-Each iteration has a 2048-token budget.  Every sequence that has completed
-prefill first receives one decode token.  The remaining budget is assigned to
-prefill chunks in arrival order.  Equation~\ref{eq:iteration-time} advances
-the simulation clock, after which completed tokens and requests are recorded.
-This process produces the start time, end time, decode batch, mean context,
-prefill tokens, prior prefill context, and number of prefill chunks for every
-iteration.
+Iteration intervals are projected onto all overlapping 250-ms bins in
+proportion to overlap duration.  This preserves total work, bytes, and busy
+time across bin boundaries.  Token completions and iteration counts are placed
+at iteration completion.  The evaluation horizon is fixed by the measured
+request trace: an early simulated drain produces idle bins, while simulated
+events beyond the common horizon are discarded.  Measured power is not used
+to construct any model input.
 
-\subsubsection{Projection onto the Power Grid}
-
-Interval-valued quantities are distributed across all overlapping 250-ms bins
-in proportion to overlap duration.  This operation preserves total busy time,
-prefill work, decode work, and weight bytes.  Decode tokens and their KV reads
-are completion events and are placed at the end of their engine iteration,
-matching the event convention of the measured ledger.  Engine-iteration
-counts and scheduled tokens per iteration are also placed at iteration
-completion.  Request arrivals, active requests, running requests, and waiting
-requests are computed directly from the simulated admission and completion
-times.
-
-The resulting power inputs include prefill and decode token rates, active
-batch, busy fraction, prefill and decode duty, weight-read rate, KV read and
-write rates, engine-iteration rate, and tokens per iteration.  These values
-depend only on the request trace, architecture, scheduler, and timing
-calibration; measured power is not used to construct them.
-
-\subsection{MoE Routing and Weight Traffic}
+\subsection{Weight Traffic for MoE Models}
 \label{sec:routing-method}
 
-For a dense model, one active iteration reads the full resident weight set.
-For an MoE model, let $E$ be the number of experts, $k$ the number selected per
-token, and $f_{\mathrm{MoE}}$ the fraction of weight bytes assigned to routed
-experts.  Under independent uniform top-$k$ routing, the expected fraction of
-experts touched by $z=d+q$ tokens is
+A dense iteration reads the resident weight set.  For an MoE model, let $E$ be
+the number of experts, $k$ the number selected per token, and $f_{\mathrm{MoE}}$
+the fraction of weight bytes assigned to routed experts.  Under independent
+uniform top-$k$ routing, the expected fraction of experts touched by
+$z=d+q$ tokens is
 \begin{equation}
-  \phi(z)=1-\left(1-\frac{k}{E}\right)^z .
+  \phi(z)=1-\left(1-\frac{k}{E}\right)^z.
   \label{eq:uniform-routing}
 \end{equation}
-The expected weight bytes read in the iteration are then
+Expected weight traffic is therefore
 \begin{equation}
-  M_{\mathrm{w}} =
-  M_{\mathrm{weights}}
+  M_{\mathrm{w}}=M_{\mathrm{weights}}
   \left[(1-f_{\mathrm{MoE}})+f_{\mathrm{MoE}}\phi(z)\right].
   \label{eq:moe-weight-bytes}
 \end{equation}
-Equations~\ref{eq:uniform-routing} and~\ref{eq:moe-weight-bytes} are used by
-the final GPT-OSS timing and power traces.
+This law is used for the reported MoE timing and power results.  Captured
+expert assignments were evaluated separately, but did not support a stable
+additional routing term.
 
-We also evaluated routing summaries computed from captured expert
-assignments.  If $\pi_{\ell e}$ is the observed share of selected-expert
-assignments sent to expert $e$ in layer $\ell$, the normalized selected-expert
-load entropy is
-\begin{equation}
-  H_\ell =
-  -\frac{\sum_{e=1}^{E}\pi_{\ell e}\log\pi_{\ell e}}{\log E}.
-  \label{eq:routing-entropy}
-\end{equation}
-This is entropy of selected-expert load.  It is not entropy of router logits
-or gate confidence.  The measured-routing ablation also used layer-specific
-expert-touch probabilities and separate prefill and decode correlation
-exponents to estimate distinct experts.  These summaries did not improve the
-source-development timing and power errors, and an independent entropy-to-
-power effect was not identifiable from the available runs.  They are
-therefore reported as an ablation and are not inputs to the final regression.
-
-\subsection{Dense Power Regression}
+\subsection{Dense Power Model}
 \label{sec:dense-power}
 
-The dense power model is kept fixed and is fitted separately for A100 and H100
-hardware.  The hardware constants are
+The dense model is fitted once per GPU type.  Let
+$r_{F,\mathrm{lin}}(t)$ and $r_{F,\mathrm{attn}}(t)$ be the linear and
+attention FLOP rates in bin $t$, and let $r_{\mathrm{w}}(t)$ and
+$r_{B,\mathrm{attn}}(t)$ be weight and attention byte rates.  Per-GPU
+compute and memory utilization are
 \begin{align}
-  (F_{\mathrm{A100}},B_{\mathrm{A100}})&=(312\ \mathrm{TFLOP/s},
-  2.0\ \mathrm{TB/s}),\\
-  (F_{\mathrm{H100}},B_{\mathrm{H100}})&=(990\ \mathrm{TFLOP/s},
-  3.35\ \mathrm{TB/s}).
-\end{align}
-For bin $t$, define the estimated compute and memory utilization
-\begin{align}
-  u_F(t) &=
-  \frac{2s_{\mathrm{dtype}}N_{\mathrm{act}}
-  [r_{\mathrm{pre}}(t)+r_{\mathrm{dec}}(t)]}{pF_h},\\
-  u_B(t) &=
-  \frac{r_{\mathrm{w}}(t)+r_{\mathrm{KV,r}}(t)
-  +r_{\mathrm{KV,w}}(t)}{pB_h}.
+  u_F(t)&=\frac{r_{F,\mathrm{lin}}(t)+r_{F,\mathrm{attn}}(t)}{pF_h},\\
+  u_B(t)&=\frac{r_{\mathrm{w}}(t)+r_{B,\mathrm{attn}}(t)}{pB_h}.
   \label{eq:dense-utilization}
 \end{align}
-All token and byte quantities in Equation~\ref{eq:dense-utilization} are
-rates per second.
-
-Let $a(t)$ be busy fraction, $a_{\mathrm{pre}}(t)$ and
-$a_{\mathrm{dec}}(t)$ be phase duty fractions, $r_{\mathrm{iter}}(t)$ be
-engine iterations per second, and $z_{\mathrm{iter}}(t)$ be scheduled tokens
-per iteration.  With knots
-$\mathcal{K}=\{0.05,0.15,0.4,1.0\}$, the 18-dimensional design vector is
+The hardware constants are
 \begin{align}
-  \mathbf{x}_{D}(t)=\big[&
-  p,\ p\mathbb{1}(p>1),\ pa(t),\
-  pa_{\mathrm{pre}}(t),\ pa_{\mathrm{dec}}(t), \nonumber\\
-  &\{p\min[u_F(t),\kappa]\}_{\kappa\in\mathcal K},\
-  \{p\min[u_B(t),\kappa]\}_{\kappa\in\mathcal K}, \nonumber\\
-  &p\,r_{\mathrm{iter}}(t)/1000,\
-  \{p\min[z_{\mathrm{iter}}(t)/2048,\kappa]\}_{\kappa\in\mathcal K}
-  \big].
-  \label{eq:dense-design}
+  (F_{\mathrm{A100}},B_{\mathrm{A100}})
+    &=(312\ \mathrm{TFLOP/s},2.0\ \mathrm{TB/s}),\\
+  (F_{\mathrm{H100}},B_{\mathrm{H100}})
+    &=(990\ \mathrm{TFLOP/s},3.35\ \mathrm{TB/s}).
 \end{align}
-Nonnegative coefficients make every piecewise-linear utilization term
-monotone.  Tensor-parallel communication is not included as a separate
-regressor because it is collinear with the compute terms in these runs and
-its coefficient was zero in prior fits.
 
-\subsection{MoE Power Regression}
+Let $b(t)\in[0,1]$ be the fraction of the bin occupied by engine work.  The
+complete per-GPU design has four coordinates:
+\begin{equation}
+  \mathbf{x}_D(t)=\left[
+  1,\;
+  b(t)\operatorname{clip}\!\left(
+    \frac{M_{\mathrm{weights}}}{pM_h},0,1\right),\;
+  u_F(t),\;
+  \sqrt{b(t)\max\{u_B(t),0\}}
+  \right].
+  \label{eq:dense-design}
+\end{equation}
+These terms represent idle power, the active resident model, compute demand,
+and memory demand.  The square-root memory response is applied before active
+and idle time are combined, which preserves short memory-intensive intervals.
+The model contains no checkpoint name, arrival rate, tensor-parallel label,
+phase label, or elapsed-time term.  Nonnegative coefficients make predicted
+power monotone in each work coordinate.
+
+For hardware $h$, node power is
+\begin{equation}
+  \widehat P_D(t)=p\,
+  \{\mathcal H_h(\mathbf X_D)\}_t\boldsymbol\beta_{D,h},
+\end{equation}
+where $\mathcal H_h$ is the measured sensor response applied independently to
+each run.
+
+\subsection{MoE Power Model}
 \label{sec:moe-power}
 
-The MoE regression is limited to GPT-OSS-20B on A100 with $p\in\{1,2\}$ and
-the uniform-routing timing trace.  Let
+The MoE model uses the same simulated work but retains a separate regression.
+Let
 \begin{equation}
-  m(t)=r_{\mathrm{w}}(t)+r_{\mathrm{KV,r}}(t)
-       +r_{\mathrm{KV,w}}(t)
+  m(t)=r_{\mathrm{w}}(t)+r_{\mathrm{KV,r}}(t)+r_{\mathrm{KV,w}}(t)
 \end{equation}
-be the estimated node-level memory traffic rate.  We use the five features
+be node-level memory traffic, $r_{\mathrm{iter}}(t)$ the iteration rate, and
+$b_{\mathrm{dec}}(t)$ the mean decode batch.  The per-GPU design is
 \begin{equation}
-  \mathbf{x}_{M}(t)=
-  \left[
-    p,\;
-    p\mathbb{1}(p>1),\;
-    \frac{m(t-\Delta t)}{2.0\times10^{12}},\;
-    \frac{p\,r_{\mathrm{iter}}(t)}{1000},\;
-    p\log(1+b(t))
-  \right],
+  \mathbf{x}_M(t)=\left[
+    1,\;
+    \mathbb{1}(p>1),\;
+    \frac{m(t-\Delta t)}{p(2.0\times10^{12})},\;
+    \sqrt{b(t)u_F(t)},\;
+    \frac{r_{\mathrm{iter}}(t)}{1000},\;
+    \log\{1+b_{\mathrm{dec}}(t)\}
+  \right].
   \label{eq:moe-design}
 \end{equation}
-where $b(t)$ is the active decode batch averaged over the bin.  The memory
-coordinate is delayed by one bin within each run.  At the first bin, the
-first value is repeated because there is no prior bin.  The iteration-rate
-and batch coordinates are not delayed.  This local lag was selected to align
-estimated memory work with the observed response; it is not a global shift of
-the trace.
+The 250-ms memory lag represents the observed response delay; it is reset at
+every run boundary.  The remaining terms represent idle power, the multi-GPU
+floor, compute demand, launch activity, and the sublinear effect of decode
+concurrency.
 
-The constant terms account for the idle node power and the additional
-multi-GPU floor.  The iteration-rate term represents launch and
-synchronization activity.  The logarithmic batch term represents a
-sublinear increase with active decode concurrency.  We use five terms because
-additional routing, change-point, and history features did not provide stable
-development improvements.
+The regression form is shared, but GPT-OSS-20B and GPT-OSS-120B have separate
+coefficients because their observed tensor-parallel ranges do not overlap.
+The MoE fit is therefore architecture-specific rather than an extrapolation
+across unsupported tensor-parallel configurations.
 
-\subsection{Coefficient Estimation and Sensor Response}
+\subsection{Calibration}
 \label{sec:power-fit}
 
-Both regressions use nonnegative least squares, but their sample weighting is
-different.  For the dense model on hardware $h$, let $\mathcal V_h$ be all
-finite-power bins from dense training runs on that hardware.  For a candidate
-delay $d$, let $\mathcal H_{h,d}$ denote the run-local sensor response applied
-to each design column.  The dense coefficients are
+Both power models use nonnegative least squares.  The dense idle coefficient
+is measured before fitting.  Within each source run, zero-busy intervals of at
+least four seconds are located, their first two seconds are discarded, and
+the remaining median is recorded.  The hardware idle floor is the median over
+runs.  This prevents long traces from dominating the baseline.
+
+Dense fitting uses matched, nonoverlapping one-second means.  For each run $r$,
+let $q_r$ be its 90th-percentile power, and let $\mathcal V_r^-$ and
+$\mathcal V_r^+$ contain the seconds below and at or above $q_r$.  With
+$n_r^s=|\mathcal V_r^s|$, the fit is
 \begin{equation}
-  \widehat{\boldsymbol\beta}_{D,h,d}
-  =
-  \arg\min_{\boldsymbol\beta\ge0}
-  \sum_{(r,t)\in\mathcal V_h}
-  \left[
-    P_r(t)-
-    \{\mathcal H_{h,d}(\mathbf X_r)\}_t\boldsymbol\beta
-  \right]^2 .
+  \widehat{\boldsymbol\beta}_{D,h}=
+  \mathop{\arg\min}_{\substack{\boldsymbol\beta\ge0\\
+    \beta_0=P_{\mathrm{idle},h}}}
+  \sum_{r\in\mathcal R_{D,h}}
+  \sum_{s\in\{-,+\}}\frac{1}{2n_r^s}
+  \sum_{t\in\mathcal V_r^s}
+  \left[P_r(t)-
+  \{\mathcal H_h(\mathbf X_r)\}_t\boldsymbol\beta\right]^2.
   \label{eq:dense-objective}
 \end{equation}
-Thus, the dense objective gives equal weight to each valid time bin.  It is
-not balanced by run.  Columns are divided by their root mean square before
-optimization and transformed back afterward; this improves numerical
-conditioning without changing Equation~\ref{eq:dense-objective}.
+Every run has equal weight, divided equally between ordinary and upper-tail
+power.  Brief prefill peaks therefore remain visible beside long decode
+periods.  The response delay is selected from
+$\{0,0.25,0.5,0.75\}$ seconds with the same objective.  A100 selects no delay;
+H100 selects 0.25 seconds and a one-second trailing mean.
 
-The dense delay is chosen from
-$\{0,0.25,0.5,0.75\}$ seconds by minimum training-bin RMSE.  Delay uses a
-first-value hold at the start of a run.  A100 has no additional averaging.
-H100 uses a one-second trailing mean, with partial windows at the start of a
-run.  Filtering the design columns is valid because the delay and moving
-average are linear.
-
-The MoE model gives equal total weight to each training run.  If
-$\mathcal V_r$ contains the $n_r$ finite-power bins in run $r$, its
-coefficients are
+The MoE fit gives equal total weight to every source run at 250-ms resolution:
 \begin{equation}
-  \widehat{\boldsymbol\beta}_{M}
-  =
+  \widehat{\boldsymbol\beta}_{M}=
   \arg\min_{\boldsymbol\beta\ge0}
-  \sum_{r\in\mathcal R_{\mathrm{train}}}
-  \frac{1}{n_r}\sum_{t\in\mathcal V_r}
+  \sum_{r\in\mathcal R_M}\frac{1}{n_r}
+  \sum_{t\in\mathcal V_r}
   \left[P_r(t)-\mathbf{x}_{M,r}(t)^\mathsf T
-  \boldsymbol\beta\right]^2 .
+  \boldsymbol\beta\right]^2.
   \label{eq:moe-objective}
 \end{equation}
-This objective is implemented by multiplying every row in run $r$ by
-$1/\sqrt{n_r}$.  The MoE model has no global response delay, and A100 requires
-no moving average.
+Predictions are not clipped to a nominal board-power rating.  A power cap is
+valid only when the corresponding operating limit is recorded for the run.
 
-Before the sensor response is applied, both raw predictions are limited by
-the device board-power bound:
-\begin{align}
-  \widetilde P_D(t)
-    &=\min\{\mathbf{x}_D(t)^\mathsf T\widehat{\boldsymbol\beta}_{D,h},
-             pP_h^{\max}\},\\
-  \widetilde P_M(t)
-    &=\min\{\mathbf{x}_M(t)^\mathsf T\widehat{\boldsymbol\beta}_{M},
-             400p\},
-  \label{eq:power-cap}
-\end{align}
-where $P_{\mathrm{A100}}^{\max}=400$ W and
-$P_{\mathrm{H100}}^{\max}=700$ W per GPU.  The cap is applied during
-prediction, after the linear coefficient fit.  It was inactive on all finite
-training bins for both regressions, so this ordering does not change the
-training objective.
+The calibration data are available from ordinary serving infrastructure:
+request logs, vLLM metrics, and GPU telemetry from \texttt{nvidia-smi} or
+DCGM.  Complete telemetry is needed for calibration runs, not for every
+production request.  A new deployment requires controlled prefill and decode
+probes, a settled loaded-idle interval, and mixed-load runs that span its
+operating range.
 
-\subsection{Data Splits and Model Selection}
+\subsection{Data Separation}
 \label{sec:data-splits}
 
-The full timing manifest contains 450 runs: 160 training runs, 80 in-domain
-test runs, 108 held-out related-model runs, 48 held-out 4-request/s runs, 44
-held-out model runs, and 10 data-type calibration runs.  The dense power
-coefficients use only dense training runs; all MoE training bins are excluded,
-so the new MoE model does not alter the dense pipeline.
+The timing corpus contains 450 runs.  Repetitions within a
+model--hardware--tensor-parallel--rate cell replay the same ordered request
+lengths and nearly identical arrivals.  Splitting these repetitions between
+fitting and validation would leak workload identity.  All non-twin runs at
+rates up to two requests/s therefore form one source population: 225 dense
+runs and 60 MoE runs.  The 57 runs at four requests/s are retrospective stress
+tests.  The 108 related-model twins are transfer comparisons, not independent
+request-trace validation.
 
-The GPT-OSS-20B MoE fit uses 20 A100 training runs.  These cover tensor-
-parallel sizes one and two and request rates from 0.125 to 2 requests/s.  The
-five rates are 0.125, 0.25, 0.5, 1, and 2 requests/s.  Each configuration has
-two request-trace repetitions.  The in-domain set contains the third
-repetition for the same ten configurations.  Six 4-request/s GPT-OSS-20B runs
-are used as a stress set.  The 4-request/s results were inspected during
-feature development, so they are retrospective and are not reported as a
-sealed holdout.
+Dense and MoE fitting populations are disjoint, and no rate-four target enters
+either fit.  New traces from other checkpoints and arrival processes are used
+only for transfer evaluation.  Each fitted artifact records the training run
+identifiers and hashes of the joined ledger and timing calibration.
 
-GPT-OSS-120B uses $p\in\{4,8\}$ and lies outside the support of the fitted MoE
-regression.  We do not extrapolate the 20B coefficients to it.  Its curves are
-reported only with the unchanged dense regression as a labeled comparator.
-Distinct request traces are verified by content hash, and the versioned MoE
-artifact binds the training run identifiers, split manifest, design arrays,
-power targets, joined-power provenance, dense comparator, and model and
-evaluation source files by SHA-256.
-
-\subsection{Evaluation Metrics}
+\subsection{Evaluation}
 \label{sec:power-metrics}
 
-Regression fitting uses only observed power bins.  For evaluation, missing
-power samples are linearly interpolated within a run; missing values at an
-edge are set to the nearest observed value.  We record the number of
-interpolated bins.  The measured and predicted 250-ms series are then averaged
-into nonoverlapping one-second bins.  Runs shorter than 62 seconds are marked
-unscored because 60 autocorrelation lags cannot be evaluated reliably.
+Missing power samples are interpolated only for evaluation, and their count is
+reported.  Measured and predicted traces are reduced to matched,
+nonoverlapping one-second means.  Temporal metrics require at least 62 seconds,
+at least 95\% observed one-second bins before interpolation, and no power gap
+longer than two seconds.  A run that fails this gate retains its energy result
+but receives no temporal score.
 
-Let $y_t$ and $\widehat y_t$ be the one-second measured and predicted power
-series of length $T$.  The absolute relative energy error is
+Let $y_t$ and $\widehat y_t$ be the measured and predicted one-second node
+power for a run of length $T$.  Relative energy error is
 \begin{equation}
-  E_{\mathrm{err}} =
-  100
-  \frac{\left|\sum_{t=1}^{T}\widehat y_t-\sum_{t=1}^{T}y_t\right|}
-       {\sum_{t=1}^{T}y_t}.
+  E_{\mathrm{err}}=100
+  \frac{\left|\sum_{t=1}^T\widehat y_t-\sum_{t=1}^Ty_t\right|}
+       {\sum_{t=1}^Ty_t}.
   \label{eq:energy-error}
 \end{equation}
-The one-second interval cancels from the numerator and denominator.  Range-
-normalized RMSE is
+We report RMSE in watts per GPU and normalize it by the measured power range:
 \begin{equation}
-  \operatorname{NRMSE}_{\mathrm{range}} =
-  \frac{\sqrt{T^{-1}\sum_{t=1}^{T}(\widehat y_t-y_t)^2}}
+  \operatorname{NRMSE}_{\mathrm{range}}=
+  \frac{\sqrt{T^{-1}\sum_{t=1}^T(\widehat y_t-y_t)^2}}
        {\max_t y_t-\min_t y_t}.
   \label{eq:nrmse}
 \end{equation}
 
-For autocorrelation, center a series as
-$z_t=y_t-\overline y$ and define, for lag $\ell$,
+For $z_t=y_t-\overline y$, the autocorrelation at lag $\ell$ is
 \begin{equation}
   \rho_y(\ell)=
   \frac{\sum_{t=1}^{T-\ell}z_tz_{t+\ell}}
@@ -444,29 +380,38 @@ $z_t=y_t-\overline y$ and define, for lag $\ell$,
   \qquad \ell=1,\ldots,60.
   \label{eq:acf}
 \end{equation}
-The predicted autocorrelation $\rho_{\widehat y}$ is defined in the same way.
-We report
+The predicted autocorrelation is defined identically.  We report its mean
+absolute error and
 \begin{equation}
-  R^2_{\mathrm{ACF}} =
-  1-
+  R^2_{\mathrm{ACF}}=1-
   \frac{\sum_{\ell=1}^{60}
   [\rho_{\widehat y}(\ell)-\rho_y(\ell)]^2}
   {\sum_{\ell=1}^{60}
-  [\rho_y(\ell)-\overline{\rho_y}]^2},
+  [\rho_y(\ell)-\overline{\rho_y}]^2}.
   \label{eq:acf-r2}
 \end{equation}
-as well as mean absolute ACF error over the same lags.  Lower energy error,
-NRMSE, and ACF mean absolute error are better; higher ACF $R^2$ is better.
-Metrics are computed per run and summarized by the median, 90th percentile,
-and worst run rather than pooling time bins across runs.
+Distributional agreement is $1-D_{\mathrm{KS}}$, where $D_{\mathrm{KS}}$ is
+the two-sample Kolmogorov--Smirnov distance between measured and predicted
+per-GPU power.
+
+Soft-DTW is reported as a temporal diagnostic.  Both traces are centered by
+the measured mean and scaled by the measured range.  With smoothing
+$\gamma=0.01$ and a ten-second Sakoe--Chiba band $B$, the reported divergence is
+\begin{equation}
+  D_{\gamma,B}(u,v)=\frac{1}{T}\left[
+  \operatorname{sDTW}_{\gamma,B}(u,v)
+  -\frac{1}{2}\operatorname{sDTW}_{\gamma,B}(u,u)
+  -\frac{1}{2}\operatorname{sDTW}_{\gamma,B}(v,v)\right].
+  \label{eq:soft-dtw}
+\end{equation}
+Soft-DTW is not used to fit coefficients or select a model.  All metrics are
+computed per run and summarized across runs; time bins from different runs are
+never pooled.
 
 \subsection{Reproducibility}
 
-The timing ledger can be regenerated with
-\texttt{simulated\_ledger.py}, and measured node power can be joined with
-\texttt{join\_power.py}.  The dense regression is implemented in
-\texttt{power\_surface.py} and \texttt{fit\_power\_surface.py}.  The separate
-MoE regression is implemented and checked by \texttt{moe\_surface.py}.  That
-script has distinct \texttt{fit} and \texttt{score} commands, so stored
-coefficients are not refitted during evaluation.  The file paths and complete
-commands are listed in the artifact README.
+The request ledger, power join, and model fit are produced by scripts under
+version control.  Stored coefficients are evaluated without refitting.
+Run identifiers, split labels, source hashes, and the timing artifact hash are
+stored with each power artifact.  The complete commands are provided with the
+artifact.

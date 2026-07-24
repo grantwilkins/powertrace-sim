@@ -12,6 +12,7 @@ Plausible wrong implementations:
 - Use request rate instead of realized decode batch.
 - Omit or double-apply TP scaling in the batch coordinate.
 - Let duplicated active bins or checkpoint bytes move the loaded-idle floor.
+- Let longer controlled-probe levels receive more total fitting weight.
 """
 import sys
 from pathlib import Path
@@ -20,7 +21,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from fit_power_surface import coefficients_in_design_order, fit_hardware
+from fit_power_surface import (
+    coefficients_in_design_order,
+    fit_hardware,
+    select_probe_candidate,
+)
 from batch_ablation import batch_feature, fit_batch_hardware
 from thermal_ablation import fit_thermal_hardware
 
@@ -69,6 +74,50 @@ def test_moe_and_test_targets_cannot_change_dense_training_fit():
     assert fit_a["coefficients"]["tp"] == 60.0
     assert fit_a["coefficients"]["tp_link"] == 0.0
     assert fit_a["coefficients"]["resident_weights"] == 0.0
+
+
+def test_probe_fit_is_invariant_to_duplicate_bins_within_a_level():
+    source = _dataset(300.0, 200.0)
+    keys = (
+        "tp", "busy", "n_active", "w_bytes", "pre_tok", "dec_tok",
+        "w_read", "kv_read", "kv_write", "engine_iterations_rate", "fp8",
+    )
+    probe = {key: np.asarray(source[key][:2]) for key in keys}
+    probe |= {
+        "hardware": np.asarray(["A100", "A100"]),
+        "level_id": np.asarray(["prefill", "prefill"]),
+        "power": np.asarray([110.0, 150.0]),
+    }
+    duplicated = {key: np.repeat(value, 3) for key, value in probe.items()}
+
+    fit_a, _, _, _ = fit_hardware(
+        source, "A100", loaded_idle_w_per_gpu=60.0,
+        probe_calibration=probe,
+    )
+    fit_b, _, _, _ = fit_hardware(
+        source, "A100", loaded_idle_w_per_gpu=60.0,
+        probe_calibration=duplicated,
+    )
+
+    assert fit_a["n_probe_levels"] == fit_b["n_probe_levels"] == 1
+    for name in fit_a["coefficients"]:
+        assert np.isclose(
+            fit_a["coefficients"][name], fit_b["coefficients"][name]
+        )
+
+
+def test_probe_candidate_cannot_trade_nrmse_for_energy():
+    baseline = {
+        "energy_error_pct": 4.0,
+        "acf_mae": 0.03,
+        "acf_r2": 0.90,
+        "nrmse_range": 0.10,
+    }
+    tradeoff = {**baseline, "energy_error_pct": 3.0, "nrmse_range": 0.11}
+    pareto = {**baseline, "energy_error_pct": 3.0, "acf_r2": 0.91}
+
+    assert not select_probe_candidate(baseline, tradeoff)
+    assert select_probe_candidate(baseline, pareto)
 
 
 def test_coefficients_follow_design_names_not_json_key_order():

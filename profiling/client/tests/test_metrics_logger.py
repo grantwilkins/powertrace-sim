@@ -89,3 +89,10 @@ def test_alias_availability_distinguishes_missing_evidence():
     available = available_columns(parsed)
     assert "iteration_tokens_total_count" in available
     assert "generation_tokens_total" in available
+
+
+def test_vllm_022_kv_cache_gauge_maps_to_stable_column():
+    parsed = parse_prometheus_metrics("vllm:kv_cache_usage_perc 0.75\n")
+    record = dict(zip(ENGINE_HEADER, metrics_row(parsed, t=0.0)))
+    assert record["gpu_cache_usage_perc"] == 0.75
+    assert "gpu_cache_usage_perc" in available_columns(parsed)

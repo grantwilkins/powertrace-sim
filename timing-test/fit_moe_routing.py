@@ -9,7 +9,7 @@ in latency, while the per-token cost (fitted on dense models) conflates
 with any routing parameter — the fit slams its bound (gamma -> 0.05,
 delta rmse_log 2.3). Separating routing correlation from per-token
 overhead requires router/expert counters, exactly as the power-side
-analysis concluded (FEATURE_TEST_LEARNINGS.md section 6, item 2). The
+analysis concluded (`archive/research_notes/FEATURE_TEST_LEARNINGS.md`, section 6 item 2). The
 probes DID establish the engine-configuration conflict (async scheduling
 in legacy gpt-oss serving vs none in the probes) documented in
 fit_efficiencies.py.

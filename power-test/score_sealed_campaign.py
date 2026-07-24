@@ -22,6 +22,8 @@ GATES = {
     "acf_r2_min": 0.90,
     "nrmse_range_max": 0.20,
     "temporal_duration_s_min": 120.0,
+    "temporal_missing_1s_fraction_max": 0.05,
+    "temporal_power_gap_s_max": 2.0,
 }
 REQUIRED_BUNDLE_FILES = (
     "manifest.json", "requests.json", "power.csv", "engine.csv",
@@ -81,17 +83,25 @@ def grade_run(run: dict) -> dict:
     timing = run["timing"]
     power = run["power"]
     checks = {
+        "surface_support": bool(power.get("surface_supported", True)),
         "timing_e2e": (
             timing["e2e_s_medabs_pct"]
             <= GATES["timing_e2e_medabs_pct_max"]
         ),
-        "energy": power["energy_error_pct"] <= GATES["energy_error_pct_max"],
-        "temporal_duration": (
-            power["duration_s"] >= GATES["temporal_duration_s_min"]
+        "energy": (
+            power.get("energy_error_pct", float("inf"))
+            <= GATES["energy_error_pct_max"]
         ),
-        "acf_mae": power["acf_mae"] <= GATES["acf_mae_max"],
-        "acf_r2": power["acf_r2"] >= GATES["acf_r2_min"],
-        "nrmse_range": power["nrmse_range"] <= GATES["nrmse_range_max"],
+        "temporal_duration": (
+            power.get("duration_s", 0.0) >= GATES["temporal_duration_s_min"]
+        ),
+        "temporal_coverage": bool(power.get("temporal_supported", False)),
+        "acf_mae": power.get("acf_mae", float("inf")) <= GATES["acf_mae_max"],
+        "acf_r2": power.get("acf_r2", -float("inf")) >= GATES["acf_r2_min"],
+        "nrmse_range": (
+            power.get("nrmse_range", float("inf"))
+            <= GATES["nrmse_range_max"]
+        ),
     }
     return {**run, "gate_checks": checks, "passed": all(checks.values())}
 
@@ -157,6 +167,7 @@ def summarize_questions(runs: list[dict]) -> dict:
         "energy_error_pct": ("power", "energy_error_pct", max),
         "acf_mae": ("power", "acf_mae", max),
         "acf_r2": ("power", "acf_r2", min),
+        "soft_dtw_divergence": ("power", "soft_dtw_divergence", max),
         "nrmse_range": ("power", "nrmse_range", max),
     }
     grouped = defaultdict(list)
@@ -172,8 +183,12 @@ def summarize_questions(runs: list[dict]) -> dict:
             ],
             "metrics": {
                 name: {
-                    "median": median(run[section][field] for run in values),
-                    "worst": worst(run[section][field] for run in values),
+                    "median": median(
+                        run[section].get(field, float("nan")) for run in values
+                    ),
+                    "worst": worst(
+                        run[section].get(field, float("nan")) for run in values
+                    ),
                 }
                 for name, (section, field, worst) in metrics.items()
             },

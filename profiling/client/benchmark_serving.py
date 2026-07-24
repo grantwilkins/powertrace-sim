@@ -481,6 +481,7 @@ async def benchmark(
         "ttfts": [output.ttft for output in outputs],
         "itls": [output.itl for output in outputs],
         "request_timestamps": metrics.request_timestamps,
+        "request_ids": [output.request_id for output in outputs],
     }
 
     def process_one_metric(

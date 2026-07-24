@@ -67,12 +67,44 @@ def test_grade_requires_timing_energy_and_shape():
         "timing": {"e2e_s_medabs_pct": 9.0},
         "power": {
             "energy_error_pct": 5.0, "duration_s": 900.0,
+            "temporal_supported": True,
             "acf_mae": 0.04, "acf_r2": 0.91, "nrmse_range": 0.19,
         },
     }
     assert score.grade_run(run)["passed"]
     run["power"]["acf_r2"] = 0.89
     assert not score.grade_run(run)["passed"]
+
+
+def test_grade_rejects_interpolated_temporal_evidence():
+    run = {
+        "timing": {"e2e_s_medabs_pct": 1.0},
+        "power": {
+            "energy_error_pct": 1.0, "duration_s": 900.0,
+            "temporal_supported": False,
+            "acf_mae": 0.01, "acf_r2": 0.99, "nrmse_range": 0.01,
+        },
+    }
+
+    graded = score.grade_run(run)
+
+    assert not graded["gate_checks"]["temporal_coverage"]
+    assert not graded["passed"]
+
+
+def test_grade_reports_unsupported_surface_as_failure():
+    run = {
+        "timing": {"e2e_s_medabs_pct": 1.0},
+        "power": {
+            "surface_supported": False, "duration_s": 900.0,
+            "support_reason": "No architecture-specific coefficients",
+        },
+    }
+
+    graded = score.grade_run(run)
+
+    assert not graded["gate_checks"]["surface_support"]
+    assert not graded["passed"]
 
 
 def test_agentic_cache_plan_requires_both_legs(tmp_path):
@@ -107,7 +139,9 @@ def test_question_summary_reports_median_worst_and_failures():
             "timing": {"e2e_s_medabs_pct": error},
             "power": {
                 "energy_error_pct": 1.0, "duration_s": 900.0,
+                "temporal_supported": True,
                 "acf_mae": 0.01, "acf_r2": 0.95,
+                "soft_dtw_divergence": 0.02,
                 "nrmse_range": 0.1,
             },
         }))

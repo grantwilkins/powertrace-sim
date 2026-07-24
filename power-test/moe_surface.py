@@ -99,7 +99,10 @@ def score_rows(cache: dict, prediction: np.ndarray, baseline: np.ndarray,
             "moe_surface_applied": applied,
             "interpolated_power_bins": n_bad,
         }
-        for key in ("energy_error_pct", "acf_mae", "acf_r2", "nrmse_range"):
+        for key in (
+            "energy_error_pct", "acf_mae", "acf_r2",
+            "soft_dtw_divergence", "nrmse_range",
+        ):
             row[key] = float(metrics[key])
             row[f"baseline_{key}"] = float(base_metrics[key])
             row[f"delta_{key}"] = float(metrics[key] - base_metrics[key])
@@ -127,7 +130,8 @@ def aggregate(rows: list[dict]) -> list[dict]:
         }
         for prefix in ("", "baseline_"):
             for metric in (
-                "energy_error_pct", "acf_mae", "acf_r2", "nrmse_range",
+                "energy_error_pct", "acf_mae", "acf_r2",
+                "soft_dtw_divergence", "nrmse_range",
             ):
                 values = np.asarray(
                     [row[f"{prefix}{metric}"] for row in selected], float)

@@ -131,7 +131,8 @@ def comparison_row(
         candidates.append({
             "run_id": run_id,
             **{key: float(metrics[key]) for key in (
-                "energy_error_pct", "acf_mae", "acf_r2", "nrmse_range")},
+                "energy_error_pct", "acf_mae", "acf_r2",
+                "soft_dtw_divergence", "nrmse_range")},
         })
     if not candidates:
         raise ValueError(f"No {role} runs for {model} TP{tp} at {rate:g} req/s")
@@ -150,7 +151,8 @@ def comparison_row(
         "measured": measured,
         "predicted": predicted,
         "metrics": {key: chosen[key] for key in (
-            "energy_error_pct", "acf_mae", "acf_r2", "nrmse_range")},
+            "energy_error_pct", "acf_mae", "acf_r2",
+            "soft_dtw_divergence", "nrmse_range")},
     }, candidates
 
 

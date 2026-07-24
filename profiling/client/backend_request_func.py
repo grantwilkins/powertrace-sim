@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import traceback
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -47,6 +48,7 @@ class RequestFuncOutput:
     prompt_len: int = 0
     error: str = ""
     request_timestamp: float = 0.0
+    request_id: str = ""
 
 
 async def async_request_tgi(
@@ -281,11 +283,16 @@ async def async_request_openai_completions(
             payload["ignore_eos"] = request_func_input.ignore_eos
         if request_func_input.extra_body:
             payload.update(request_func_input.extra_body)
-        headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+        request_id = uuid.uuid4().hex
+        headers = {
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            "X-Request-Id": request_id,
+        }
 
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
         output.request_timestamp = time.time()
+        output.request_id = request_id
 
         generated_text = ""
         st = time.perf_counter()

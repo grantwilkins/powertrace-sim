@@ -30,6 +30,11 @@ def test_query_has_extended_fields():
     assert query.split("=", 1)[1].startswith("index,uuid,power.draw")
 
 
+def test_query_can_be_limited_to_role_gpu_uuids():
+    command = nvidia_smi_query_command(gpu_ids="GPU-prefill,GPU-decode")
+    assert command[-1] == "--id=GPU-prefill,GPU-decode"
+
+
 def test_display_header_uses_canonical_clock_names():
     header = power_logger.display_header()
     assert "clocks.sm [MHz]" in header

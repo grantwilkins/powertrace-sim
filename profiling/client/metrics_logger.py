@@ -41,7 +41,11 @@ ENGINE_COLUMNS = (
     ("timestamp", ("__t__",), "first"),
     ("num_requests_running", ("vllm:num_requests_running",), "sum"),
     ("num_requests_waiting", ("vllm:num_requests_waiting",), "sum"),
-    ("gpu_cache_usage_perc", ("vllm:gpu_cache_usage_perc",), "mean"),
+    (
+        "gpu_cache_usage_perc",
+        ("vllm:gpu_cache_usage_perc", "vllm:kv_cache_usage_perc"),
+        "mean",
+    ),
     ("prompt_tokens_total", ("vllm:prompt_tokens_total",), "sum"),
     ("generation_tokens_total", ("vllm:generation_tokens_total",), "sum"),
     ("iteration_tokens_total_sum", ("vllm:iteration_tokens_total_sum",), "sum"),
