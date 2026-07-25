@@ -46,7 +46,7 @@ TIMED_FIELDS = (
     "query.end",
 ) + EXTENDED_FIELDS[1:]
 
-TP8_STATE_FIELDS = EXTENDED_FIELDS + (
+STATE_FIELDS = (
     "pstate",
     "power.limit",
     "clocks_event_reasons.sw_power_cap",
@@ -55,9 +55,13 @@ TP8_STATE_FIELDS = EXTENDED_FIELDS + (
     "clocks_event_reasons.sw_thermal_slowdown",
 )
 
+TIMED_STATE_FIELDS = TIMED_FIELDS + STATE_FIELDS
+TP8_STATE_FIELDS = EXTENDED_FIELDS + STATE_FIELDS
+
 POWER_PROFILES = {
     "core": EXTENDED_FIELDS,
     "core_timed": TIMED_FIELDS,
+    "core_timed_state": TIMED_STATE_FIELDS,
     "tp8_state": TP8_STATE_FIELDS,
 }
 
@@ -71,6 +75,7 @@ DISPLAY_FIELDS = {
     "utilization.gpu": "utilization.gpu [%]",
     "utilization.memory": "utilization.memory [%]",
     "memory.used": "memory.used [MiB]",
+    "power.limit": "power.limit [W]",
 }
 
 POWER_FIELD_ALIASES = {
@@ -192,8 +197,8 @@ def stream_power(
     sys.stdout.flush()
     interval_s = int(interval_ms) / 1000.0
     timed = "query.start" in fields
+    next_sample = time.monotonic()
     while not _STOP:
-        start = time.monotonic()
         query_start_ns = time.time_ns()
         command = nvidia_smi_query_command(fields, gpu_ids)
         try:
@@ -209,7 +214,8 @@ def stream_power(
                 f"nvidia-smi query exceeded {MAX_QUERY_S:.3f} s; sample dropped",
                 file=sys.stderr,
             )
-            remaining = interval_s - (time.monotonic() - start)
+            next_sample += interval_s
+            remaining = next_sample - time.monotonic()
             if remaining > 0:
                 time.sleep(remaining)
             continue
@@ -227,7 +233,8 @@ def stream_power(
                 sys.stdout, _timestamp_from_ns(query_start_ns), result.stdout
             )
         sys.stdout.flush()
-        remaining = interval_s - (time.monotonic() - start)
+        next_sample += interval_s
+        remaining = next_sample - time.monotonic()
         if remaining > 0:
             time.sleep(remaining)
 

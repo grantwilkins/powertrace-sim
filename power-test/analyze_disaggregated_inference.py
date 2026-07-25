@@ -1,7 +1,6 @@
 """Evaluate role-aware PowerTrace transfer on the disaggregated GPT-OSS run."""
 from __future__ import annotations
 
-import csv
 import hashlib
 import json
 import sys
@@ -31,7 +30,7 @@ from disaggregated_analysis_core import (  # noqa: E402
 )
 from disaggregated_native import sample_native_power  # noqa: E402
 from disaggregated_plot import plot_phase_traces  # noqa: E402
-from disaggregated_reporting import build_report  # noqa: E402
+from disaggregated_reporting import build_report, write_csv  # noqa: E402
 from model.disaggregated import (  # noqa: E402
     apply_shared_idle_calibration,
     simulate_disaggregated,
@@ -55,20 +54,12 @@ FIGURE_CELL = "rate-4-repeat-2"
 REPRESENTATIVE_REPEAT = 2
 
 
-def _write_csv(path: Path, rows: list[dict]) -> None:
-    with path.open("w", newline="") as stream:
-        writer = csv.DictWriter(
-            stream, fieldnames=list(rows[0]), lineterminator="\n"
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _run_root() -> Path:
-    roots = sorted(DATA_ROOT.glob("gpt-oss-20b-a100-pd-*"))
+def _run_root(data_root: Path = DATA_ROOT) -> Path:
+    roots = sorted(data_root.glob("gpt-oss-20b-a100-pd-*"))
     roots = [path for path in roots if (path / "run_metadata.json").is_file()]
+    roots = [path for path in roots if "confirmatory" not in path.name]
     if len(roots) != 1:
-        raise ValueError(f"expected one disaggregated run under {DATA_ROOT}, found {roots}")
+        raise ValueError(f"expected one pilot run under {data_root}, found {roots}")
     return roots[0]
 
 
@@ -373,8 +364,8 @@ def main() -> None:
         })
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    _write_csv(METRICS, rows)
-    _write_csv(TRACES, trace_rows)
+    write_csv(METRICS, rows)
+    write_csv(TRACES, trace_rows)
     plot_phase_traces(
         trace_rows, rows, phase_calibration, FIGURE, cell=FIGURE_CELL
     )

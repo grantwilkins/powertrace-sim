@@ -74,12 +74,25 @@ def _source_idle(release: Mapping[str, object], model: str) -> float:
     return float(coefficients["idle"])
 
 
+def _scaled_timing(arguments: dict[str, object], scale: float) -> dict[str, object]:
+    scale = float(scale)
+    if not np.isfinite(scale) or scale <= 0.0:
+        raise ValueError("role timing scales must be positive and finite")
+    output = dict(arguments)
+    output["eff_flops"] = float(output["eff_flops"]) / scale
+    output["eff_bw"] = float(output["eff_bw"]) / scale
+    output["t_launch_s"] = float(output["t_launch_s"]) * scale
+    output["t_sample_s"] = float(output["t_sample_s"]) * scale
+    return output
+
+
 def simulate_disaggregated(
     requests: Sequence[Mapping[str, object]], *,
     deployment: str | Path | Mapping[str, object],
     artifact: str | Path | Mapping[str, object] = DEFAULT_ARTIFACT,
     seed: int | None = None,
     horizon_s: float | None = None,
+    role_timing_scales: Mapping[str, float] | None = None,
     allow_unsupported: bool = False,
 ) -> DisaggregatedSimulation:
     """Simulate serial prefill and decode engines without calling them TP2."""
@@ -87,6 +100,15 @@ def simulate_disaggregated(
     config, overrides = resolve_deployment(deployment, release)
     violations = support_violations(config, release)
     violations.extend(f"calibrated override: {key}" for key in sorted(overrides))
+    timing_scales = {
+        role: float((role_timing_scales or {}).get(role, 1.0))
+        for role in ("prefill", "decode")
+    }
+    violations.extend(
+        f"target-calibrated {role} timing scale"
+        for role, scale in timing_scales.items()
+        if scale != 1.0
+    )
     if violations and not allow_unsupported:
         raise ValueError("unsupported deployment: " + "; ".join(violations))
 
@@ -110,7 +132,9 @@ def simulate_disaggregated(
     ]
     prefill_trace: list[tuple[float, ...]] = []
     prefill_timed = simulate_requests(
-        prefill_input, iteration_trace=prefill_trace, **timing
+        prefill_input,
+        iteration_trace=prefill_trace,
+        **_scaled_timing(timing, timing_scales["prefill"]),
     )
 
     decode_input = [
@@ -124,7 +148,9 @@ def simulate_disaggregated(
     ]
     decode_trace: list[tuple[float, ...]] = []
     decode_timed = simulate_requests(
-        decode_input, iteration_trace=decode_trace, **timing
+        decode_input,
+        iteration_trace=decode_trace,
+        **_scaled_timing(timing, timing_scales["decode"]),
     )
 
     request_rows = []

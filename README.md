@@ -16,7 +16,12 @@ The historical GMM-BiGRU implementation is preserved under
 - `profiling/`: workload collection and Sherlock jobs.
 - `archive/gmm_bigru_v1/`: self-contained first-generation model and results.
 - `docs/MODEL_PIPELINE.md`: paper-facing end-to-end training/inference flow.
+- `docs/PROJECT_OVERVIEW.md`: collaborator-facing model and evidence overview.
 - `docs/PAPER_OUTPUTS.md`: paper artifact and evidence contract.
+- `docs/plans/DISAGGREGATED_TRANSFER_PROFILE_PLAN.md`: executable minimal
+  cache-disabled disaggregated-transfer campaign.
+- `docs/plans/DISAGGREGATED_TRANSFER_AUDIT.md`: root-cause evidence behind
+  that campaign.
 - `docs/plans/`: active paper, campaign, and measurement plans.
 - `archive/research_notes/`: superseded plans and detailed failure analyses.
 - `CLEAN_MODEL.md`: migration status and remaining external work.
@@ -132,6 +137,30 @@ tables, and paper figures are tracked.
 
 ## Disaggregated GPT-OSS profiling
 
+The minimal cache-disabled transfer campaign is the current collection path:
+
+```bash
+# Four-request integration check.
+POWERTRACE_REPO="$PWD" \
+  sbatch --export=ALL,POWERTRACE_DISAGG_MODE=smoke \
+  profiling/jobs/disaggregated_transfer_gpt_oss_20b.sbatch
+
+# Probe, calibration, heldout, and exact heldout replay.
+POWERTRACE_REPO="$PWD" \
+  sbatch profiling/jobs/disaggregated_transfer_gpt_oss_20b.sbatch
+```
+
+`planned_workload.py` creates each tokenized request plan before telemetry and
+hashes the exact prompts, token targets, and fixed send offsets. The runner
+reuses the heldout plan file for replay and issues requests against absolute
+deadlines phase-locked to the running 250 ms NVIDIA-SMI cadence. It leaves
+`power.draw` raw and adds only query bounds, pstate, power limit, and slowdown
+state. Collection gates reject queueing, request drift, cache activity, NIXL
+failures, preemption, short phase visibility, unstable power state, missing
+idle coverage, and first/last-third prompt-throughput drift. The campaign
+collects evidence for the six-scalar transfer analysis; it does not fit those
+scalars or modify the frozen model during profiling.
+
 The Sherlock job runs GPT-OSS-20B on two A100-80GB GPUs with one TP1 prefiller
 and one TP1 decoder using the pinned vLLM Queue-Haul image:
 
@@ -238,6 +267,31 @@ The accepted five-cell run from Slurm job `35692922` is retained under
 power, request, proxy-event, role-telemetry, timing-boundary, runtime, and GPU
 topology evidence needed for validation and analysis; transient engine and
 proxy debug logs remain in the immutable Sherlock run root.
+
+Reproduce the frozen confirmation and the separately labeled post-hoc timing
+diagnostic with:
+
+```bash
+uv run --extra paper python power-test/analyze_disaggregated_confirmation.py
+uv run --extra paper python \
+  power-test/analyze_disaggregated_confirmation_timing.py
+```
+
+Every collection gate passes, but the preregistered four-scalar calibration
+does not pass heldout acceptance for either role. A calibration-cell-only
+diagnostic adds one positive service-time scale per role without changing the
+base timing or power coefficients. Its 2.068× prefill and 1.087× decode scales
+substantially improve prefill transfer: three of four heldout prefill cells
+pass, with median correlation 0.919, standard-deviation ratio 0.953, p95 error
+2.60%, and energy error 4.24%. Decode still fails all four cells, and only one
+of four measured role/load replay comparisons reaches the required 0.8
+correlation. The diagnostic is therefore useful evidence that a small timing
+correction recovers most prefill behavior, not a successful confirmatory
+result or grounds for changing the frozen release. Both primary two-panel plots
+retain every raw query sample and use no smoothing, averaging, interpolation,
+fitted lag, or warping. The timing diagnostic also emits a clearly labeled
+one-second view formed by arithmetic means in fixed, non-overlapping bins; it
+does not replace the native-sample result.
 
 ## Historical GMM-BiGRU artifact
 

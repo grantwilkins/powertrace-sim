@@ -11,6 +11,7 @@ Plausible wrong implementations:
 - Apply a shared idle change once instead of once per physical role GPU.
 - Report a deployment trace that differs from the sum of its role traces.
 - Simulate the confirmatory 8192-token prompt as one unsupported scheduler step.
+- Apply one exploratory timing scale to both roles or change work totals.
 """
 import numpy as np
 
@@ -63,6 +64,40 @@ def test_confirmatory_long_prompt_uses_four_supported_prefill_chunks():
     )
 
     assert [row[4] for row in result.roles["prefill"].trace] == [2048] * 4
+
+
+def test_exploratory_role_timing_scales_change_time_not_work():
+    request = [{"arrival_time": 0.0, "input_tokens": 8, "output_tokens": 2}]
+    base = simulate_disaggregated(
+        request,
+        deployment="gpt-oss-20b-a100-tp1",
+        horizon_s=1.0,
+    )
+    scaled = simulate_disaggregated(
+        request,
+        deployment="gpt-oss-20b-a100-tp1",
+        horizon_s=1.0,
+        role_timing_scales={"prefill": 2.0, "decode": 3.0},
+        allow_unsupported=True,
+    )
+
+    for role, scale in (("prefill", 2.0), ("decode", 3.0)):
+        base_duration = (
+            base.roles[role].trace[0][1] - base.roles[role].trace[0][0]
+        )
+        scaled_duration = (
+            scaled.roles[role].trace[0][1] - scaled.roles[role].trace[0][0]
+        )
+        assert np.isclose(scaled_duration / base_duration, scale)
+        assert (
+            np.sum(scaled.roles[role].ledger["pre_tok"])
+            == np.sum(base.roles[role].ledger["pre_tok"])
+        )
+        assert (
+            np.sum(scaled.roles[role].ledger["dec_tok"])
+            == np.sum(base.roles[role].ledger["dec_tok"])
+        )
+    assert scaled.support_status == "unsupported_extrapolation"
 
 
 def test_shared_idle_calibration_shifts_each_role_gpu_once():

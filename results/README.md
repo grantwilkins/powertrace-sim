@@ -9,10 +9,14 @@ The maintained model writes only to the following result families:
 - `azure_facility/`: reproducible node and hierarchy intermediates.
 - `stage0/`: current data-inventory summaries.
 - `moe_routing/`: active routing-law profiling evidence for future extensions.
-- `disaggregated/`: compact retrospective GPT-OSS prefill/decode transfer
-  metrics, representative diagnostics, and the two-panel held-out phase power
-  time-series figure. The plot and primary phase soft-DTW use the raw recorded
-  approximately 250 ms samples without smoothing, interpolation, or warping.
+- `disaggregated/`: compact retrospective and confirmatory GPT-OSS
+  prefill/decode transfer metrics, representative diagnostics, and two-panel
+  held-out phase power time-series figures. The confirmatory family contains
+  the frozen four-scalar result and a separately labeled, calibration-only
+  two-timing-scale diagnostic. Primary plots retain every raw approximately
+  250 ms query sample without smoothing, averaging, interpolation, fitted lag,
+  or warping. A separately labeled one-second diagnostic uses fixed,
+  non-overlapping arithmetic means.
 
 Run the complete maintained regeneration path with:
 

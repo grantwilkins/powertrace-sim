@@ -66,3 +66,87 @@ def plot_phase_traces(
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.savefig(output, dpi=180)
     plt.close(fig)
+
+
+def plot_confirmation_traces(
+    traces: list[dict],
+    calibration: dict[str, dict[str, float]],
+    output: Path,
+    *,
+    cell: str,
+    title: str = (
+        "Cache-disabled disaggregated transfer: held-out 2 requests/s "
+        "(native query samples)"
+    ),
+    note: str = (
+        "No smoothing, averaging, interpolation, fitted lag, or warping; "
+        "all four scalars use rate-2-repeat-0 only."
+    ),
+    sample_label: str = "Measured query sample",
+) -> None:
+    selected = [row for row in traces if row["cell"] == cell]
+    if not selected:
+        raise ValueError(f"no confirmatory trace rows for {cell}")
+    time_s = np.asarray([row["time_s"] for row in selected])
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.2), sharex=True)
+    for axis, role, role_title in zip(
+        axes, ("prefill", "decode"), ("Prefill GPU", "Decode GPU")
+    ):
+        measured = np.asarray(
+            [item[f"measured_{role}_w"] for item in selected]
+        )
+        predicted = np.asarray(
+            [item[f"predicted_{role}_w"] for item in selected]
+        )
+        duty_null = np.asarray(
+            [item[f"duty_null_{role}_w"] for item in selected]
+        )
+        correlation = float(np.corrcoef(measured, predicted)[0, 1])
+        null_loss = float(np.mean((duty_null - measured) ** 2))
+        loss_ratio = float(np.mean((predicted - measured) ** 2)) / null_loss
+        axis.plot(
+            time_s,
+            measured,
+            color="#222222",
+            linewidth=0.65,
+            label=sample_label,
+        )
+        axis.plot(
+            time_s,
+            predicted,
+            color="#D55E00",
+            linewidth=0.7,
+            label="PowerTrace calibrated",
+        )
+        axis.plot(
+            time_s,
+            duty_null,
+            color="#0072B2",
+            linewidth=0.65,
+            alpha=0.8,
+            label="Equal-parameter duty null",
+        )
+        axis.set_title(
+            f"{role_title} — gain {calibration[role]['model_gain']:.3f}×\n"
+            f"r={correlation:.3f}; model/null loss={loss_ratio:.3f}",
+            fontsize=11,
+        )
+        axis.set_xlabel("Time since workload start (s)")
+        axis.set_ylabel("GPU power (W)")
+        axis.grid(alpha=0.2)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels, loc="lower center", ncol=3, frameon=False,
+        bbox_to_anchor=(0.5, 0.045), fontsize=9,
+    )
+    fig.suptitle(title, fontsize=13)
+    fig.text(
+        0.5,
+        0.012,
+        note,
+        ha="center",
+        fontsize=9,
+    )
+    fig.tight_layout(rect=(0, 0.13, 1, 0.91))
+    fig.savefig(output, dpi=180)
+    plt.close(fig)

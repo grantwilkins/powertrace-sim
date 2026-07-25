@@ -9,3 +9,7 @@ The runnable current-model interface remains documented in the root README.
   facility load-duration-curve extension.
 - [`LDC_MONTE_CARLO_RESEARCH.md`](LDC_MONTE_CARLO_RESEARCH.md) reviews its prior
   art, scientific risks, paper evaluation, baselines, and operator-facing design.
+- [`DISAGGREGATED_TRANSFER_PROFILE_PLAN.md`](DISAGGREGATED_TRANSFER_PROFILE_PLAN.md)
+  is the proposed YAGNI campaign for cache-disabled phase transfer.
+- [`DISAGGREGATED_TRANSFER_AUDIT.md`](DISAGGREGATED_TRANSFER_AUDIT.md) records
+  the evidence and root causes behind that campaign.

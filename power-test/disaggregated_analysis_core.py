@@ -50,7 +50,10 @@ def campaign_sha256(run_root: Path) -> tuple[str, int]:
                 "engine_decode.csv",
                 "start_epoch_s",
                 "end_epoch_s",
+                "workload_start_epoch_s",
+                "workload_end_epoch_s",
             )
+            if (cell / name).is_file()
         )
     digest = hashlib.sha256()
     for path in files:

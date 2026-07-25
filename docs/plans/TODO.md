@@ -108,7 +108,9 @@ across separate GPUs. It must not be cited as cache-aware support.
 
 - Preemption mechanism in the scheduler simulation (405B at rate 4;
   counters exist in the new bundles) — timing-test/README.md.
-- Sealed campaigns remain unrun by design; do not inspect
-  (profiling/MODEL_READINESS_RUNBOOK.md).
+- A new uncontaminated sealed campaign remains unrun. Existing
+  `sealed_*` bundles were inspected and are now labeled retrospective
+  calibrated diagnostics; they cannot serve as the final score-after-freeze
+  evaluation (profiling/MODEL_READINESS_RUNBOOK.md).
 - gpt-oss-120b probe bundles stay quarantined until its zero-shot scoring
   freezes (timing-test/build_probe_calibration.py).

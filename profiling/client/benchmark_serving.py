@@ -151,6 +151,24 @@ async def get_request(
         await asyncio.sleep(interval)
 
 
+async def get_request_at_offsets(
+    input_requests: list[SampleRequest],
+    offsets_s: list[float],
+    start_monotonic: float,
+) -> AsyncGenerator[SampleRequest, None]:
+    if len(input_requests) != len(offsets_s):
+        raise ValueError("each request requires one planned offset")
+    if any(offset < 0 for offset in offsets_s):
+        raise ValueError("planned offsets must be nonnegative")
+    if offsets_s != sorted(offsets_s):
+        raise ValueError("planned offsets must be nondecreasing")
+    for request, offset in zip(input_requests, offsets_s):
+        delay = max(0.0, start_monotonic + offset - time.perf_counter())
+        if delay:
+            await asyncio.sleep(delay)
+        yield request
+
+
 def calculate_metrics(
     input_requests: list[SampleRequest],
     outputs: list[RequestFuncOutput],
@@ -309,6 +327,8 @@ async def benchmark(
     lora_modules: Optional[Iterable[str]],
     extra_body: Optional[dict],
     skip_test_prompt: bool,
+    request_offsets_s: Optional[list[float]] = None,
+    traffic_start_epoch_s: Optional[float] = None,
 ):
     if backend in ASYNC_REQUEST_FUNCS:
         request_func = ASYNC_REQUEST_FUNCS[backend]
@@ -385,9 +405,23 @@ async def benchmark(
         async with semaphore:
             return await request_func(request_func_input=request_func_input, pbar=pbar)
 
+    if (request_offsets_s is None) != (traffic_start_epoch_s is None):
+        raise ValueError("planned offsets and traffic start must be provided together")
+    if traffic_start_epoch_s is not None:
+        delay = traffic_start_epoch_s - time.time()
+        if delay > 0:
+            await asyncio.sleep(delay)
+
     benchmark_start_time = time.perf_counter()
     tasks: list[asyncio.Task] = []
-    async for request in get_request(input_requests, request_rate, burstiness):
+    request_stream = (
+        get_request(input_requests, request_rate, burstiness)
+        if request_offsets_s is None
+        else get_request_at_offsets(
+            input_requests, request_offsets_s, benchmark_start_time
+        )
+    )
+    async for request in request_stream:
         prompt, prompt_len, output_len, mm_content = (
             request.prompt,
             request.prompt_len,

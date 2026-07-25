@@ -1,9 +1,21 @@
 """Build the compact disaggregated-inference evaluation report."""
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import numpy as np
 
 from disaggregated_analysis_core import summarize
+
+
+def write_csv(path: Path, rows: list[dict]) -> None:
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(
+            stream, fieldnames=list(rows[0]), lineterminator="\n"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _median(rows: list[dict], field: str) -> float:
