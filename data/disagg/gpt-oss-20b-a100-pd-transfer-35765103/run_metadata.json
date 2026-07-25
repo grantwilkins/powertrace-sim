@@ -1,0 +1,104 @@
+{
+  "analysis_protocol": {
+    "calibration_cell": "rate-0p5-calibration",
+    "calibration_parameters": [
+      "prefill_idle_w",
+      "decode_idle_w",
+      "prefill_dynamic_gain",
+      "decode_dynamic_gain",
+      "queue_free_prefill_time_scale",
+      "fixed_nixl_handoff_delay_s"
+    ],
+    "fit_loss": "phase-separated soft-DTW at raw 250 ms resolution",
+    "heldout_cells": [
+      "rate-0p5-heldout",
+      "rate-0p5-replay"
+    ],
+    "plot_processing": "no smoothing, averaging, or interpolation",
+    "replay_contract": "identical prompt bytes, lengths, outputs, and offsets",
+    "target_scalar_count": 6
+  },
+  "clock": {
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "power_timestamp_basis": "local query midpoint wall time",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "container_image": "/scratch/users/gfw/ptsim/lmcache-v0.5.1-vllm0.22.0-cu129-primary.sif",
+  "deployment": "disaggregated_prefill",
+  "hardware": "A100-80GB",
+  "mode": "campaign",
+  "model": "openai/gpt-oss-20b",
+  "power_measurement": {
+    "interval_ms": 250,
+    "profile": "core_timed_state",
+    "raw_samples": true,
+    "sample_timestamp": "host query start/end midpoint",
+    "source": "nvidia-smi power.draw"
+  },
+  "protocol": "cache_disabled_phase_transfer_v2",
+  "roles": {
+    "decode": {
+      "gpu_uuid": "GPU-713d5b24-2a1e-fd4a-7685-c3d195ff9230",
+      "tp": 1
+    },
+    "prefill": {
+      "gpu_uuid": "GPU-c5d32af0-0857-3b36-6541-1a688a9ec165",
+      "tp": 1
+    }
+  },
+  "server": {
+    "async_scheduling": true,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "gpu_memory_utilization": 0.9,
+    "kv_connector": "NixlConnector",
+    "kv_load_failure_policy": "fail",
+    "max_model_len": 131072,
+    "max_num_batched_tokens": 2048,
+    "max_num_seqs": 256
+  },
+  "workload": {
+    "arrival_process": "fixed_deadline",
+    "cells": [
+      {
+        "name": "stage-probe",
+        "plan_key": "probe",
+        "prompts": 24,
+        "rate": 0.2,
+        "seed": 7,
+        "split": "stage_probe"
+      },
+      {
+        "name": "rate-0p5-calibration",
+        "plan_key": "calibration",
+        "prompts": 150,
+        "rate": 0.5,
+        "seed": 11,
+        "split": "calibration"
+      },
+      {
+        "name": "rate-0p5-heldout",
+        "plan_key": "heldout",
+        "prompts": 150,
+        "rate": 0.5,
+        "seed": 17,
+        "split": "evaluation"
+      },
+      {
+        "name": "rate-0p5-replay",
+        "plan_key": "heldout",
+        "prompts": 150,
+        "rate": 0.5,
+        "seed": 17,
+        "split": "evaluation"
+      }
+    ],
+    "dataset": "immutable_random_plan",
+    "idle_window_s": 30,
+    "ignore_eos": true,
+    "input_tokens": 8192,
+    "output_tokens": 256,
+    "token_range_ratio": 0.25
+  }
+}

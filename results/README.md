@@ -29,8 +29,8 @@ figures live under `archive/research_artifacts/`. The first-generation
 GMM-BiGRU result tree is under `archive/gmm_bigru_v1/results/`.
 
 Large `.npy` facility arrays and raw experimental outputs are intentionally
-local-only; the accepted confirmatory disaggregated campaign under
-`data/disagg/` is the explicit retained-evidence exception. The tracked
+local-only; the accepted confirmatory and transfer disaggregated campaigns
+under `data/disagg/` are the explicit retained-evidence exceptions. The tracked
 manifests hash the compact paper contract.
 The disaggregated result family is intentionally outside that paper manifest
 and records its raw local campaign hash in its own report.

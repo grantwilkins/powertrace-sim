@@ -1,0 +1,2 @@
+INFO 07-25 10:16:12 [nixl_utils.py:68] NIXL is available
+vllm 0.22.0
