@@ -104,6 +104,40 @@ def test_timed_profile_uses_query_midpoint_without_changing_power(monkeypatch):
     assert query_fields.split("=", 1)[1].startswith("index,uuid,power.draw")
 
 
+def test_timed_profile_drops_queries_that_exceed_acceptance_limit(
+    monkeypatch, capsys
+):
+    times = iter((1_000_000_000, 2_000_000_000, 2_100_000_000))
+    stream = io.StringIO()
+    calls = 0
+
+    def query(command, **kwargs):
+        nonlocal calls
+        calls += 1
+        assert kwargs["timeout"] == power_logger.MAX_QUERY_S
+        if calls == 1:
+            raise power_logger.subprocess.TimeoutExpired(
+                command, power_logger.MAX_QUERY_S
+            )
+        power_logger._STOP = True
+        return SimpleNamespace(
+            stdout="0, GPU-0, 100, 1980, 2619, 95, 40, 81000, 65\n"
+        )
+
+    power_logger._STOP = False
+    monkeypatch.setattr(power_logger.time, "time_ns", lambda: next(times))
+    monkeypatch.setattr(power_logger.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(power_logger.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(power_logger.subprocess, "run", query)
+    monkeypatch.setattr(power_logger.sys, "stdout", stream)
+    power_logger.stream_power(interval_ms=250, profile="core_timed")
+    power_logger._STOP = False
+
+    rows = list(csv.DictReader(io.StringIO(stream.getvalue())))
+    assert len(rows) == 1
+    assert "sample dropped" in capsys.readouterr().err
+
+
 def test_tp8_state_profile_requests_clock_cause_not_just_power():
     """Claim: the TP8 diagnostic records the state needed to identify the jump.
 

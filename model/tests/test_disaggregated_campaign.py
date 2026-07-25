@@ -23,6 +23,7 @@ import pytest
 
 from profiling.disaggregated_prefill.campaign import (
     cells,
+    find_free_port_offset,
     run_metadata,
     validate_events,
     validate_prefill_observability,
@@ -40,6 +41,26 @@ from profiling.disaggregated_prefill.telemetry import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_port_selection_skips_an_occupied_group(monkeypatch):
+    bound = []
+
+    class Listener:
+        def bind(self, address):
+            if address[1] == 21000:
+                raise OSError("occupied")
+            bound.append(address[1])
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "profiling.disaggregated_prefill.campaign.socket.socket", Listener
+    )
+
+    assert find_free_port_offset(0) == 4
+    assert bound == [21004, 21005, 21006, 31004, 31005]
 
 
 def test_campaign_cells_freeze_one_calibration_and_repeated_holdouts():
@@ -315,6 +336,11 @@ def test_batch_launch_uses_submitted_checkout_and_exposes_nixl_runtime():
     assert 'ln -sfn "$NIXL_SITE/nixl_cu12" "$NIXL_COMPAT/nixl"' in runner
     assert "NixlWrapper is not None and nixl_agent_config is not None" in runner
     assert '--env "HF_HOME=$ROOT/hf"' in runner
+    assert runner.index("start_engine prefill") < runner.index(
+        'wait_health "http://127.0.0.1:$PREFILL_PORT"'
+    ) < runner.index("start_engine decode") < runner.index(
+        'wait_health "http://127.0.0.1:$DECODE_PORT"'
+    )
     assert runner.index("METADATA_ARG=") < runner.index("campaign.py metadata")
     assert '${METADATA_ARG:+"$METADATA_ARG"}' in runner
     assert "python3 -m profiling.disaggregated_prefill.telemetry" in runner

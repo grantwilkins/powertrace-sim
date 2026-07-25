@@ -1,0 +1,124 @@
+{
+  "analysis_protocol": {
+    "calibration_cell": "rate-2-repeat-0",
+    "calibration_parameters": [
+      "prefill idle",
+      "decode idle",
+      "prefill nonnegative dynamic gain",
+      "decode nonnegative dynamic gain"
+    ],
+    "dynamic_gain": "max(0, x dot y / x dot x) above fixed role idle",
+    "equal_parameter_null": "source-scheduler role busy fraction plus the same fixed idle and one fitted nonnegative gain",
+    "fit_loss": "pointwise squared error in watts per role",
+    "heldout_cells": [
+      "rate-1-repeat-0",
+      "rate-2-repeat-1",
+      "rate-1-repeat-1",
+      "rate-2-repeat-2"
+    ],
+    "heldout_role_acceptance": {
+      "correlation_min": 0.8,
+      "model_to_duty_null_loss_ratio_max": 0.95,
+      "p95_error_pct_max": 10.0,
+      "std_ratio_max": 1.25,
+      "std_ratio_min": 0.8
+    },
+    "measured_replay_acceptance": {
+      "correlation_min": 0.8,
+      "scope": "each role and load"
+    },
+    "plot_processing": "no smoothing, averaging, or interpolation",
+    "sample_mapping": "evaluate the 250 ms source-ledger bin containing each query midpoint; retain every sample and never average duplicate bins",
+    "temporal_alignment": "no fitted lag, interpolation, or warping",
+    "uncertainty_unit": "cell; report every held-out cell and paired replay range"
+  },
+  "clock": {
+    "engine_timestamp_basis": "unix_epoch",
+    "local_utc_offset_s": -25200.0,
+    "power_timestamp_basis": "local query midpoint wall time",
+    "proxy_timestamp_basis": "unix_epoch_nanoseconds",
+    "request_timestamp_basis": "unix_epoch"
+  },
+  "container_image": "/scratch/users/gfw/ptsim/lmcache-v0.5.1-vllm0.22.0-cu129-primary.sif",
+  "deployment": "disaggregated_prefill",
+  "hardware": "A100-80GB",
+  "mode": "campaign",
+  "model": "openai/gpt-oss-20b",
+  "power_measurement": {
+    "interval_ms": 250,
+    "profile": "core_timed",
+    "raw_samples": true,
+    "sample_timestamp": "host query start/end midpoint",
+    "source": "nvidia-smi power.draw"
+  },
+  "protocol": "prospective_cache_disabled_confirmation_v1",
+  "roles": {
+    "decode": {
+      "gpu_uuid": "GPU-713d5b24-2a1e-fd4a-7685-c3d195ff9230",
+      "tp": 1
+    },
+    "prefill": {
+      "gpu_uuid": "GPU-e2681f6e-8d94-2d66-484f-43ea602335f9",
+      "tp": 1
+    }
+  },
+  "server": {
+    "async_scheduling": true,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "gpu_memory_utilization": 0.9,
+    "kv_connector": "NixlConnector",
+    "kv_load_failure_policy": "fail",
+    "max_model_len": 131072,
+    "max_num_batched_tokens": 2048,
+    "max_num_seqs": 256
+  },
+  "workload": {
+    "arrival_process": "poisson",
+    "cells": [
+      {
+        "prompts": 600,
+        "rate": 2.0,
+        "repeat": 0,
+        "seed": 0,
+        "split": "calibration"
+      },
+      {
+        "prompts": 300,
+        "rate": 1.0,
+        "repeat": 0,
+        "seed": 2,
+        "split": "evaluation"
+      },
+      {
+        "prompts": 600,
+        "rate": 2.0,
+        "repeat": 1,
+        "seed": 1,
+        "split": "evaluation"
+      },
+      {
+        "prompts": 300,
+        "rate": 1.0,
+        "repeat": 1,
+        "seed": 2,
+        "split": "evaluation"
+      },
+      {
+        "prompts": 600,
+        "rate": 2.0,
+        "repeat": 2,
+        "seed": 1,
+        "split": "evaluation"
+      }
+    ],
+    "dataset": "random",
+    "idle_window_s": 30,
+    "ignore_eos": true,
+    "input_tokens": 8192,
+    "nominal_duration_s": 300,
+    "output_tokens": 64,
+    "shared_prefix_tokens": 0,
+    "token_range_ratio": 0.25
+  }
+}

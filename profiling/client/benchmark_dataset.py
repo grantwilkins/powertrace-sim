@@ -311,14 +311,26 @@ class RandomDataset(BenchmarkDataset):
 
         requests = []
         for i in range(num_requests):
-            inner_seq = (
-                (offsets[i] + i + np.arange(input_lens[i])) % vocab_size
-            ).tolist()
-            token_sequence = prefix_token_ids + inner_seq
-            prompt = tokenizer.decode(token_sequence)
-            total_input_len = len(
-                tokenizer(prompt, add_special_tokens=False).input_ids
-            )
+            sampled_input_len = int(input_lens[i])
+            offset = int(offsets[i])
+            for _ in range(1000):
+                inner_seq = (
+                    (offset + i + np.arange(sampled_input_len)) % vocab_size
+                ).tolist()
+                prompt = tokenizer.decode(prefix_token_ids + inner_seq)
+                total_input_len = len(
+                    tokenizer(prompt, add_special_tokens=False).input_ids
+                )
+                if input_low <= total_input_len <= input_high:
+                    break
+                sampled_input_len = int(
+                    np.random.randint(input_low, input_high + 1)
+                )
+                offset = int(np.random.randint(0, vocab_size))
+            else:
+                raise ValueError(
+                    "random prompt text cannot satisfy the requested token range"
+                )
             requests.append(
                 SampleRequest(
                     prompt=prompt,

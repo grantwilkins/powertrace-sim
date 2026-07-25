@@ -153,7 +153,9 @@ duty near 30% at 1 request/s and 60% at 2 requests/s. One 2-request/s cell is
 reserved for role-idle and one-gain-per-role calibration; independently seeded
 1- and 2-request/s workloads are each replayed twice as held-out evidence, with
 the held-out loads interleaved to limit runtime/thermal order confounding.
-Synthetic prompt lengths are re-tokenized from the exact text sent to vLLM.
+Synthetic prompt lengths are re-tokenized from the exact text sent to vLLM;
+prompts whose sent length falls outside the requested range are resampled
+deterministically.
 
 Each cell records 30-second pre/post idle windows, role-separated engine
 streams, per-GPU power, exact proxy stages, and NIXL counters. The endpoint
@@ -161,7 +163,12 @@ preflight runs before power logging; measured benchmark traffic suppresses the
 benchmark client's otherwise hidden test request. The `core_timed` power
 profile retains the unmodified `power.draw` value while recording query
 start/end and using their midpoint as the shared GPU-row timestamp. Cell gates
-require zero cached prompt tokens, one NIXL transfer per recorded request,
+select a free prefiller/decoder/proxy/NIXL port group on shared nodes before
+engine launch, preventing a health check from attaching to another job's
+server. Queries exceeding 200 ms are dropped without modifying neighboring raw
+samples; the unchanged cadence-gap gate rejects excessive loss. Role startup
+is serialized through the prefiller health gate to avoid
+concurrent tokenizer initialization. Gates require zero cached prompt tokens,
 prompt-token accounting within 1%, and median prefill duration of at least one
 250 ms meter interval. They also reject NIXL failures, expirations,
 preemptions, incomplete UUID samples, query durations above 200 ms, sample gaps
@@ -225,6 +232,12 @@ Confirmatory run roots are immutable and cannot resume across allocations:
 mixing GPU UUIDs, idle calibration, images, or code across jobs would invalidate
 the held-out comparison. An interrupted campaign must restart under a fresh run
 root.
+
+The accepted five-cell run from Slurm job `35692922` is retained under
+`data/disagg/gpt-oss-20b-a100-pd-confirmatory-35692922/`. It includes the raw
+power, request, proxy-event, role-telemetry, timing-boundary, runtime, and GPU
+topology evidence needed for validation and analysis; transient engine and
+proxy debug logs remain in the immutable Sherlock run root.
 
 ## Historical GMM-BiGRU artifact
 

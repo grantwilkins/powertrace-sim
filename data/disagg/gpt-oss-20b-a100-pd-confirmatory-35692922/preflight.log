@@ -1,0 +1,28 @@
+Namespace(backend='vllm', base_url='http://127.0.0.1:32690', host='127.0.0.1', port=8000, endpoint='/v1/completions', dataset_name='random', dataset_path=None, max_concurrency=None, tensor_parallel_size=1, max_model_len=131072, model='openai/gpt-oss-20b', tokenizer=None, use_beam_search=False, num_prompts=1, logprobs=None, request_rate=inf, burstiness=1.0, seed=97, trust_remote_code=False, disable_tqdm=False, skip_test_prompt=False, profile=False, save_result=False, save_detailed=False, append_result=False, metadata=None, result_dir=None, result_filename=None, ignore_eos=True, percentile_metrics='ttft,tpot,itl', metric_percentiles='99', goodput=None, sonnet_input_len=550, sonnet_output_len=150, sonnet_prefix_len=200, sharegpt_output_len=None, random_input_len=8192, random_output_len=64, random_range_ratio=0.25, random_prefix_len=0, workload_task='conversation', workload_intensity=None, realistic_input_log_mean=6.2, realistic_input_log_std=0.9, realistic_input_min=32, realistic_input_max=8192, realistic_tail_probability=0.08, realistic_tail_alpha=1.4, realistic_tail_xmin=4096, realistic_exp_output_mean=250, realistic_output_log_mean=5.5, realistic_output_log_std=0.95, realistic_output_min=16, realistic_output_max=4096, hf_subset=None, hf_split=None, hf_output_len=None, top_p=None, top_k=None, min_p=None, temperature=None, tokenizer_mode='auto', served_model_name=None, lora_modules=None)
+Starting initial single prompt test run...
+Initial test run completed. Starting main benchmark run...
+Traffic request rate: inf
+Burstiness factor: 1.0 (Poisson process)
+Maximum request concurrency: None
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:01<00:00,  1.03s/it]100%|██████████| 1/1 [00:01<00:00,  1.03s/it]
+============ Serving Benchmark Result ============
+Successful requests:                     1         
+Benchmark duration (s):                  1.03      
+Total input tokens:                      8860      
+Total generated tokens:                  55        
+Request throughput (req/s):              0.97      
+Output token throughput (tok/s):         53.45     
+Total Token throughput (tok/s):          8663.62   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          767.83    
+Median TTFT (ms):                        767.83    
+P99 TTFT (ms):                           767.83    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          4.82      
+Median TPOT (ms):                        4.82      
+P99 TPOT (ms):                           4.82      
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           4.82      
+Median ITL (ms):                         4.82      
+P99 ITL (ms):                            4.82      
+==================================================

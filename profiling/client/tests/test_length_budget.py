@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # profiling/client
 
 import benchmark_dataset as bd  # noqa: E402
@@ -62,7 +64,30 @@ def test_random_dataset_reports_retokenized_prompt_length():
         num_requests=1,
         input_len=8,
         output_len=2,
-        range_ratio=0.0,
+        range_ratio=0.5,
     )[0]
 
-    assert request.prompt_len == 5
+    assert request.prompt_len == len(request.prompt) - 3
+
+
+def test_random_dataset_keeps_retokenized_prompts_in_requested_range():
+    class ExpandingTokenizer:
+        vocab_size = 128
+
+        def decode(self, token_ids):
+            return "x" * len(token_ids)
+
+        def __call__(self, prompt, *, add_special_tokens):
+            assert add_special_tokens is False
+            return SimpleNamespace(input_ids=list(range(len(prompt) + 3)))
+
+    np.random.seed(0)
+    requests = bd.RandomDataset().sample(
+        ExpandingTokenizer(),
+        num_requests=20,
+        input_len=8,
+        output_len=2,
+        range_ratio=0.25,
+    )
+
+    assert all(6 <= request.prompt_len <= 10 for request in requests)

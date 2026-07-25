@@ -62,6 +62,7 @@ POWER_PROFILES = {
 }
 
 DEFAULT_INTERVAL_MS = 250  # 4 Hz, aligned to the engine /metrics scraper
+MAX_QUERY_S = 0.2
 
 DISPLAY_FIELDS = {
     "power.draw": "power.draw [W]",
@@ -194,12 +195,24 @@ def stream_power(
     while not _STOP:
         start = time.monotonic()
         query_start_ns = time.time_ns()
-        result = subprocess.run(
-            nvidia_smi_query_command(fields, gpu_ids),
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
+        command = nvidia_smi_query_command(fields, gpu_ids)
+        try:
+            result = subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.PIPE,
+                text=True,
+                timeout=MAX_QUERY_S,
+            )
+        except subprocess.TimeoutExpired:
+            print(
+                f"nvidia-smi query exceeded {MAX_QUERY_S:.3f} s; sample dropped",
+                file=sys.stderr,
+            )
+            remaining = interval_s - (time.monotonic() - start)
+            if remaining > 0:
+                time.sleep(remaining)
+            continue
         query_end_ns = time.time_ns()
         if timed:
             write_query_rows(

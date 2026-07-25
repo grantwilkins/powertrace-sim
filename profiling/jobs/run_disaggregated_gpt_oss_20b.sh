@@ -7,7 +7,10 @@ IMAGE="${POWERTRACE_DISAGG_IMAGE:-$ROOT/lmcache-v0.5.1-vllm0.22.0-cu129-primary.
 RUN_ROOT="${RUN_ROOT:-$ROOT/runs/gpt-oss-20b-a100-pd-confirmatory-${SLURM_JOB_ID:-local}}"
 MODE="${1:-campaign}"
 MODEL=openai/gpt-oss-20b
-OFFSET="${POWERTRACE_PORT_OFFSET:-$(( (${SLURM_JOB_ID:-1} % 5000) * 4 ))}"
+START_OFFSET="${POWERTRACE_PORT_OFFSET:-$(( (${SLURM_JOB_ID:-1} % 5000) * 4 ))}"
+OFFSET="$(python3 profiling/disaggregated_prefill/campaign.py ports \
+    --start-offset "$START_OFFSET")"
+echo "port offset=$OFFSET"
 PREFILL_PORT=$((21000 + OFFSET))
 DECODE_PORT=$((21001 + OFFSET))
 PROXY_PORT=$((21002 + OFFSET))
@@ -92,8 +95,8 @@ wait_health() {
 }
 
 start_engine prefill "$GPU0" "$PREFILL_PORT" "$PREFILL_SIDE_PORT" "$RUN_ROOT/prefill.log"
-start_engine decode "$GPU1" "$DECODE_PORT" "$DECODE_SIDE_PORT" "$RUN_ROOT/decode.log"
 wait_health "http://127.0.0.1:$PREFILL_PORT" "${PIDS[0]}" "$RUN_ROOT/prefill.log"
+start_engine decode "$GPU1" "$DECODE_PORT" "$DECODE_SIDE_PORT" "$RUN_ROOT/decode.log"
 wait_health "http://127.0.0.1:$DECODE_PORT" "${PIDS[1]}" "$RUN_ROOT/decode.log"
 
 "${APP[@]}" python3 profiling/disaggregated_prefill/proxy.py \

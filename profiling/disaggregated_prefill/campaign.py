@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import math
+import socket
 import statistics
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +17,30 @@ INPUT_TOKENS = 8192
 OUTPUT_TOKENS = 64
 TOKEN_RANGE_RATIO = 0.25
 MINIMUM_PREFILL_S = 0.25
+
+
+def find_free_port_offset(start_offset: int) -> int:
+    for attempt in range(5000):
+        offset = (start_offset + 4 * attempt) % 20000
+        sockets = []
+        try:
+            for port in (
+                21000 + offset,
+                21001 + offset,
+                21002 + offset,
+                31000 + offset,
+                31001 + offset,
+            ):
+                listener = socket.socket()
+                sockets.append(listener)
+                listener.bind(("127.0.0.1", port))
+            return offset
+        except OSError:
+            pass
+        finally:
+            for listener in sockets:
+                listener.close()
+    raise RuntimeError("no free disaggregated port group found")
 
 
 def cells(smoke: bool = False) -> list[tuple[float, int, int, int, str]]:
@@ -359,6 +384,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     plan = sub.add_parser("plan")
     plan.add_argument("--smoke", action="store_true")
+    ports = sub.add_parser("ports")
+    ports.add_argument("--start-offset", type=int, required=True)
     check = sub.add_parser("check")
     check.add_argument("path", type=Path)
     check.add_argument("expected", type=int)
@@ -381,6 +408,8 @@ def main() -> None:
     if args.command == "plan":
         for rate, repeat, prompts, seed, split in cells(args.smoke):
             print(f"{rate:g}\t{repeat}\t{prompts}\t{seed}\t{split}")
+    elif args.command == "ports":
+        print(find_free_port_offset(args.start_offset))
     elif args.command == "check":
         request_ids = validate_result(args.path, args.expected)
         validate_workload(args.path)
