@@ -126,9 +126,22 @@ def test_transfer_metadata_freezes_six_scalars_and_fixed_arrivals():
     assert metadata["workload"]["output_tokens"] == 256
     assert metadata["power_measurement"]["profile"] == "core_timed_state"
     assert metadata["analysis_protocol"]["target_scalar_count"] == 6
+    source = (ROOT / "profiling/disaggregated_prefill/transfer_campaign.py").read_text()
+    assert "statistics.median(visible) < 2 * INTERVAL_S" in source
+    assert "below two meter intervals" in source
     assert metadata["analysis_protocol"]["calibration_cell"] == (
         "rate-0p5-calibration"
     )
+
+
+def test_transfer_batch_uses_a100_partition_and_modern_python():
+    batch = (
+        ROOT / "profiling/jobs/disaggregated_transfer_gpt_oss_20b.sbatch"
+    ).read_text()
+    assert "#SBATCH --partition=ramr" in batch
+    assert "#SBATCH --gpus=2" in batch
+    assert "ml devel python/3.12.1" in batch
+    assert "sys.version_info >= (3, 10)" in batch
 
 
 def test_transfer_runner_uses_prebuilt_plans_and_phase_locked_traffic():
@@ -145,3 +158,20 @@ def test_transfer_runner_uses_prebuilt_plans_and_phase_locked_traffic():
     assert '--traffic-start "$DIR/traffic_start_epoch_s"' in runner
     assert '--plan "$PLAN"' in runner
     assert "benchmark_serving.py" not in runner
+    assert '${METADATA_ARG:+"$METADATA_ARG"}' in runner
+    assert '${PLAN_ARG:+"$PLAN_ARG"}' in runner
+    assert 'MODE_ARG=()' not in runner
+    assert 'PLAN_ARGS=()' not in runner
+    assert '["sha256"]' in runner
+    assert '[\\"sha256\\"]' not in runner
+
+
+def test_transfer_runner_buffers_power_off_lustre():
+    """4 Hz flushes to Lustre stall for seconds and break the sampling contract."""
+    runner = (
+        ROOT / "profiling/jobs/run_disaggregated_transfer_gpt_oss_20b.sh"
+    ).read_text()
+    assert 'PWR="$L_SCRATCH/power-$TAG.csv"' in runner
+    assert '> "$PWR" &' in runner
+    assert 'cp "$PWR" "$DIR/power.csv"' in runner
+    assert '> "$DIR/power.csv" &' not in runner

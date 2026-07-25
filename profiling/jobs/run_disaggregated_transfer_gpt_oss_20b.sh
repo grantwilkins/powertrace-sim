@@ -57,11 +57,11 @@ APP=(apptainer exec --nv --bind "$SCRATCH" --bind "$GROUP_HOME" --bind "$REPO"
 nvidia-smi topo -m > "$RUN_ROOT/gpu_topology.txt"
 GPU0_UUID="$(nvidia-smi -i "$GPU0" --query-gpu=uuid --format=csv,noheader | tr -d ' ')"
 GPU1_UUID="$(nvidia-smi -i "$GPU1" --query-gpu=uuid --format=csv,noheader | tr -d ' ')"
-MODE_ARG=()
-test "$MODE" = campaign || MODE_ARG=(--smoke)
+METADATA_ARG=""
+test "$MODE" = campaign || METADATA_ARG=--smoke
 python3 profiling/disaggregated_prefill/transfer_campaign.py metadata \
     "$RUN_ROOT/run_metadata.json" --prefill-uuid "$GPU0_UUID" \
-    --decode-uuid "$GPU1_UUID" --image "$IMAGE" "${MODE_ARG[@]}"
+    --decode-uuid "$GPU1_UUID" --image "$IMAGE" ${METADATA_ARG:+"$METADATA_ARG"}
 
 PIDS=()
 POWER_PID=""
@@ -116,10 +116,10 @@ wait_health "http://127.0.0.1:$DECODE_PORT" "${PIDS[1]}" "$RUN_ROOT/decode.log"
 PIDS+=("$!")
 wait_health "http://127.0.0.1:$PROXY_PORT" "${PIDS[2]}" "$RUN_ROOT/proxy.log"
 
-PLAN_ARGS=()
-test "$MODE" = campaign || PLAN_ARGS=(--smoke)
+PLAN_ARG=""
+test "$MODE" = campaign || PLAN_ARG=--smoke
 mapfile -t CELLS < <(
-    python3 profiling/disaggregated_prefill/transfer_campaign.py plan "${PLAN_ARGS[@]}"
+    python3 profiling/disaggregated_prefill/transfer_campaign.py plan ${PLAN_ARG:+"$PLAN_ARG"}
 )
 for cell in "${CELLS[@]}"; do
     IFS=$'\t' read -r TAG RATE PROMPTS SEED SPLIT PLAN_KEY <<< "$cell"
@@ -136,27 +136,32 @@ for cell in "${CELLS[@]}"; do
     PLAN="$RUN_ROOT/plans/$PLAN_KEY.json"
     mkdir -p "$DIR"
     EVENT_START="$(wc -l < "$RUN_ROOT/proxy_events.jsonl")"
+    # 4 Hz flushes stall for seconds on Lustre and break the sampling contract;
+    # buffer on the node-local SSD and copy back once the meter is reaped.
+    PWR="$DIR/power.csv"
+    test ! -d "${L_SCRATCH:-}" || PWR="$L_SCRATCH/power-$TAG.csv"
+    echo "power telemetry buffer: $PWR"
     python3 profiling/client/power_logger.py --interval-ms 250 \
         --profile core_timed_state --gpu-ids "$GPU0_UUID,$GPU1_UUID" \
-        > "$DIR/power.csv" &
+        > "$PWR" &
     POWER_PID=$!
     python3 -m profiling.disaggregated_prefill.telemetry \
         --prefill-url "http://127.0.0.1:$PREFILL_PORT" \
         --decode-url "http://127.0.0.1:$DECODE_PORT" --out-dir "$DIR" &
     METRICS_PID=$!
     for _ in $(seq 1 80); do
-        test "$(wc -l < "$DIR/power.csv")" -ge 3 \
+        test "$(wc -l < "$PWR")" -ge 3 \
             && test "$(wc -l < "$DIR/engine_prefill.csv")" -ge 2 \
             && test "$(wc -l < "$DIR/engine_decode.csv")" -ge 2 && break
         sleep 0.25
     done
     kill -0 "$POWER_PID" && kill -0 "$METRICS_PID" \
-        && test "$(wc -l < "$DIR/power.csv")" -ge 3 || {
+        && test "$(wc -l < "$PWR")" -ge 3 || {
         echo "telemetry failed to initialize for $TAG" >&2
         exit 1
     }
     python3 profiling/disaggregated_prefill/transfer_campaign.py origin \
-        "$DIR/power.csv" --lead-s 30 > "$DIR/traffic_start_epoch_s"
+        "$PWR" --lead-s 30 > "$DIR/traffic_start_epoch_s"
     set +e
     "${APP[@]}" python3 profiling/disaggregated_prefill/planned_workload.py run \
         --request-plan "$PLAN" \
@@ -170,6 +175,7 @@ for cell in "${CELLS[@]}"; do
     kill -TERM "$POWER_PID" "$METRICS_PID"
     wait "$POWER_PID"
     wait "$METRICS_PID"
+    test "$PWR" = "$DIR/power.csv" || cp "$PWR" "$DIR/power.csv"
     POWER_PID=""
     METRICS_PID=""
     test "$STATUS" -eq 0 || { tail -n 120 "$DIR/benchmark.log"; exit "$STATUS"; }
@@ -182,7 +188,7 @@ for cell in "${CELLS[@]}"; do
         --traffic-start "$DIR/traffic_start_epoch_s" \
         --traffic-end "$DIR/traffic_end_epoch_s"
     touch "$DIR/.complete"
-    echo "COMPLETE $TAG split=$SPLIT plan=$PLAN_KEY sha=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[\"sha256\"])' "$PLAN")"
+    echo "COMPLETE $TAG split=$SPLIT plan=$PLAN_KEY sha=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$PLAN")"
 done
 
 echo "DISAGGREGATED_TRANSFER_OK run_root=$RUN_ROOT"

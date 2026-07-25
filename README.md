@@ -150,13 +150,17 @@ POWERTRACE_REPO="$PWD" \
   sbatch profiling/jobs/disaggregated_transfer_gpt_oss_20b.sbatch
 ```
 
+The batch job targets the lab's A100-80GB `ramr` partition, requests two GPUs with Sherlock's required numeric `--gpus` directive, and loads Python 3.12 for its host-side orchestration scripts.
+
 `planned_workload.py` creates each tokenized request plan before telemetry and
 hashes the exact prompts, token targets, and fixed send offsets. The runner
 reuses the heldout plan file for replay and issues requests against absolute
 deadlines phase-locked to the running 250 ms NVIDIA-SMI cadence. It leaves
 `power.draw` raw and adds only query bounds, pstate, power limit, and slowdown
-state. Collection gates reject queueing, request drift, cache activity, NIXL
-failures, preemption, short phase visibility, unstable power state, missing
+state. The meter streams to the node-local SSD (`$L_SCRATCH`) and is copied to
+the run directory once it is reaped, because 4 Hz flushes onto Lustre stall for
+seconds and break the 250 ms sampling contract. Collection gates reject queueing, request drift, cache activity, NIXL
+failures, preemption, phase visibility below two 250 ms intervals, unstable power state, missing
 idle coverage, and first/last-third prompt-throughput drift. The campaign
 collects evidence for the six-scalar transfer analysis; it does not fit those
 scalars or modify the frozen model during profiling.

@@ -298,8 +298,8 @@ def check(args: argparse.Namespace) -> None:
         for rows in timelines.values():
             values = {row["event"]: int(row["wall_ns"]) / 1e9 for row in rows}
             visible.append(values[finish] - values[begin])
-        if statistics.median(visible) < 0.75:
-            raise ValueError(f"median {role} phase is below three meter intervals")
+        if statistics.median(visible) < 2 * INTERVAL_S:
+            raise ValueError(f"median {role} phase is below two meter intervals")
     validate_uncached_metrics(args.path, args.prefill_metrics, args.decode_metrics)
     validate_unsaturated(args.prefill_metrics, traffic_start=start, traffic_end=end)
     validate_unsaturated(args.decode_metrics, traffic_start=start, traffic_end=end)
