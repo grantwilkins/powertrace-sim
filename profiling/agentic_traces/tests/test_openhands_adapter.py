@@ -105,3 +105,23 @@ def test_local_staged_dataset_is_used(monkeypatch, tmp_path):
         1, 0, Tokenizer(), revision="commit"
     )
     assert sessions[0].session_id == "x"
+
+
+def test_session_offset_selects_new_usable_sessions(monkeypatch, tmp_path):
+    import json
+
+    path = tmp_path / "output.jsonl"
+    path.write_text(
+        "".join(json.dumps(_row(str(index), index * 20)) + "\n"
+                for index in range(8))
+    )
+    monkeypatch.setenv(openhands_adapter.LOCAL_DATA_ENV, str(path))
+    first = openhands_adapter.load_openhands(
+        2, 0, Tokenizer(), revision="commit"
+    )
+    second = openhands_adapter.load_openhands(
+        2, 0, Tokenizer(), revision="commit", session_offset=2
+    )
+    assert {session.session_id for session in first}.isdisjoint(
+        session.session_id for session in second
+    )

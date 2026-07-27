@@ -38,12 +38,24 @@ def main() -> None:
     parser.add_argument("--window-duration-s", type=float, default=600.0)
     parser.add_argument("--window-index", type=int)
     parser.add_argument("--window-count", type=int, default=1)
+    parser.add_argument("--min-window-requests", type=int, default=1)
+    parser.add_argument(
+        "--exclude-window", action="append", default=[],
+        metavar="START:END",
+        help="exclude a source-relative interval from BurstGPT window selection",
+    )
     parser.add_argument(
         "--context-band", action="append", default=[],
         metavar="MIN:MAX:COUNT",
         help="repeat for deterministic stratification; MAX is exclusive",
     )
     args = parser.parse_args()
+    excluded_windows = tuple(
+        tuple(float(value) for value in item.split(":"))
+        for item in args.exclude_window
+    )
+    if any(len(window) != 2 for window in excluded_windows):
+        parser.error("--exclude-window must be START:END")
     if args.format == "tracelab":
         plan = load_tracelab_csv(
             args.input_csv, revision=args.revision, seed=args.seed
@@ -58,6 +70,8 @@ def main() -> None:
                 args.input_csv, revision=args.revision, seed=args.seed,
                 duration_s=args.window_duration_s,
                 window_index=args.window_index, window_count=args.window_count,
+                min_requests=args.min_window_requests,
+                excluded_windows=excluded_windows,
             )
         else:
             plan = load_burstgpt_csv(

@@ -37,6 +37,11 @@ launch container performs the authoritative parse. Probe campaigns launch direct
 The expansion is a set of independent Slurm jobs. It holds the ShareGPT sample
 and seed fixed while changing one axis:
 
+The smaller paper transfer-interval follow-up is separate from this expansion.
+Its existing-unit audit, four campaign files, A100-hour estimate, preparation,
+and guarded submit command are in
+`docs/plans/TRANSFER_CI_A100_CAMPAIGN.md`.
+
 | comparison | campaign files | changed axis |
 |---|---|---|
 | dense Qwen transfer | `validate_qwen3-8b_a100.json`, `validate_qwen3-8b.json` | hardware |

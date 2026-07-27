@@ -573,11 +573,14 @@ def load_burstgpt_csv(
 def load_stratified_burstgpt_csv(
     path: str | Path, *, revision: str, duration_s: float,
     window_index: int, window_count: int, seed: int = 0,
+    min_requests: int = 1,
+    excluded_windows: tuple[tuple[float, float], ...] = (),
 ) -> TracePlan:
     """Select a fixed Fano stratum without loading the full trace."""
     if (
         duration_s <= 0 or window_count <= 0
-        or not 0 <= window_index < window_count
+        or not 0 <= window_index < window_count or min_requests <= 0
+        or any(start < 0 or end <= start for start, end in excluded_windows)
     ):
         raise ValueError("invalid stratified arrival-window selection")
     required = {
@@ -617,7 +620,12 @@ def load_stratified_burstgpt_csv(
         per_second[index * seconds + second] += 1
     candidates = []
     for index, total in enumerate(totals):
-        if not total:
+        relative_start = index * duration_s
+        relative_end = relative_start + duration_s
+        if total < min_requests or any(
+            relative_start < excluded_end and excluded_start < relative_end
+            for excluded_start, excluded_end in excluded_windows
+        ):
             continue
         mean = total / seconds
         offset = index * seconds

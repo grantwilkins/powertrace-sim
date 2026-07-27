@@ -158,11 +158,14 @@ def _local_rows(path: str):
 
 def load_openhands(
     n_sessions: int, seed: int, tokenizer, *, pack_index: int = 0,
-    pack_count: int = 1, revision: str | None = None,
+    pack_count: int = 1, session_offset: int = 0,
+    revision: str | None = None,
 ) -> list[TextSession]:
     """Load a pinned offline dataset revision and one disjoint hash pack."""
     if not revision:
         raise ValueError("OpenHands replay requires an immutable dataset revision")
+    if session_offset < 0:
+        raise ValueError("OpenHands session_offset must be non-negative")
     local_path = os.environ.get(LOCAL_DATA_ENV)
     if local_path:
         rows = _local_rows(str(Path(local_path).resolve()))
@@ -174,11 +177,14 @@ def load_openhands(
             "json", data_files={"test": source}, split="test", streaming=True
         )
     chosen = select_rows(
-        rows, n_sessions=n_sessions * 4, pack_index=pack_index,
+        rows, n_sessions=(session_offset + n_sessions) * 4,
+        pack_index=pack_index,
         pack_count=pack_count, seed=seed,
     )
     sessions = [session_from_row(row, tokenizer) for row in chosen]
-    sessions = [session for session in sessions if session.turns][:n_sessions]
+    sessions = [
+        session for session in sessions if session.turns
+    ][session_offset:session_offset + n_sessions]
     if len(sessions) != n_sessions:
         raise ValueError(
             f"OpenHands pack {pack_index}/{pack_count} contains only "

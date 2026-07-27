@@ -129,6 +129,10 @@ def _validate(c: dict, path) -> None:
                 f"drop server.enable_prefix_caching and {block}.prefix_cache")
         if c["campaign_type"] == "agentic" and ss.get("corpus") == "openhands":
             pack_count = int(ss.get("pack_count", 1))
+            if int(ss.get("session_offset", 0)) < 0:
+                raise CampaignError(
+                    f"{where}sessions.session_offset must be non-negative"
+                )
             expected = ss.get("expected_plan_sha256")
             if not (
                 isinstance(expected, list) and len(expected) == pack_count
@@ -512,6 +516,8 @@ def agentic_command(c: dict, tp: int, regime: dict) -> str:
             f"--pack-index {int(regime.get('pack_index', ss.get('pack_index', 0)))} "
             f"--pack-count {int(ss.get('pack_count', 1))}"
         )
+        if int(ss.get("session_offset", 0)):
+            parts.append(f"--session-offset {int(ss['session_offset'])}")
     else:
         parts.append(f"--gap-mean-s {ss.get('gap_mean_s', 3.0)}")
     if float(ss.get("pre_idle_s", 0.0)):

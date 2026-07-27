@@ -48,3 +48,14 @@ def test_summary_requires_sealed_hash_and_wait_limits():
     sessions["max_session_wait_s"] = 0.1
     with pytest.raises(ValueError, match="max_session_wait_s"):
         preflight.validate_summary(summary, sessions)
+
+
+def test_freeze_hashes_only_replaces_zero_placeholders():
+    campaign = {
+        "sessions": {"expected_plan_sha256": ["0" * 64, "0" * 64]}
+    }
+    summaries = [{"sha256": "a" * 64}, {"sha256": "b" * 64}]
+    preflight.freeze_expected_hashes(campaign, summaries)
+    assert campaign["sessions"]["expected_plan_sha256"] == ["a" * 64, "b" * 64]
+    with pytest.raises(ValueError, match="all-zero"):
+        preflight.freeze_expected_hashes(campaign, summaries)

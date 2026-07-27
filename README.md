@@ -18,6 +18,8 @@ The historical GMM-BiGRU implementation is preserved under
 - `docs/MODEL_PIPELINE.md`: paper-facing end-to-end training/inference flow.
 - `docs/PROJECT_OVERVIEW.md`: collaborator-facing model and evidence overview.
 - `docs/PAPER_OUTPUTS.md`: paper artifact and evidence contract.
+- `docs/plans/TRANSFER_CI_A100_CAMPAIGN.md`: minimal Sherlock A100 collection
+  that adds six-unit intervals for BurstGPT, OpenHands, dense, and MoE transfer.
 - `docs/plans/DISAGGREGATED_TRANSFER_PROFILE_PLAN.md`: executable minimal
   cache-disabled disaggregated-transfer campaign.
 - `docs/plans/DISAGGREGATED_TRANSFER_AUDIT.md`: root-cause evidence behind

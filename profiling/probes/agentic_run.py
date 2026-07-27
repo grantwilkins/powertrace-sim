@@ -30,6 +30,7 @@ def _build_plan(args):
             tokenizer=tokenizer, prefix_cache=args.prefix_cache,
             gap_params=args.gap_params, max_model_len=args.max_model_len,
             pack_index=args.pack_index, pack_count=args.pack_count,
+            session_offset=args.session_offset,
             dataset_revision=args.dataset_revision)
 
     from agentic import build_synthetic_sessions
@@ -56,6 +57,7 @@ def main():
     p.add_argument("--dataset-revision")
     p.add_argument("--pack-index", type=int, default=0)
     p.add_argument("--pack-count", type=int, default=1)
+    p.add_argument("--session-offset", type=int, default=0)
     p.add_argument("--pre-idle-s", type=float, default=0.0)
     # synthetic mode
     p.add_argument("--min-turns", type=int, default=3)

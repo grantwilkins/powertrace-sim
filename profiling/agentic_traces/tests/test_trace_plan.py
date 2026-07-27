@@ -22,6 +22,7 @@ from trace_plan import (  # noqa: E402
     select_densest_arrival_window, select_sessions, write_plan,
     select_stratified_arrival_window,
 )
+from build_transfer_ci_plans import existing_windows  # noqa: E402
 
 
 def test_tracelab_ms_normalization_and_round_trip(tmp_path):
@@ -196,6 +197,48 @@ def test_streamed_burstgpt_stratum_matches_in_memory(tmp_path):
             window_index=index, window_count=3,
         )
         assert streamed == expected
+
+
+def test_streamed_burstgpt_filters_sparse_and_excluded_windows(tmp_path):
+    path = tmp_path / "burst.csv"
+    path.write_text(
+        "Timestamp,Model,Request tokens,Response tokens,Total tokens,Log Type\n"
+        + "".join(
+            f"{window * 10 + offset / count},ChatGPT,8,2,10,API log\n"
+            for window, count in enumerate((1, 4, 5, 6, 7))
+            for offset in range(count)
+        )
+        + "50,ChatGPT,8,2,10,API log\n"
+    )
+    selected = load_stratified_burstgpt_csv(
+        path, revision="sha", duration_s=10, window_index=0, window_count=2,
+        min_requests=4, excluded_windows=((10, 20),),
+    )
+    assert len(selected.rounds) >= 4
+    assert "window:10.000000-20.000000" not in selected.revision
+
+
+def test_transfer_builder_reuses_only_populated_matching_source_windows(tmp_path):
+    populated = TracePlan(
+        "burstgpt", "sha;window:10.000000-20.000000;fano-stratum:0/3",
+        tuple(
+            TraceRound(str(index), 0, index / 10, 0, 8, 2)
+            for index in range(4)
+        ),
+    )
+    sparse = TracePlan(
+        "burstgpt", "sha;window:20.000000-30.000000;fano-stratum:1/3",
+        (TraceRound("only", 0, 0, 0, 8, 2),),
+    )
+    for name, plan in (("fano0.json", populated), ("fano1.json", sparse)):
+        write_plan(plan, tmp_path / name)
+    assert existing_windows(
+        sorted(tmp_path.glob("*.json")), min_requests=4, revision="sha"
+    ) == ((10.0, 20.0),)
+    with pytest.raises(ValueError, match="does not match source revision"):
+        existing_windows(
+            sorted(tmp_path.glob("*.json")), min_requests=4, revision="other"
+        )
 
 
 def test_bundle_requests_plan_preserves_marks_and_scales_release_time(tmp_path):

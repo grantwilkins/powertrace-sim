@@ -1,0 +1,27 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "trace_replay",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "slurm_time": "02:00:00",
+  "_note": "Four additional populated, disjoint 15-minute BurstGPT windows. Combine with the two populated windows from sealed_burstgpt_qwen3-8b_a100 for n=6; exclude its seven-request middle window.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 32768
+  },
+  "trace": {
+    "plan": "data/trace_plans/burstgpt_transfer_ci_0.json",
+    "concurrency": 256,
+    "cache_block_tokens": 16,
+    "pre_idle_s": 60,
+    "regimes": [
+      {"prefix_cache": false, "plan": "data/trace_plans/burstgpt_transfer_ci_0.json"},
+      {"prefix_cache": false, "plan": "data/trace_plans/burstgpt_transfer_ci_1.json"},
+      {"prefix_cache": false, "plan": "data/trace_plans/burstgpt_transfer_ci_2.json"},
+      {"prefix_cache": false, "plan": "data/trace_plans/burstgpt_transfer_ci_3.json"}
+    ]
+  }
+}

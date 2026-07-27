@@ -522,6 +522,33 @@ def test_final_sealed_campaigns_are_minimal_and_explicit():
         campaign = cc.load_campaign(CAMPAIGNS_DIR / name)
         assert campaign["validation_role"] == "sealed"
         assert len(cc.regimes(campaign)) == 1
+
+
+def test_transfer_ci_campaigns_have_six_units_after_reuse():
+    burst = cc.load_campaign(
+        CAMPAIGNS_DIR / "transfer_ci_burstgpt_qwen3-8b_a100.json"
+    )
+    assert len(cc.regimes(burst)) == 4
+
+    openhands = cc.load_campaign(
+        CAMPAIGNS_DIR / "transfer_ci_openhands_qwen3-8b_a100.json"
+    )
+    assert len(cc.regimes(openhands)) == 3
+    assert openhands["sessions"]["session_offset"] == 24
+    assert "--session-offset 24" in cc.run_command(
+        openhands, 1, cc.regimes(openhands)[0]
+    )
+
+    dense = cc.load_campaign(
+        CAMPAIGNS_DIR / "transfer_ci_qwen3-14b_a100.json"
+    )
+    assert len(cc.regimes(dense)) == 5
+
+    moe = cc.load_campaign(
+        CAMPAIGNS_DIR / "transfer_ci_qwen3-30b-a3b_a100.json"
+    )
+    assert moe["server"]["tp"] == 2
+    assert len(cc.regimes(moe)) == 6
 def test_tp_pair_probes_rejects_unknown(tmp_path):
     bad = tmp_path / "b.json"
     bad.write_text(json.dumps({

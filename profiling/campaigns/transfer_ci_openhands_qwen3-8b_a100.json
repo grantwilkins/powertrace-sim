@@ -1,0 +1,37 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-8B",
+  "campaign_type": "agentic",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "slurm_time": "01:00:00",
+  "_note": "Three additional OpenHands packs, offset past the 24 sessions in each existing pack. Cache-off isolates agent/tool waits. Freeze the exact hashes after staging and before submission.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 128,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 32768
+  },
+  "sessions": {
+    "corpus": "openhands",
+    "dataset_revision": "aa8977805b4cefd317001d80ddf1ad52790e9d23",
+    "n_sessions": 24,
+    "session_offset": 24,
+    "concurrency": "auto",
+    "seed": 20260720,
+    "pack_count": 3,
+    "pre_idle_s": 60,
+    "max_turn_wait_s": 60,
+    "max_session_wait_s": 120,
+    "expected_plan_sha256": [
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "regimes": [
+      {"prefix_cache": false, "pack_index": 0},
+      {"prefix_cache": false, "pack_index": 1},
+      {"prefix_cache": false, "pack_index": 2}
+    ]
+  }
+}

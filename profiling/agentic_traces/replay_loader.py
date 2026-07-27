@@ -65,7 +65,8 @@ def _to_item(session, tokenizer, sampler, rng, max_model_len):
 
 def build_replay_plan(*, corpus="swe_smith", n_sessions, seed, tokenizer,
                       prefix_cache, gap_params=DEFAULT_PARAMS, max_model_len,
-                      pack_index=0, pack_count=1, dataset_revision=None):
+                      pack_index=0, pack_count=1, session_offset=0,
+                      dataset_revision=None):
     """Load real traces, draw conditioned gaps, return a replay ``AgenticPlan``."""
     if corpus not in CORPORA:
         raise ValueError(f"unknown corpus {corpus!r}; choose from {sorted(CORPORA)}")
@@ -73,7 +74,8 @@ def build_replay_plan(*, corpus="swe_smith", n_sessions, seed, tokenizer,
     if corpus == "openhands":
         sessions = openhands_adapter.load_openhands(
             n_sessions, seed, tokenizer, pack_index=pack_index,
-            pack_count=pack_count, revision=dataset_revision,
+            pack_count=pack_count, session_offset=session_offset,
+            revision=dataset_revision,
         )
         sampler = None
     else:

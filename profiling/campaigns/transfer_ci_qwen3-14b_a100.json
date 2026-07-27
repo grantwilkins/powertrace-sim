@@ -1,0 +1,26 @@
+{
+  "hardware": "A100",
+  "model": "Qwen/Qwen3-14B",
+  "campaign_type": "validate",
+  "evidence_profile": "measured_ledger",
+  "validation_role": "sealed",
+  "slurm_time": "01:15:00",
+  "_note": "Five additional ShareGPT load points for unseen dense-model transfer. Combine with the existing rate-2.5 point for n=6.",
+  "server": {
+    "tp": 1,
+    "max_num_seqs": 256,
+    "max_num_batched_tokens": 8192,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "kv_cache_dtype": "auto",
+    "max_model_len": 32768
+  },
+  "workload": {
+    "dataset": "sharegpt",
+    "num_prompts": 600,
+    "request_rates": [0.5, 1.0, 2.0, 4.0, 6.0],
+    "burstiness": 1.0,
+    "seed": 20260720,
+    "pre_idle_s": 60
+  }
+}
